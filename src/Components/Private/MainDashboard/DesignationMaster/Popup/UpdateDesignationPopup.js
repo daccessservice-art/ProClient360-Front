@@ -1616,4 +1616,4 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
   );
 };
 
-export default UpdateDesignationPopup;
+export default UpdateDesignationPopup; 

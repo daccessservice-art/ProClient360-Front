@@ -41,4 +41,4 @@ const useSalesManagers = () => {
   return { managers, loading, error, refetch: fetchSalesEmployees };
 };
 
-export default useSalesManagers;
+export default useSalesManagers;  

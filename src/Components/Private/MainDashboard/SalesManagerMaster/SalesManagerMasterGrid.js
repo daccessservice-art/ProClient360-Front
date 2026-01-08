@@ -1,3 +1,4 @@
+// In SalesManagerMasterGrid.js
 import { useState, useEffect, useMemo, useContext } from "react";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
@@ -23,7 +24,9 @@ export const SalesManagerMasterGrid = () => {
 
   // Sales Employees List (not managers)
   const { managers: salesEmployees, loading: employeesLoading } = useSalesManagers();
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  
+  // Initialize with 'all' to show all leads by default
+  const [selectedEmployee, setSelectedEmployee] = useState({ _id: 'all', name: 'All Leads' });
 
   // Filters
   const [filters, setFilters] = useState({
@@ -45,7 +48,7 @@ export const SalesManagerMasterGrid = () => {
 
   const itemsPerPage = 20;
 
-  // Fetch employee data
+  // Fetch data based on selected employee
   const { data, loading, error, refetch } = useSalesManagerTeam(
     selectedEmployee?._id,
     pagination.currentPage,
@@ -112,8 +115,15 @@ export const SalesManagerMasterGrid = () => {
 
   const handleEmployeeSelect = (e) => {
     const employeeId = e.target.value;
-    const employee = salesEmployees.find(emp => emp._id === employeeId);
-    setSelectedEmployee(employee || null);
+    
+    // If "All Leads" is selected, set selectedEmployee to a special object
+    if (employeeId === 'all') {
+      setSelectedEmployee({ _id: 'all', name: 'All Leads' });
+    } else {
+      const employee = salesEmployees.find(emp => emp._id === employeeId);
+      setSelectedEmployee(employee || { _id: 'all', name: 'All Leads' });
+    }
+    
     setPagination(prev => ({ ...prev, currentPage: 1 }));
     setFilters({
       status: null,
@@ -235,10 +245,10 @@ export const SalesManagerMasterGrid = () => {
                     <select
                       id="employeeSelect"
                       className="form-select"
-                      value={selectedEmployee?._id || ""}
+                      value={selectedEmployee?._id || "all"}
                       onChange={handleEmployeeSelect}
                     >
-                      <option value="">-- Select Employee --</option>
+                      <option value="all">-- All Leads --</option>
                       {salesEmployees.map(employee => (
                         <option key={employee._id} value={employee._id}>
                           {employee.name} - {employee.department?.name || 'N/A'}
@@ -248,8 +258,8 @@ export const SalesManagerMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* Employee Info Card */}
-                {selectedEmployee && (
+                {/* Employee Info Card - Only show when a specific employee is selected */}
+                {selectedEmployee && selectedEmployee._id !== 'all' && (
                   <div className="row bg-white p-3 m-1 border rounded">
                     <div className="col-12">
                       <h6 className="fw-bold mb-3">Employee: {selectedEmployee.name}</h6>
@@ -268,16 +278,26 @@ export const SalesManagerMasterGrid = () => {
                   </div>
                 )}
 
+                {/* All Leads Info Card - Show when "All Leads" is selected */}
+                {selectedEmployee && selectedEmployee._id === 'all' && (
+                  <div className="row bg-white p-3 m-1 border rounded">
+                    <div className="col-12">
+                      <h6 className="fw-bold mb-3">Viewing: All Leads</h6>
+                      <p className="mb-0">Displaying all leads across all sales employees</p>
+                    </div>
+                  </div>
+                )}
+
                 {selectedEmployee && data && (
                   <>
                     <SalesDashboardCards
                       allLeadsCount={data.leadCounts?.allLeadsCount || 0}
                       ongogingCount={data.leadCounts?.ongoingCount || 0}
-                      winCount={data.leadCounts?.winCount || 0}
+                      winCount={data.leadCounts?.wonCount || 0}
                       pendingCount={data.leadCounts?.pendingCount || 0}
                       lostCount={data.leadCounts?.lostCount || 0}
                       todayCount={data.leadCounts?.todaysFollowUpCount || 0}
-                      hotleadsCount={data.leadCounts?.hotleadsCount || 0}
+                      hotleadsCount={data.leadCounts?.hotLeadsCount || 0}
                       warmLeadsCount={data.leadCounts?.warmLeadsCount || 0}
                       coldLeadsCount={data.leadCounts?.coldLeadsCount || 0}
                       invalidLeadsCount={data.leadCounts?.invalidLeadsCount || 0}
@@ -409,6 +429,7 @@ export const SalesManagerMasterGrid = () => {
                                 <th>Mobile</th>
                                 <th>Date</th>
                                 <th>Status</th>
+                                {selectedEmployee._id === 'all' && <th>Assigned To</th>}
                                 <th>Action</th>
                               </tr>
                             </thead>
@@ -428,6 +449,9 @@ export const SalesManagerMasterGrid = () => {
                                         {lead.STATUS || "N/A"}
                                       </span>
                                     </td>
+                                    {selectedEmployee._id === 'all' && (
+                                      <td>{lead.assignedTo?.name || "Not assigned"}</td>
+                                    )}
                                     <td>
                                       <span onClick={() => handleDetailsPopUpClick(lead)} title="View Details">
                                         <i className="fa-solid fa-eye text-primary cursor-pointer"></i>
@@ -437,8 +461,8 @@ export const SalesManagerMasterGrid = () => {
                                 ))
                               ) : (
                                 <tr>
-                                  <td colSpan="9" className="text-center">
-                                    {selectedEmployee ? (isSearchMode ? "No leads found matching your search." : "No leads found for this employee.") : "Please select an employee to view leads."}
+                                  <td colSpan={selectedEmployee._id === 'all' ? 10 : 9} className="text-center">
+                                    {isSearchMode ? "No leads found matching your search." : "No leads found."}
                                   </td>
                                 </tr>
                               )}

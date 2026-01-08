@@ -61,7 +61,11 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const [showCustomSource, setShowCustomSource] = useState(false);
   const [customSource, setCustomSource] = useState('');
 
-  const products = ['surveillance System', 'Access Control System', 'TurnKey Project', 'Alleviz', 'CafeLive', 'WorksJoy', 'WorksJoy Blu', 'Fire Alarm System', 'Fire Hydrant System', 'IDS', 'AI Face Machines', 'Entrance Automation', 'Guard Tour System', 'Home Automation', 'IP PA and Communication System', 'CRM', 'Security Systems', 'KMS', 'VMS', 'PMS', 'Boom Barrier System', 'Tripod System', 'Flap Barrier System', 'EPBX System', 'CMS', 'Lift Eliviter System', 'AV6', 'Walky Talky System', 'Device Management System'];
+  // Custom Product state
+  const [showCustomProduct, setShowCustomProduct] = useState(false);
+  const [customProduct, setCustomProduct] = useState('');
+
+  const products = ['surveillance System', 'Access Control System', 'TurnKey Project', 'Alleviz', 'CafeLive', 'WorksJoy', 'WorksJoy Blu', 'Fire Alarm System', 'Fire Hydrant System', 'IDS', 'AI Face Machines', 'Entrance Automation', 'Guard Tour System', 'Home Automation', 'IP PA and Communication System', 'CRM', 'Security Systems', 'KMS', 'VMS', 'PMS', 'Boom Barrier System', 'Tripod System', 'Flap Barrier System', 'EPBX System', 'CMS', 'Lift Eliviter System', 'AV6', 'Walky Talky System', 'Device Management System', 'Other'];
 
   const sources = ['Google', 'Tender', 'Exhibitions', 'JustDial', 'Facebook', 'LinkedIn', 'Twitter', 'YouTube', 'WhatsApp', 'Referral', 'Email Campaign', 'Cold Call', 'Website','Walk-In', 'Direct', 'Other'];
 
@@ -360,6 +364,15 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
         setCustomSource('');
         setFormData(prev => ({ ...prev, [name]: value }));
       }
+    } else if (name === "products") {
+      if (value === "Other") {
+        setShowCustomProduct(true);
+        setFormData(prev => ({ ...prev, [name]: '' }));
+      } else {
+        setShowCustomProduct(false);
+        setCustomProduct('');
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -379,6 +392,12 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     const value = e.target.value;
     setCustomSource(value);
     setFormData(prev => ({ ...prev, sources: value }));
+  };
+
+  const handleCustomProductChange = (e) => {
+    const value = e.target.value;
+    setCustomProduct(value);
+    setFormData(prev => ({ ...prev, products: value }));
   };
 
   const handleSubmit = (e) => {
@@ -407,6 +426,18 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
         toast.error('Please select a customer and fill in all required fields.');
         return;
       }
+    }
+
+    // Validate custom source
+    if (showCustomSource && !customSource.trim()) {
+      toast.error('Please enter a custom source.');
+      return;
+    }
+
+    // Validate custom product
+    if (showCustomProduct && !customProduct.trim()) {
+      toast.error('Please enter a custom product.');
+      return;
     }
 
     if (assignmentType === 'employee' && !assignedEmployee) {
@@ -645,10 +676,31 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
                   <div className='col-md-6'>
                     <label htmlFor="products" className="form-label">Products<RequiredStar /></label>
-                    <select id="products" className="form-select" name="products" value={formData.products} onChange={handleInputChange} required>
+                    <select 
+                      id="products" 
+                      className="form-select" 
+                      name="products" 
+                      value={showCustomProduct ? "Other" : formData.products} 
+                      onChange={handleInputChange} 
+                      required
+                    >
                       <option value="">Select Products....</option>
                       {products.map(product => <option key={product} value={product}>{product}</option>)}
                     </select>
+
+                    {showCustomProduct && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Enter custom product name"
+                          value={customProduct}
+                          onChange={handleCustomProductChange}
+                          maxLength={100}
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Leads Field - Optional */}
@@ -667,7 +719,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                       id="sources"
                       className="form-select"
                       name="sources"
-                      value={formData.sources === customSource ? "Other" : formData.sources}
+                      value={showCustomSource ? "Other" : formData.sources}
                       onChange={handleInputChange}
                       style={{ width: '100%', height: '35px' }}
                       required
@@ -684,12 +736,13 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                           placeholder="Enter custom source"
                           value={customSource}
                           onChange={handleCustomSourceChange}
+                          maxLength={50}
                           required
                         />
                       </div>
                     )}
                   </div>
-
+                  
                   <div className="col-md-6">
                     <label htmlFor="message" className="form-label">Message</label>
                     <textarea
