@@ -10,7 +10,7 @@ import ViewSalesLeadPopUp from "../../CommonPopUp/ViewSalesLeadPopUp";
 import useLeads from "../../../../hooks/leads/useLeads";
 import AssignMarketingLeadPopUp from "./PopUp/AssignLeadPopUp";
 import useAssignLead from "../../../../hooks/leads/useAssignLead";
-import { formatDate } from "../../../../utils/formatDate";
+import { formatDateTimeForDisplay } from "../../../../utils/formatDate";
 import AddLeadMaster from "../SalesMaster/PopUp/AddLeadMaster";
 import useCreateLead from "../../../../hooks/leads/useCreateLead";
 import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
@@ -189,6 +189,7 @@ export const MarketingMasterGrid = () => {
                   allLeads={data?.allLeadsCount || 0}
                   feasibleLeads={data?.feasibleCount || 0}
                   notFeasibleLeads={data?.notFeasibleCount || 0}
+                  callUnansweredLeads={data?.callUnansweredCount || 0} // Added call unanswered count
                 />
 
                 <div className="row align-items-center p-2 m-1">
@@ -257,7 +258,7 @@ export const MarketingMasterGrid = () => {
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.SENDER_NAME || "Not available."}</td>
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.QUERY_PRODUCT_NAME || "Not available."}</td>
                                 <td>{lead?.SENDER_MOBILE || "Not available."}</td>
-                                <td>{formatDate(lead?.createdAt)}</td>
+                                <td>{formatDateTimeForDisplay(lead?.createdAt)}</td>
                                 {/* <td>{leads.STATUS}</td> */}
                                 <td>
 

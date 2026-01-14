@@ -124,11 +124,24 @@ export const SalesMasterGrid = () => {
       return;
     }
 
+    // Add this check to prevent reassigning finalized leads
+    if (lead && (lead.STATUS === 'Won' || lead.STATUS === 'Lost')) {
+      toast.error(`Cannot reassign a lead with status "${lead.STATUS}". This lead is already finalized.`);
+      return;
+    }
+
     setSelectedLead(lead);
     setAssignPopUpShow(true);
   };
 
   const handleDelete = (leadId) => {
+    // Find the lead to check its status
+    const lead = allLeads.find(l => l._id === leadId);
+    if (lead && (lead.STATUS === 'Won' || lead.STATUS === 'Lost')) {
+      toast.error(`Cannot delete a lead with status "${lead.STATUS}". This lead is already finalized.`);
+      return;
+    }
+    
     setSelectedLeadId(leadId);
     setDeletePopUpShow(true);
   };
@@ -504,24 +517,33 @@ export const SalesMasterGrid = () => {
                                   <span className={handleBgColor(lead.STATUS)}>{lead.STATUS}</span>
                                 </td>
                                 <td>
-                                  {(user?.permissions?.includes('updateLead') || user?.user === 'company') &&
-                                  lead.STATUS !== 'Won' && lead.STATUS !== 'Lost' && (
-                                    <span onClick={() => handleUpdate(lead)} title="Action Lead">
-                                      <i className="mx-1 fa-solid fa-pen text-success cursor-pointer"></i>
+                                  {/* For Won and Lost leads - only show view button */}
+                                  {lead.STATUS === 'Won' || lead.STATUS === 'Lost' ? (
+                                    <span onClick={() => handleDetailsPopUpClick(lead)} title="View Lead Details">
+                                      <i className="mx-1 fa-solid fa-eye text-info cursor-pointer"></i>
                                     </span>
-                                  )}
+                                  ) : (
+                                    <>
+                                      {/* For other statuses - show regular action buttons */}
+                                      {(user?.permissions?.includes('updateLead') || user?.user === 'company') && (
+                                        <span onClick={() => handleUpdate(lead)} title="Action Lead">
+                                          <i className="mx-1 fa-solid fa-pen text-success cursor-pointer"></i>
+                                        </span>
+                                      )}
 
-                                  {canAssignLead && (
-                                    <span onClick={() => handleAssign(lead)} title="Reassign Lead">
-                                      <i className="mx-1 fa-solid fa-share cursor-pointer"></i>
-                                    </span>
-                                  )}
+                                      {canAssignLead && (
+                                        <span onClick={() => handleAssign(lead)} title="Reassign Lead">
+                                          <i className="mx-1 fa-solid fa-share cursor-pointer"></i>
+                                        </span>
+                                      )}
 
-                                  {( lead.SOURCE==='Direct' &&( user?.permissions?.includes('deleteLead') || user?.user === 'company')) &&
-                                  <span onClick={() => handleDelete(lead._id)} title="Delete Lead">
-                                    <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                  </span>
-                                  }
+                                      {(lead.SOURCE==='Direct' && (user?.permissions?.includes('deleteLead') || user?.user === 'company')) && (
+                                        <span onClick={() => handleDelete(lead._id)} title="Delete Lead">
+                                          <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
                                 </td>
                               </tr>
                             ))

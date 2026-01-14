@@ -16,7 +16,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
     company: '',
     subject: '',
     products: '',
-    sources: '',  
+    sources: '',
     message: '',
     status: 'enquiry',
     value: '',
@@ -29,7 +29,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
     }
   });
 
-  // Customer dropdown state - USING AddTicketPopup LOGIC
+  // Customer dropdown state
   const [custOptions, setCustOptions] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [custPage, setCustPage] = useState(1);
@@ -39,17 +39,20 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
   const [isLoadingCustomerAddress, setIsLoadingCustomerAddress] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
 
+  // Custom source and product states
   const [showCustomSource, setShowCustomSource] = useState(false);
   const [customSource, setCustomSource] = useState('');
+  const [showCustomProduct, setShowCustomProduct] = useState(false);
+  const [customProduct, setCustomProduct] = useState('');
 
-  const products = ['surveillance System', 'Access Control System', 'TurnKey Project', 'Alleviz', 'CafeLive', 'WorksJoy', 'WorksJoy Blu', 'Fire Alarm System', 'Fire Hydrant System', 'IDS', 'AI Face Machines', 'Entrance Automation', 'Guard Tour System', 'Home Automation', 'IP PA and Communication System', 'CRM', 'Security Systems', 'KMS', 'VMS', 'PMS', 'Boom Barrier System', 'Tripod System', 'Flap Barrier System', 'EPBX System', 'CMS', 'Lift Eliviter System', 'AV6', 'Walky Talky System', 'Device Management System'];  
+  const products = ['surveillance System', 'Access Control System', 'TurnKey Project', 'Alleviz', 'CafeLive', 'WorksJoy', 'WorksJoy Blu', 'Fire Alarm System', 'Fire Hydrant System', 'IDS', 'AI Face Machines', 'Entrance Automation', 'Guard Tour System', 'Home Automation', 'IP PA and Communication System', 'CRM', 'Security Systems', 'KMS', 'VMS', 'PMS', 'Boom Barrier System', 'Tripod System', 'Flap Barrier System', 'EPBX System', 'CMS', 'Lift Eliviter System', 'AV6', 'Walky Talky System', 'Device Management System', 'Other'];
 
-  const sources = ['Google', 'Tender', 'Exhibitions', 'JustDial', 'Facebook', 'LinkedIn', 'Twitter', 'YouTube', 'WhatsApp', 'Referral', 'Email Campaign', 'Cold Call', 'Website','Walk-In', 'Direct', 'Other']; 
+  const sources = ['Google', 'Tender', 'Exhibitions', 'JustDial', 'Facebook', 'LinkedIn', 'Twitter', 'YouTube', 'WhatsApp', 'Referral', 'Email Campaign', 'Cold Call', 'Website', 'Walk-In', 'Direct', 'Other'];
 
   const loadCustomers = useCallback(async (page, search) => {
     if (custLoading || !custHasMore) return;
     setCustLoading(true);
-    
+
     try {
       const data = await getCustomers(page, PAGE_SIZE, search);
       console.log("Customer data response:", data);
@@ -60,15 +63,14 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
         return;
       }
 
-    
       const customers = data.customers || data.data || [];
       console.log("Customers array:", customers);
-      
-      const newOpts = customers.map(c => ({ 
-        value: c._id, 
-        label: c.custName || c.name || 'Unnamed Customer' 
+
+      const newOpts = customers.map(c => ({
+        value: c._id,
+        label: c.custName || c.name || 'Unnamed Customer'
       }));
-      
+
       setCustOptions(prev => page === 1 ? newOpts : [...prev, ...newOpts]);
       setCustHasMore(customers.length === PAGE_SIZE);
       setCustPage(page + 1);
@@ -83,21 +85,20 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
   const handleCustomerSelect = async (selectedOption) => {
     console.log("Customer selected:", selectedOption);
     setSelectedCustomer(selectedOption);
-    
+
     if (selectedOption) {
       setIsLoadingCustomerAddress(true);
       try {
         const customerData = await getCustomerById(selectedOption.value);
         console.log("Customer details response:", customerData);
-        
-    
+
         if (customerData && (customerData.customer || customerData.data)) {
           const customer = customerData.customer || customerData.data;
           console.log("Customer object:", customer);
-          
+
           const billingAddress = customer.billingAddress || customer.address || {};
           console.log("Billing address:", billingAddress);
-          
+
           setFormData(prev => ({
             ...prev,
             name: customer.custName || customer.name || customer.contactPerson || '',
@@ -108,12 +109,12 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
               pincode: billingAddress.pincode || '',
               state: billingAddress.state || '',
               city: billingAddress.city || '',
-              add: billingAddress.add || billingAddress.addressLine1 || billingAddress.address || 
-                    `${billingAddress.houseNo || ''}, ${billingAddress.buildingName || ''}, ${billingAddress.roadName || ''}, ${billingAddress.area || ''}, ${billingAddress.colony || ''}` || '',
+              add: billingAddress.add || billingAddress.addressLine1 || billingAddress.address ||
+                `${billingAddress.houseNo || ''}, ${billingAddress.buildingName || ''}, ${billingAddress.roadName || ''}, ${billingAddress.area || ''}, ${billingAddress.colony || ''}` || '',
               country: billingAddress.country || 'India'
             }
           }));
-          
+
           toast.success("Customer details loaded successfully");
         } else {
           console.error("Invalid customer data:", customerData);
@@ -150,7 +151,6 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
     }));
   };
 
-
   useEffect(() => {
     if (customerType === 'existing') {
       console.log("Loading customers for existing customer type");
@@ -161,7 +161,6 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
     }
   }, [customerType]);
 
-
   useEffect(() => {
     if (customerType === 'existing') {
       console.log("Search changed, reloading customers");
@@ -171,11 +170,10 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
         setCustOptions([]);
         loadCustomers(1, custSearch);
       }, 300);
-      
+
       return () => clearTimeout(timer);
     }
   }, [custSearch]);
-
 
   useEffect(() => {
     const fetchData = async () => {
@@ -231,7 +229,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
         }));
       }
     };
-    
+
     const timeoutId = setTimeout(() => {
       fetchData();
     }, 500);
@@ -267,6 +265,15 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
         setCustomSource('');
         setFormData(prev => ({ ...prev, [name]: value }));
       }
+    } else if (name === "products") {
+      if (value === "Other") {
+        setShowCustomProduct(true);
+        setFormData(prev => ({ ...prev, [name]: '' }));
+      } else {
+        setShowCustomProduct(false);
+        setCustomProduct('');
+        setFormData(prev => ({ ...prev, [name]: value }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -275,7 +282,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
   const handleCustomerTypeChange = (e) => {
     const type = e.target.value;
     setCustomerType(type);
-    
+
     if (type === 'new') {
       resetFormData();
       setSelectedCustomer(null);
@@ -288,6 +295,12 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
     setFormData(prev => ({ ...prev, sources: value }));
   };
 
+  const handleCustomProductChange = (e) => {
+    const value = e.target.value;
+    setCustomProduct(value);
+    setFormData(prev => ({ ...prev, products: value }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -298,7 +311,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
       subject,
       company,
       products,
-      sources,  
+      sources,
       message,
       address
     } = formData;
@@ -315,6 +328,18 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
       }
     }
 
+    // Validate custom source
+    if (showCustomSource && !customSource.trim()) {
+      toast.error('Please enter a custom source.');
+      return;
+    }
+
+    // Validate custom product
+    if (showCustomProduct && !customProduct.trim()) {
+      toast.error('Please enter a custom product.');
+      return;
+    }
+
     const mappedData = {
       customerType,
       customerId: customerType === 'existing' ? selectedCustomer.value : null,
@@ -329,7 +354,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
       SENDER_PINCODE: address.pincode,
       SENDER_COUNTRY_ISO: address.country,
       QUERY_PRODUCT_NAME: products,
-      QUERY_SOURCES_NAME: sources,  
+      QUERY_SOURCES_NAME: sources,
       QUERY_MESSAGE: message || ""
     };
 
@@ -384,7 +409,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
                     </div>
                   </div>
 
-                  {/* UPDATED: Customer Selection Field */}
+                  {/* Customer Selection Field */}
                   {customerType === 'existing' && (
                     <div className="col-12">
                       <div className="mb-3">
@@ -401,9 +426,9 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
                           }}
                           isLoading={custLoading}
                           placeholder="Search and select client..."
-                          noOptionsMessage={({ inputValue }) => 
-                            inputValue 
-                              ? 'No clients found. Try a different search.' 
+                          noOptionsMessage={({ inputValue }) =>
+                            inputValue
+                              ? 'No clients found. Try a different search.'
                               : 'Type to search clients...'
                           }
                           loadingMessage={() => 'Loading clients...'}
@@ -443,36 +468,35 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
                     </div>
                   )}
 
-                  {/* REST OF YOUR FORM FIELDS REMAIN UNCHANGED */}
                   <div className="col-md-6">
                     <label htmlFor="company" className="form-label">Customer Name<RequiredStar /></label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      id="company" 
-                      name="company" 
-                      placeholder="Enter a Company Name...." 
-                      maxLength={100} 
-                      value={formData.company} 
-                      onChange={handleInputChange} 
-                      required 
+                    <input
+                      type="text"
+                      className="form-control"
+                      id="company"
+                      name="company"
+                      placeholder="Enter a Company Name...."
+                      maxLength={100}
+                      value={formData.company}
+                      onChange={handleInputChange}
+                      required
                       readOnly={customerType === 'existing'}
                       style={customerType === 'existing' ? { backgroundColor: '#f8f9fa' } : {}}
                     />
                   </div>
-                  
+
                   <div className="col-md-6">
                     <label htmlFor="name" className="form-label">Contact Name <RequiredStar /></label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      id="name" 
-                      name="name" 
-                      placeholder="Enter a Contact Name...." 
-                      maxLength={50} 
-                      value={formData.name} 
-                      onChange={handleInputChange} 
-                      required 
+                    <input
+                      type="text"
+                      className="form-control"
+                      id="name"
+                      name="name"
+                      placeholder="Enter a Contact Name...."
+                      maxLength={50}
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      required
                       readOnly={customerType === 'existing'}
                       style={customerType === 'existing' ? { backgroundColor: '#f8f9fa' } : {}}
                     />
@@ -532,19 +556,40 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
 
                   <div className='col-md-6'>
                     <label htmlFor="products" className="form-label">Products<RequiredStar /></label>
-                    <select id="products" className="form-select" name="products" value={formData.products} onChange={handleInputChange} required>
+                    <select
+                      id="products"
+                      className="form-select"
+                      name="products"
+                      value={showCustomProduct ? "Other" : formData.products}
+                      onChange={handleInputChange}
+                      required
+                    >
                       <option value="">Select Products....</option>
                       {products.map(product => <option key={product} value={product}>{product}</option>)}
                     </select>
+
+                    {showCustomProduct && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Enter custom product name"
+                          value={customProduct}
+                          onChange={handleCustomProductChange}
+                          maxLength={100}
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
-                  
+
                   <div className='col-md-6'>
                     <label htmlFor="sources" className="form-label">Sources<RequiredStar /></label>
-                    <select 
-                      id="sources" 
-                      className="form-select" 
-                      name="sources" 
-                      value={formData.sources === customSource ? "Other" : formData.sources} 
+                    <select
+                      id="sources"
+                      className="form-select"
+                      name="sources"
+                      value={showCustomSource ? "Other" : formData.sources}
                       onChange={handleInputChange}
                       style={{ width: '100%', height: '35px' }}
                       required
@@ -552,7 +597,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
                       <option value="">Select Sources....</option>
                       {sources.map(source => <option key={source} value={source}>{source}</option>)}
                     </select>
-                    
+
                     {showCustomSource && (
                       <div className="mt-2">
                         <input
@@ -561,6 +606,7 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
                           placeholder="Enter custom source"
                           value={customSource}
                           onChange={handleCustomSourceChange}
+                          maxLength={50}
                           required
                         />
                       </div>
@@ -581,7 +627,6 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
                     />
                   </div>
 
-                  {/* Address Section - Editable for New, Read-only for Existing */}
                   <div className="col-12">
                     <div className="row border rounded p-3 m-1" style={{ backgroundColor: '#FAF6F6' }}>
                       <div className="col-12 mb-2">

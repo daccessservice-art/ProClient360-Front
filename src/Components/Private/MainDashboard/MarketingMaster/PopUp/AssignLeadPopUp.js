@@ -13,6 +13,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, onUpdate, onClose }) => {
     feasibility: '',
     notFeasibleReason: '',
     feasibleReason: '', 
+    callUnansweredReason: '', // New field for call unanswered reason
   });
 
   // Department dropdown state
@@ -126,6 +127,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, onUpdate, onClose }) => {
         feasibility: value,
         notFeasibleReason: '',
         feasibleReason: '',
+        callUnansweredReason: '', // Reset call unanswered reason
       });
       setSelectedDepartment(null);
       setAssignedEmployee(null);
@@ -148,6 +150,10 @@ const AssignMarketingLeadPopUp = ({ selectedLead, onUpdate, onClose }) => {
       if (!formData.notFeasibleReason) return toast.error('Please enter the reason in Remarks.');
     }
 
+    if (formData.feasibility === 'call-unanswered') {
+      if (!formData.callUnansweredReason) return toast.error('Please enter the reason for call unanswered.');
+    }
+
     const actionData = {};
 
     actionData.feasibility = formData.feasibility;
@@ -157,6 +163,8 @@ const AssignMarketingLeadPopUp = ({ selectedLead, onUpdate, onClose }) => {
       actionData.feasibleReason = formData.feasibleReason;
     } else if(actionData.feasibility === 'not-feasible') {
       actionData.remark = formData.notFeasibleReason;
+    } else if(actionData.feasibility === 'call-unanswered') {
+      actionData.remark = formData.callUnansweredReason;
     }
 
     onUpdate(selectedLead._id, actionData);
@@ -187,6 +195,11 @@ const AssignMarketingLeadPopUp = ({ selectedLead, onUpdate, onClose }) => {
                       <input className="form-check-input" type="radio" name="feasibility" id="notFeasible" value="not-feasible" 
                       onChange={handleChange} checked={formData.feasibility === 'not-feasible'} />
                       <label className="form-check-label" htmlFor="notFeasible">Not Feasible</label>
+                    </div>
+                    <div className="form-check">
+                      <input className="form-check-input" type="radio" name="feasibility" id="callUnanswered" value="call-unanswered" 
+                      onChange={handleChange} checked={formData.feasibility === 'call-unanswered'} />
+                      <label className="form-check-label" htmlFor="callUnanswered">Call Unanswered</label>
                     </div>
                   </div>
                 </div>
@@ -298,6 +311,22 @@ const AssignMarketingLeadPopUp = ({ selectedLead, onUpdate, onClose }) => {
                         placeholder="Enter the detailed reason for non-feasibility..."
                         maxLength={200}
                         value={formData.notFeasibleReason}
+                        onChange={handleChange}
+                      ></textarea>
+                    </div>
+                  </div>
+
+                  <div className={formData.feasibility === 'call-unanswered' ? 'row' : 'd-none'}>
+                    <div className="col-12 mt-3">
+                      <label htmlFor="callUnansweredReason" className="form-label fw-bold">Remarks <RequiredStar /></label>
+                      <textarea
+                        className="form-control rounded-0"
+                        id="callUnansweredReason"
+                        name="callUnansweredReason"
+                        rows="4"
+                        placeholder="Enter the detailed reason for call unanswered..."
+                        maxLength={200}
+                        value={formData.callUnansweredReason}
                         onChange={handleChange}
                       ></textarea>
                     </div>

@@ -111,7 +111,7 @@ export const Sidebar = ({ isopen, active }) => {
                             <Link to='/MarketingMasterGrid' className="nav-link ">
                                 <i className="fa-solid ps-3 fa-chart-simple side_icon_fs"></i>
                                 <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
-                                    Marketing Master
+                                    Marketing 
                                 </span>
                             </Link>
                         </li>
