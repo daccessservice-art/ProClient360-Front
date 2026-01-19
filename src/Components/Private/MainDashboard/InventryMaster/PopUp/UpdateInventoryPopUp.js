@@ -11,12 +11,11 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
     category: 'Raw Material',
     unit: 'Pcs',
     unitPrice: '',
-    gstPercentage: '',
     currentStock: '',
     minStockLevel: '',
-    maxStockLevel: '',
     warehouseLocation: '',
     stockLocation: '',
+    openingDate: new Date().toISOString().split('T')[0], // New field
     description: '',
     // Transaction fields
     transactionType: 'incoming',
@@ -27,7 +26,7 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
   const [showTransaction, setShowTransaction] = useState(false);
   const [transactionHistory, setTransactionHistory] = useState([]);
 
-  const categories = ['Raw Material', 'Finished Goods', 'Repairing Material', 'Scrap'];
+  const categories = ['Raw Material', 'Finished Goods', 'Repairing Material', 'Scrap', 'Asset']; // Added 'Asset'
   const units = ['Pcs', 'Kg', 'Ltr', 'Mtr', 'Box', 'Set', 'Pair', 'Roll', 'Sheet', 'Bag'];
 
   useEffect(() => {
@@ -40,12 +39,13 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
         category: selectedInventory.category || 'Raw Material',
         unit: selectedInventory.unit || 'Pcs',
         unitPrice: selectedInventory.unitPrice || '',
-        gstPercentage: selectedInventory.gstPercentage || '',
         currentStock: selectedInventory.currentStock || '',
         minStockLevel: selectedInventory.minStockLevel || '',
-        maxStockLevel: selectedInventory.maxStockLevel || '',
         warehouseLocation: selectedInventory.warehouseLocation || '',
         stockLocation: selectedInventory.stockLocation || '',
+        openingDate: selectedInventory.openingDate ? 
+          new Date(selectedInventory.openingDate).toISOString().split('T')[0] : 
+          new Date().toISOString().split('T')[0], // Handle opening date
         description: selectedInventory.description || '',
         transactionType: 'incoming',
         transactionQuantity: '',
@@ -74,40 +74,23 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
       category,
       unit,
       unitPrice,
-      gstPercentage,
       currentStock,
       minStockLevel
     } = formData;
 
-    // Validation
-    if (!materialCode || !hsmCode || !materialName || !category || !unit || !unitPrice || !gstPercentage || !currentStock || !minStockLevel) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    // Validate numeric fields
-    if (parseFloat(unitPrice) < 0) {
+    // Validation - Removed required validation as requested
+    if (materialCode && parseFloat(unitPrice) < 0) {
       toast.error('Unit price must be greater than or equal to 0');
       return;
     }
 
-    if (parseFloat(gstPercentage) < 0 || parseFloat(gstPercentage) > 100) {
-      toast.error('GST Percentage must be between 0 and 100');
-      return;
-    }
-
-    if (parseInt(currentStock) < 0) {
+    if (formData.currentStock && parseInt(formData.currentStock) < 0) {
       toast.error('Current stock must be greater than or equal to 0');
       return;
     }
 
-    if (parseInt(minStockLevel) < 0) {
+    if (formData.minStockLevel && parseInt(formData.minStockLevel) < 0) {
       toast.error('Min stock level must be greater than or equal to 0');
-      return;
-    }
-
-    if (formData.maxStockLevel && parseInt(formData.maxStockLevel) <= parseInt(minStockLevel)) {
-      toast.error('Max stock level must be greater than min stock level');
       return;
     }
 
@@ -124,7 +107,7 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
       }
 
       // Calculate new stock based on transaction
-      const currentStockNum = parseInt(formData.currentStock);
+      const currentStockNum = parseInt(formData.currentStock) || 0;
       const transactionQty = parseInt(formData.transactionQuantity);
       let newStock;
 
@@ -309,7 +292,7 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
                 <div className="row g-3">
                   {/* Material Code */}
                   <div className="col-md-6">
-                    <label htmlFor="materialCode" className="form-label">Material Code <RequiredStar /></label>
+                    <label htmlFor="materialCode" className="form-label">Material Code</label>
                     <input 
                       type="text" 
                       className="form-control" 
@@ -319,13 +302,12 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
                       maxLength={50} 
                       value={formData.materialCode} 
                       onChange={handleInputChange} 
-                      required 
                     />
                   </div>
                      
                   {/* HSM Code */}
                   <div className="col-md-6">
-                    <label htmlFor="hsmCode" className="form-label">HSM Code <RequiredStar /></label>
+                    <label htmlFor="hsmCode" className="form-label">HSM Code</label>
                     <input 
                       type="text" 
                       className="form-control" 
@@ -335,13 +317,12 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
                       maxLength={50} 
                       value={formData.hsmCode} 
                       onChange={handleInputChange} 
-                      required 
                     />
                   </div>
 
                   {/* Material Description */}
                   <div className="col-md-6">
-                    <label htmlFor="materialName" className="form-label">Material Description <RequiredStar /></label>
+                    <label htmlFor="materialName" className="form-label">Material Description</label>
                     <input 
                       type="text" 
                       className="form-control" 
@@ -351,20 +332,18 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
                       maxLength={100} 
                       value={formData.materialName} 
                       onChange={handleInputChange} 
-                      required 
                     />
                   </div>
 
                   {/* Category */}
                   <div className="col-md-6">
-                    <label htmlFor="category" className="form-label">Category <RequiredStar /></label>
+                    <label htmlFor="category" className="form-label">Category</label>
                     <select 
                       id="category" 
                       className="form-select" 
                       name="category" 
                       value={formData.category} 
                       onChange={handleInputChange}
-                      required
                     >
                       {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
@@ -372,14 +351,13 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
 
                   {/* Unit */}
                   <div className="col-md-6">
-                    <label htmlFor="unit" className="form-label">Unit <RequiredStar /></label>
+                    <label htmlFor="unit" className="form-label">Unit</label>
                     <select 
                       id="unit" 
                       className="form-select" 
                       name="unit" 
                       value={formData.unit} 
                       onChange={handleInputChange}
-                      required
                     >
                       {units.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
@@ -387,7 +365,7 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
 
                   {/* Purchase Price */}
                   <div className="col-md-6">
-                    <label htmlFor="unitPrice" className="form-label">Purchase Price (₹) <RequiredStar /></label>
+                    <label htmlFor="unitPrice" className="form-label">Purchase Price (₹)</label>
                     <input 
                       type="number" 
                       className="form-control" 
@@ -398,32 +376,26 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
                       step="0.01"
                       value={formData.unitPrice} 
                       onChange={handleInputChange} 
-                      required 
                     />
                   </div>
 
-                  {/* GST Percentage */}
+                  {/* Opening Date - New Field */}
                   <div className="col-md-6">
-                    <label htmlFor="gstPercentage" className="form-label">GST Percentage (%) <RequiredStar /></label>
+                    <label htmlFor="openingDate" className="form-label">Opening Date</label>
                     <input 
-                      type="number" 
+                      type="date" 
                       className="form-control" 
-                      id="gstPercentage" 
-                      name="gstPercentage" 
-                      placeholder="Enter GST Percentage...." 
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={formData.gstPercentage} 
+                      id="openingDate" 
+                      name="openingDate" 
+                      value={formData.openingDate} 
                       onChange={handleInputChange} 
-                      required 
                     />
                   </div>
 
                   {/* Current Stock - Only editable if NOT using transaction */}
                   <div className="col-md-6">
                     <label htmlFor="currentStock" className="form-label">
-                      Current Stock <RequiredStar />
+                      Current Stock
                       {showTransaction && <small className="text-muted"> (Use transaction to update)</small>}
                     </label>
                     <input 
@@ -436,13 +408,12 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
                       value={formData.currentStock} 
                       onChange={handleInputChange} 
                       disabled={showTransaction}
-                      required 
                     />
                   </div>
 
                   {/* Min Stock Level */}
                   <div className="col-md-6">
-                    <label htmlFor="minStockLevel" className="form-label">Min Stock Level <RequiredStar /></label>
+                    <label htmlFor="minStockLevel" className="form-label">Min Stock Level</label>
                     <input 
                       type="number" 
                       className="form-control" 
@@ -451,22 +422,6 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
                       placeholder="Enter Min Stock Level...." 
                       min="0"
                       value={formData.minStockLevel} 
-                      onChange={handleInputChange} 
-                      required 
-                    />
-                  </div>
-
-                  {/* Max Stock Level */}
-                  <div className="col-md-6">
-                    <label htmlFor="maxStockLevel" className="form-label">Max Stock Level</label>
-                    <input 
-                      type="number" 
-                      className="form-control" 
-                      id="maxStockLevel" 
-                      name="maxStockLevel" 
-                      placeholder="Enter Max Stock Level...." 
-                      min="0"
-                      value={formData.maxStockLevel} 
                       onChange={handleInputChange} 
                     />
                   </div>

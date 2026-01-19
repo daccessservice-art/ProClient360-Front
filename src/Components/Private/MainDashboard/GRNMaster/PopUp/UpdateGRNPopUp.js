@@ -31,6 +31,7 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
   
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [poSearch, setPoSearch] = useState("");
+  const [filteredPOs, setFilteredPOs] = useState([]);
   
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState("");
@@ -72,20 +73,54 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
     loadVendors();
   }, [vendorSearch, selectedGRN]);
 
-  // Load purchase orders
+  // Load all purchase orders with filtering for incomplete POs
   useEffect(() => {
     const loadPurchaseOrders = async () => {
       const data = await getPurchaseOrders(1, 100, poSearch);
       if (data.success) {
-        const poOptions = data.purchaseOrders.map(po => ({
-          value: po._id,
-          label: `${po.orderNumber} - ${po.vendor?.vendorName}`,
-          po: po
-        }));
-        setPurchaseOrders(poOptions);
+        // Filter out completed POs
+        const incompletePOs = [];
         
+        for (const po of data.purchaseOrders) {
+          // Check if this PO is fully received
+          let isFullyReceived = false;
+          
+          // Check if the PO status is already marked as "Received"
+          if (po.status === 'Received') {
+            isFullyReceived = true;
+          } else {
+            // Calculate if all items are fully received
+            let allItemsReceived = true;
+            
+            for (const item of po.items) {
+              // Get total received quantity for this item from all GRNs
+              const totalReceived = item.receivedQuantity || 0;
+              
+              if (totalReceived < item.quantity) {
+                allItemsReceived = false;
+                break;
+              }
+            }
+            
+            isFullyReceived = allItemsReceived;
+          }
+          
+          // Only include POs that are not fully received
+          if (!isFullyReceived) {
+            incompletePOs.push({
+              value: po._id,
+              label: `${po.orderNumber} - ${po.vendor?.vendorName}`,
+              po: po,
+              vendorId: po.vendor?._id
+            });
+          }
+        }
+        
+        setPurchaseOrders(incompletePOs);
+        
+        // Set the current PO if it's still incomplete
         if (selectedGRN?.purchaseOrder?._id) {
-          const currentPO = poOptions.find(p => p.value === selectedGRN.purchaseOrder._id);
+          const currentPO = incompletePOs.find(p => p.value === selectedGRN.purchaseOrder._id);
           if (currentPO) {
             setSelectedPO(currentPO);
           }
@@ -96,6 +131,21 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
       loadPurchaseOrders();
     }
   }, [poSearch, choice, selectedGRN]);
+
+  // Filter POs based on selected vendor
+  useEffect(() => {
+    if (selectedVendor) {
+      const filtered = purchaseOrders.filter(po => po.vendorId === selectedVendor.value);
+      setFilteredPOs(filtered);
+      
+      // If current selected PO doesn't belong to the selected vendor, clear it
+      if (selectedPO && selectedPO.vendorId !== selectedVendor.value) {
+        setSelectedPO(null);
+      }
+    } else {
+      setFilteredPOs([]);
+    }
+  }, [selectedVendor, purchaseOrders]);
 
   // Load products
   useEffect(() => {
@@ -121,6 +171,64 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
       }
     }
   }, [selectedGRN, projects]);
+
+  // Handle vendor change
+  const handleVendorChange = (selected) => {
+    setSelectedVendor(selected);
+    // Clear selected PO when vendor changes
+    setSelectedPO(null);
+    
+    // If we have the vendor data, populate related fields
+    if (selected && choice === "Against PO") {
+      // We'll populate more fields when PO is selected
+    }
+  };
+
+  // Handle PO change
+  const handlePOChange = (selected) => {
+    setSelectedPO(selected);
+    if (selected && selected.po) {
+      const po = selected.po;
+      
+      // Set transaction type and purchase type from PO
+      setTransactionType(po.transactionType);
+      setPurchaseType(po.purchaseType);
+      setDeliveryAddress(po.deliveryAddress || "");
+      setLocation(po.location || "");
+      setWarehouseLocation(po.warehouseLocation || "");
+      
+      if (po.project) {
+        setSelectedProject(projects.find(p => p.value === po.project._id));
+      }
+      
+      // Map PO items to GRN items
+      const grnItems = po.items.map(item => {
+        // Calculate remaining quantity
+        const alreadyReceived = item.receivedQuantity || 0;
+        const remainingQuantity = item.quantity - alreadyReceived;
+        
+        return {
+          brandName: item.brandName,
+          modelNo: item.modelNo,
+          description: item.description || "",
+          unit: item.unit || item.baseUOM,
+          baseUOM: item.baseUOM || "",
+          orderedQuantity: item.quantity, // Keep the original ordered quantity
+          receivedQuantity: remainingQuantity, // Default to remaining quantity
+          price: item.price,
+          discountPercent: item.discountPercent,
+          taxPercent: item.taxPercent,
+          netValue: calculateNetValue({
+            receivedQuantity: remainingQuantity, // Use remaining quantity for calculation
+            price: item.price,
+            discountPercent: item.discountPercent,
+            taxPercent: item.taxPercent
+          })
+        };
+      });
+      setItems(grnItems);
+    }
+  };
 
   const calculateNetValue = (item) => {
     const baseAmount = item.receivedQuantity * item.price;
@@ -162,6 +270,7 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
     if (field === 'brandName') {
       newItems[index].modelNo = "";
       newItems[index].baseUOM = "";
+      newItems[index].unit = "";
     }
     
     // If model is changed, find the product and set baseUOM
@@ -171,9 +280,8 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
       );
       if (product) {
         newItems[index].baseUOM = product.baseUOM;
-        // You can also pre-fill other fields if needed
+        newItems[index].unit = product.baseUOM;
         newItems[index].description = product.description || "";
-        newItems[index].unit = product.baseUOM; // Set unit to baseUOM by default
       }
     }
     
@@ -346,26 +454,6 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
                   </div>
                 </div>
 
-                {choice === "Against PO" && (
-                  <div className="col-12 col-lg-6">
-                    <div className="mb-3">
-                      <label className="form-label label_text">PO No. <RequiredStar /></label>
-                      <Select
-                        value={selectedPO}
-                        onChange={setSelectedPO}
-                        onInputChange={setPoSearch}
-                        options={purchaseOrders}
-                        placeholder="Select Purchase Order..."
-                        isClearable
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        isDisabled
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">GRN Date <RequiredStar /></label>
@@ -379,23 +467,68 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
                   </div>
                 </div>
 
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Vendor Name <RequiredStar /></label>
-                    <Select
-                      value={selectedVendor}
-                      onChange={setSelectedVendor}
-                      onInputChange={setVendorSearch}
-                      options={vendors}
-                      placeholder="Select Vendor..."
-                      isClearable
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      isDisabled={choice === "Against PO"}
-                      required
-                    />
+                {choice === "Against PO" && (
+                  <>
+                    <div className="col-12 col-lg-6">
+                      <div className="mb-3">
+                        <label className="form-label label_text">Vendor Name <RequiredStar /></label>
+                        <Select
+                          value={selectedVendor}
+                          onChange={handleVendorChange}
+                          onInputChange={setVendorSearch}
+                          options={vendors}
+                          placeholder="Select Vendor..."
+                          isClearable
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="col-12 col-lg-6">
+                      <div className="mb-3">
+                        <label className="form-label label_text">PO No. <RequiredStar /></label>
+                        <Select
+                          value={selectedPO}
+                          onChange={handlePOChange}
+                          onInputChange={setPoSearch}
+                          options={filteredPOs}
+                          placeholder={selectedVendor ? "Select Purchase Order..." : "Please select a vendor first"}
+                          isClearable
+                          isDisabled={!selectedVendor}
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          required
+                        />
+                        {selectedVendor && filteredPOs.length === 0 && (
+                          <small className="text-muted d-block mt-1">
+                            No incomplete purchase orders found for this vendor
+                          </small>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {choice === "Direct Material" && (
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label className="form-label label_text">Vendor Name <RequiredStar /></label>
+                      <Select
+                        value={selectedVendor}
+                        onChange={setSelectedVendor}
+                        onInputChange={setVendorSearch}
+                        options={vendors}
+                        placeholder="Select Vendor..."
+                        isClearable
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
@@ -553,8 +686,10 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
                           <th>Brand Name</th>
                           <th>Model No</th>
                           <th>Description</th>
+                          <th>Unit</th>
                           <th>Base UOM</th>
                           <th>Ordered Qty</th>
+                          {choice === "Against PO" && <th>Already Received</th>}
                           <th>Received Qty</th>
                           <th>Price</th>
                           <th>Discount %</th>
@@ -568,6 +703,20 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
                           const brandProducts = products.filter(p => p.brandName === item.brandName);
                           const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
                           const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
+                          
+                          // Calculate already received and remaining quantities for PO items
+                          let alreadyReceived = 0;
+                          let remainingQuantity = item.orderedQuantity;
+                          
+                          if (choice === "Against PO" && selectedPO && selectedPO.po) {
+                            const poItem = selectedPO.po.items.find(i => 
+                              i.brandName === item.brandName && i.modelNo === item.modelNo
+                            );
+                            if (poItem) {
+                              alreadyReceived = poItem.receivedQuantity || 0;
+                              remainingQuantity = poItem.quantity - alreadyReceived;
+                            }
+                          }
                           
                           return (
                             <tr key={index}>
@@ -611,6 +760,21 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
                               </td>
                               
                               <td>
+                                {choice === "Against PO" ? (
+                                  <input type="text" className="form-control form-control-sm" value={item.unit} readOnly />
+                                ) : (
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={item.unit}
+                                    onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
+                                    placeholder="Unit"
+                                    required
+                                  />
+                                )}
+                              </td>
+                              
+                              <td>
                                 <input
                                   type="text"
                                   className="form-control form-control-sm"
@@ -631,6 +795,18 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
                                   disabled={choice === "Against PO"}
                                 />
                               </td>
+                              
+                              {choice === "Against PO" && (
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    value={alreadyReceived}
+                                    readOnly
+                                  />
+                                </td>
+                              )}
+                              
                               <td>
                                 <input
                                   type="number"
@@ -638,8 +814,14 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
                                   value={item.receivedQuantity}
                                   onChange={(e) => handleItemChange(index, 'receivedQuantity', Number(e.target.value))}
                                   min="0"
+                                  max={choice === "Against PO" ? remainingQuantity : undefined}
                                   required
                                 />
+                                {choice === "Against PO" && (
+                                  <small className="text-muted d-block">
+                                    Max: {remainingQuantity}
+                                  </small>
+                                )}
                               </td>
                               <td>
                                 <input

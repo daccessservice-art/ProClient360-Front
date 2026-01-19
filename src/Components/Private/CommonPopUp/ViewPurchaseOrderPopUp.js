@@ -8,6 +8,15 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
 
+  // Calculate retention percentage
+  const calculateRetention = () => {
+    if (!purchaseOrder?.paymentTerms) return 0;
+    
+    const { advance = 0, payAgainstDelivery = 0, payAfterCompletion = 0 } = purchaseOrder.paymentTerms;
+    const retentionValue = 100 - (Number(advance) + Number(payAgainstDelivery) + Number(payAfterCompletion));
+    return retentionValue >= 0 ? retentionValue : 0;
+  };
+
   useEffect(() => {
     const fetchHistory = async () => {
       if (selectedPO && selectedPO._id) {
@@ -33,6 +42,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
       case 'CREATE': return 'bg-success';
       case 'UPDATE': return 'bg-info';
       case 'STATUS_CHANGE': return 'bg-warning';
+      case 'PAYMENT_TERMS_UPDATE': return 'bg-primary';
       case 'ITEM_ADD': return 'bg-primary';
       case 'ITEM_REMOVE': return 'bg-danger';
       case 'ITEM_UPDATE': return 'bg-secondary';
@@ -157,25 +167,21 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                       ₹{purchaseOrder?.totalAmount?.toFixed(2) || "0.00"}
                       <p className="fw-bold mt-3">Total Tax:</p>
                       ₹{purchaseOrder?.totalTax?.toFixed(2) || "0.00"}
-                      <p className="fw-bold mt-3">Transport Charges:</p>
-                      ₹{purchaseOrder?.transportCharges?.toFixed(2) || "0.00"}
-                      <p className="fw-bold mt-3">Packaging Charges:</p>
-                      ₹{purchaseOrder?.packagingCharges?.toFixed(2) || "0.00"}
-                      <p className="fw-bold mt-3">Tax on Transport:</p>
-                      {purchaseOrder?.taxOnTransport || 0}%
                       <p className="fw-bold mt-3">Grand Total:</p>
                       ₹{purchaseOrder?.grandTotal?.toFixed(2) || "0.00"}
-                      <p className="fw-bold mt-3">Delivery:</p>
-                      <span className={`badge ${
-                        purchaseOrder?.delivery === 'Free' ? 'bg-success' : 
-                        purchaseOrder?.delivery === 'Chargable' ? 'bg-warning' : 'bg-info'
-                      }`}>
-                        {purchaseOrder?.delivery || "-"}
-                      </span>
-                      <p className="fw-bold mt-3">Payment Terms - Advance %:</p>
-                      {purchaseOrder?.paymentTerms?.advance || 0}%
-                      <p className="fw-bold mt-3">Credit Period (Days):</p>
-                      {purchaseOrder?.paymentTerms?.creditPeriod || 0}
+                      <p className="fw-bold mt-3">Delivery Date:</p>
+                      {purchaseOrder?.deliveryDate ? formatDate(purchaseOrder.deliveryDate) : "-"}
+                      <p className="fw-bold mt-3">Material Followup Date:</p>
+                      {purchaseOrder?.materialFollowupDate ? formatDate(purchaseOrder.materialFollowupDate) : "-"}
+                      <p className="fw-bold mt-3">Credit Period:</p>
+                      {purchaseOrder?.paymentTerms?.creditPeriod || 0} days
+                      <p className="fw-bold mt-3">Payment Terms:</p>
+                      <div className="ms-3">
+                        <div>Advance: {purchaseOrder?.paymentTerms?.advance || 0}%</div>
+                        <div>Against Delivery: {purchaseOrder?.paymentTerms?.payAgainstDelivery || 0}%</div>
+                        <div>After Completion: {purchaseOrder?.paymentTerms?.payAfterCompletion || 0}%</div>
+                        <div>Retention: {calculateRetention()}%</div>
+                      </div>
                       <p className="fw-bold mt-3">Created At:</p>
                       {purchaseOrder?.createdAt ? formatDate(purchaseOrder.createdAt) : "-"}
                       <p className="fw-bold mt-3">Updated At:</p>
@@ -192,15 +198,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                     </div>
                   )}
 
-                  {purchaseOrder?.packagingInstructions && (
-                    <div className="row mt-3">
-                      <div className="col-12">
-                        <h6 className="fw-bold">Packaging Instructions:</h6>
-                        <p>{purchaseOrder.packagingInstructions}</p>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="row mt-3">
                     <div className="col-12">
                       <h6 className="fw-bold">Items:</h6>
@@ -212,6 +209,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                               <th>Model No</th>
                               <th>Description</th>
                               <th>Unit</th>
+                              <th>Base UOM</th>
                               <th>Quantity</th>
                               <th>Price</th>
                               <th>Discount %</th>
@@ -226,6 +224,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                                 <td>{item.modelNo}</td>
                                 <td>{item.description || "-"}</td>
                                 <td>{item.unit || "-"}</td>
+                                <td>{item.baseUOM || "-"}</td>
                                 <td>{item.quantity}</td>
                                 <td>₹{item.price.toFixed(2)}</td>
                                 <td>{item.discountPercent}%</td>
@@ -317,6 +316,18 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                                   {record.changes?.statusChanged && (
                                     <div className="mt-2">
                                       <strong>Status Change:</strong> {record.previousValues.status} → {record.newValues.status}
+                                    </div>
+                                  )}
+                                  
+                                  {record.changes?.paymentTermsChanged && (
+                                    <div className="mt-2">
+                                      <strong>Payment Terms Updated</strong>
+                                      <div className="ms-3">
+                                        <div>Advance: {record.previousValues.paymentTerms?.advance || 0}% → {record.newValues.paymentTerms?.advance || 0}%</div>
+                                        <div>Against Delivery: {record.previousValues.paymentTerms?.payAgainstDelivery || 0}% → {record.newValues.paymentTerms?.payAgainstDelivery || 0}%</div>
+                                        <div>After Completion: {record.previousValues.paymentTerms?.payAfterCompletion || 0}% → {record.newValues.paymentTerms?.payAfterCompletion || 0}%</div>
+                                        <div>Credit Period: {record.previousValues.paymentTerms?.creditPeriod || 0} days → {record.newValues.paymentTerms?.creditPeriod || 0} days</div>
+                                      </div>
                                     </div>
                                   )}
                                 </td>

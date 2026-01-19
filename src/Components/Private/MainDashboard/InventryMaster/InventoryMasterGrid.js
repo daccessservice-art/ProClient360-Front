@@ -3,10 +3,12 @@ import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
 import AddInventoryPopUp from "./PopUp/AddInventoryPopUp";
 import UpdateInventoryPopUp from "./PopUp/UpdateInventoryPopUp";
+import ViewInventoryPopup from "./PopUp/ViewInventoryPopup";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import toast from "react-hot-toast";
 import { getInventory, deleteInventory, createInventory, updateInventory } from "../../../../hooks/useInventory.js";
 import { UserContext } from "../../../../context/UserContext";
+import { formatDate } from "../../../../utils/formatDate";
 
 export const InventoryMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
@@ -22,6 +24,7 @@ export const InventoryMasterGrid = () => {
   const [deletePopUpShow, setdeletePopUpShow] = useState(false);
   const [selectedId, setSelecteId] = useState(null);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
+  const [viewPopUpShow, setViewPopUpShow] = useState(false);
   const [selectedInventory, setSelectedInventory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
@@ -52,6 +55,11 @@ export const InventoryMasterGrid = () => {
   const handleUpdate = (item = null) => {
     setSelectedInventory(item);
     setUpdatePopUpShow(!updatePopUpShow);
+  };
+
+  const handleView = (item = null) => {
+    setSelectedInventory(item);
+    setViewPopUpShow(!viewPopUpShow);
   };
 
   const handelDeleteClosePopUpClick = (id) => {
@@ -151,12 +159,6 @@ export const InventoryMasterGrid = () => {
     setSearch(searchText);
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    const options = { year: 'numeric', month: 'short', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
-
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -245,6 +247,7 @@ export const InventoryMasterGrid = () => {
                           <option value="Finished Goods">Finished Goods</option>
                           <option value="Repairing Material">Repairing Material</option>
                           <option value="Scrap">Scrap</option>
+                          <option value="Asset">Asset</option> {/* Added Asset option */}
                         </select>
                       </div>
 
@@ -285,14 +288,13 @@ export const InventoryMasterGrid = () => {
                           <tr className="th_border">
                             <th>Sr. No</th>
                             <th className="align_left_td">Material Code</th>
-                            <th className="align_left_td">Material Description</th>
+                            <th className="align_left_td">Product Name</th>
                             <th className="align_left_td">Category</th>
                             <th className="text-end">Purchase Price</th>
-                            <th className="text-center">Current Stock</th>
+                            <th className="text-center">Opening Stock</th>
                             <th className="text-center">Min Stock</th>
-                            <th className="text-center">Unit</th>
-                            <th className="text-center">Status</th>
-                            <th className="text-center">Last Updated</th>
+                            <th className="text-center">Base UOM</th>
+                            <th className="text-center">Opening Date</th>
                             <th className="text-center">Action</th>
                           </tr>
                         </thead>
@@ -303,33 +305,39 @@ export const InventoryMasterGrid = () => {
                               
                               return (
                                 <tr 
-                                  className={`border my-4 ${stockStatus.color === 'danger' ? 'table-danger' : stockStatus.color === 'warning' ? 'table-warning' : ''}`} 
+                                  className={`border my-4 ${stockStatus.color === 'danger' ? 'table-danger' : stockStatus.color === 'warning' ? 'table-danger' : ''}`} 
                                   key={item._id}
                                 >
                                   <td>{index + 1 + (pagination.currentPage - 1) * itemsPerPage}</td>
                                   <td className="align_left_td">{item?.materialCode}</td>
-                                  <td className="align_left_td">{item?.materialName}</td>
+                                  <td className="align_left_td">{item?.productName || item?.materialName}</td>
                                   <td className="align_left_td">
                                     <span className={`badge ${
                                       item?.category === 'Raw Material' ? 'bg-primary' : 
                                       item?.category === 'Finished Goods' ? 'bg-success' : 
                                       item?.category === 'Repairing Material' ? 'bg-info' :
+                                      item?.category === 'Asset' ? 'bg-dark' : // Added Asset color
                                       'bg-secondary'
                                     }`}>
                                       {item?.category}
                                     </span>
                                   </td>
                                   <td className="text-end">{formatCurrency(item?.unitPrice)}</td>
-                                  <td className="text-center fw-bold">{item?.currentStock}</td>
+                                  <td className="text-center">{item?.currentStock}</td>
                                   <td className="text-center">{item?.minStockLevel}</td>
-                                  <td className="text-center">{item?.unit}</td>
+                                  <td className="text-center">{item?.baseUOM || item?.unit}</td>
+                                  <td className="text-center">{formatDate(item?.openingDate || item?.createdAt)}</td>
                                   <td className="text-center">
-                                    <span className={`badge bg-${stockStatus.color}`}>
-                                      {stockStatus.text}
-                                    </span>
-                                  </td>
-                                  <td className="text-center">{formatDate(item?.updatedAt)}</td>
-                                  <td className="text-center">
+                                    {user?.permissions?.includes("viewInventory") || user?.user === 'company' ? (
+                                      <span
+                                        onClick={() => handleView(item)}
+                                        className="view"
+                                      >
+                                        <i className="fa-solid fa-eye text-info cursor-pointer me-3"></i>
+                                      </span>
+                                    ) : (
+                                      ""
+                                    )}
                                     {user?.permissions?.includes("updateInventory") || user?.user === 'company' ? (
                                       <span
                                         onClick={() => handleUpdate(item)}
@@ -358,7 +366,7 @@ export const InventoryMasterGrid = () => {
                             })
                           ) : (
                             <tr>
-                              <td colSpan="12" className="text-center">
+                              <td colSpan="10" className="text-center">
                                 No data found
                               </td>
                             </tr>
@@ -463,6 +471,12 @@ export const InventoryMasterGrid = () => {
           selectedInventory={selectedInventory}
           onUpdateInventory={handleUpdateInventory}
           onClose={handleUpdate} 
+        />
+      )}
+      {viewPopUpShow && (
+        <ViewInventoryPopup 
+          selectedInventory={selectedInventory}
+          onClose={handleView} 
         />
       )}
     </>
