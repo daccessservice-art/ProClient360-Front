@@ -222,7 +222,7 @@ export const AMCMasterGrid = () => {
                     <div className="row">
                       <div className="col-12 col-lg-4">
                         <h5 className="text-white py-2">
-                          AMC Master Final
+                          AMC Master Final Version
                           {expiredCount > 0 && (
                             <span className="badge bg-danger ms-2" style={{ animation: 'blink 1.5s infinite' }}>
                               {expiredCount} Expired
