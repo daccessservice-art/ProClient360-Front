@@ -37,4 +37,7 @@ jobs:
         sudo mkdir -p /home/vicky/ProClient360/pms-front/build
         sudo rm -rf /home/vicky/ProClient360/pms-front/build/*
         sudo cp -r build/* /home/vicky/ProClient360/pms-front/build/
-        sudo chown -R vicky:vicky /home/vicky/ProClient360/pms-front/build 
+        sudo chown -R vicky:vicky /home/vicky/ProClient360/pms-front/build
+    
+    - name: Reload Nginx
+      run: sudo systemctl reload nginx
