@@ -76,4 +76,4 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/t
 - call the tradeIndia apis in continuce manner - done
 - check create lead and delete lead works or not
 - check update lead form show and update the direct source lead
-- take apis from google, linkdin, facebook and integrate them also
+- take apis from google, linkdin, facebook and integrate them also# CI/CD Test
