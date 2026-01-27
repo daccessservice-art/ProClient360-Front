@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import validator, { isMobilePhone } from "validator";
-import { updateCustomer } from "../../../../../hooks/useCustomer";
+import { updateCustomer, getEmployees } from "../../../../../hooks/useCustomer";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getAddress } from "../../../../../hooks/usePincode";
 import { toast } from "react-hot-toast";
+import { useUser } from "../../../../../context/UserContext"; // Use useUser instead of useContext
 
 const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
+  const { user } = useUser(); // Use useUser hook
   const [customer, setCustomer] = useState(selectedCust);
+  const [employees, setEmployees] = useState([]);
 
   const [billingAddress, setBillingAddress] = useState({
     add: "",
@@ -25,6 +28,18 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
   const isValidPincode = (pincode) => {
     return pincode && pincode.toString().trim() !== '' && !isNaN(pincode) && parseInt(pincode) > 0;
   };
+
+  // Fetch employees for dropdown (kept for potential future use)
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      const data = await getEmployees();
+      if (data.success) {
+        setEmployees(data.employees || []);
+      }
+    };
+    
+    fetchEmployees();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -75,6 +90,14 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
       ...prevCustomer,
       [name]: value.trim(),
     }))
+  };
+
+  // New handler for ownedBy text input
+  const handleOwnedByChange = (e) => {
+    setCustomer((prevCustomer) => ({
+      ...prevCustomer,
+      ownedBy: e.target.value,
+    }));
   };
 
   const handleCustUpdate = async (e) => {
@@ -196,6 +219,23 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         onChange={handleChange}
                         aria-describedby="emailHelp"
                         required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-12 mt-3">
+                    <div className="mb-3">
+                      <label for="ownedBy" className="form-label label_text">
+                        Owned By
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control rounded-0"
+                        id="ownedBy"
+                        name="ownedBy"
+                        value={customer.ownedBy?.name || customer.ownedBy || ""}
+                        onChange={handleOwnedByChange}
+                        placeholder="Enter owner name"
                       />
                     </div>
                   </div>

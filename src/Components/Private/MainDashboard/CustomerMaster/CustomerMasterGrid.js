@@ -1,10 +1,10 @@
-import { useState,useContext, useEffect } from "react";
+import { useState, useContext, useEffect } from "react";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddCustomerPopUp from "./PopUp/AddCustomerPopUp";
 import UpdateCustomerPopUp from "./PopUp/UpdateCustomerPopUp";
-import { getCustomers, deleteCustomer } from "../../../../hooks/useCustomer";
+import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel } from "../../../../hooks/useCustomer";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
 
@@ -64,6 +64,31 @@ export const CustomerMasterGrid = () => {
     }
     setdeletePopUpShow(false);
     setCurrentPage(1);
+  };
+
+  // Export handlers
+  const handleExportPDF = async () => {
+    toast.loading('Exporting PDF...');
+    const result = await exportCustomersPDF();
+    toast.dismiss();
+    
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.error || 'Failed to export PDF');
+    }
+  };
+
+  const handleExportExcel = async () => {
+    toast.loading('Exporting Excel...');
+    const result = await exportCustomersExcel();
+    toast.dismiss();
+    
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.error || 'Failed to export Excel');
+    }
   };
 
   useEffect(() => {
@@ -142,38 +167,54 @@ export const CustomerMasterGrid = () => {
                   <div className="col-12 col-lg-6">
                     <h5 className="text-white py-2">Customer Master</h5>
                   </div>
-                  <div className="col-12 col-lg-5 ms-auto">
+                  <div className="col-12 col-lg-6 ms-auto">
                     <div className="row">
-                      <div className="col-8 col-lg-6 ms-auto text-end">
+                      <div className="col-12 col-lg-6 ms-auto text-end">
                         <div className="form">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
-                          <input
-                            type="text"
-                            value={searchText}
-                            onChange={(e) => setSearchText(e.target.value)}
-                            className="form-control form-input bg-transparant"
-                            placeholder="Search ..."
-                          />
+                            <input
+                              type="text"
+                              value={searchText}
+                              onChange={(e) => setSearchText(e.target.value)}
+                              className="form-control form-input bg-transparant"
+                              placeholder="Search ..."
+                            />
                           </form>
                         </div>
                       </div>
-                      {user?.permissions && user?.permissions?.includes("createCustomer") || user.user==='company' ? ( 
-                      <div className="col- col-lg-2 ms-auto text-end me-4">
-                          <div className="col-12 col-lg-12  ms-auto text-end">
+                      <div className="col-12 col-lg-6 text-end mt-2 mt-lg-0">
+                        <div className="btn-group" role="group">
+                          <button
+                            onClick={handleExportPDF}
+                            type="button"
+                            className="btn btn-sm btn-danger me-1"
+                            title="Export to PDF"
+                            disabled={loading}
+                          >
+                            <i className="fa-solid fa-file-pdf"></i> PDF
+                          </button>
+                          <button
+                            onClick={handleExportExcel}
+                            type="button"
+                            className="btn btn-sm btn-success me-1"
+                            title="Export to Excel"
+                            disabled={loading}
+                          >
+                            <i className="fa-solid fa-file-excel"></i> Excel
+                          </button>
+                          {user?.permissions && user?.permissions?.includes("createCustomer") || user.user === 'company' ? (
                             <button
-                              onClick={handleAdd} // Use handleAdd directly
+                              onClick={handleAdd}
                               type="button"
-                              className="btn adbtn btn-dark"
+                              className="btn btn-sm btn-dark"
+                              disabled={loading}
                             >
-                              {" "}
                               <i className="fa-solid fa-plus"></i> Add
                             </button>
-                          </div>
+                          ) : null}
+                        </div>
                       </div>
-                        ) : (
-                          null
-                        )}
                     </div>
                   </div>
                 </div>
@@ -189,6 +230,8 @@ export const CustomerMasterGrid = () => {
                             <th className="align_left_td td_width">Email</th>
                             <th>Phone</th>
                             <th>GST No</th>
+                            <th>Created By</th>
+                            <th>Owned By</th>
                             <th>Action</th>
                           </tr>
                         </thead>
@@ -201,10 +244,12 @@ export const CustomerMasterGrid = () => {
                                 <td className="align_left_td td_width wrap-text-of-col">{customer.email}</td>
                                 <td>{customer.phoneNumber1}</td>
                                 <td>{customer.GSTNo}</td>
+                                <td>{customer.createdBy?.name || 'N/A'}</td>
+                                <td>{customer.ownedBy || 'N/A'}</td>
                                 <td>
                                   {user?.permissions?.includes(
                                     "updateCustomer"
-                                  ) || user?.user==='company' ? (
+                                  ) || user?.user === 'company' ? (
                                     <span
                                       onClick={() => handleUpdate(customer)}
                                       className="update"
@@ -217,7 +262,7 @@ export const CustomerMasterGrid = () => {
 
                                   {user?.permissions?.includes(
                                     "deleteCustomer"
-                                  ) || user?.user==='company'? (
+                                  ) || user?.user === 'company' ? (
                                     <span
                                       onClick={() =>
                                         handelDeleteClosePopUpClick(
@@ -236,7 +281,7 @@ export const CustomerMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="6" className="text-center">
+                              <td colSpan="8" className="text-center">
                                 No data found
                               </td>
                             </tr>
@@ -264,20 +309,6 @@ export const CustomerMasterGrid = () => {
                   </button>
                   {startPage > 1 && <span className="mx-2">...</span>}
 
-
-                  {/* {pageButtons.map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(page)}
-                      className={`btn btn-dark btn-sm me-2 ${
-                        currentPage === page ? "active" : ""
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))} */}
-
-
                   {pageButtons.map((page) => (
                     <button
                       key={page}
@@ -289,7 +320,6 @@ export const CustomerMasterGrid = () => {
                       {page}
                     </button>
                   ))}
-
 
                   {endPage < pagination.totalPages && <span className="mx-2">...</span>}
                   <button

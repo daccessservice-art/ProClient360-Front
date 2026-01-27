@@ -3,9 +3,11 @@ import validator from "validator";
 import toast from "react-hot-toast";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getAddress } from "../../../../../hooks/usePincode";
-import { createCustomer } from "../../../../../hooks/useCustomer";
+import { createCustomer, getEmployees } from "../../../../../hooks/useCustomer";
+import { useUser } from "../../../../../context/UserContext"; // Use useUser instead of useContext
 
 const AddCustomerPopUp = ({ handleAdd }) => {
+  const { user } = useUser(); // Use useUser hook
   const [custName, setCustName] = useState("");
   const [phoneNumber1, setPhoneNumber1] = useState("");
   const [email, setEmail] = useState("");
@@ -15,6 +17,8 @@ const AddCustomerPopUp = ({ handleAdd }) => {
   const [customerContactPersonName1, setCustomerContactPersonName1] = useState("");
   const [zone, setZone] = useState("");
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [ownedBy, setOwnedBy] = useState(user?.name || ""); // Default to current user name
   
   const [billingAddress, setBillingAddress] = useState({
     pincode: "",
@@ -23,6 +27,18 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     add: "",
     country: "",
   });
+
+  // Fetch employees for dropdown (kept for potential future use)
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      const data = await getEmployees();
+      if (data.success) {
+        setEmployees(data.employees || []);
+      }
+    };
+    
+    fetchEmployees();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -90,6 +106,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
       billingAddress,
       zone,
       GSTNo,
+      ownedBy, // Include ownedBy in the data
     };
 
     if (
@@ -197,6 +214,11 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     setGSTNo(value);
   };
 
+  // New handler for ownedBy text input
+  const handleOwnedByChange = (e) => {
+    setOwnedBy(e.target.value);
+  };
+
   return (
     <>
       <div
@@ -225,6 +247,15 @@ const AddCustomerPopUp = ({ handleAdd }) => {
               </div>
               <div className="modal-body">
                 <div className="row modal_body_height">
+                  {/* Add this info section */}
+                  <div className="col-12 mb-2">
+                    <div className="alert alert-info py-2">
+                      <small>
+                        <i className="fa fa-info-circle me-2"></i>
+                        Creating customer as: <strong>{user?.name}</strong>
+                      </small>
+                    </div>
+                  </div>
 
                   <div className="col-12">
                     <div className="">
@@ -260,6 +291,22 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                         aria-describedby="emailHelp"
                         placeholder="Enter a Email...."
                         required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-12 mt-3">
+                    <div className="mb-3">
+                      <label htmlFor="ownedBy" className="form-label label_text">
+                        Owned By
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control rounded-0"
+                        id="ownedBy"
+                        value={ownedBy}
+                        onChange={handleOwnedByChange}
+                        placeholder="Enter owner name"
                       />
                     </div>
                   </div>
