@@ -50,6 +50,10 @@ import { ChangePassword } from "./Components/Public/ChangePassword";
 import { ForgotPasswordConfirm } from "./Components/Public/ForgotPasswordConfirm";
 import ProtectRoute from "./utils/ProtectRoute";
 
+// Import new vendor registration components
+import VendorRegistrationForm from "./Components/Private/MainDashboard/VendorMaster/PopUp/VendorRegistrationForm";
+import VendorRegistrationSuccess from "./Components/Private/MainDashboard/VendorMaster/PopUp/VendorRegistrationSuccess";
+
 // Custom component to check if user has required permissions
 const SalesManagerRoute = () => {
     const { user } = useContext(UserContext);
@@ -93,6 +97,10 @@ const AllRoutes = () => {
                 <Route exact path="/Mailsentsuccessfully" element={<Mailsentsuccessfully />} />
                 <Route exact path="/ResetPassword/:id/:token" element={<ForgotPasswordConfirm />} />
                 <Route exact path="/feedback/:id" element={<Feedback />} />
+                
+                {/* New Public Routes for Vendor Registration */}
+                <Route exact path="/vendor-registration/:linkId" element={<VendorRegistrationForm />} />
+                <Route exact path="/vendor-registration-success" element={<VendorRegistrationSuccess />} />
 
                 {/* Protected Routes */}
                 <Route exact path="/ChangePassword" element={<ProtectRoute Component={ChangePassword} />} />

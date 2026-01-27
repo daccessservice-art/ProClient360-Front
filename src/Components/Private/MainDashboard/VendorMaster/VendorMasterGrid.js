@@ -4,6 +4,8 @@ import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddVendorPopUp from "./PopUp/AddVendorPopUp";
 import UpdateVendorPopUp from "./PopUp/UpdateVendorPopUp";
+import VendorLinkPopUp from "./PopUp/VendorLinkPopUp";
+import ViewVendorPopUp from "./PopUp/ViewVendorPopUp";
 import { getVendors, deleteVendor } from "../../../../hooks/useVendor";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
@@ -19,10 +21,13 @@ export const VendorMasterGrid = () => {
   const [AddPopUpShow, setAddPopUpShow] = useState(false);
   const [deletePopUpShow, setdeletePopUpShow] = useState(false);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
+  const [vendorLinkPopUpShow, setVendorLinkPopUpShow] = useState(false);
+  const [viewPopUpShow, setViewPopUpShow] = useState(false);
+  const [generatedVendorLink, setGeneratedVendorLink] = useState("");
 
   const [selectedId, setSelecteId] = useState(null);
-  const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState(null);
+  const [vendors, setVendors] = useState([]);
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,7 +40,9 @@ export const VendorMasterGrid = () => {
     hasPrevPage: false,
   });
   
-  // Add state for brands
+  // NEW: State to toggle between all vendors and link-registered vendors
+  const [showOnlyLinkRegistered, setShowOnlyLinkRegistered] = useState(false);
+  
   const [brands, setBrands] = useState([]);
 
   const itemsPerPage = 20;
@@ -51,6 +58,15 @@ export const VendorMasterGrid = () => {
   const handleUpdate = (vendor) => {
     setSelectedVendor(vendor);
     setUpdatePopUpShow(!updatePopUpShow);
+  };
+
+  const handleView = (vendor) => {
+    setSelectedVendor(vendor);
+    setViewPopUpShow(!viewPopUpShow);
+  };
+
+  const handleViewClose = () => {
+    setViewPopUpShow(false);
   };
 
   const handelDeleteClosePopUpClick = (id) => {
@@ -69,11 +85,47 @@ export const VendorMasterGrid = () => {
     setCurrentPage(1);
   };
 
-  // Function to add a new brand
+  const handleVendorLink = () => {
+    setVendorLinkPopUpShow(!vendorLinkPopUpShow);
+  };
+
+  const generateVendorLink = async () => {
+    try {
+      const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+      const linkUrl = `${window.location.origin}/vendor-registration/${uniqueId}`;
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/vendor/generate-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ linkId: uniqueId, linkUrl })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setGeneratedVendorLink(linkUrl);
+      } else {
+        toast.error(data.error || "Failed to generate vendor link");
+      }
+    } catch (error) {
+      console.error("Error generating vendor link:", error);
+      toast.error("Error generating vendor link");
+    }
+  };
+
   const addBrand = (newBrand) => {
     if (newBrand && !brands.includes(newBrand)) {
       setBrands([...brands, newBrand]);
     }
+  };
+
+  // NEW: Toggle function
+  const handleToggleView = () => {
+    setShowOnlyLinkRegistered(!showOnlyLinkRegistered);
+    setCurrentPage(1); // Reset to first page when toggling
   };
 
   useEffect(() => {
@@ -82,17 +134,25 @@ export const VendorMasterGrid = () => {
         setLoading(true);
         const data = await getVendors(currentPage, itemsPerPage, search);
         if (data?.success) {
-          setVendors(data.vendors || []);
-          setPagination(data.pagination || {
-            currentPage: 1,
-            totalPages: 0,
-            totalVendors: 0,
-            limit: itemsPerPage,
-            hasNextPage: false,
-            hasPrevPage: false,
+          // NEW: Filter vendors based on toggle state
+          let filteredVendors = data.vendors || [];
+          if (showOnlyLinkRegistered) {
+            filteredVendors = filteredVendors.filter(vendor => vendor.registeredFromLink === true);
+          }
+          
+          setVendors(filteredVendors);
+          
+          // NEW: Update pagination based on filtered results
+          const totalFilteredVendors = showOnlyLinkRegistered 
+            ? filteredVendors.length 
+            : data.pagination.totalVendors;
+          
+          setPagination({
+            ...data.pagination,
+            totalVendors: totalFilteredVendors,
+            totalPages: Math.ceil(totalFilteredVendors / itemsPerPage)
           });
           
-          // Extract unique brands from vendors
           const uniqueBrands = [...new Set(data.vendors
             .filter(vendor => vendor.typeOfVendor === 'B2B Material' && vendor.brandsWorkWith)
             .map(vendor => vendor.brandsWorkWith))];
@@ -109,7 +169,7 @@ export const VendorMasterGrid = () => {
     };
 
     fetchData();
-  }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search]);
+  }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search, showOnlyLinkRegistered]);
 
   const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
@@ -168,9 +228,9 @@ export const VendorMasterGrid = () => {
                   <div className="col-12 col-lg-6">
                     <h5 className="text-white py-2">Vendor Master</h5>
                   </div>
-                  <div className="col-12 col-lg-5 ms-auto">
+                  <div className="col-12 col-lg-6 ms-auto">
                     <div className="row">
-                      <div className="col-8 col-lg-6 ms-auto text-end">
+                      <div className="col-8 col-lg-5 ms-auto text-end">
                         <div className="form">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
@@ -184,25 +244,59 @@ export const VendorMasterGrid = () => {
                           </form>
                         </div>
                       </div>
+                      
+                      {/* NEW: Toggle Button for Link Registered Vendors */}
+                      <div className="col-4 col-lg-2 text-end">
+                        <button
+                          onClick={handleToggleView}
+                          type="button"
+                          className={`btn btn-sm ${showOnlyLinkRegistered ? 'btn-warning' : 'btn-outline-light'}`}
+                          title={showOnlyLinkRegistered ? "Show All Vendors" : "Show Link Registered Only"}
+                        >
+                          <i className={`fa ${showOnlyLinkRegistered ? 'fa-users' : 'fa-link'}`}></i>
+                          {showOnlyLinkRegistered ? ' All' : ' Link'}
+                        </button>
+                      </div>
+                      
                       {user?.permissions && user?.permissions?.includes("createVendor") || user.user==='company' ? ( 
-                      <div className="col- col-lg-2 ms-auto text-end me-4">
-                          <div className="col-12 col-lg-12  ms-auto text-end">
-                            <button
-                              onClick={handleAdd}
-                              type="button"
-                              className="btn adbtn btn-dark"
-                            >
-                              {" "}
-                              <i className="fa-solid fa-plus"></i> Add
-                            </button>
-                          </div>
+                      <div className="col-6 col-lg-2 text-end">
+                          <button
+                            onClick={handleAdd}
+                            type="button"
+                            className="btn adbtn btn-dark btn-sm"
+                          >
+                            <i className="fa-solid fa-plus"></i> Add
+                          </button>
                       </div>
                         ) : (
                           null
                         )}
+                      {user?.permissions && user?.permissions?.includes("createVendor") || user.user==='company' ? (
+                        <div className="col-6 col-lg-3 text-end">
+                          <button
+                            onClick={handleVendorLink}
+                            type="button"
+                            className="btn btn-sm btn-info"
+                          >
+                            <i className="fa-solid fa-link"></i> Vendor Link
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
+
+                {/* NEW: Display filter status */}
+                {showOnlyLinkRegistered && (
+                  <div className="row px-2">
+                    <div className="col-12">
+                      <div className="alert alert-info py-2 mb-2" style={{ fontSize: '14px' }}>
+                        <i className="fa fa-filter me-2"></i>
+                        Showing only vendors registered through link ({vendors.length} found)
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
@@ -240,6 +334,11 @@ export const VendorMasterGrid = () => {
                                   }`}>
                                     {vendor.typeOfVendor}
                                   </span>
+                                  {vendor.registeredFromLink && (
+                                    <span className="badge bg-info ms-1" title="Registered via Link">
+                                      <i className="fa fa-link"></i>
+                                    </span>
+                                  )}
                                 </td>
                                 <td>
                                   <span className={`badge ${
@@ -253,30 +352,45 @@ export const VendorMasterGrid = () => {
                                 <td>{renderStars(vendor.vendorRating)}</td>
                                 <td>{vendor.GSTNo}</td>
                                 <td>
-                                  {user?.permissions?.includes("updateVendor") || user?.user==='company' ? (
-                                    <span
-                                      onClick={() => handleUpdate(vendor)}
-                                      className="update"
-                                    >
-                                      <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
-                                    </span>
-                                  ) : (
-                                    ""
-                                  )}
+                                  <span
+                                    onClick={() => handleView(vendor)}
+                                    className="view"
+                                    title="View Vendor Details"
+                                  >
+                                    <i className="fa-solid fa-eye text-primary me-3 cursor-pointer"></i>
+                                  </span>
 
-                                  {user?.permissions?.includes("deleteVendor") || user?.user==='company'? (
-                                    <span
-                                      onClick={() =>
-                                        handelDeleteClosePopUpClick(
-                                          vendor._id
-                                        )
-                                      }
-                                      className="delete"
-                                    >
-                                      <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                    </span>
-                                  ) : (
-                                    ""
+                                  {/* Only show update/delete buttons for vendors NOT registered via link */}
+                                  {!vendor.registeredFromLink && (
+                                    <>
+                                      {user?.permissions?.includes("updateVendor") || user?.user==='company' ? (
+                                        <span
+                                          onClick={() => handleUpdate(vendor)}
+                                          className="update"
+                                          title="Update Vendor"
+                                        >
+                                          <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
+                                        </span>
+                                      ) : (
+                                        ""
+                                      )}
+
+                                      {user?.permissions?.includes("deleteVendor") || user?.user==='company'? (
+                                        <span
+                                          onClick={() =>
+                                            handelDeleteClosePopUpClick(
+                                              vendor._id
+                                            )
+                                          }
+                                          className="delete"
+                                          title="Delete Vendor"
+                                        >
+                                          <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
+                                        </span>
+                                      ) : (
+                                        ""
+                                      )}
+                                    </>
                                   )}
                                 </td>
                               </tr>
@@ -284,7 +398,9 @@ export const VendorMasterGrid = () => {
                           ) : (
                             <tr>
                               <td colSpan="9" className="text-center">
-                                No data found
+                                {showOnlyLinkRegistered 
+                                  ? "No vendors registered through link found" 
+                                  : "No data found"}
                               </td>
                             </tr>
                           )}
@@ -362,6 +478,22 @@ export const VendorMasterGrid = () => {
           handleUpdate={handleUpdate}
           brands={brands}
           addBrand={addBrand}
+        />
+      )}
+
+      {vendorLinkPopUpShow && (
+        <VendorLinkPopUp 
+          handleVendorLink={handleVendorLink}
+          generatedVendorLink={generatedVendorLink}
+          generateVendorLink={generateVendorLink}
+          setGeneratedVendorLink={setGeneratedVendorLink}
+        />
+      )}
+
+      {viewPopUpShow && (
+        <ViewVendorPopUp 
+          vendor={selectedVendor}
+          handleViewClose={handleViewClose}
         />
       )}
     </>
