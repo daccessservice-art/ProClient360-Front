@@ -66,28 +66,32 @@ export const CustomerMasterGrid = () => {
     setCurrentPage(1);
   };
 
-  // Export handlers
+  // Export handlers - Updated with better error handling
   const handleExportPDF = async () => {
-    toast.loading('Exporting PDF...');
-    const result = await exportCustomersPDF();
-    toast.dismiss();
-    
-    if (result.success) {
-      toast.success(result.message);
-    } else {
-      toast.error(result.error || 'Failed to export PDF');
+    try {
+      const result = await exportCustomersPDF();
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.error || 'Failed to export PDF');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('An unexpected error occurred while exporting PDF');
     }
   };
 
   const handleExportExcel = async () => {
-    toast.loading('Exporting Excel...');
-    const result = await exportCustomersExcel();
-    toast.dismiss();
-    
-    if (result.success) {
-      toast.success(result.message);
-    } else {
-      toast.error(result.error || 'Failed to export Excel');
+    try {
+      const result = await exportCustomersExcel();
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.error || 'Failed to export Excel');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('An unexpected error occurred while exporting Excel');
     }
   };
 

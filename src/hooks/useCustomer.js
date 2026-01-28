@@ -96,7 +96,43 @@ const getEmployees = async () => {
   }
 };
 
-// PDF Export Function
+// Helper function to trigger download with production compatibility
+const triggerDownload = (blob, filename) => {
+  try {
+    // For iOS/Mac Safari compatibility
+    if (navigator.userAgent.match(/(iPod|iPhone|iPad|Safari)/) && !navigator.userAgent.match(/Chrome/)) {
+      // Use window.open for Safari
+      const fileURL = URL.createObjectURL(blob);
+      const newWindow = window.open(fileURL, '_blank');
+      if (!newWindow) {
+        throw new Error('Popup blocked');
+      }
+      setTimeout(() => {
+        newWindow.document.title = filename;
+        URL.revokeObjectURL(fileURL);
+      }, 100);
+    } else {
+      // Standard download for other browsers
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 100);
+    }
+    return true;
+  } catch (error) {
+    console.error('Error triggering download:', error);
+    return false;
+  }
+};
+
+// PDF Export Function - Updated for production compatibility
 const exportCustomersPDF = async () => {
   try {
     const response = await axios.get(`${url}/export/pdf`, {
@@ -106,25 +142,45 @@ const exportCustomersPDF = async () => {
       responseType: 'blob'
     });
     
-    // Create blob and download
-    const blob = new Blob([response.data], { type: 'application/pdf' });
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `customers_export_${new Date().toISOString().split('T')[0]}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(downloadUrl);
+    // Get filename from headers or use default
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `customers_export_${new Date().toISOString().split('T')[0]}.pdf`;
     
-    return { success: true, message: 'PDF exported successfully' };
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    // Create blob and trigger download
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const downloadSuccess = triggerDownload(blob, filename);
+    
+    if (downloadSuccess) {
+      return { success: true, message: 'PDF exported successfully' };
+    } else {
+      return { success: false, error: 'Failed to download PDF' };
+    }
   } catch (error) {
     console.error('PDF export error:', error);
-    return { success: false, error: 'Failed to export PDF' };
+    
+    // Try to extract error message if it's a JSON response
+    if (error.response && error.response.data instanceof Blob) {
+      try {
+        const errorText = await error.response.data.text();
+        const errorObj = JSON.parse(errorText);
+        return { success: false, error: errorObj.error || 'Failed to export PDF' };
+      } catch (e) {
+        return { success: false, error: 'Failed to export PDF' };
+      }
+    }
+    
+    return { success: false, error: error.message || 'Failed to export PDF' };
   }
 };
 
-// Excel Export Function
+// Excel Export Function - Updated for production compatibility
 const exportCustomersExcel = async () => {
   try {
     const response = await axios.get(`${url}/export/excel`, {
@@ -134,23 +190,43 @@ const exportCustomersExcel = async () => {
       responseType: 'blob'
     });
     
-    // Create blob and download
+    // Get filename from headers or use default
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `customers_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    // Create blob and trigger download
     const blob = new Blob([response.data], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
     });
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `customers_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(downloadUrl);
+    const downloadSuccess = triggerDownload(blob, filename);
     
-    return { success: true, message: 'Excel exported successfully' };
+    if (downloadSuccess) {
+      return { success: true, message: 'Excel exported successfully' };
+    } else {
+      return { success: false, error: 'Failed to download Excel' };
+    }
   } catch (error) {
     console.error('Excel export error:', error);
-    return { success: false, error: 'Failed to export Excel' };
+    
+    // Try to extract error message if it's a JSON response
+    if (error.response && error.response.data instanceof Blob) {
+      try {
+        const errorText = await error.response.data.text();
+        const errorObj = JSON.parse(errorText);
+        return { success: false, error: errorObj.error || 'Failed to export Excel' };
+      } catch (e) {
+        return { success: false, error: 'Failed to export Excel' };
+      }
+    }
+    
+    return { success: false, error: error.message || 'Failed to export Excel' };
   }
 };
 
