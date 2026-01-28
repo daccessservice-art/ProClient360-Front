@@ -30,7 +30,11 @@ export const TaskSheetMaster = () => {
     setIsOpen(!isopen);
   };
 
+  // Loading states
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  
   const { id } = useParams();
 
   const [view, setView] = React.useState(ViewMode.Day);
@@ -42,6 +46,7 @@ export const TaskSheetMaster = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [remark, setRemark] = useState("");
+  const [priority, setPriority] = useState("medium");
   const [taskDropDown, setTaskDropDown] = useState([]);
   
   const [employeeOptions, setEmployeeOptions] = useState([]);
@@ -59,6 +64,9 @@ export const TaskSheetMaster = () => {
   
   const [employeeTaskAssignments, setEmployeeTaskAssignments] = useState([]);
 
+  // Get today's date in YYYY-MM-DD format for min attribute
+  const today = new Date().toISOString().split('T')[0];
+
   const loadEmployees = useCallback(async (page = 1, search = "") => {
     setEmployeeLoading(true);
     try {
@@ -70,8 +78,9 @@ export const TaskSheetMaster = () => {
       }
     } catch (error) {
       toast.error("Failed to load employees");
+    } finally {
+      setEmployeeLoading(false);
     }
-    setEmployeeLoading(false);
   }, []);
 
   useEffect(() => {
@@ -79,7 +88,7 @@ export const TaskSheetMaster = () => {
     setEmployeeHasMore(true);
     setEmployeeOptions([]);
     loadEmployees(1, employeeSearch);
-  }, [employeeSearch]);
+  }, [employeeSearch, loadEmployees]);
 
   let columnWidth = 90;
   if (view === ViewMode.Month) {
@@ -106,32 +115,46 @@ export const TaskSheetMaster = () => {
   };
 
   const forActionShow = async (id) => {
-    const data = await getAllActions(id);
-    setForTask(data?.actions);
-    setShowAction(true);
+    try {
+      setActionLoading(true);
+      const data = await getAllActions(id);
+      setForTask(data?.actions);
+      setShowAction(true);
+    } catch (error) {
+      toast.error("Failed to load actions");
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   const handleTaskDelete = (task) => {
     confirmAlert({
       title: 'Confirm to Delete',
-      message: `Are you sure to delete ` + task.name + ` ?`,
+      message: `Are you sure to delete ${task.name}?`,
       buttons: [
         {
           label: 'Yes',
           onClick: async () => {
-            const data = await deleteTaskSheet(task.id);
-            setTasks(tasks.filter((t) => t.id !== task.id));
-            if( data?.success) {
-              toast.success(data?.message);
-            } else {
-              toast.error(data?.error);
+            try {
+              setLoading(true);
+              const data = await deleteTaskSheet(task.id);
+              setTasks(tasks.filter((t) => t.id !== task.id));
+              if( data?.success) {
+                toast.success(data?.message || "Task deleted successfully");
+              } else {
+                toast.error(data?.error || "Failed to delete task");
+              }
+            } catch (error) {
+              toast.error("Error deleting task");
+            } finally {
+              setLoading(false);
             }
           }
         },
         {
           label: 'No',
           onClick: () => {
-            return
+            return;
           }
         }
       ]
@@ -160,7 +183,6 @@ export const TaskSheetMaster = () => {
       try {
         setLoading(true);
         const response = await getTaskSheet(id);
-        console.log("API Response:", response); // Debug log
         
         setProjectName(response.task[0].project);
 
@@ -189,10 +211,7 @@ export const TaskSheetMaster = () => {
               employeeMap[emp._id] = emp;
             });
             
-            // Build assignments array with proper assigner information
             taskSheets.forEach(task => {
-              console.log("Task assignedBy:", task.assignedBy); // Debug log
-              
               if (task.employees && Array.isArray(task.employees)) {
                 task.employees.forEach(emp => {
                   const empId = typeof emp === 'object' ? emp._id : emp;
@@ -204,7 +223,7 @@ export const TaskSheetMaster = () => {
                       taskName: task.taskName?.name || 'Unknown Task',
                       startDate: task.startDate,
                       endDate: task.endDate,
-                      // Fix: Check if assignedBy exists and has name property
+                      priority: task.priority || 'medium',
                       assignedBy: task.assignedBy?.name || 'Not Assigned',
                       assignedById: task.assignedBy?._id || null
                     });
@@ -227,6 +246,7 @@ export const TaskSheetMaster = () => {
                 taskName: assignment.taskName,
                 startDate: assignment.startDate,
                 endDate: assignment.endDate,
+                priority: assignment.priority,
                 assignedBy: assignment.assignedBy,
                 assignedById: assignment.assignedById
               });
@@ -236,18 +256,18 @@ export const TaskSheetMaster = () => {
               a.employeeName.localeCompare(b.employeeName)
             );
             
-            console.log("Final assignments:", sortedAssignments); // Debug log
             setEmployeeTaskAssignments(sortedAssignments);
           } catch (error) {
             console.error("Error fetching employee details:", error);
+            toast.error("Failed to fetch employee details");
           }
         } else {
           setEmployeeTaskAssignments([]);
         }
-        
-        setLoading(false);
       } catch (error) {
         console.error("Error fetching projects: ", error);
+        toast.error("Error fetching project data");
+      } finally {
         setLoading(false);
       }
     };
@@ -264,7 +284,7 @@ export const TaskSheetMaster = () => {
         }
       } catch (error) {
         console.log(error);
-        setLoading(false);
+        toast.error("Failed to load tasks");
       } finally {
         setLoading(false);
       }
@@ -293,12 +313,16 @@ export const TaskSheetMaster = () => {
       project: project._id,
       type: "task",
       progress: task.taskLevel || 0,
+      priority: task.priority || 'medium',
     }));
 
     return [projectTask, ...taskList];
   };
 
-  const handleTaskAdd = async (event) => {
+  const handleTaskAdd = async () => {
+    // Prevent multiple submissions
+    if (submitting) return;
+    
     const employeeIds = selectedEmployees.map(emp => emp.value);
     const data = {
       project: id,
@@ -307,20 +331,50 @@ export const TaskSheetMaster = () => {
       startDate,
       endDate,
       remark,
+      priority,
     };
     
     if (!selectedEmployees.length || !taskName || !startDate || !endDate ) {
-      return toast.error("Please fill all fields");
+      return toast.error("Please fill all required fields");
     }
 
-    if(startDate>endDate){
-      return toast.error("Start date should be less than end date");
+    // Check remark length
+    if (remark.length > 2000) {
+      return toast.error("Remark cannot exceed 2000 characters");
     }
 
-    await createTaskSheet(data);
-    setRenderPage(!renderPage);
-    toast.success("Task added successfully");
-    clearForm();
+    // Check if dates are before today
+    if (new Date(startDate) < new Date(today)) {
+      return toast.error("Start date cannot be before today");
+    }
+
+    if (new Date(endDate) < new Date(today)) {
+      return toast.error("End date cannot be before today");
+    }
+
+    // Check if end date is before start date
+    if (new Date(endDate) < new Date(startDate)) {
+      return toast.error("End date cannot be before start date");
+    }
+
+    try {
+      setSubmitting(true);
+      
+      const result = await createTaskSheet(data);
+      
+      if (result?.success) {
+        toast.success("Task assigned successfully");
+        setRenderPage(!renderPage);
+        clearForm();
+      } else {
+        toast.error(result?.error || "Failed to assign task");
+      }
+    } catch (error) {
+      console.error("Error creating task:", error);
+      toast.error("Error assigning task");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const clearForm = () => {
@@ -329,7 +383,15 @@ export const TaskSheetMaster = () => {
     setEndDate("");
     setRemark("");
     setSelectedEmployees([]);
+    setPriority("medium");
   };
+
+  // Reset end date when start date changes if end date is before new start date
+  useEffect(() => {
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      setEndDate("");
+    }
+  }, [startDate, endDate]);
 
   return (
     <>
@@ -368,7 +430,6 @@ export const TaskSheetMaster = () => {
                     </div>
                   </div>
 
-                  {/* FIXED: Employee Task Assignments Section - Employee name always shows */}
                   <div className="row bg-white p-2 m-1 border rounded">
                     <div className="col-12">
                       <div className="mb-3">
@@ -383,6 +444,7 @@ export const TaskSheetMaster = () => {
                                   <th>Assigned By</th>
                                   <th>Employee Name</th>
                                   <th>Task Name</th>
+                                  <th>Priority</th>
                                   <th>Start Date</th>
                                   <th>End Date</th>
                                 </tr>
@@ -396,9 +458,17 @@ export const TaskSheetMaster = () => {
                                         <strong>{assignment.employeeName}</strong>
                                       </td>
                                       <td className="align-middle text-start">{task.taskName}</td>
+                                      <td className="align-middle text-center">
+                                        <span className={`badge ${
+                                          task.priority === 'high' ? 'bg-danger' : 
+                                          task.priority === 'medium' ? 'bg-warning' : 
+                                          'bg-info'
+                                        }`}>
+                                          {task.priority?.charAt(0).toUpperCase() + task.priority?.slice(1)}
+                                        </span>
+                                      </td>
                                       <td className="align-middle">{new Date(task.startDate).toLocaleDateString()}</td>
                                       <td className="align-middle">{new Date(task.endDate).toLocaleDateString()}</td>
-                                      
                                     </tr>
                                   ))
                                 )}
@@ -414,7 +484,6 @@ export const TaskSheetMaster = () => {
                     </div>
                   </div>
 
-                  {/* Rest of your form remains the same */}
                   <div className="row  bg-white p-2 m-1 border rounded">
                     <div className="col-12 col-md-6 col-lg-3">
                       <div className="mb-3">
@@ -430,6 +499,7 @@ export const TaskSheetMaster = () => {
                           onChange={(e) => handleTaskSelection(e.target.value)}
                           value={taskName}
                           required
+                          disabled={submitting}
                         >
                           <option value="">-- Select Task Name --</option>
                           {taskDropDown &&
@@ -437,6 +507,29 @@ export const TaskSheetMaster = () => {
                               <option key={task._id} value={task._id}>{task.name}</option>
                             ))}
                           <option value="AddNewTask" >-- Add New Task --</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="col-12 col-md-6 col-lg-3">
+                      <div className="mb-3">
+                        <label
+                          htmlFor="priority"
+                          className="form-label label_text"
+                        >
+                          Priority <RequiredStar/>
+                        </label>
+                        <select
+                          className="form-select rounded-0"
+                          id="priority"
+                          onChange={(e) => setPriority(e.target.value)}
+                          value={priority}
+                          required
+                          disabled={submitting}
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
                         </select>
                       </div>
                     </div>
@@ -457,6 +550,8 @@ export const TaskSheetMaster = () => {
                           value={startDate}
                           aria-describedby="emailHelp"
                           required
+                          disabled={submitting}
+                          min={today}
                         />
                       </div>
                     </div>
@@ -474,11 +569,13 @@ export const TaskSheetMaster = () => {
                           value={endDate}
                           aria-describedby="emailHelp"
                           required
+                          disabled={submitting}
+                          min={startDate || today}
                         />
                       </div>
                     </div>
 
-                    <div className="col-12 col-md-6 col-lg-3">
+                    <div className="col-12 col-md-6 col-lg-6">
                       <div className="mb-3">
                         <label
                           htmlFor="employeeSelect"
@@ -506,6 +603,7 @@ export const TaskSheetMaster = () => {
                           placeholder="Search and select employees..."
                           isClearable
                           isLoading={employeeLoading}
+                          isDisabled={submitting}
                           styles={{
                             control: (provided) => ({
                               ...provided,
@@ -525,13 +623,13 @@ export const TaskSheetMaster = () => {
                       </div>
                     </div>
 
-                    <div className="col-12 col-md-6 col-lg-3">
+                    <div className="col-12 col-md-12 col-lg-12">
                       <div className="mb-3">
                         <label
                           htmlFor="ProjectName"
                           className="form-label label_text"
                         >
-                          Remark
+                          Remark / Description <span className="text-muted">({remark.length}/2000)</span>
                         </label>
                         <textarea
                           onChange={(e) => setRemark(e.target.value)}
@@ -540,17 +638,35 @@ export const TaskSheetMaster = () => {
                           id=""
                           name=""
                           placeholder=""
-                          rows="1"
+                          rows="3"
+                          style={{ minHeight: "170px", resize: "vertical" }}
+                          disabled={submitting}
+                          maxLength={2000}
                         ></textarea>
+                        {remark.length > 1800 && (
+                          <div className="text-danger small">
+                            Warning: Approaching character limit
+                          </div>
+                        )}
                       </div>
                     </div>
-
+                    
                     <div className="col-12 col-lg-3  pt-3 mt-3 ">
                       <button
                         type="submit"
                         className="btn adbtn btn-success px-4 me-lg-4 mx-auto"
+                        disabled={submitting}
                       >
-                        <i className="fa-solid fa-plus"></i> Add
+                        {submitting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Assigning...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-plus"></i> Add
+                          </>
+                        )}
                       </button>
                       <button
                         onClick={() => {
@@ -558,6 +674,7 @@ export const TaskSheetMaster = () => {
                         }}
                         type="button"
                         className="btn adbtn btn-danger  px-4 mx-auto"
+                        disabled={submitting}
                       >
                         <i className="fa-solid fa-xmark"></i> Clear
                       </button>
@@ -595,7 +712,7 @@ export const TaskSheetMaster = () => {
                       </div>
                     </div>
 
-                    {showAction ? (
+                    {showAction && (
                       <div className="col-12 col-lg-12  mx-auto  rounded ">
                         <div className="row  bg-white ms-lg-1 pt-5 rounded p-lg-3">
                           <div className="col-12 col-lg-6">
@@ -611,58 +728,66 @@ export const TaskSheetMaster = () => {
                             </span>
                           </div>
                           <div className="col-12">
-                            <div className="shadow_custom ">
-                              <div className="table-responsive">
-                                <table className="table align-items-center table-flush">
-                                  <thead className="thead-light">
-                                    <tr>
-                                      <th className="text-center">Action</th>
-                                      <th className="text-center">Action By</th>
-                                      <th className="text-center">Start Time </th>
-                                      <th className="text-center">End Time</th>
-                                      <th className="text-center">Completion</th>
-                                    </tr>
-                                  </thead>
-                                  {forTask && forTask.length !== 0 ? (
-                                    <tbody>
-                                      {forTask && forTask.map((action) => (
-                                        <tr className="text-center" key={action._id}>
-                                          <td>{action.action}</td>
-                                          <td>{action.actionBy.name}</td>
-                                          <td>{formatDateTimeForDisplay(action.startTime)}</td>
-                                          <td>{formatDateTimeForDisplay(action.endTime)}</td>
-                                          <td className="text-center">
-                                            <div className="d-flex align-items-center"
-                                              style={{ justifyContent: "center" }}
-                                            >
-                                            {action.complated}%
-                                                <span className="progress"
-                                                      style={{ marginLeft: "10px" }}
-                                                >
-                                                  <div
-                                                    className="progress-bar bg-warning"
-                                                    role="progressbar"
-                                                    aria-valuenow={action.complated}
-                                                    aria-valuemin="0"
-                                                    aria-valuemax="100"
-                                                    style={{
-                                                      width: `${action.complated}%`,
-                                                    }}
-                                                  ></div>
-                                                </span>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  ) : (<tbody><tr><td colSpan="5"><h6 className="text-center">No Action performed....</h6></td></tr></tbody>)}
-                                </table>
+                            {actionLoading ? (
+                              <div className="d-flex justify-content-center p-4">
+                                <div className="spinner-border text-primary" role="status">
+                                  <span className="sr-only">Loading...</span>
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="shadow_custom ">
+                                <div className="table-responsive">
+                                  <table className="table align-items-center table-flush">
+                                    <thead className="thead-light">
+                                      <tr>
+                                        <th className="text-center">Action</th>
+                                        <th className="text-center">Action By</th>
+                                        <th className="text-center">Start Time </th>
+                                        <th className="text-center">End Time</th>
+                                        <th className="text-center">Completion</th>
+                                      </tr>
+                                    </thead>
+                                    {forTask && forTask.length !== 0 ? (
+                                      <tbody>
+                                        {forTask && forTask.map((action) => (
+                                          <tr className="text-center" key={action._id}>
+                                            <td>{action.action}</td>
+                                            <td>{action.actionBy.name}</td>
+                                            <td>{formatDateTimeForDisplay(action.startTime)}</td>
+                                            <td>{formatDateTimeForDisplay(action.endTime)}</td>
+                                            <td className="text-center">
+                                              <div className="d-flex align-items-center"
+                                                style={{ justifyContent: "center" }}
+                                              >
+                                              {action.complated}%
+                                                  <span className="progress"
+                                                        style={{ marginLeft: "10px" }}
+                                                  >
+                                                    <div
+                                                      className="progress-bar bg-warning"
+                                                      role="progressbar"
+                                                      aria-valuenow={action.complated}
+                                                      aria-valuemin="0"
+                                                      aria-valuemax="100"
+                                                      style={{
+                                                        width: `${action.complated}%`,
+                                                      }}
+                                                    ></div>
+                                                  </span>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    ) : (<tbody><tr><td colSpan="5"><h6 className="text-center">No Action performed....</h6></td></tr></tbody>)}
+                                  </table>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                    ) : (<></>)}
+                    )}
 
                   </div>
                 </div>
