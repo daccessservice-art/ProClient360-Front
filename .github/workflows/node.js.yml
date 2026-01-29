@@ -13,15 +13,7 @@ jobs:
         node-version: [20.19.6]
 
     steps:
-    - name: Clean workspace
-      run: |
-        sudo chown -R vicky:vicky ${{ github.workspace }} || true
-        sudo chmod -R u+w ${{ github.workspace }} || true
-      continue-on-error: true
-    
     - uses: actions/checkout@v4
-      with:
-        clean: true
     
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
@@ -34,18 +26,32 @@ jobs:
     
     - name: Setup Environment
       run: |
-        touch .env
         echo '${{ secrets.PROCLIENT360_FRONT_ENV }}' > .env
         
     - name: Build the project
-      run: CI=false yarn build --if-present
-
-    - name: Deploy to Nginx Folder
+      run: CI=false yarn build
+    
+    - name: Deploy to Production Directory
       run: |
+        # Create production directory if it doesn't exist
         sudo mkdir -p /home/vicky/ProClient360/pms-front/build
+        
+        # Remove old build files
         sudo rm -rf /home/vicky/ProClient360/pms-front/build/*
+        
+        # Copy new build files
         sudo cp -r build/* /home/vicky/ProClient360/pms-front/build/
+    
+    - name: Set Correct Permissions
+      run: |
         sudo chown -R vicky:vicky /home/vicky/ProClient360/pms-front/build
+        sudo chmod -R 755 /home/vicky/ProClient360/pms-front/build
     
     - name: Reload Nginx
       run: sudo systemctl reload nginx
+    
+    - name: Check Deployment Status
+      run: |
+        echo "✅ Frontend deployed successfully!"
+        echo "Build files copied to: /home/vicky/ProClient360/pms-front/build"
+        ls -lah /home/vicky/ProClient360/pms-front/build | head -10
