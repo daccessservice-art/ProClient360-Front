@@ -15,11 +15,14 @@ jobs:
     steps:
     - name: Clean workspace
       run: |
-        cd $GITHUB_WORKSPACE/.. || true
-        sudo rm -rf ProClient360-Front || true
+        sudo chown -R vicky:vicky ${{ github.workspace }} || true
+        sudo chmod -R 755 ${{ github.workspace }} || true
+        sudo find ${{ github.workspace }} -type d -name '.git' -exec chmod -R 755 {} \; || true
       continue-on-error: true
     
     - uses: actions/checkout@v4
+      with:
+        clean: true
     
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
