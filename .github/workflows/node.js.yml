@@ -13,7 +13,15 @@ jobs:
         node-version: [20.19.6]
 
     steps:
+    - name: Clean workspace
+      run: |
+        sudo chown -R vicky:vicky ${{ github.workspace }} || true
+        sudo chmod -R u+w ${{ github.workspace }} || true
+      continue-on-error: true
+    
     - uses: actions/checkout@v4
+      with:
+        clean: true
     
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
