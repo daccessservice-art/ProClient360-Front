@@ -129,9 +129,9 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     } else if (selectedTask?.taskLevel && taskLevel < selectedTask?.taskLevel) {
       return toast.error("Task level must be greater than previous task level");
     }
-    // if (!/^[a-zA-Z0-9\s.,;:!?'"()\-]+$/.test(action)) {
-    //   return toast.error("Special characters are not allowed in action");
-    // }
+    if (!/^[a-zA-Z0-9\s.,;:!?'"()\-]+$/.test(action)) {
+      return toast.error("Special characters are not allowed in action");
+    }
     
     if (new Date(startTime) >= new Date(endTime)) {
       return toast.error("Start time must be before end time");
