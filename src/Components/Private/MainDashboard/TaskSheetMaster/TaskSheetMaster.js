@@ -62,6 +62,11 @@ export const TaskSheetMaster = () => {
   const [forTask, setForTask] = useState();
   const [showAction, setShowAction] = useState(false);
   
+  // New states for remark popup
+  const [showRemarkPopup, setShowRemarkPopup] = useState(false);
+  const [selectedRemark, setSelectedRemark] = useState("");
+  const [selectedTaskName, setSelectedTaskName] = useState("");
+  
   const [employeeTaskAssignments, setEmployeeTaskAssignments] = useState([]);
 
   // Get today's date in YYYY-MM-DD format for min attribute
@@ -126,6 +131,13 @@ export const TaskSheetMaster = () => {
       setActionLoading(false);
     }
   }
+
+  // New function to handle viewing remark
+  const handleViewRemark = (remark, taskName) => {
+    setSelectedRemark(remark || "No remark provided");
+    setSelectedTaskName(taskName);
+    setShowRemarkPopup(true);
+  };
 
   const handleTaskDelete = (task) => {
     confirmAlert({
@@ -225,7 +237,8 @@ export const TaskSheetMaster = () => {
                       endDate: task.endDate,
                       priority: task.priority || 'medium',
                       assignedBy: task.assignedBy?.name || 'Not Assigned',
-                      assignedById: task.assignedBy?._id || null
+                      assignedById: task.assignedBy?._id || null,
+                      remark: task.remark || '' // Add remark to assignments
                     });
                   }
                 });
@@ -248,7 +261,8 @@ export const TaskSheetMaster = () => {
                 endDate: assignment.endDate,
                 priority: assignment.priority,
                 assignedBy: assignment.assignedBy,
-                assignedById: assignment.assignedById
+                assignedById: assignment.assignedById,
+                remark: assignment.remark // Add remark to tasks
               });
             });
             
@@ -447,6 +461,7 @@ export const TaskSheetMaster = () => {
                                   <th>Priority</th>
                                   <th>Start Date</th>
                                   <th>End Date</th>
+                                  <th>Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -457,7 +472,19 @@ export const TaskSheetMaster = () => {
                                       <td className="align-middle">
                                         <strong>{assignment.employeeName}</strong>
                                       </td>
-                                      <td className="align-middle text-start">{task.taskName}</td>
+                                      <td className="align-middle text-start">
+                                        {task.taskName}
+                                        {task.remark && (
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm btn-link p-0 ms-2"
+                                            onClick={() => handleViewRemark(task.remark, task.taskName)}
+                                            title="View Remark"
+                                          >
+                                            <i className="fa-solid fa-eye text-primary"></i>
+                                          </button>
+                                        )}
+                                      </td>
                                       <td className="align-middle text-center">
                                         <span className={`badge ${
                                           task.priority === 'high' ? 'bg-danger' : 
@@ -469,6 +496,16 @@ export const TaskSheetMaster = () => {
                                       </td>
                                       <td className="align-middle">{new Date(task.startDate).toLocaleDateString()}</td>
                                       <td className="align-middle">{new Date(task.endDate).toLocaleDateString()}</td>
+                                      <td className="align-middle text-center">
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-link p-0"
+                                          onClick={() => forActionShow(task.taskId)}
+                                          title="View Actions"
+                                        >
+                                          <i className="fa-solid fa-list-check text-info"></i>
+                                        </button>
+                                      </td>
                                     </tr>
                                   ))
                                 )}
@@ -716,7 +753,7 @@ export const TaskSheetMaster = () => {
                       <div className="col-12 col-lg-12  mx-auto  rounded ">
                         <div className="row  bg-white ms-lg-1 pt-5 rounded p-lg-3">
                           <div className="col-12 col-lg-6">
-                            <h6 className="mb-0 fw-bold mb-3 text-warning-dark">Task Name </h6>
+                            <h6 className="mb-0 fw-bold mb-3 text-warning-dark">Task Actions </h6>
                           </div>
                           <div className="col-12 col-lg-6 text-end">
                             <span
@@ -784,6 +821,31 @@ export const TaskSheetMaster = () => {
                                 </div>
                               </div>
                             )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* New Remark Popup */}
+                    {showRemarkPopup && (
+                      <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
+                        <div className="modal-dialog modal-lg">
+                          <div className="modal-content">
+                            <div className="modal-header">
+                              <h5 className="modal-title">Task Remark</h5>
+                              <button type="button" className="btn-close" onClick={() => setShowRemarkPopup(false)}></button>
+                            </div>
+                            <div className="modal-body">
+                              <h6 className="fw-bold mb-3">Task: {selectedTaskName}</h6>
+                              <div className="border rounded p-3 bg-light">
+                                <p>{selectedRemark}</p>
+                              </div>
+                            </div>
+                            <div className="modal-footer">
+                              <button type="button" className="btn btn-secondary" onClick={() => setShowRemarkPopup(false)}>
+                                Close
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
