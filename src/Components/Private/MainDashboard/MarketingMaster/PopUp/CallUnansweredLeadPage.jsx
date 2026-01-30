@@ -1,70 +1,45 @@
-import { useState, useContext, useEffect, act } from "react";
-import { Header } from "../Header/Header";
-import { Sidebar } from "../Sidebar/Sidebar";
-import toast from 'react-hot-toast'
+import { useState, useContext, useEffect } from "react";
+import { Header } from "../../Header/Header";
+import { Sidebar } from "../../Sidebar/Sidebar";
+import toast from 'react-hot-toast';
+import { UserContext } from "../../../../../context/UserContext";
+import ViewSalesLeadPopUp from "../../../CommonPopUp/ViewSalesLeadPopUp";
+import CallUnansweredLeadPage from "../../../../../hooks/leads/CallUnansweredLeadPage";
+import { formatDateTimeForDisplay } from "../../../../../utils/formatDate";
 
-import MarketingDashboardCards from './MarketingDashboardCards';
-import { UserContext } from "../../../../context/UserContext";
-
-import ViewSalesLeadPopUp from "../../CommonPopUp/ViewSalesLeadPopUp";
-import useLeads from "../../../../hooks/leads/useLeads";
-import AssignMarketingLeadPopUp from "./PopUp/AssignLeadPopUp";
-import useAssignLead from "../../../../hooks/leads/useAssignLead";
-import { formatDateTimeForDisplay } from "../../../../utils/formatDate";
-import AddLeadMaster from "../SalesMaster/PopUp/AddLeadMaster";
-import useCreateLead from "../../../../hooks/leads/useCreateLead";
-import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
-import DeletePopUP from "../../CommonPopUp/DeletePopUp";
-
-
-export const MarketingMasterGrid = () => {
+export const CallUnansweredLeadsPage = () => {
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => {
     setIsOpen(!isopen);
-    
   };
 
-  // const [isAddModalVisible, setIsAddModalVisible] = useState(false);
-
-  const [addpop, setIsAddModalVisible] = useState(false);
-  
-
-  const [UpdatePopUpShow, setUpdatePopUpShow] = useState(false);
-
   const [detailsServicePopUp, setDetailsServicePopUp] = useState(false);
-
   const [selectedLead, setSelectedLead] = useState(null);
-
-  const [selectedLeadId, setSelectedLeadId] = useState(null);
-  const [deletePopUpShow, setDeletePopUpShow] = useState(false);
-
-  // New state for call unanswered modal
-  const [showCallUnansweredModal, setShowCallUnansweredModal] = useState(false);
 
   const { user } = useContext(UserContext);
   const [filters, setFilters] = useState({ date: null, source: null });
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 0,
-    totalServices: 0,
+    totalRecords: 0,
     limit: 20,
     hasNextPage: true,
     hasPrevPage: false,
   });
   const itemsPerPage = 20;
 
-  const { data, loading, error, refetch } = useLeads(pagination.currentPage, itemsPerPage, filters);
-  const {assignLead } = useAssignLead();
-  const { createLead } = useCreateLead();
-
-  const { deleteLead } = useDeleteLead();
+  const { data, loading, error, refetch } = CallUnansweredLeadPage(
+    pagination.currentPage, 
+    itemsPerPage, 
+    filters
+  );
 
   useEffect(() => {
     if (data) {
       setPagination(prev => ({ ...prev, ...data.pagination }));
     }
     if (error) {
-      toast.error(error.message || "An error occurred");
+      toast.error(error || "An error occurred");
     }
   }, [data, error]);
 
@@ -74,77 +49,6 @@ export const MarketingMasterGrid = () => {
     }
   };
 
-  const handleUpdate = (lead = null) => {
-    setSelectedLead(lead);
-    setUpdatePopUpShow(true);
-  };
-
-  const handleDelete = (leadId) => {
-    setSelectedLeadId(leadId);
-    setDeletePopUpShow(true);
-  };
-
-    const handleDeleteConfirm = async () => {
-    if(!selectedLeadId) return;
-    try { 
-      console.log("Deleting lead with ID:", selectedLeadId);
-      toast.loading("Deleting lead...");
-      const data = await deleteLead(selectedLeadId);
-      toast.dismiss();
-      if(data?.success){
-        toast.success("Lead deleted successfully!");
-        setDeletePopUpShow(false);
-        setSelectedLeadId(null);
-        refetch(); 
-      } else {
-        toast.error(data?.error || "Failed to delete lead");
-      }
-    } catch (error) {
-      toast.error("Failed to delete lead");
-    }
-  };
-
-
-  const handleAddLeadSubmit = async (leadData) => {
-      toast.loading("Adding lead...");
-      const data = await createLead(leadData);
-      console.log("Lead Data:", data);
-      if (data?.success) {
-        toast.dismiss();
-        toast.success(data?.message || "Lead added successfully!");
-        handleCloseAddModal();
-        refetch();
-      }else{
-        toast.dismiss();
-        toast.error(data?.error || "Failed to add lead");
-      }
-    };
-
-
-  const handleUpdateSubmit = async (id, actionData) => {
-    try {
-      if (actionData) {
-        console.log("Updating lead with ID:", id, "and data:", actionData);
-        toast.loading("Assigning lead...");
-        const data = await assignLead(id, actionData);
-        toast.dismiss();
-        if (data?.success) {
-          toast.success(data?.message);
-        } else {
-          toast.error(data?.error);
-        }
-        refetch();
-      } 
-    } catch (error) {
-      console.error("Update error:", error);
-      toast.error("Failed to update lead");
-    }
-  };
-
-  const handleOpenAddModal = () => setIsAddModalVisible(true);
-  const handleCloseAddModal = () => setIsAddModalVisible(false);
-
-
   const handleDetailsPopUpClick = (lead) => {
     setSelectedLead(lead);
     setDetailsServicePopUp(true);
@@ -152,49 +56,39 @@ export const MarketingMasterGrid = () => {
 
   const handleChange = (filterType, value) => {
     setFilters(prevFilters => ({ ...prevFilters, [filterType]: value || null }));
-    console.log(filterType, value)
     handlePageChange(1);
   };
 
-  // Function to get call attempt badge
+  // Function to get call attempt badge with color coding
   const getCallAttemptBadge = (lead) => {
     if (lead.callHistory && lead.callHistory.length > 0) {
       return (
-        <span className={`badge ms-1 ${
+        <span className={`badge ${
           lead.callHistory.length >= 9 ? 'bg-danger' : 
           lead.callHistory.length >= 6 ? 'bg-warning' : 
           'bg-info'
         }`}>
+          <i className="fa-solid fa-phone me-1"></i>
           {lead.callHistory.length} Call{lead.callHistory.length > 1 ? 's' : ''}
         </span>
       );
     }
-    return null;
+    return <span className="badge bg-secondary">No Calls</span>;
   };
 
-  // Function to handle call unanswered modal
-  const handleCallUnansweredModal = () => {
-    setShowCallUnansweredModal(true);
-  };
-
-  // Function to format call date
-  const formatCallDate = (dateString) => {
-    if (!dateString) return "N/A";
-    try {
-      const options = {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      };
-      return new Date(dateString).toLocaleDateString(undefined, options);
-    } catch (error) {
-      return dateString;
+  // Function to get unique days count
+  const getUniqueDaysCount = (lead) => {
+    if (lead.callHistory && lead.callHistory.length > 0) {
+      const uniqueDays = [...new Set(lead.callHistory.map(call => call.day))];
+      return (
+        <span className="badge bg-primary">
+          <i className="fa-solid fa-calendar-days me-1"></i>
+          {uniqueDays.length} Day{uniqueDays.length > 1 ? 's' : ''}
+        </span>
+      );
     }
+    return <span className="badge bg-secondary">-</span>;
   };
-
-
 
   return (
     <>
@@ -211,32 +105,50 @@ export const MarketingMasterGrid = () => {
               }}
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
+                {/* Header */}
                 <div className="row px-2 py-1">
-                  <div className="col-12 col-lg-4">
-                    <h5 className="text-white py-2">Marketing</h5>
+                  <div className="col-12 col-lg-6">
+                    <h5 className="text-white py-2">
+                      <i className="fa-solid fa-phone-slash me-2"></i>
+                      Call Unanswered Leads
+                    </h5>
                   </div>
-                  {user?.permissions?.includes("createLead") || user?.user === 'company' ? (
-                    <div className="col- col-lg-2 ms-auto text-end me-5">
-                        <button onClick={handleOpenAddModal} type="button" className="btn adbtn btn-dark">
-                            <i className="fa-solid fa-plus"></i> Add
-                        </button>
-                    </div>
-                  ) : null}
                 </div>
 
+                {/* Stats Card */}
+                <div className="row bg-white p-3 m-1 border rounded">
+                  <div className="col-md-4">
+                    <div className="card border-warning">
+                      <div className="card-body">
+                        <div className="d-flex justify-content-between align-items-center">
+                          <div>
+                            <h6 className="text-muted mb-1">Total Call Unanswered</h6>
+                            <h3 className="fw-bold text-warning mb-0">
+                              {pagination.totalRecords || 0}
+                            </h3>
+                          </div>
+                          <div>
+                            <i className="fa-solid fa-phone-slash text-warning" style={{ fontSize: '3rem', opacity: 0.3 }}></i>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-md-8">
+                    <div className="alert alert-info mb-0">
+                      <i className="fa-solid fa-info-circle me-2"></i>
+                      <strong>About Call Unanswered Leads:</strong> These leads have been attempted 
+                      multiple times (typically 3 calls per day for 3 days) but remain unanswered. 
+                      They require review or alternative contact methods.
+                    </div>
+                  </div>
+                </div>
 
-
-                <MarketingDashboardCards
-                  allLeads={data?.allLeadsCount || 0}
-                  feasibleLeads={data?.feasibleCount || 0}
-                  notFeasibleLeads={data?.notFeasibleCount || 0}
-                  callUnansweredLeads={data?.callUnansweredCount || 0}
-                />
-
+                {/* Filters */}
                 <div className="row align-items-center p-2 m-1">
-                  <div className="col-12 col-lg-4  ms-auto text-end">
+                  <div className="col-12 col-lg-4 ms-auto text-end">
                     <div className="row ms-auto">
-                      <div className="col-12 col-lg-6 mt-4">
+                      <div className="col-12 col-lg-6 mt-3">
                         <input
                           type="date"
                           className="form-control bg_edit"
@@ -246,14 +158,14 @@ export const MarketingMasterGrid = () => {
                         />
                       </div>
 
-                      <div className="col-12 col-lg-6 mt-4">
+                      <div className="col-12 col-lg-6 mt-3">
                         <select
                           className="form-select bg_edit"
                           name="source"
                           onChange={(e) => handleChange('source', e.target.value)}
                           value={filters.source || ""}
                         >
-                          <option value="">Sources....</option>
+                          <option value="">All Sources</option>
                           <option value="IndiaMart">IndiaMart</option>
                           <option value="TradeIndia">TradeIndia</option>
                           <option value="Facebook">Facebook</option>
@@ -263,30 +175,26 @@ export const MarketingMasterGrid = () => {
                           <option value="Direct">Direct</option>
                         </select>
                       </div>
-
-
                     </div>
                   </div>
                 </div>
 
-
-                <div className="row align-items-center p-2 m-1">
-                </div>
-
+                {/* Table */}
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
                     <div className="table-responsive">
-                      <table className="table table-striped table-class" id="table-id">
-                        <thead>
+                      <table className="table table-striped table-hover table-class" id="table-id">
+                        <thead className="table-light">
                           <tr className="th_border">
                             <th>Sr.No</th>
-                            <th>Sources</th>
+                            <th>Source</th>
                             <th className="align_left_td td_width">Company Name</th>
                             <th className="align_left_td td_width">Contact Name</th>
                             <th className="align_left_td td_width">Product</th>
                             <th>Mobile</th>
                             <th>Date</th>
-                            <th>Call Attempts</th>
+                            <th>Days Attempted</th>
+                            <th>Total Calls</th>
                             <th>Action</th>
                           </tr>
                         </thead>
@@ -294,44 +202,50 @@ export const MarketingMasterGrid = () => {
                           {data?.leads?.length > 0 ? (
                             data.leads.map((lead, index) => (
                               <tr key={lead._id}>
-                                <td >{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
-                                <td>{lead?.SOURCE}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">{lead?.SENDER_COMPANY || "Not available."}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">{lead?.SENDER_NAME || "Not available."}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">{lead?.QUERY_PRODUCT_NAME || "Not available."}</td>
-                                <td>{lead?.SENDER_MOBILE || "Not available."}</td>
-                                <td>{formatDateTimeForDisplay(lead?.createdAt)}</td>
+                                <td>{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
                                 <td>
+                                  <span className="badge bg-secondary">
+                                    {lead?.SOURCE}
+                                  </span>
+                                </td>
+                                <td className="align_left_td td_width wrap-text-of-col">
+                                  {lead?.SENDER_COMPANY || "Not available"}
+                                </td>
+                                <td className="align_left_td td_width wrap-text-of-col">
+                                  {lead?.SENDER_NAME || "Not available"}
+                                </td>
+                                <td className="align_left_td td_width wrap-text-of-col">
+                                  {lead?.QUERY_PRODUCT_NAME || "Not available"}
+                                </td>
+                                <td>
+                                  <a href={`tel:${lead?.SENDER_MOBILE}`} className="text-decoration-none">
+                                    <i className="fa-solid fa-phone me-1"></i>
+                                    {lead?.SENDER_MOBILE || "Not available"}
+                                  </a>
+                                </td>
+                                <td>{formatDateTimeForDisplay(lead?.createdAt)}</td>
+                                <td className="text-center">
+                                  {getUniqueDaysCount(lead)}
+                                </td>
+                                <td className="text-center">
                                   {getCallAttemptBadge(lead)}
                                 </td>
-                                {/* <td>{leads.STATUS}</td> */}
                                 <td>
-
-                                  {/* Edit Button */}
-                                  {(user?.permissions?.includes('assignLead')) &&
-                                    <span onClick={() => handleUpdate(lead)} title="Edit Lead">
-                                      <i className="mx-1 fa-solid fa-share cursor-pointer"></i>
-                                    </span>
-                                  }
-                                  {( lead.SOURCE==='Direct' &&( user?.permissions?.includes('deleteLead') || user?.user === 'company')) &&
-                                    <span onClick={() => handleDelete(lead._id)} title="Delete Lead">
-                                          <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                    </span>
-                                  }
-
-                                  {/* View Button */}
-                                  <span onClick={() => handleDetailsPopUpClick(lead)} title="View Details">
-                                    <i className="fa-solid fa-eye cursor-pointer text-primary mx-1"></i>
+                                  <span 
+                                    onClick={() => handleDetailsPopUpClick(lead)} 
+                                    title="View Details"
+                                    className="cursor-pointer"
+                                  >
+                                    <i className="fa-solid fa-eye text-primary mx-1"></i>
                                   </span>
-
                                 </td>
                               </tr>
-
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="9" className="text-center">
-                                No data found
+                              <td colSpan="10" className="text-center py-4">
+                                <i className="fa-solid fa-inbox text-muted" style={{ fontSize: '3rem' }}></i>
+                                <p className="text-muted mt-2">No call unanswered leads found</p>
                               </td>
                             </tr>
                           )}
@@ -341,9 +255,7 @@ export const MarketingMasterGrid = () => {
                   </div>
                 </div>
 
-
-                {/* add pagination Pagination */}
-
+                {/* Pagination */}
                 {!loading && pagination.totalPages > 1 && (
                   <div className="pagination-container text-center my-3">
                     <button
@@ -398,8 +310,9 @@ export const MarketingMasterGrid = () => {
                         <button
                           key={number}
                           onClick={() => handlePageChange(number)}
-                          className={`btn btn-sm me-1 ${pagination.currentPage === number ? "btn-primary" : "btn-dark"
-                            }`}
+                          className={`btn btn-sm me-1 ${
+                            pagination.currentPage === number ? "btn-primary" : "btn-dark"
+                          }`}
                           style={{ minWidth: "35px", borderRadius: "4px" }}
                           aria-label={`Go to page ${number}`}
                           aria-current={pagination.currentPage === number ? "page" : undefined}
@@ -434,33 +347,6 @@ export const MarketingMasterGrid = () => {
         </div>
       </div>
 
-
-
-      {UpdatePopUpShow && selectedLead && (
-        <AssignMarketingLeadPopUp
-          selectedLead={selectedLead}
-          currentUser={user}
-          onUpdate={handleUpdateSubmit}
-          onClose={() => {
-            setUpdatePopUpShow(false);
-            setSelectedLead(null);
-          }}
-        />
-      )}
-
-       {addpop && (
-          <AddLeadMaster onAddLead={handleAddLeadSubmit} onClose={handleCloseAddModal} />
-        )}
-        {deletePopUpShow && (
-        <DeletePopUP
-          message={"Are you sure you want to delete this lead?"}
-          heading={"Delete Lead"}
-          cancelBtnCallBack={() => setDeletePopUpShow(false)}
-          confirmBtnCallBack={handleDeleteConfirm}
-        />
-      )}
-
-
       {detailsServicePopUp && selectedLead && (
         <ViewSalesLeadPopUp
           closePopUp={() => {
@@ -470,6 +356,7 @@ export const MarketingMasterGrid = () => {
           selectedLead={selectedLead}
         />
       )}
+
       {loading && (
         <div className="overlay">
           <span className="loader"></span>

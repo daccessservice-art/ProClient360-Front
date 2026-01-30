@@ -1,4 +1,4 @@
-
+import React from 'react';
 
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
@@ -16,6 +16,21 @@ const formatDate = (dateString) => {
   }
 };
 
+const formatCallDate = (dateString) => {
+  if (!dateString) return "N/A";
+  try {
+    const options = {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+  } catch (error) {
+    return dateString;
+  }
+};
 
 const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
   if (!selectedLead) {
@@ -44,10 +59,11 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
           backgroundColor: "#00000090",
         }}
       >
-        <div className="modal-dialog modal-lg modal-dialog-centered">
+        <div className="modal-dialog modal-xl modal-dialog-centered">
           <div className="modal-content p-3">
             <div className="modal-header pt-0 border-0">
               <h5 className="card-title fw-bold" id="exampleModalLongTitle">
+                <i className="fa-solid fa-eye me-2"></i>
                 Sales Lead Details{" "}
                 {selectedLead?.SOURCE?.toLowerCase().includes("indiamart") && (
                   <img src="/static/assets/img/Indiamart.png" alt="Indiamart" style={{ height: "40px", marginLeft:"23px" }} />
@@ -67,7 +83,6 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                 {selectedLead?.SOURCE?.toLowerCase().includes("direct") && (
                   <img src="/static/assets/img/nav/DACCESS.png" alt="direct" style={{ height: "40px",marginLeft:"23px" }} />
                 )}
-
               </h5>
 
               <button
@@ -80,8 +95,10 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
             <div className="modal-body pt-0">
               <div className="row">
                 <div className="col-md-6 mb-3">
-                  <h6 className="text-muted border-bottom pb-2 mb-3">Sender Information</h6>
-
+                  <h6 className="text-muted border-bottom pb-2 mb-3">
+                    <i className="fa-solid fa-user me-2"></i>
+                    Sender Information
+                  </h6>
 
                   <h6 className="mt-3 d-flex align-items-center gap-2">
                     <span className="fw-bold">Source:</span>
@@ -118,7 +135,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
 
                     { selectedLead?.SOURCE.toLowerCase() === "direct" && (
                       <>
-                      <span>direct</span>
+                      <span>Direct</span>
                       </>
                     )}
 
@@ -151,7 +168,10 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                 </div>
 
                 <div className="col-md-6 mb-3">
-                  <h6 className="text-muted border-bottom pb-2 mb-3">Query Information</h6>
+                  <h6 className="text-muted border-bottom pb-2 mb-3">
+                    <i className="fa-solid fa-clipboard-question me-2"></i>
+                    Query Information
+                  </h6>
                   <h6>
                     <p className="fw-bold d-inline">Product: </p>
                     {selectedLead?.QUERY_PRODUCT_NAME || "-"}
@@ -177,7 +197,14 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
 
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Status: </p>
-                    {selectedLead?.STATUS || "-"}
+                    <span className={`badge ms-2 ${
+                      selectedLead?.STATUS === 'Won' ? 'bg-success' :
+                      selectedLead?.STATUS === 'Lost' ? 'bg-danger' :
+                      selectedLead?.STATUS === 'Ongoing' ? 'bg-primary' :
+                      'bg-secondary'
+                    }`}>
+                      {selectedLead?.STATUS || "-"}
+                    </span>
                   </h6>
 
                   <h6 className="mt-3">
@@ -187,16 +214,165 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
 
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Completed: </p>
-                    {selectedLead?.complated || "-"}
+                    <span className="badge bg-info ms-2">{selectedLead?.complated || 0}%</span>
                   </h6>
                 </div>
 
                 <div className="col-12 mt-2">
-                  <h6 className="text-muted border-bottom pb-2 mb-2">Message</h6>
+                  <h6 className="text-muted border-bottom pb-2 mb-2">
+                    <i className="fa-solid fa-message me-2"></i>
+                    Message
+                  </h6>
                   <p className="text-wrap" style={{ whiteSpace: "pre-wrap" }}>
                     {selectedLead?.QUERY_MESSAGE || "No message provided."}
                   </p>
                 </div>
+
+                {/* Enhanced Call History Section */}
+                {selectedLead?.callHistory && selectedLead.callHistory.length > 0 && (
+                  <div className="col-12 mt-4">
+                    <h6 className="text-muted border-bottom pb-2 mb-3">
+                      <i className="fa-solid fa-phone-volume me-2"></i>
+                      Call History 
+                      <span className="badge bg-primary ms-2">
+                        {selectedLead.callHistory.length} Total Calls
+                      </span>
+                    </h6>
+                    
+                    {/* Summary Stats */}
+                    <div className="row mb-3">
+                      <div className="col-md-4">
+                        <div className="card border-info">
+                          <div className="card-body py-2">
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="text-muted small">Days with Calls</span>
+                              <span className="fw-bold text-info">
+                                {[...new Set(selectedLead.callHistory.map(c => c.day))].length}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="card border-warning">
+                          <div className="card-body py-2">
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="text-muted small">Total Attempts</span>
+                              <span className="fw-bold text-warning">
+                                {selectedLead.callHistory.length}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="card border-success">
+                          <div className="card-body py-2">
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="text-muted small">Answered Calls</span>
+                              <span className="fw-bold text-success">
+                                {selectedLead.callHistory.filter(c => c.status === 'answered').length}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Group calls by day */}
+                    {(() => {
+                      const callsByDay = {};
+                      selectedLead.callHistory.forEach(call => {
+                        if (!callsByDay[call.day]) {
+                          callsByDay[call.day] = [];
+                        }
+                        callsByDay[call.day].push(call);
+                      });
+                      
+                      return Object.keys(callsByDay).sort((a, b) => a - b).map(day => (
+                        <div key={day} className="mb-4">
+                          <div className="d-flex align-items-center mb-2">
+                            <span className="badge bg-primary me-2" style={{ fontSize: '0.9rem' }}>
+                              <i className="fa-solid fa-calendar-day me-1"></i>
+                              Day {day}
+                            </span>
+                            <span className="text-muted small">
+                              {callsByDay[day].length} attempt{callsByDay[day].length > 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="table-responsive">
+                            <table className="table table-sm table-bordered table-hover">
+                              <thead className="table-light">
+                                <tr>
+                                  <th style={{ width: '100px' }}>Attempt #</th>
+                                  <th>Date & Time</th>
+                                  <th style={{ width: '120px' }}>Status</th>
+                                  <th>Remarks</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {callsByDay[day].sort((a, b) => a.attempt - b.attempt).map((call, index) => (
+                                  <tr key={index}>
+                                    <td className="text-center fw-bold">
+                                      <i className="fa-solid fa-phone me-1 text-primary"></i>
+                                      Call {call.attempt}
+                                    </td>
+                                    <td>
+                                      <i className="fa-regular fa-clock me-1 text-muted"></i>
+                                      {formatCallDate(call.date)}
+                                    </td>
+                                    <td>
+                                      <span className={`badge w-100 ${call.status === 'answered' ? 'bg-success' : 'bg-warning'}`}>
+                                        {call.status === 'answered' ? (
+                                          <>
+                                            <i className="fa-solid fa-check me-1"></i>
+                                            Answered
+                                          </>
+                                        ) : (
+                                          <>
+                                            <i className="fa-solid fa-phone-slash me-1"></i>
+                                            Attempted
+                                          </>
+                                        )}
+                                      </span>
+                                    </td>
+                                    <td className="text-muted">
+                                      {call.remarks || '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                    
+                    {/* Warning for 9 calls */}
+                    {selectedLead.callHistory.length >= 9 && (
+                      <div className="alert alert-danger d-flex align-items-center mt-3">
+                        <i className="fa-solid fa-exclamation-triangle me-3" style={{ fontSize: '1.5rem' }}></i>
+                        <div>
+                          <strong>Maximum Call Attempts Reached</strong>
+                          <p className="mb-0 small">
+                            This lead has been called for 3 days with 3 attempts each day (9 total calls) 
+                            and should be marked as Call Unanswered or Not Feasible.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Show message if no call history */}
+                {(!selectedLead?.callHistory || selectedLead.callHistory.length === 0) && (
+                  <div className="col-12 mt-3">
+                    <div className="alert alert-secondary">
+                      <i className="fa-solid fa-info-circle me-2"></i>
+                      No call attempts have been recorded for this lead yet.
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

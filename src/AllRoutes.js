@@ -54,6 +54,7 @@ import ProtectRoute from "./utils/ProtectRoute";
 import VendorRegistrationForm from "./Components/Private/MainDashboard/VendorMaster/PopUp/VendorRegistrationForm";
 import VendorRegistrationSuccess from "./Components/Private/MainDashboard/VendorMaster/PopUp/VendorRegistrationSuccess";
 
+import { CallUnansweredLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/CallUnansweredLeadPage';
 // Custom component to check if user has required permissions
 const SalesManagerRoute = () => {
     const { user } = useContext(UserContext);
@@ -130,7 +131,8 @@ const AllRoutes = () => {
 
                 {/* Sales Manager Master Route with special permission check */}
                 <Route exact path="/SalesManagerMasterGrid" element={<ProtectRoute Component={SalesManagerRoute} />} />
-
+                
+                <Route path="/call-unanswered-leads" element={<CallUnansweredLeadsPage />} />
                 {/* Company Routes */}
                 {user && user?.user === 'company' && (
                     <>
