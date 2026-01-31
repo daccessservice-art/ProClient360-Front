@@ -8,7 +8,7 @@ export const loginUser = async (username, password, fcmToken, tokenCF) => {
         if (username === undefined || password === undefined) {
             return toast.error("Username and password Required");
         }
-        const res = await axios.post(`${baseUrl}/api/login`, {
+        const res = await axios.post(`${baseUrl}/api/auth/login`, {
             email: username,
             password: password,
             fcmToken: fcmToken,
