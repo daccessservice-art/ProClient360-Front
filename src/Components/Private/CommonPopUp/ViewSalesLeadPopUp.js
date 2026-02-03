@@ -59,8 +59,10 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
           backgroundColor: "#00000090",
         }}
       >
-        <div className="modal-dialog modal-xl modal-dialog-centered">
-          <div className="modal-content p-3">
+        <div className="modal-dialog modal-xl modal-dialog-centered" style={{ maxHeight: '90vh' }}>
+          <div className="modal-content p-3" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+
+            {/* HEADER */}
             <div className="modal-header pt-0 border-0">
               <h5 className="card-title fw-bold" id="exampleModalLongTitle">
                 <i className="fa-solid fa-eye me-2"></i>
@@ -92,8 +94,12 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                 aria-label="Close"
               ></button>
             </div>
+
+            {/* BODY */}
             <div className="modal-body pt-0">
               <div className="row">
+
+                {/* Sender Information */}
                 <div className="col-md-6 mb-3">
                   <h6 className="text-muted border-bottom pb-2 mb-3">
                     <i className="fa-solid fa-user me-2"></i>
@@ -102,47 +108,15 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
 
                   <h6 className="mt-3 d-flex align-items-center gap-2">
                     <span className="fw-bold">Source:</span>
-
-                    {selectedLead?.SOURCE?.toLowerCase() === "indiamart" && (
-                      <>
-                        <span>IndiaMart</span>
-                      </>
-                    )}
-
-                    {selectedLead?.SOURCE?.toLowerCase() === "tradeindia" && (
-                      <>
-                        <span>TradeIndia</span>
-                      </>
-                    )}
-
-                    {selectedLead?.SOURCE?.toLowerCase() === "facebook" && (
-                      <>
-                        <span>Facebook</span>
-                      </>
-                    )}
-
-                    {selectedLead?.SOURCE?.toLowerCase() === "google" && (
-                      <>
-                        <span>Google</span>
-                      </>
-                    )}
-
-                    {selectedLead?.SOURCE?.toLowerCase() === "linkedin" && (
-                      <>
-                        <span>LinkedIn</span>
-                      </>
-                    )}
-
-                    { selectedLead?.SOURCE.toLowerCase() === "direct" && (
-                      <>
-                      <span>Direct</span>
-                      </>
-                    )}
-
+                    {selectedLead?.SOURCE?.toLowerCase() === "indiamart" && <span>IndiaMart</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === "tradeindia" && <span>TradeIndia</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === "facebook" && <span>Facebook</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === "google" && <span>Google</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === "linkedin" && <span>LinkedIn</span>}
+                    {selectedLead?.SOURCE.toLowerCase() === "direct" && <span>Direct</span>}
                     {!["indiamart", "tradeindia", "facebook", "google", "linkedin", "direct"].includes(selectedLead?.SOURCE?.toLowerCase()) && (
                       <span>{selectedLead?.SOURCE || "-"}</span>
                     )}
-
                   </h6>
 
                   <h6 className='mt-3'>
@@ -167,6 +141,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   </h6>
                 </div>
 
+                {/* Query Information */}
                 <div className="col-md-6 mb-3">
                   <h6 className="text-muted border-bottom pb-2 mb-3">
                     <i className="fa-solid fa-clipboard-question me-2"></i>
@@ -184,17 +159,14 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                     <p className="fw-bold d-inline">Query Time: </p>
                     {formatDate(selectedLead?.createdAt) || "-"}
                   </h6>
-
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Assigned By: </p>
                     {selectedLead?.assignedBy?.name || "None"}
                   </h6>
-
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Assigned To: </p>
                     {selectedLead?.assignedTo?.name || "None"}
                   </h6>
-
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Status: </p>
                     <span className={`badge ms-2 ${
@@ -206,18 +178,17 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                       {selectedLead?.STATUS || "-"}
                     </span>
                   </h6>
-
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Current Stage: </p>
                     {selectedLead?.step || "-"}
                   </h6>
-
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Completed: </p>
                     <span className="badge bg-info ms-2">{selectedLead?.complated || 0}%</span>
                   </h6>
                 </div>
 
+                {/* Message */}
                 <div className="col-12 mt-2">
                   <h6 className="text-muted border-bottom pb-2 mb-2">
                     <i className="fa-solid fa-message me-2"></i>
@@ -228,17 +199,17 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   </p>
                 </div>
 
-                {/* Enhanced Call History Section */}
+                {/* Call History */}
                 {selectedLead?.callHistory && selectedLead.callHistory.length > 0 && (
                   <div className="col-12 mt-4">
                     <h6 className="text-muted border-bottom pb-2 mb-3">
                       <i className="fa-solid fa-phone-volume me-2"></i>
-                      Call History 
+                      Call History
                       <span className="badge bg-primary ms-2">
                         {selectedLead.callHistory.length} Total Calls
                       </span>
                     </h6>
-                    
+
                     {/* Summary Stats */}
                     <div className="row mb-3">
                       <div className="col-md-4">
@@ -288,7 +259,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                         }
                         callsByDay[call.day].push(call);
                       });
-                      
+
                       return Object.keys(callsByDay).sort((a, b) => a - b).map(day => (
                         <div key={day} className="mb-4">
                           <div className="d-flex align-items-center mb-2">
@@ -300,6 +271,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                               {callsByDay[day].length} attempt{callsByDay[day].length > 1 ? 's' : ''}
                             </span>
                           </div>
+
                           <div className="table-responsive">
                             <table className="table table-sm table-bordered table-hover">
                               <thead className="table-light">
@@ -347,7 +319,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                         </div>
                       ));
                     })()}
-                    
+
                     {/* Warning for 9 calls */}
                     {selectedLead.callHistory.length >= 9 && (
                       <div className="alert alert-danger d-flex align-items-center mt-3">
@@ -355,7 +327,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                         <div>
                           <strong>Maximum Call Attempts Reached</strong>
                           <p className="mb-0 small">
-                            This lead has been called for 3 days with 3 attempts each day (9 total calls) 
+                            This lead has been called for 3 days with 3 attempts each day (9 total calls)
                             and should be marked as Call Unanswered or Not Feasible.
                           </p>
                         </div>
@@ -364,7 +336,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   </div>
                 )}
 
-                {/* Show message if no call history */}
+                {/* No call history */}
                 {(!selectedLead?.callHistory || selectedLead.callHistory.length === 0) && (
                   <div className="col-12 mt-3">
                     <div className="alert alert-secondary">

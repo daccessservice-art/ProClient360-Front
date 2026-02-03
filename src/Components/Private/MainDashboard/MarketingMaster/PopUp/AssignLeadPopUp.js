@@ -4,6 +4,7 @@ import Select from "react-select";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getDepartment } from "../../../../../hooks/useDepartment";
 import { getEmployee } from "../../../../../hooks/useEmployees";
+import axios from 'axios';
 
 const PAGE_SIZE = 10;
 
@@ -32,6 +33,64 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
 
   // Call history state
   const [callHistoryData, setCallHistoryData] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [savingCall, setSavingCall] = useState(false);
+
+  // API endpoint
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
+
+  // Function to save a single call attempt - ONLY SAVES TO DATABASE, DOES NOT CHANGE FEASIBILITY
+  const saveCallAttemptToDatabase = async (leadId, day, attempt) => {
+    try {
+      setSavingCall(true);
+      
+      console.log('=== SAVING CALL ATTEMPT ===');
+      console.log('Lead ID:', leadId);
+      console.log('Day:', day, 'Attempt:', attempt);
+      
+      const newCall = {
+        day,
+        attempt,
+        date: new Date(),
+        status: 'attempted',
+        remarks: '',
+        attemptedBy: currentUser._id
+      };
+      
+      const response = await axios.post(`${API_URL}/api/leads/call-attempt/${leadId}`, newCall, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('API Response:', response.data);
+      
+      if (response.data && response.data.success) {
+        return { success: true, data: response.data.data };
+      } else {
+        throw new Error(response.data.error || 'Failed to save call attempt');
+      }
+    } catch (error) {
+      console.error('=== ERROR SAVING CALL ATTEMPT ===');
+      
+      if (error.response) {
+        console.error('Error Response Data:', error.response.data);
+        const errorMessage = error.response.data?.error || error.response.data?.message || 'Failed to save call attempt. Please try again.';
+        toast.error(errorMessage);
+      } else if (error.request) {
+        console.error('Error Request:', error.request);
+        toast.error('No response from server. Please check your connection.');
+      } else {
+        console.error('Error Message:', error.message);
+        toast.error('Error: ' + error.message);
+      }
+      
+      return { success: false };
+    } finally {
+      setSavingCall(false);
+    }
+  };
 
   // Load departments with pagination and search
   const loadDepartments = useCallback(async (page = 1, search = "") => {
@@ -87,7 +146,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
         if (page === 1) {
           setEmployeeOptions([]);
           if (search === "") {
-            toast.info('No employees found for this department');
+            toast('No employees found for this department');
           }
         }
         setHasMoreEmployees(false);
@@ -120,16 +179,25 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
 
   // Initialize call history from selected lead
   useEffect(() => {
-    if (selectedLead && selectedLead.callHistory) {
-      setCallHistoryData(selectedLead.callHistory);
+    if (selectedLead && selectedLead.callHistory && selectedLead.callHistory.length > 0) {
+      const sortedHistory = [...selectedLead.callHistory].sort((a, b) => {
+        if (a.day !== b.day) return a.day - b.day;
+        return a.attempt - b.attempt;
+      });
+      setCallHistoryData(sortedHistory);
+      console.log('Call history loaded from lead:', sortedHistory);
+    } else {
+      setCallHistoryData([]);
+      console.log('No call history found in lead');
     }
+    setRefreshKey(prev => prev + 1);
   }, [selectedLead]);
 
   // Set initial form data based on selected lead
   useEffect(() => {
     if (selectedLead) {
       setFormData({
-        feasibility: selectedLead.feasibility || '',
+        feasibility: selectedLead.feasibility === 'none' ? '' : (selectedLead.feasibility || ''),
         notFeasibleReason: selectedLead.remark || '',
         feasibleReason: '', 
         callUnansweredReason: selectedLead.remark || '',
@@ -156,82 +224,139 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!formData.feasibility) return toast.error('Please select a Feasibility option.');
+    if (!formData.feasibility) {
+      toast.error('Please select a Feasibility Status!');
+      return;
+    }
 
+    // Validation for Feasible & Assign
     if (formData.feasibility === 'feasible') {
-      if (!selectedDepartment) return toast.error("Please select a Department to assign.");
-      if (!assignedEmployee) return toast.error("Please select an Employee to assign.");
+      if (!selectedDepartment) {
+        toast.error("Please select a Department to assign.");
+        return;
+      }
+      if (!assignedEmployee) {
+        toast.error("Please select an Employee to assign.");
+        return;
+      }
     }
 
+    // Validation for Not Feasible
     if (formData.feasibility === 'not-feasible') {
-      if (!formData.notFeasibleReason) return toast.error('Please enter the reason in Remarks.');
+      if (!formData.notFeasibleReason.trim()) {
+        toast.error('Please enter the reason in Remarks.');
+        return;
+      }
     }
 
+    // Validation for Call Unanswered
     if (formData.feasibility === 'call-unanswered') {
-      if (!formData.callUnansweredReason) return toast.error('Please enter the reason for call unanswered.');
+      if (!formData.callUnansweredReason.trim()) {
+        toast.error('Please enter the reason for call unanswered.');
+        return;
+      }
+      
+      // Check if all 9 calls (3 days × 3 attempts) are completed
+      const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
+      if (callHistoryData.length < 9 || uniqueDays.length < 3) {
+        toast.error('Please complete all 3 days (9 total calls) before marking as Call Unanswered.');
+        return;
+      }
     }
 
-    const actionData = {};
+    // Prepare action data
+    const actionData = {
+      feasibility: formData.feasibility
+    };
 
-    actionData.feasibility = formData.feasibility;
-
-    if(actionData.feasibility === 'feasible') {
+    // Add specific data based on feasibility type
+    if (actionData.feasibility === 'feasible') {
       actionData.assignedTo = assignedEmployee;
       actionData.feasibleReason = formData.feasibleReason;
-    } else if(actionData.feasibility === 'not-feasible') {
+    } else if (actionData.feasibility === 'not-feasible') {
       actionData.remark = formData.notFeasibleReason;
-    } else if(actionData.feasibility === 'call-unanswered') {
+    } else if (actionData.feasibility === 'call-unanswered') {
       actionData.remark = formData.callUnansweredReason;
       actionData.callHistory = callHistoryData;
     }
 
+    console.log('Submitting form with data:', actionData);
+    
     onUpdate(selectedLead._id, actionData);
     onClose();
   };
 
-  // Function to handle call attempts
-  const handleCallAttempt = (day, attempt) => {
+  // Function to handle call attempts - FIXED VERSION
+  const handleCallAttempt = async (day, attempt) => {
     // Check if this specific call attempt already exists
     const existingCallIndex = callHistoryData.findIndex(
       call => call.day === day && call.attempt === attempt
     );
     
-    let updatedCallHistory = [...callHistoryData];
+    if (existingCallIndex !== -1) {
+      toast.error(`Day ${day} - Attempt ${attempt} is already recorded`);
+      return;
+    }
+
+    // Check if previous attempt in the same day is completed
+    if (attempt > 1) {
+      const previousAttempt = attempt - 1;
+      const previousAttemptExists = callHistoryData.some(
+        call => call.day === day && call.attempt === previousAttempt
+      );
+      
+      if (!previousAttemptExists) {
+        toast.error(`Please complete Attempt ${previousAttempt} first for Day ${day}`);
+        return;
+      }
+    }
+
+    // Check if all attempts from previous day are completed (for day 2 and day 3)
+    if (day > 1) {
+      const previousDay = day - 1;
+      const previousDayCalls = callHistoryData.filter(call => call.day === previousDay);
+      
+      if (previousDayCalls.length < 3) {
+        toast.error(`Please complete all 3 attempts of Day ${previousDay} first`);
+        return;
+      }
+    }
     
-    if (existingCallIndex === -1) {
-      // Add new call attempt
-      updatedCallHistory.push({
+    // Save the call attempt to database (ONLY saves, does NOT change feasibility)
+    const result = await saveCallAttemptToDatabase(selectedLead._id, day, attempt);
+    
+    if (result.success) {
+      // Add to local state for display
+      const newCall = {
         day,
         attempt,
         date: new Date(),
         status: 'attempted',
         remarks: '',
         attemptedBy: currentUser._id
-      });
-    } else {
-      // Update existing call attempt
-      updatedCallHistory[existingCallIndex] = {
-        ...updatedCallHistory[existingCallIndex],
-        date: new Date(),
-        status: 'attempted',
-        attemptedBy: currentUser._id
       };
-    }
-    
-    setCallHistoryData(updatedCallHistory);
-    
-    // Check if this was the 9th call (3 days × 3 attempts)
-    const uniqueDays = [...new Set(updatedCallHistory.map(call => call.day))];
-    if (updatedCallHistory.length >= 9 || uniqueDays.length >= 3) {
-      // Automatically mark as call-unanswered after 9 total attempts or 3 days
-      toast.info('Lead will be marked as Call Unanswered (3 days completed)');
-      setFormData(prev => ({
-        ...prev,
-        feasibility: 'call-unanswered',
-        callUnansweredReason: 'Automatically marked after 3 days of call attempts'
-      }));
-    } else {
-      toast.success(`Call attempt ${attempt} recorded for Day ${day}`);
+      
+      const updatedCallHistory = [...callHistoryData, newCall];
+      
+      // Sort the array by day and attempt
+      updatedCallHistory.sort((a, b) => {
+        if (a.day !== b.day) return a.day - b.day;
+        return a.attempt - b.attempt;
+      });
+      
+      setCallHistoryData(updatedCallHistory);
+      setRefreshKey(prev => prev + 1);
+      
+      toast.success(`Day ${day} - Attempt ${attempt} recorded successfully!`);
+      
+      // Check if all 9 calls are completed
+      const uniqueDays = [...new Set(updatedCallHistory.map(call => call.day))];
+      if (updatedCallHistory.length === 9 && uniqueDays.length === 3) {
+        toast('All 3 days completed! You can now select Call Unanswered and submit.', {
+          icon: '✅',
+          duration: 5000,
+        });
+      }
     }
   };
 
@@ -242,30 +367,66 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     );
   };
 
-  // Function to get the current day of attempts
-  const getCurrentDay = () => {
-    if (!callHistoryData || callHistoryData.length === 0) return 1;
-    const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
-    const maxDay = Math.max(...uniqueDays);
-    
-    // Check if current day has 3 attempts already
-    const currentDayCalls = callHistoryData.filter(call => call.day === maxDay);
-    if (currentDayCalls.length >= 3) {
-      return maxDay + 1;
+  // Function to check if a button should be disabled
+  const isButtonDisabled = (day, attempt) => {
+    // If already made, disable it
+    if (isCallAttemptMade(day, attempt)) {
+      return true;
     }
-    return maxDay;
+
+    // For attempt 2 or 3, check if previous attempt is completed
+    if (attempt > 1) {
+      const previousAttempt = attempt - 1;
+      const previousAttemptExists = callHistoryData.some(
+        call => call.day === day && call.attempt === previousAttempt
+      );
+      
+      if (!previousAttemptExists) {
+        return true;
+      }
+    }
+
+    // For day 2 or 3, check if all attempts from previous day are completed
+    if (day > 1) {
+      const previousDay = day - 1;
+      const previousDayCalls = callHistoryData.filter(call => call.day === previousDay);
+      
+      if (previousDayCalls.length < 3) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Function to get the maximum day that should be shown
+  const getMaxDayToShow = () => {
+    if (!callHistoryData || callHistoryData.length === 0) return 1;
+    
+    const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
+    const maxCompletedDay = Math.max(...uniqueDays);
+    
+    const maxDayCalls = callHistoryData.filter(call => call.day === maxCompletedDay);
+    
+    if (maxDayCalls.length >= 3) {
+      return Math.min(maxCompletedDay + 1, 3);
+    }
+    
+    return maxCompletedDay;
   };
 
   // Display call attempts summary
   const displayCallAttempts = () => {
     if (callHistoryData && callHistoryData.length > 0) {
       const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
+      const isComplete = uniqueDays.length === 3 && callHistoryData.length === 9;
+      
       return (
-        <div className="alert alert-info mt-3">
-          <i className="fa-solid fa-info-circle me-2"></i>
-          <strong>Call History:</strong> {callHistoryData.length} total call(s) across {uniqueDays.length} day(s)
-          {uniqueDays.length >= 3 && callHistoryData.length >= 9 && 
-            <span className="text-danger fw-bold"> - Eligible for Call Unanswered status</span>
+        <div className={`alert ${isComplete ? 'alert-success' : 'alert-info'} mt-3 mb-0`} key={`summary-${refreshKey}`}>
+          <i className={`fa-solid ${isComplete ? 'fa-check-circle' : 'fa-info-circle'} me-2`}></i>
+          <strong>Call Summary:</strong> {callHistoryData.length} attempt(s) across {uniqueDays.length} day(s)
+          {isComplete && 
+            <span className="fw-bold ms-2">- All attempts completed ✓</span>
           }
         </div>
       );
@@ -275,55 +436,81 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
 
   // Display call attempt buttons
   const displayCallButtons = () => {
-    const currentDay = getCurrentDay();
-    const maxDays = 3;
+    const maxDayToShow = getMaxDayToShow();
     
-    // Don't show buttons if already reached 3 days and 9 calls
     const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
-    if (uniqueDays.length >= 3 && callHistoryData.length >= 9) {
+    const allDaysCompleted = uniqueDays.length === 3 && callHistoryData.length === 9;
+    
+    if (allDaysCompleted) {
       return (
-        <div className="alert alert-warning mt-3">
-          <i className="fa-solid fa-exclamation-triangle me-2"></i>
-          <strong>Maximum call attempts reached (3 days, 9 calls total).</strong> 
-          Please mark this lead as Call Unanswered.
+        <div className="alert alert-success mt-3" key={`buttons-complete-${refreshKey}`}>
+          <i className="fa-solid fa-check-circle me-2"></i>
+          <strong>All call attempts completed!</strong> 
+          <div className="mt-2">
+            <small className="d-block">✓ Day 1: 3/3 attempts completed</small>
+            <small className="d-block">✓ Day 2: 3/3 attempts completed</small>
+            <small className="d-block">✓ Day 3: 3/3 attempts completed</small>
+            <small className="d-block text-muted mt-2">
+              Total: 9 calls completed across 3 days
+            </small>
+          </div>
         </div>
       );
     }
     
     return (
-      <div className="mt-3">
-        <h6 className="fw-bold">Record Call Attempts</h6>
-        <p className="text-muted small">
-          Click buttons to record call attempts. Maximum 3 attempts per day for 3 days (9 total calls).
+      <div className="mt-3" key={`buttons-${refreshKey}`}>
+        <h6 className="fw-bold text-primary">
+          <i className="fa-solid fa-phone-volume me-2"></i>
+          Record Call Attempts
+        </h6>
+        <p className="text-muted small mb-3">
+          <i className="fa-solid fa-info-circle me-1"></i>
+          Click buttons to record call attempts. Complete all attempts in sequence.
+          You must complete all 3 attempts of a day before moving to the next day.
         </p>
         
-        {[...Array(Math.min(maxDays, currentDay))].map((_, dayIndex) => {
+        {[...Array(maxDayToShow)].map((_, dayIndex) => {
           const day = dayIndex + 1;
           const maxAttempts = 3;
+          const dayCallsCount = callHistoryData.filter(call => call.day === day).length;
+          const isDayComplete = dayCallsCount === 3;
           
           return (
-            <div key={day} className="mb-3 border p-3 rounded">
-              <h6 className="fw-bold text-primary mb-2">
-                <i className="fa-solid fa-calendar-day me-2"></i>
-                Day {day}
-              </h6>
+            <div key={`day-${day}-${refreshKey}`} className={`mb-3 p-3 border rounded ${isDayComplete ? 'bg-light-success' : 'bg-light'}`}>
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <h6 className="fw-bold mb-0" style={{ color: isDayComplete ? '#28a745' : '#007bff' }}>
+                  <i className={`fa-solid ${isDayComplete ? 'fa-check-circle' : 'fa-calendar-day'} me-2`}></i>
+                  Day {day}
+                </h6>
+                <span className={`badge ${isDayComplete ? 'bg-success' : 'bg-secondary'}`}>
+                  {dayCallsCount}/3 completed
+                </span>
+              </div>
               <div className="d-flex gap-2 flex-wrap">
                 {[...Array(maxAttempts)].map((_, attemptIndex) => {
                   const attempt = attemptIndex + 1;
                   const isMade = isCallAttemptMade(day, attempt);
+                  const isDisabled = isButtonDisabled(day, attempt);
                   
                   return (
                     <button
-                      key={attempt}
+                      key={`attempt-${day}-${attempt}-${refreshKey}`}
                       type="button"
-                      className={`btn btn-sm ${isMade ? 'btn-success' : 'btn-outline-primary'}`}
+                      className={`btn btn-sm ${
+                        isMade 
+                          ? 'btn-success' 
+                          : isDisabled 
+                          ? 'btn-secondary' 
+                          : 'btn-primary'
+                      }`}
                       onClick={() => handleCallAttempt(day, attempt)}
-                      disabled={isMade}
-                      style={{ minWidth: '100px' }}
+                      disabled={isDisabled || savingCall}
+                      style={{ minWidth: '120px' }}
                     >
                       {isMade ? (
                         <>
-                          <i className="fa-solid fa-check me-1"></i>
+                          <i className="fa-solid fa-check-circle me-1"></i>
                           Attempt {attempt} ✓
                         </>
                       ) : (
@@ -336,6 +523,14 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
                   );
                 })}
               </div>
+              {isDayComplete && (
+                <div className="mt-2">
+                  <small className="text-success fw-bold">
+                    <i className="fa-solid fa-check me-1"></i>
+                    Day {day} completed!
+                  </small>
+                </div>
+              )}
             </div>
           );
         })}
@@ -347,14 +542,13 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
   const displayCallHistory = () => {
     if (!callHistoryData || callHistoryData.length === 0) {
       return (
-        <div className="alert alert-secondary mt-3">
-          <i className="fa-solid fa-info-circle me-2"></i>
-          No call attempts recorded yet.
+        <div className="alert alert-secondary mt-3" key={`history-empty-${refreshKey}`}>
+          <i className="fa-solid fa-history me-2"></i>
+          No call attempts recorded yet. Click the buttons above to record your first call.
         </div>
       );
     }
     
-    // Group calls by day
     const callsByDay = {};
     callHistoryData.forEach(call => {
       if (!callsByDay[call.day]) {
@@ -364,29 +558,33 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     });
     
     return (
-      <div className="mt-3">
-        <h6 className="fw-bold mb-3">
+      <div className="mt-4" key={`history-${refreshKey}`}>
+        <h6 className="fw-bold text-success mb-3">
           <i className="fa-solid fa-history me-2"></i>
           Call Attempt History
         </h6>
-        <div className="table-responsive">
-          <table className="table table-sm table-bordered table-hover">
-            <thead className="table-light">
+        <div className="table-responsive" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+          <table className="table table-sm table-bordered table-hover mb-0">
+            <thead className="table-dark" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
               <tr>
-                <th style={{ width: '80px' }}>Day</th>
-                <th style={{ width: '100px' }}>Attempt #</th>
-                <th>Date & Time</th>
-                <th style={{ width: '100px' }}>Status</th>
+                <th style={{ width: '15%' }}>Day</th>
+                <th style={{ width: '15%' }}>Attempt</th>
+                <th style={{ width: '50%' }}>Date & Time</th>
+                <th style={{ width: '20%' }}>Status</th>
               </tr>
             </thead>
             <tbody>
               {Object.keys(callsByDay).sort((a, b) => a - b).map(day => (
                 callsByDay[day].sort((a, b) => a.attempt - b.attempt).map((call, index) => (
-                  <tr key={`${day}-${call.attempt}`}>
-                    <td className="fw-bold">Day {day}</td>
-                    <td className="text-center">#{call.attempt}</td>
+                  <tr key={`${day}-${call.attempt}-${index}-${refreshKey}`}>
+                    <td className="fw-bold">
+                      <i className="fa-solid fa-calendar me-1"></i>
+                      Day {day}
+                    </td>
+                    <td className="text-center fw-bold">#{call.attempt}</td>
                     <td>
-                      {new Date(call.date).toLocaleDateString('en-US', {
+                      <i className="fa-solid fa-clock me-1"></i>
+                      {new Date(call.date).toLocaleDateString('en-IN', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
@@ -395,7 +593,8 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
                       })}
                     </td>
                     <td>
-                      <span className={`badge ${call.status === 'answered' ? 'bg-success' : 'bg-warning'}`}>
+                      <span className={`badge ${call.status === 'answered' ? 'bg-success' : 'bg-warning text-dark'}`}>
+                        <i className={`fa-solid ${call.status === 'answered' ? 'fa-check' : 'fa-phone'} me-1`}></i>
                         {call.status === 'answered' ? 'Answered' : 'Attempted'}
                       </span>
                     </td>
@@ -405,9 +604,17 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
             </tbody>
           </table>
         </div>
-        <div className="text-muted small mt-2">
-          <strong>Total Calls:</strong> {callHistoryData.length} | 
-          <strong className="ms-2">Days:</strong> {Object.keys(callsByDay).length}
+        <div className="bg-light p-2 mt-2 rounded border">
+          <div className="row text-center">
+            <div className="col-6">
+              <small className="text-muted">Total Calls:</small>
+              <strong className="ms-2 text-primary">{callHistoryData.length}/9</strong>
+            </div>
+            <div className="col-6">
+              <small className="text-muted">Days Completed:</small>
+              <strong className="ms-2 text-primary">{Object.keys(callsByDay).length}/3</strong>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -415,22 +622,21 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
 
   return (
     <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
-      <div className="modal-dialog modal-xl" style={{ width: "900px", maxWidth: "900px" }}>
-        <div className="modal-content p-3">
-          <form onSubmit={handleSubmit}>
-            <div className="modal-header pt-0 border-0">
-              <h5 className="card-title fw-bold">
-                <i className="fa-solid fa-user-plus me-2"></i>
-                Assign Lead
+      <div className="modal-dialog modal-xl modal-dialog-centered" style={{ width: "900px", maxWidth: "95%", maxHeight: '90vh' }}>
+        <div className="modal-content" style={{ maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div className="modal-header border-bottom bg-white" style={{ flexShrink: 0, zIndex: 1000 }}>
+              <h5 className="modal-title fw-bold">
+                <i className="fa-solid fa-user-plus me-2 text-primary"></i>
+                Assign Marketing Lead
               </h5>
               <button type="button" onClick={onClose} className="btn-close" aria-label="Close"></button>
             </div>
 
-            <div className="modal-body">
+            <div className="modal-body" style={{ flexGrow: 1, padding: '1.5rem' }}>
               <div className="row g-3">
-                {/* Feasibility Selection */}
-                <div className="col-12 mb-2">
-                  <label className="form-label fw-bold">
+                <div className="col-12">
+                  <label className="form-label fw-bold text-dark">
                     Feasibility Status <RequiredStar />
                   </label>
                   <div className="d-flex gap-4 flex-wrap">
@@ -482,160 +688,173 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
                   </div>
                 </div>
 
-                {/* Call History Display */}
                 {displayCallAttempts()}
-                {displayCallHistory()}
 
-                {/* Conditional Form Sections */}
-                <div className="col-12 mt-3">
-                  {/* Feasible Section */}
-                  <div className={formData.feasibility === 'feasible' ? 'row' : 'd-none'}>
-                    <div className="col-12 col-lg-6 mt-2">
-                      <label htmlFor="department" className="form-label label_text">
-                        Assigned to Department <RequiredStar />
-                      </label>
-                      <Select
-                        id="department"
-                        options={departments.map(dept => ({ value: dept._id, label: dept.name }))}
-                        value={selectedDepartment}
-                        onChange={(selectedOption) => {
-                          setSelectedDepartment(selectedOption);
-                          setAssignedEmployee(null);
-                          setEmployeeOptions([]);
-                        }}
-                        onInputChange={(inputValue) => {
-                          setDeptSearchTerm(inputValue);
-                          setDeptPage(1);
-                        }}
-                        onMenuScrollToBottom={() => {
-                          if (hasMoreDepartments) {
-                            const nextPage = deptPage + 1;
-                            setDeptPage(nextPage);
-                            loadDepartments(nextPage, deptSearchTerm);
-                          }
-                        }}
-                        placeholder="Select Department..."
-                        isClearable
-                        styles={{
-                          control: (provided) => ({
-                            ...provided,
-                            borderRadius: 0,
-                            borderColor: '#ced4da',
-                            fontSize: '16px',
-                          }),
-                          option: (provided, state) => ({
-                            ...provided,
-                            backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
-                            color: state.isSelected ? 'white' : '#212529',
-                          }),
-                        }}
-                      />
+                <div className="col-12">
+                  {formData.feasibility === 'feasible' && (
+                    <div className="row">
+                      <div className="col-12 col-lg-6 mt-2">
+                        <label htmlFor="department" className="form-label fw-bold">
+                          Assigned to Department <RequiredStar />
+                        </label>
+                        <Select
+                          id="department"
+                          options={departments.map(dept => ({ value: dept._id, label: dept.name }))}
+                          value={selectedDepartment}
+                          onChange={(selectedOption) => {
+                            setSelectedDepartment(selectedOption);
+                            setAssignedEmployee(null);
+                            setEmployeeOptions([]);
+                          }}
+                          onInputChange={(inputValue) => {
+                            setDeptSearchTerm(inputValue);
+                            setDeptPage(1);
+                          }}
+                          onMenuScrollToBottom={() => {
+                            if (hasMoreDepartments) {
+                              const nextPage = deptPage + 1;
+                              setDeptPage(nextPage);
+                              loadDepartments(nextPage, deptSearchTerm);
+                            }
+                          }}
+                          placeholder="Select Department..."
+                          isClearable
+                          styles={{
+                            control: (provided) => ({
+                              ...provided,
+                              borderRadius: 4,
+                              borderColor: '#ced4da',
+                              fontSize: '16px',
+                            }),
+                            option: (provided, state) => ({
+                              ...provided,
+                              backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
+                              color: state.isSelected ? 'white' : '#212529',
+                            }),
+                          }}
+                        />
+                      </div>
+                      <div className="col-12 col-lg-6 mt-2">
+                        <label htmlFor="employee" className="form-label fw-bold">
+                          Assigned to Employee <RequiredStar />
+                        </label>
+                        <Select
+                          id="employee"
+                          options={employeeOptions}
+                          isClearable
+                          isLoading={loading}
+                          onChange={(selectedOption) => {
+                            setAssignedEmployee(selectedOption ? selectedOption.value : null);
+                          }}
+                          onInputChange={(inputValue) => {
+                            setEmpSearchTerm(inputValue);
+                            setEmpPage(1);
+                          }}
+                          onMenuScrollToBottom={() => {
+                            if (hasMoreEmployees) {
+                              const nextPage = empPage + 1;
+                              setEmpPage(nextPage);
+                              loadEmployees(nextPage, empSearchTerm);
+                            }
+                          }}
+                          value={assignedEmployee ? employeeOptions.find(opt => opt.value === assignedEmployee) : null}
+                          placeholder={loading ? "Loading employees..." : "Select Employee..."}
+                          noOptionsMessage={() => selectedDepartment ? "No employees found" : "Select a department first"}
+                          isDisabled={!selectedDepartment || loading}
+                          styles={{
+                            control: (provided) => ({
+                              ...provided,
+                              borderRadius: 4,
+                              borderColor: '#ced4da',
+                              fontSize: '16px',
+                            }),
+                            option: (provided, state) => ({
+                              ...provided,
+                              backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
+                              color: state.isSelected ? 'white' : '#212529',
+                            }),
+                          }}
+                        />
+                      </div>
+                      <div className="col-12 mt-3">
+                        <label htmlFor="feasibleReason" className="form-label fw-bold">Remarks (Optional)</label>
+                        <textarea
+                          className="form-control"
+                          id="feasibleReason"
+                          name="feasibleReason"
+                          rows="3"
+                          placeholder="Enter any optional remarks..."
+                          maxLength={200}
+                          value={formData.feasibleReason}
+                          onChange={handleChange}
+                          style={{ borderRadius: '4px' }}
+                        ></textarea>
+                        <small className="text-muted">{formData.feasibleReason.length}/200 characters</small>
+                      </div>
                     </div>
-                    <div className="col-12 col-lg-6 mt-2">
-                      <label htmlFor="employee" className="form-label label_text">
-                        Assigned to Employee <RequiredStar />
-                      </label>
-                      <Select
-                        id="employee"
-                        options={employeeOptions}
-                        isClearable
-                        isLoading={loading}
-                        onChange={(selectedOption) => {
-                          setAssignedEmployee(selectedOption ? selectedOption.value : null);
-                        }}
-                        onInputChange={(inputValue) => {
-                          setEmpSearchTerm(inputValue);
-                          setEmpPage(1);
-                        }}
-                        onMenuScrollToBottom={() => {
-                          if (hasMoreEmployees) {
-                            const nextPage = empPage + 1;
-                            setEmpPage(nextPage);
-                            loadEmployees(nextPage, empSearchTerm);
-                          }
-                        }}
-                        value={assignedEmployee ? employeeOptions.find(opt => opt.value === assignedEmployee) : null}
-                        placeholder={loading ? "Loading employees..." : "Select Employee..."}
-                        noOptionsMessage={() => selectedDepartment ? "No employees found" : "Select a department first"}
-                        isDisabled={!selectedDepartment || loading}
-                        styles={{
-                          control: (provided) => ({
-                            ...provided,
-                            borderRadius: 0,
-                            borderColor: '#ced4da',
-                            fontSize: '16px',
-                          }),
-                          option: (provided, state) => ({
-                            ...provided,
-                            backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
-                            color: state.isSelected ? 'white' : '#212529',
-                          }),
-                        }}
-                      />
-                    </div>
-                    <div className="col-12 mt-3">
-                      <label htmlFor="feasibleReason" className="form-label fw-bold">Remarks</label>
-                      <textarea
-                        className="form-control rounded-0"
-                        id="feasibleReason"
-                        name="feasibleReason"
-                        rows="2"
-                        placeholder="Enter any optional remarks..."
-                        maxLength={200}
-                        value={formData.feasibleReason}
-                        onChange={handleChange}
-                      ></textarea>
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Not Feasible Section */}
-                  <div className={formData.feasibility === 'not-feasible' ? 'row' : 'd-none'}>
-                    <div className="col-12">
-                      <label htmlFor="notFeasibleReason" className="form-label fw-bold">
-                        Remarks <RequiredStar />
-                      </label>
-                      <textarea
-                        className="form-control rounded-0"
-                        id="notFeasibleReason"
-                        name="notFeasibleReason"
-                        rows="4"
-                        placeholder="Enter the detailed reason for non-feasibility..."
-                        maxLength={200}
-                        value={formData.notFeasibleReason}
-                        onChange={handleChange}
-                      ></textarea>
+                  {formData.feasibility === 'not-feasible' && (
+                    <div className="row">
+                      <div className="col-12">
+                        <label htmlFor="notFeasibleReason" className="form-label fw-bold">
+                          Remarks <RequiredStar />
+                        </label>
+                        <textarea
+                          className="form-control"
+                          id="notFeasibleReason"
+                          name="notFeasibleReason"
+                          rows="4"
+                          placeholder="Enter the detailed reason for non-feasibility..."
+                          maxLength={200}
+                          value={formData.notFeasibleReason}
+                          onChange={handleChange}
+                          style={{ borderRadius: '4px' }}
+                        ></textarea>
+                        <small className="text-muted">{formData.notFeasibleReason.length}/200 characters</small>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Call Unanswered Section */}
-                  <div className={formData.feasibility === 'call-unanswered' ? 'row' : 'd-none'}>
-                    <div className="col-12 mb-3">
-                      <label htmlFor="callUnansweredReason" className="form-label fw-bold">
-                        Remarks <RequiredStar />
-                      </label>
-                      <textarea
-                        className="form-control rounded-0"
-                        id="callUnansweredReason"
-                        name="callUnansweredReason"
-                        rows="4"
-                        placeholder="Enter the detailed reason for call unanswered..."
-                        maxLength={200}
-                        value={formData.callUnansweredReason}
-                        onChange={handleChange}
-                      ></textarea>
+                  {formData.feasibility === 'call-unanswered' && (
+                    <div className="row">
+                      <div className="col-12 mb-3">
+                        <label htmlFor="callUnansweredReason" className="form-label fw-bold">
+                          Remarks <RequiredStar />
+                        </label>
+                        <textarea
+                          className="form-control"
+                          id="callUnansweredReason"
+                          name="callUnansweredReason"
+                          rows="4"
+                          placeholder="Enter the detailed reason for call unanswered..."
+                          maxLength={200}
+                          value={formData.callUnansweredReason}
+                          onChange={handleChange}
+                          style={{ borderRadius: '4px' }}
+                        ></textarea>
+                        <small className="text-muted">{formData.callUnansweredReason.length}/200 characters</small>
+                      </div>
+                      
+                      <div className="col-12">
+                        {displayCallButtons()}
+                      </div>
+                      
+                      <div className="col-12">
+                        {displayCallHistory()}
+                      </div>
                     </div>
-                    {displayCallButtons()}
-                  </div>
+                  )}
                 </div>
               </div>
             </div>  
 
-            <div className="modal-footer border-0 justify-content-start">
-              <button type="submit" className="btn addbtn rounded-0 add_button px-4">
+            <div className="modal-footer border-top bg-light" style={{ flexShrink: 0, zIndex: 1000 }}>
+              <button type="submit" className="btn btn-primary px-4">
                 <i className="fa-solid fa-check me-2"></i>
-                Submit
+                Submit & Assign
               </button>
-              <button type="button" onClick={onClose} className="btn addbtn rounded-0 Cancel_button px-4">
+              <button type="button" onClick={onClose} className="btn btn-secondary px-4">
                 <i className="fa-solid fa-times me-2"></i>
                 Cancel
               </button>
