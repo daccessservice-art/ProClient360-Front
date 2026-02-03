@@ -36,17 +36,31 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
   const [refreshKey, setRefreshKey] = useState(0);
   const [savingCall, setSavingCall] = useState(false);
 
-  // API endpoint
+  // API endpoint - WITH DEBUG LOGGING
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
 
-  // Function to save a single call attempt - ONLY SAVES TO DATABASE, DOES NOT CHANGE FEASIBILITY
+  // Debug: Log API URL on component mount
+  useEffect(() => {
+    console.log('=== API CONFIGURATION ===');
+    console.log('REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
+    console.log('Final API_URL:', API_URL);
+    console.log('Token present:', !!localStorage.getItem('token'));
+    console.log('========================');
+  }, [API_URL]);
+
+  // Function to save a single call attempt - WITH ENHANCED DEBUG LOGGING
   const saveCallAttemptToDatabase = async (leadId, day, attempt) => {
     try {
       setSavingCall(true);
       
+      const apiEndpoint = `${API_URL}/api/leads/call-attempt/${leadId}`;
+      
       console.log('=== SAVING CALL ATTEMPT ===');
+      console.log('API_URL:', API_URL);
+      console.log('Full endpoint:', apiEndpoint);
       console.log('Lead ID:', leadId);
       console.log('Day:', day, 'Attempt:', attempt);
+      console.log('Token:', localStorage.getItem('token') ? 'Present (length: ' + localStorage.getItem('token').length + ')' : 'MISSING!');
       
       const newCall = {
         day,
@@ -57,14 +71,17 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
         attemptedBy: currentUser._id
       };
       
-      const response = await axios.post(`${API_URL}/api/leads/call-attempt/${leadId}`, newCall, {
+      console.log('Request body:', newCall);
+      
+      const response = await axios.post(apiEndpoint, newCall, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json',
         },
       });
       
-      console.log('API Response:', response.data);
+      console.log('API Response Status:', response.status);
+      console.log('API Response Data:', response.data);
       
       if (response.data && response.data.success) {
         return { success: true, data: response.data.data };
@@ -75,13 +92,31 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       console.error('=== ERROR SAVING CALL ATTEMPT ===');
       
       if (error.response) {
+        // Server responded with error
+        console.error('Error Response Status:', error.response.status);
         console.error('Error Response Data:', error.response.data);
-        const errorMessage = error.response.data?.error || error.response.data?.message || 'Failed to save call attempt. Please try again.';
-        toast.error(errorMessage);
+        console.error('Error Response Headers:', error.response.headers);
+        
+        // Check for specific error codes
+        if (error.response.status === 404) {
+          toast.error('❌ API endpoint not found! The route /api/leads/call-attempt/:id does not exist on the server.');
+          console.error('🔥 ROUTE NOT FOUND - Check if backend route is deployed correctly');
+          console.error('Attempted URL:', `${API_URL}/api/leads/call-attempt/${selectedLead._id}`);
+        } else if (error.response.status === 401) {
+          toast.error('❌ Authentication failed. Please log in again.');
+        } else if (error.response.status === 403) {
+          toast.error('❌ Permission denied. Contact administrator.');
+        } else {
+          const errorMessage = error.response.data?.error || error.response.data?.message || 'Failed to save call attempt.';
+          toast.error(errorMessage);
+        }
       } else if (error.request) {
+        // Request made but no response
         console.error('Error Request:', error.request);
-        toast.error('No response from server. Please check your connection.');
+        console.error('🔥 NO RESPONSE FROM SERVER');
+        toast.error('❌ No response from server. Check your connection and API URL.');
       } else {
+        // Something else went wrong
         console.error('Error Message:', error.message);
         toast.error('Error: ' + error.message);
       }
