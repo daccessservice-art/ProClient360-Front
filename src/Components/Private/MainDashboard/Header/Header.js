@@ -1,9 +1,11 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import { UserContext } from "../../../../context/UserContext";
 import { logout } from "../../../../hooks/useAuth";
+import { setNotifications } from "../../../../redux/slices/notificationSlice";
+import { getNotifications } from "../../../../hooks/useNotification";
 import NotificationPanel from "./NotificationPanel";
 
 export const Header = (props) => {
@@ -12,8 +14,27 @@ export const Header = (props) => {
 	const { user, setUser } = useContext(UserContext);
 	const [showNotification, setShowNotification] = useState(false);
 	
+	const dispatch = useDispatch();
 	const notifications = useSelector((state) => state.notifications.notifications);
 	const unseenCount = notifications?.filter(notification => !notification.isSeen).length || 0;
+
+	// Fetch notifications when component mounts (user logs in)
+	useEffect(() => {
+		const fetchNotifications = async () => {
+			try {
+				const fetchedNotifications = await getNotifications();
+				if (fetchedNotifications.success && fetchedNotifications.notifications) {
+					dispatch(setNotifications(fetchedNotifications.notifications));
+				}
+			} catch (error) {
+				console.error("Error fetching notifications:", error);
+			}
+		};
+		
+		if (user) {
+			fetchNotifications();
+		}
+	}, [user, dispatch]);
 
 	const change = () => {
 		const scrollValue = document.documentElement.scrollTop;
