@@ -7,6 +7,7 @@ import { getEmployee } from "../../../../../hooks/useEmployees";
 import axios from 'axios';
 
 const PAGE_SIZE = 10;
+const DELAY_BETWEEN_ATTEMPTS_MS = 2 * 60 * 1000; // 2 minutes in milliseconds
 
 const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose }) => {
   const [formData, setFormData] = useState({
@@ -35,8 +36,12 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
   const [callHistoryData, setCallHistoryData] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [savingCall, setSavingCall] = useState(false);
+  const [firstCallDate, setFirstCallDate] = useState(null);
 
-  // API endpoint - WITH DEBUG LOGGING
+  // Timer state for countdown
+  const [, setCurrentTime] = useState(new Date());
+
+  // API endpoint
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
 
   // Debug: Log API URL on component mount
@@ -48,7 +53,16 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     console.log('========================');
   }, [API_URL]);
 
-  // Function to save a single call attempt - WITH ENHANCED DEBUG LOGGING
+  // Update current time every second for countdown timers
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Function to save a single call attempt
   const saveCallAttemptToDatabase = async (leadId, day, attempt) => {
     try {
       setSavingCall(true);
@@ -60,7 +74,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       console.log('Full endpoint:', apiEndpoint);
       console.log('Lead ID:', leadId);
       console.log('Day:', day, 'Attempt:', attempt);
-      console.log('Token:', localStorage.getItem('token') ? 'Present (length: ' + localStorage.getItem('token').length + ')' : 'MISSING!');
       
       const newCall = {
         day,
@@ -92,16 +105,11 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       console.error('=== ERROR SAVING CALL ATTEMPT ===');
       
       if (error.response) {
-        // Server responded with error
         console.error('Error Response Status:', error.response.status);
         console.error('Error Response Data:', error.response.data);
-        console.error('Error Response Headers:', error.response.headers);
         
-        // Check for specific error codes
         if (error.response.status === 404) {
-          toast.error('❌ API endpoint not found! The route /api/leads/call-attempt/:id does not exist on the server.');
-          console.error('🔥 ROUTE NOT FOUND - Check if backend route is deployed correctly');
-          console.error('Attempted URL:', `${API_URL}/api/leads/call-attempt/${selectedLead._id}`);
+          toast.error('❌ API endpoint not found!');
         } else if (error.response.status === 401) {
           toast.error('❌ Authentication failed. Please log in again.');
         } else if (error.response.status === 403) {
@@ -111,12 +119,9 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
           toast.error(errorMessage);
         }
       } else if (error.request) {
-        // Request made but no response
         console.error('Error Request:', error.request);
-        console.error('🔥 NO RESPONSE FROM SERVER');
-        toast.error('❌ No response from server. Check your connection and API URL.');
+        toast.error('❌ No response from server. Check your connection.');
       } else {
-        // Something else went wrong
         console.error('Error Message:', error.message);
         toast.error('Error: ' + error.message);
       }
@@ -220,9 +225,20 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
         return a.attempt - b.attempt;
       });
       setCallHistoryData(sortedHistory);
+      
+      // Set first call date from lead
+      if (selectedLead.firstCallDate) {
+        setFirstCallDate(new Date(selectedLead.firstCallDate));
+      } else if (sortedHistory.length > 0) {
+        // Fallback: use first call's date
+        setFirstCallDate(new Date(sortedHistory[0].date));
+      }
+      
       console.log('Call history loaded from lead:', sortedHistory);
+      console.log('First call date:', selectedLead.firstCallDate);
     } else {
       setCallHistoryData([]);
+      setFirstCallDate(null);
       console.log('No call history found in lead');
     }
     setRefreshKey(prev => prev + 1);
@@ -321,7 +337,71 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     onClose();
   };
 
-  // Function to handle call attempts - FIXED VERSION
+  // Helper function to get days difference
+  const getDaysDifference = (date1, date2) => {
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    d1.setHours(0, 0, 0, 0);
+    d2.setHours(0, 0, 0, 0);
+    const diffTime = Math.abs(d2 - d1);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Function to get which day should be shown based on DATE
+  const getCurrentDayBasedOnDate = () => {
+    // If no first call date, start with Day 1
+    if (!firstCallDate) {
+      return 1;
+    }
+
+    const today = new Date();
+    const daysSinceFirstCall = getDaysDifference(firstCallDate, today);
+
+    console.log('First call date:', firstCallDate);
+    console.log('Today:', today);
+    console.log('Days since first call:', daysSinceFirstCall);
+
+    if (daysSinceFirstCall === 0) {
+      return 1;
+    } else if (daysSinceFirstCall === 1) {
+      return 2;
+    } else if (daysSinceFirstCall >= 2) {
+      return 3;
+    }
+
+    return 1;
+  };
+
+  // NEW: Function to get time remaining until next attempt is available
+  const getTimeUntilNextAttempt = (day, attempt) => {
+    if (attempt === 1) return 0; // First attempt is always available
+    
+    const previousAttempt = attempt - 1;
+    const previousCall = callHistoryData.find(
+      call => call.day === day && call.attempt === previousAttempt
+    );
+    
+    if (!previousCall) return Infinity; // Previous attempt not made yet
+    
+    const previousCallTime = new Date(previousCall.date).getTime();
+    const now = new Date().getTime();
+    const timeSincePrevious = now - previousCallTime;
+    const timeRemaining = DELAY_BETWEEN_ATTEMPTS_MS - timeSincePrevious;
+    
+    return Math.max(0, timeRemaining);
+  };
+
+  // NEW: Format milliseconds to MM:SS
+  const formatTimeRemaining = (ms) => {
+    if (ms <= 0) return "00:00";
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  };
+
+  // UPDATED: Function to handle call attempts with TIME validation
   const handleCallAttempt = async (day, attempt) => {
     // Check if this specific call attempt already exists
     const existingCallIndex = callHistoryData.findIndex(
@@ -331,6 +411,23 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     if (existingCallIndex !== -1) {
       toast.error(`Day ${day} - Attempt ${attempt} is already recorded`);
       return;
+    }
+
+    // Check if user is trying to make call on correct day
+    const currentDayBasedOnDate = getCurrentDayBasedOnDate();
+    if (day !== currentDayBasedOnDate) {
+      toast.error(`You can only make calls for Day ${currentDayBasedOnDate} today. Please try again tomorrow for Day ${day}.`);
+      return;
+    }
+
+    // NEW: Check 2-minute delay for attempts 2 and 3
+    if (attempt > 1) {
+      const timeRemaining = getTimeUntilNextAttempt(day, attempt);
+      if (timeRemaining > 0) {
+        const formattedTime = formatTimeRemaining(timeRemaining);
+        toast.error(`⏳ Please wait ${formattedTime} before making Attempt ${attempt}`);
+        return;
+      }
     }
 
     // Check if previous attempt in the same day is completed
@@ -346,7 +443,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       }
     }
 
-    // Check if all attempts from previous day are completed (for day 2 and day 3)
+    // For Day 2 and Day 3, check if previous day is complete
     if (day > 1) {
       const previousDay = day - 1;
       const previousDayCalls = callHistoryData.filter(call => call.day === previousDay);
@@ -357,7 +454,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       }
     }
     
-    // Save the call attempt to database (ONLY saves, does NOT change feasibility)
+    // Save the call attempt to database
     const result = await saveCallAttemptToDatabase(selectedLead._id, day, attempt);
     
     if (result.success) {
@@ -380,17 +477,36 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       });
       
       setCallHistoryData(updatedCallHistory);
+      
+      // Set first call date if this is the first call
+      if (!firstCallDate && day === 1 && attempt === 1) {
+        setFirstCallDate(new Date());
+      }
+      
       setRefreshKey(prev => prev + 1);
       
       toast.success(`Day ${day} - Attempt ${attempt} recorded successfully!`);
       
-      // Check if all 9 calls are completed
-      const uniqueDays = [...new Set(updatedCallHistory.map(call => call.day))];
-      if (updatedCallHistory.length === 9 && uniqueDays.length === 3) {
-        toast('All 3 days completed! You can now select Call Unanswered and submit.', {
-          icon: '✅',
-          duration: 5000,
+      // Show time info for next attempt
+      if (attempt < 3) {
+        toast.success(`⏳ Next attempt (Attempt ${attempt + 1}) will be available in 2 minutes`, {
+          duration: 4000,
         });
+      }
+      
+      // Check if day is complete
+      const dayCallsCount = updatedCallHistory.filter(call => call.day === day).length;
+      if (dayCallsCount === 3) {
+        if (day < 3) {
+          toast.success(`Day ${day} completed! Day ${day + 1} will be available tomorrow.`, {
+            duration: 5000,
+          });
+        } else {
+          toast('All 3 days completed! You can now select Call Unanswered and submit.', {
+            icon: '✅',
+            duration: 5000,
+          });
+        }
       }
     }
   };
@@ -402,11 +518,25 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     );
   };
 
-  // Function to check if a button should be disabled
+  // UPDATED: Function to check if a button should be disabled with TIME validation
   const isButtonDisabled = (day, attempt) => {
+    // Check if this day is available based on date
+    const currentDayBasedOnDate = getCurrentDayBasedOnDate();
+    if (day !== currentDayBasedOnDate) {
+      return true;
+    }
+
     // If already made, disable it
     if (isCallAttemptMade(day, attempt)) {
       return true;
+    }
+
+    // NEW: Check 2-minute delay for attempts 2 and 3
+    if (attempt > 1) {
+      const timeRemaining = getTimeUntilNextAttempt(day, attempt);
+      if (timeRemaining > 0) {
+        return true; // Still waiting
+      }
     }
 
     // For attempt 2 or 3, check if previous attempt is completed
@@ -421,7 +551,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       }
     }
 
-    // For day 2 or 3, check if all attempts from previous day are completed
+    // For Day 2 or Day 3, check if previous day is complete
     if (day > 1) {
       const previousDay = day - 1;
       const previousDayCalls = callHistoryData.filter(call => call.day === previousDay);
@@ -432,22 +562,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     }
 
     return false;
-  };
-
-  // Function to get the maximum day that should be shown
-  const getMaxDayToShow = () => {
-    if (!callHistoryData || callHistoryData.length === 0) return 1;
-    
-    const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
-    const maxCompletedDay = Math.max(...uniqueDays);
-    
-    const maxDayCalls = callHistoryData.filter(call => call.day === maxCompletedDay);
-    
-    if (maxDayCalls.length >= 3) {
-      return Math.min(maxCompletedDay + 1, 3);
-    }
-    
-    return maxCompletedDay;
   };
 
   // Display call attempts summary
@@ -469,10 +583,8 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     return null;
   };
 
-  // Display call attempt buttons
+  // UPDATED: Display call attempt buttons with countdown timer
   const displayCallButtons = () => {
-    const maxDayToShow = getMaxDayToShow();
-    
     const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
     const allDaysCompleted = uniqueDays.length === 3 && callHistoryData.length === 9;
     
@@ -492,6 +604,8 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
         </div>
       );
     }
+
+    const currentDayBasedOnDate = getCurrentDayBasedOnDate();
     
     return (
       <div className="mt-3" key={`buttons-${refreshKey}`}>
@@ -501,71 +615,121 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
         </h6>
         <p className="text-muted small mb-3">
           <i className="fa-solid fa-info-circle me-1"></i>
-          Click buttons to record call attempts. Complete all attempts in sequence.
-          You must complete all 3 attempts of a day before moving to the next day.
+          <strong>Today you can only make calls for Day {currentDayBasedOnDate}.</strong> Wait 2 minutes between attempts.
         </p>
         
-        {[...Array(maxDayToShow)].map((_, dayIndex) => {
-          const day = dayIndex + 1;
+        {/* Show all 3 days, but disable based on date */}
+        {[1, 2, 3].map((day) => {
           const maxAttempts = 3;
           const dayCallsCount = callHistoryData.filter(call => call.day === day).length;
           const isDayComplete = dayCallsCount === 3;
+          const isCurrentDay = day === currentDayBasedOnDate;
+          const isPastDay = day < currentDayBasedOnDate;
+          const isFutureDay = day > currentDayBasedOnDate;
           
           return (
-            <div key={`day-${day}-${refreshKey}`} className={`mb-3 p-3 border rounded ${isDayComplete ? 'bg-light-success' : 'bg-light'}`}>
+            <div 
+              key={`day-${day}-${refreshKey}`} 
+              className={`mb-3 p-3 border rounded ${
+                isDayComplete ? 'bg-light-success' : 
+                isCurrentDay ? 'bg-light' : 
+                'bg-secondary bg-opacity-10'
+              }`}
+              style={{ opacity: isFutureDay ? 0.5 : 1 }}
+            >
               <div className="d-flex justify-content-between align-items-center mb-2">
-                <h6 className="fw-bold mb-0" style={{ color: isDayComplete ? '#28a745' : '#007bff' }}>
-                  <i className={`fa-solid ${isDayComplete ? 'fa-check-circle' : 'fa-calendar-day'} me-2`}></i>
+                <h6 className="fw-bold mb-0" style={{ 
+                  color: isDayComplete ? '#28a745' : 
+                         isCurrentDay ? '#007bff' : 
+                         '#6c757d' 
+                }}>
+                  <i className={`fa-solid ${
+                    isDayComplete ? 'fa-check-circle' : 
+                    isCurrentDay ? 'fa-calendar-day' : 
+                    isFutureDay ? 'fa-lock' :
+                    'fa-calendar-check'
+                  } me-2`}></i>
                   Day {day}
+                  {isCurrentDay && <span className="badge bg-primary ms-2">Today</span>}
+                  {isFutureDay && <span className="badge bg-secondary ms-2">Locked</span>}
+                  {isPastDay && !isDayComplete && <span className="badge bg-warning ms-2">Missed</span>}
                 </h6>
-                <span className={`badge ${isDayComplete ? 'bg-success' : 'bg-secondary'}`}>
+                <span className={`badge ${
+                  isDayComplete ? 'bg-success' : 
+                  isCurrentDay ? 'bg-primary' : 
+                  'bg-secondary'
+                }`}>
                   {dayCallsCount}/3 completed
                 </span>
               </div>
+              
+              {isFutureDay && (
+                <div className="alert alert-secondary mb-2 py-2">
+                  <small>
+                    <i className="fa-solid fa-calendar-days me-1"></i>
+                    This day will be available tomorrow
+                  </small>
+                </div>
+              )}
+              
+              {isPastDay && !isDayComplete && (
+                <div className="alert alert-warning mb-2 py-2">
+                  <small>
+                    <i className="fa-solid fa-exclamation-triangle me-1"></i>
+                    This day was not completed
+                  </small>
+                </div>
+              )}
+              
               <div className="d-flex gap-2 flex-wrap">
                 {[...Array(maxAttempts)].map((_, attemptIndex) => {
                   const attempt = attemptIndex + 1;
                   const isMade = isCallAttemptMade(day, attempt);
                   const isDisabled = isButtonDisabled(day, attempt);
+                  const timeRemaining = attempt > 1 ? getTimeUntilNextAttempt(day, attempt) : 0;
+                  const showTimer = isCurrentDay && !isMade && timeRemaining > 0 && attempt > 1;
                   
                   return (
-                    <button
-                      key={`attempt-${day}-${attempt}-${refreshKey}`}
-                      type="button"
-                      className={`btn btn-sm ${
-                        isMade 
-                          ? 'btn-success' 
-                          : isDisabled 
-                          ? 'btn-secondary' 
-                          : 'btn-primary'
-                      }`}
-                      onClick={() => handleCallAttempt(day, attempt)}
-                      disabled={isDisabled || savingCall}
-                      style={{ minWidth: '120px' }}
-                    >
-                      {isMade ? (
-                        <>
-                          <i className="fa-solid fa-check-circle me-1"></i>
-                          Attempt {attempt} ✓
-                        </>
-                      ) : (
-                        <>
-                          <i className="fa-solid fa-phone me-1"></i>
-                          Attempt {attempt}
-                        </>
+                    <div key={`attempt-${day}-${attempt}-${refreshKey}`} className="position-relative">
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${
+                          isMade 
+                            ? 'btn-success' 
+                            : isDisabled 
+                            ? 'btn-secondary' 
+                            : 'btn-primary'
+                        }`}
+                        onClick={() => handleCallAttempt(day, attempt)}
+                        disabled={isDisabled || savingCall}
+                        style={{ minWidth: '120px' }}
+                      >
+                        {isMade ? (
+                          <>
+                            <i className="fa-solid fa-check-circle me-1"></i>
+                            Attempt {attempt} ✓
+                          </>
+                        ) : showTimer ? (
+                          <>
+                            <i className="fa-solid fa-clock me-1"></i>
+                            {formatTimeRemaining(timeRemaining)}
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-phone me-1"></i>
+                            Attempt {attempt}
+                          </>
+                        )}
+                      </button>
+                      {showTimer && (
+                        <small className="text-muted d-block text-center mt-1" style={{ fontSize: '0.7rem' }}>
+                          Wait {formatTimeRemaining(timeRemaining)}
+                        </small>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
-              {isDayComplete && (
-                <div className="mt-2">
-                  <small className="text-success fw-bold">
-                    <i className="fa-solid fa-check me-1"></i>
-                    Day {day} completed!
-                  </small>
-                </div>
-              )}
             </div>
           );
         })}
@@ -579,7 +743,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       return (
         <div className="alert alert-secondary mt-3" key={`history-empty-${refreshKey}`}>
           <i className="fa-solid fa-history me-2"></i>
-          No call attempts recorded yet. Click the buttons above to record your first call.
+          No call attempts recorded yet. Start with Day 1, Attempt 1.
         </div>
       );
     }
