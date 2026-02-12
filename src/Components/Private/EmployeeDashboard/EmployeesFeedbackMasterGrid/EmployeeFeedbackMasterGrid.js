@@ -32,32 +32,55 @@ export const EmployeeFeedbackMasterGrid = () => {
         hasPrevPage: false
     });
 
-    // Calculate statistics
+    // ─── NEW: separate state for all-pages stats ───────────────────────────────
+    const [allFeedbacksForStats, setAllFeedbacksForStats] = useState([]);
+    const [statsLoading, setStatsLoading] = useState(true);
+
+    // Fetch ALL records (high limit, no search filter) just for stats/top engineers
+    const fetchStatsData = async () => {
+        try {
+            setStatsLoading(true);
+            // Use a large limit to get all records for accurate stats
+            const data = await getRemaningFeedback(1, 9999, '');
+            if (data && data.success) {
+                setAllFeedbacksForStats(data.services || []);
+            } else {
+                setAllFeedbacksForStats([]);
+            }
+        } catch (error) {
+            console.error("Error fetching stats data:", error);
+            setAllFeedbacksForStats([]);
+        } finally {
+            setStatsLoading(false);
+        }
+    };
+    // ──────────────────────────────────────────────────────────────────────────
+
+    // Calculate statistics from ALL pages data
     const calculateStats = () => {
         const stats = {
-            total: feedbacks.length,
+            total: allFeedbacksForStats.length,
             pending: 0,
             completed: 0,
             highRating: 0,
             avgRating: 0,
-            topEngineers: {} // Track engineers with high ratings
+            topEngineers: {}
         };
-        
+
         let totalRating = 0;
         let ratingCount = 0;
-        
-        feedbacks.forEach(feedback => {
+
+        allFeedbacksForStats.forEach(feedback => {
             const hasFeedback = feedback.feedback && feedback.feedback.rating;
-            
+
             if (hasFeedback) {
                 stats.completed++;
                 totalRating += feedback.feedback.rating;
                 ratingCount++;
-                
+
                 if (feedback.feedback.rating >= 4) {
                     stats.highRating++;
-                    
-                    // Track engineers with high ratings
+
                     if (feedback.allotTo && feedback.allotTo.length > 0) {
                         feedback.allotTo.forEach(engineer => {
                             if (!stats.topEngineers[engineer._id]) {
@@ -76,33 +99,29 @@ export const EmployeeFeedbackMasterGrid = () => {
                 stats.pending++;
             }
         });
-        
+
         stats.avgRating = ratingCount > 0 ? (totalRating / ratingCount).toFixed(1) : 0;
-        
-        // Calculate average rating for each engineer
+
         Object.keys(stats.topEngineers).forEach(id => {
             const engineer = stats.topEngineers[id];
             engineer.avgRating = (engineer.totalRating / engineer.count).toFixed(1);
         });
-        
+
         return stats;
     };
-    
+
     const stats = calculateStats();
-    
-    // Get top performing engineers
+
     const getTopEngineers = () => {
         const engineers = Object.values(stats.topEngineers);
-        // Sort by average rating, then by count of high ratings
         return engineers.sort((a, b) => {
             if (b.avgRating !== a.avgRating) {
                 return parseFloat(b.avgRating) - parseFloat(a.avgRating);
             }
             return b.count - a.count;
-        }).slice(0, 5); // Get top 5
+        }).slice(0, 5);
     };
 
-    // Function to get card type based on feedback
     const getCardType = (feedback) => {
         if (!feedback.feedback || !feedback.feedback.rating) {
             return {
@@ -112,47 +131,26 @@ export const EmployeeFeedbackMasterGrid = () => {
                 textColor: '#f57c00'
             };
         }
-        
+
         const rating = feedback.feedback.rating;
-        
+
         if (rating === 5) {
-            return {
-                type: 'excellent',
-                bgColor: '#e8f5e9',
-                borderColor: '#4caf50',
-                textColor: '#2e7d32'
-            };
+            return { type: 'excellent', bgColor: '#e8f5e9', borderColor: '#4caf50', textColor: '#2e7d32' };
         } else if (rating === 4) {
-            return {
-                type: 'good',
-                bgColor: '#e0f7fa',
-                borderColor: '#00bcd4',
-                textColor: '#00838f'
-            };
+            return { type: 'good', bgColor: '#e0f7fa', borderColor: '#00bcd4', textColor: '#00838f' };
         } else if (rating === 3) {
-            return {
-                type: 'average',
-                bgColor: '#fff3e0',
-                borderColor: '#ff9800',
-                textColor: '#ef6c00'
-            };
+            return { type: 'average', bgColor: '#fff3e0', borderColor: '#ff9800', textColor: '#ef6c00' };
         } else {
-            return {
-                type: 'poor',
-                bgColor: '#ffebee',
-                borderColor: '#f44336',
-                textColor: '#c62828'
-            };
+            return { type: 'poor', bgColor: '#ffebee', borderColor: '#f44336', textColor: '#c62828' };
         }
     };
 
-    // Function to render star rating
     const renderStars = (rating) => {
         return (
             <div className="d-flex align-items-center">
                 {[...Array(5)].map((_, i) => (
-                    <i 
-                        key={i} 
+                    <i
+                        key={i}
                         className={`fa fa-star ${i < rating ? 'text-warning' : 'text-light'}`}
                         style={{ fontSize: '16px' }}
                     ></i>
@@ -162,7 +160,6 @@ export const EmployeeFeedbackMasterGrid = () => {
         );
     };
 
-    // Function to render engineer name with high rating indicator
     const renderEngineerName = (engineer, hasHighRating) => {
         if (hasHighRating) {
             return (
@@ -183,15 +180,13 @@ export const EmployeeFeedbackMasterGrid = () => {
         }
     };
 
+    // Fetch paginated data for the table
     const fetchData = async () => {
         try {
             setLoading(true);
-            console.log("Fetching data with search term:", search);
             const data = await getRemaningFeedback(currentPage, itemsPerPage, search);
 
-            console.log("Data received:", data);
-
-            if(data && data.success){
+            if (data && data.success) {
                 setFeedbacks(data.services || []);
                 setPagination({
                     currentPage: data.currentPage || 1,
@@ -202,39 +197,44 @@ export const EmployeeFeedbackMasterGrid = () => {
                     hasPrevPage: data.hasPrevPage || false
                 });
             } else {
-                console.error("API returned error:", data?.error);
                 toast(data?.error || "Failed to fetch feedback.");
                 setFeedbacks([]);
-                setPagination({ 
-                    currentPage: 1, 
-                    totalPages: 0, 
-                    totalFeedbacks: 0, 
-                    limit: itemsPerPage, 
-                    hasNextPage: false, 
-                    hasPrevPage: false 
+                setPagination({
+                    currentPage: 1,
+                    totalPages: 0,
+                    totalFeedbacks: 0,
+                    limit: itemsPerPage,
+                    hasNextPage: false,
+                    hasPrevPage: false
                 });
             }
-            
         } catch (error) {
             console.error("Error fetching feedback:", error);
             toast.error("Failed to fetch feedback.");
             setFeedbacks([]);
-            setPagination({ 
-                currentPage: 1, 
-                totalPages: 0, 
-                totalFeedbacks: 0, 
-                limit: itemsPerPage, 
-                hasNextPage: false, 
-                hasPrevPage: false 
+            setPagination({
+                currentPage: 1,
+                totalPages: 0,
+                totalFeedbacks: 0,
+                limit: itemsPerPage,
+                hasNextPage: false,
+                hasPrevPage: false
             });
         } finally {
             setLoading(false);
         }
     };
 
+    // Paginated table data — re-fetch when page, search, or popup closes
     useEffect(() => {
         fetchData();
     }, [currentPage, UpdatePopUpShow, search]);
+
+    // Stats data — only re-fetch when popup closes (data may have changed)
+    // Does NOT depend on currentPage or search so it always reflects ALL records
+    useEffect(() => {
+        fetchStatsData();
+    }, [UpdatePopUpShow]);
 
     const handleUpdate = (feedback = null) => {
         if (feedback) {
@@ -249,19 +249,14 @@ export const EmployeeFeedbackMasterGrid = () => {
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
-        console.log("Search submitted with term:", searchText);
         setSearch(searchText);
         setCurrentPage(1);
     };
 
     const handleSearchChange = (e) => {
         const value = e.target.value;
-        console.log("Search input changed:", value);
         setSearchText(value);
-        
-        // If search input is cleared, reset search state
         if (value === '') {
-            console.log("Search input cleared");
             setSearch('');
             setCurrentPage(1);
         }
@@ -269,21 +264,21 @@ export const EmployeeFeedbackMasterGrid = () => {
 
     const handleToggleFeedback = () => {
         setShowFeedbackGiven(!showFeedbackGiven);
-        setShowHighRatingOnly(false); // Reset high rating filter when toggling
-        setCurrentPage(1); // Reset to first page when toggling
-    };
-    
-    const handleToggleHighRating = () => {
-        setShowHighRatingOnly(!showHighRatingOnly);
-        setShowFeedbackGiven(true); // Ensure we're showing feedbacks when filtering by high rating
-        setCurrentPage(1); // Reset to first page when toggling
+        setShowHighRatingOnly(false);
+        setCurrentPage(1);
     };
 
-    // Filter feedbacks based on toggle state
+    const handleToggleHighRating = () => {
+        setShowHighRatingOnly(!showHighRatingOnly);
+        setShowFeedbackGiven(true);
+        setCurrentPage(1);
+    };
+
+    // Filter current page's feedbacks for the table
     const filteredFeedbacks = feedbacks.filter(feedback => {
         const hasFeedback = feedback.feedback && feedback.feedback.rating;
         const isHighRating = hasFeedback && feedback.feedback.rating >= 4;
-        
+
         if (showHighRatingOnly) {
             return isHighRating;
         } else if (showFeedbackGiven) {
@@ -293,23 +288,20 @@ export const EmployeeFeedbackMasterGrid = () => {
         }
     });
 
-    // Pagination button rendering logic
+    // Pagination
     const maxPageButtons = 5;
     const halfMaxButtons = Math.floor(maxPageButtons / 2);
     let startPage = Math.max(1, currentPage - halfMaxButtons);
     let endPage = Math.min(pagination.totalPages, startPage + maxPageButtons - 1);
-
-    // Adjust startPage if endPage is at the totalPages
     if (endPage - startPage + 1 < maxPageButtons) {
         startPage = Math.max(1, endPage - maxPageButtons + 1);
     }
-
     const pageButtons = [];
     for (let i = startPage; i <= endPage; i++) {
         pageButtons.push(i);
     }
 
-    // Count pending and given feedbacks
+    // Toggle counts from CURRENT PAGE only (these are for the filter buttons)
     const pendingCount = feedbacks.filter(f => !(f.feedback && f.feedback.rating)).length;
     const givenCount = feedbacks.filter(f => f.feedback && f.feedback.rating).length;
     const highRatingCount = feedbacks.filter(f => f.feedback && f.feedback.rating >= 4).length;
@@ -342,15 +334,12 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                         value={searchText}
                                                         onChange={handleSearchChange}
                                                     />
-                                                    <button 
-                                                        className="btn btn-primary" 
-                                                        type="submit"
-                                                    >
+                                                    <button className="btn btn-primary" type="submit">
                                                         <i className="fa fa-search"></i>
                                                     </button>
                                                     {searchText && (
-                                                        <button 
-                                                            className="btn btn-outline-secondary ms-2" 
+                                                        <button
+                                                            className="btn btn-outline-secondary ms-2"
                                                             type="button"
                                                             onClick={() => {
                                                                 setSearchText('');
@@ -367,7 +356,7 @@ export const EmployeeFeedbackMasterGrid = () => {
                                     </div>
                                 </div>
 
-                                {/* Statistics Cards */}
+                                {/* ── Statistics Cards (ALL pages) ── */}
                                 <div className="row px-2 py-3">
                                     <div className="col-12 col-md-3 mb-3">
                                         <div className="card border-left-primary shadow h-100 py-2" style={{ borderLeft: '4px solid #4e73df' }}>
@@ -375,7 +364,9 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                 <div className="row no-gutters align-items-center">
                                                     <div className="col mr-2">
                                                         <div className="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Feedback</div>
-                                                        <div className="h5 mb-0 font-weight-bold text-gray-800">{stats.total}</div>
+                                                        <div className="h5 mb-0 font-weight-bold text-gray-800">
+                                                            {statsLoading ? <span className="spinner-border spinner-border-sm" /> : stats.total}
+                                                        </div>
                                                     </div>
                                                     <div className="col-auto">
                                                         <i className="fas fa-clipboard-list fa-2x text-gray-300"></i>
@@ -390,7 +381,9 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                 <div className="row no-gutters align-items-center">
                                                     <div className="col mr-2">
                                                         <div className="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
-                                                        <div className="h5 mb-0 font-weight-bold text-gray-800">{stats.pending}</div>
+                                                        <div className="h5 mb-0 font-weight-bold text-gray-800">
+                                                            {statsLoading ? <span className="spinner-border spinner-border-sm" /> : stats.pending}
+                                                        </div>
                                                     </div>
                                                     <div className="col-auto">
                                                         <i className="fas fa-clock fa-2x text-gray-300"></i>
@@ -405,7 +398,9 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                 <div className="row no-gutters align-items-center">
                                                     <div className="col mr-2">
                                                         <div className="text-xs font-weight-bold text-success text-uppercase mb-1">High Ratings (4-5)</div>
-                                                        <div className="h5 mb-0 font-weight-bold text-gray-800">{stats.highRating}</div>
+                                                        <div className="h5 mb-0 font-weight-bold text-gray-800">
+                                                            {statsLoading ? <span className="spinner-border spinner-border-sm" /> : stats.highRating}
+                                                        </div>
                                                     </div>
                                                     <div className="col-auto">
                                                         <i className="fas fa-star fa-2x text-gray-300"></i>
@@ -422,11 +417,20 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                         <div className="text-xs font-weight-bold text-info text-uppercase mb-1">Average Rating</div>
                                                         <div className="row no-gutters align-items-center">
                                                             <div className="col-auto">
-                                                                <div className="h5 mb-0 mr-3 font-weight-bold text-gray-800">{stats.avgRating}</div>
+                                                                <div className="h5 mb-0 mr-3 font-weight-bold text-gray-800">
+                                                                    {statsLoading ? <span className="spinner-border spinner-border-sm" /> : stats.avgRating}
+                                                                </div>
                                                             </div>
                                                             <div className="col">
                                                                 <div className="progress progress-sm mr-2">
-                                                                    <div className="progress-bar bg-info" role="progressbar" style={{ width: `${stats.avgRating * 20}%` }} aria-valuenow={stats.avgRating * 20} aria-valuemin="0" aria-valuemax="100"></div>
+                                                                    <div
+                                                                        className="progress-bar bg-info"
+                                                                        role="progressbar"
+                                                                        style={{ width: `${stats.avgRating * 20}%` }}
+                                                                        aria-valuenow={stats.avgRating * 20}
+                                                                        aria-valuemin="0"
+                                                                        aria-valuemax="100"
+                                                                    ></div>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -440,8 +444,8 @@ export const EmployeeFeedbackMasterGrid = () => {
                                     </div>
                                 </div>
 
-                                {/* Top Performing Engineers Section */}
-                                {Object.keys(stats.topEngineers).length > 0 && (
+                                {/* ── Top Performing Engineers (ALL pages) ── */}
+                                {!statsLoading && Object.keys(stats.topEngineers).length > 0 && (
                                     <div className="row px-2 py-3">
                                         <div className="col-12">
                                             <div className="card shadow">
@@ -490,17 +494,14 @@ export const EmployeeFeedbackMasterGrid = () => {
                                     </div>
                                 )}
 
-                                {/* Toggle Button Section */}
+                                {/* Toggle Buttons */}
                                 <div className="row px-2 py-2">
                                     <div className="col-12">
                                         <div className="d-flex align-items-center gap-3 flex-wrap">
                                             <button
                                                 onClick={handleToggleFeedback}
                                                 className={`btn ${!showFeedbackGiven && !showHighRatingOnly ? 'btn-warning' : 'btn-outline-warning'}`}
-                                                style={{ 
-                                                    fontWeight: 'bold',
-                                                    minWidth: '180px'
-                                                }}
+                                                style={{ fontWeight: 'bold', minWidth: '180px' }}
                                             >
                                                 <i className="fa fa-clock me-2"></i>
                                                 Pending Feedback ({pendingCount})
@@ -508,10 +509,7 @@ export const EmployeeFeedbackMasterGrid = () => {
                                             <button
                                                 onClick={handleToggleFeedback}
                                                 className={`btn ${showFeedbackGiven && !showHighRatingOnly ? 'btn-success' : 'btn-outline-success'}`}
-                                                style={{ 
-                                                    fontWeight: 'bold',
-                                                    minWidth: '180px'
-                                                }}
+                                                style={{ fontWeight: 'bold', minWidth: '180px' }}
                                             >
                                                 <i className="fa fa-check-circle me-2"></i>
                                                 All Feedback ({givenCount})
@@ -519,10 +517,7 @@ export const EmployeeFeedbackMasterGrid = () => {
                                             <button
                                                 onClick={handleToggleHighRating}
                                                 className={`btn ${showHighRatingOnly ? 'btn-primary' : 'btn-outline-primary'}`}
-                                                style={{ 
-                                                    fontWeight: 'bold',
-                                                    minWidth: '180px'
-                                                }}
+                                                style={{ fontWeight: 'bold', minWidth: '180px' }}
                                             >
                                                 <i className="fa fa-trophy me-2"></i>
                                                 High Ratings Only ({highRatingCount})
@@ -531,12 +526,13 @@ export const EmployeeFeedbackMasterGrid = () => {
                                     </div>
                                 </div>
 
+                                {/* Table */}
                                 <div className="row bg-white p-2 m-1 border rounded">
                                     <div className="col-12 py-2">
-                                        <div className="table-responsive ">
+                                        <div className="table-responsive">
                                             <table className="table table-striped table-class" id="table-id">
                                                 <thead>
-                                                    <tr className="th_border" >
+                                                    <tr className="th_border">
                                                         <th>Sr. No</th>
                                                         <th className="align_left_td">Client Name</th>
                                                         <th className="align_left_td">Contact Person</th>
@@ -556,10 +552,10 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                             const hasFeedback = feedback.feedback && feedback.feedback.rating;
                                                             const hasHighRating = hasFeedback && feedback.feedback.rating >= 4;
                                                             const cardType = getCardType(feedback);
-                                                            
+
                                                             return (
-                                                                <tr 
-                                                                    className="border my-4" 
+                                                                <tr
+                                                                    className="border my-4"
                                                                     key={feedback._id}
                                                                     style={{
                                                                         backgroundColor: cardType.bgColor,
@@ -575,7 +571,7 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                                     <td>{formatDate(feedback.allotmentDate)}</td>
                                                                     <td>{formatDate(feedback.completionDate)}</td>
                                                                     <td>
-                                                                        {feedback.allotTo?.map(person => 
+                                                                        {feedback.allotTo?.map(person =>
                                                                             renderEngineerName(person, hasHighRating)
                                                                         ) || 'N/A'}
                                                                     </td>
@@ -583,18 +579,18 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                                         {hasFeedback ? renderStars(feedback.feedback.rating) : '-'}
                                                                     </td>
                                                                     <td>
-                                                                        <span className="badge" style={{ 
-                                                                            backgroundColor: cardType.borderColor, 
-                                                                            color: 'white' 
+                                                                        <span className="badge" style={{
+                                                                            backgroundColor: cardType.borderColor,
+                                                                            color: 'white'
                                                                         }}>
                                                                             {hasFeedback ? `Feedback Given (${cardType.type})` : 'Pending Feedback'}
                                                                         </span>
                                                                     </td>
                                                                     <td>
-                                                                        <span 
-                                                                            onClick={() => handleUpdate(feedback)} 
-                                                                            className="update me-2" 
-                                                                            style={{cursor: 'pointer'}} 
+                                                                        <span
+                                                                            onClick={() => handleUpdate(feedback)}
+                                                                            className="update me-2"
+                                                                            style={{ cursor: 'pointer' }}
                                                                             title={hasFeedback ? "View/Update Feedback" : "Add Feedback"}
                                                                         >
                                                                             <i className={`fa-solid fa-eye ${hasFeedback ? 'text-primary' : 'text-warning'}`}></i>
@@ -606,10 +602,10 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                     ) : (
                                                         <tr>
                                                             <td colSpan="11" className="text-center">
-                                                                {loading ? 'Loading...' : 
-                                                                 showHighRatingOnly ? 'No high ratings found.' :
-                                                                 showFeedbackGiven ? 'No feedback given yet.' : 
-                                                                 search ? `No results found for "${search}"` : 'No pending feedback found.'}
+                                                                {loading ? 'Loading...' :
+                                                                    showHighRatingOnly ? 'No high ratings found.' :
+                                                                        showFeedbackGiven ? 'No feedback given yet.' :
+                                                                            search ? `No results found for "${search}"` : 'No pending feedback found.'}
                                                             </td>
                                                         </tr>
                                                     )}
@@ -619,6 +615,7 @@ export const EmployeeFeedbackMasterGrid = () => {
                                     </div>
                                 </div>
 
+                                {/* Pagination */}
                                 {filteredFeedbacks.length > 0 && pagination.totalPages > 1 && (
                                     <div className="pagination-container text-center my-3 sm">
                                         <button
@@ -641,9 +638,7 @@ export const EmployeeFeedbackMasterGrid = () => {
                                             <button
                                                 key={page}
                                                 onClick={() => handlePageChange(page)}
-                                                className={`btn btn-sm me-1 ${ 
-                                                    pagination.currentPage === page ? "btn-primary" : "btn-dark"
-                                                }`}
+                                                className={`btn btn-sm me-1 ${pagination.currentPage === page ? "btn-primary" : "btn-dark"}`}
                                             >
                                                 {page}
                                             </button>
