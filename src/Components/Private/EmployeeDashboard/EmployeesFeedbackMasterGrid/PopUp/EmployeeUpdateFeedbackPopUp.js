@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { updateFeedback } from "../../../../../hooks/useFeedback";
+import { formatDate } from "../../../../../utils/formatDate";
 
 const EmployeeUpdateFeedbackPopUp = ({ handleUpdate, selectedFeedback }) => {
     const [formData, setFormData] = useState({
@@ -81,38 +82,10 @@ const EmployeeUpdateFeedbackPopUp = ({ handleUpdate, selectedFeedback }) => {
         }));
     };
 
-    const formGroupStyle = {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "flex-start",
-    };
-
-    const labelStyle = {
-        fontSize: "14px",
-        fontWeight: "bold",
-        color: "#333",
-        marginBottom: "5px",
-    };
-
-    const inputStyle = {
-        width: "100%",
-        padding: "10px",
-        fontSize: "14px",
-        border: "1px solid #ccc",
-        borderRadius: "4px",
-    };
-
-    const textAreaStyle = {
-        ...inputStyle,
-        height: "80px",
-        resize: "none",
-    };
-
-    const starsContainerStyle = {
-        display: "flex",
-        justifyContent: "center",
-        gap: "10px",
-    };
+    const hasRemarks =
+        selectedFeedback &&
+        selectedFeedback.remarks &&
+        selectedFeedback.remarks.length > 0;
 
     const starStyle = (full) => ({
         fontSize: "30px",
@@ -120,13 +93,6 @@ const EmployeeUpdateFeedbackPopUp = ({ handleUpdate, selectedFeedback }) => {
         color: full ? "#fcc419" : "#ccc",
         transition: "color 0.3s",
     });
-
-    const ratingMessageStyle = {
-        fontSize: "16px",
-        fontWeight: "bold",
-        color: "#fcc419",
-        marginTop: "10px",
-    };
 
     return (
         <>
@@ -138,77 +104,199 @@ const EmployeeUpdateFeedbackPopUp = ({ handleUpdate, selectedFeedback }) => {
                     backgroundColor: "#00000090",
                 }}
             >
-                <div className="modal-dialog modal-lg">
+                <div className="modal-dialog modal-xl">
                     <div className="modal-content p-3">
-                        <form onSubmit={handleFeedbackUpdate}>
-                            <div className="modal-header pt-0">
-                                <h5 className="card-title fw-bold" id="exampleModalLongTitle">
-                                    Update Feedback
-                                </h5>
-                                <button
-                                    onClick={() => handleUpdate()}
-                                    type="button"
-                                    className="close px-3"
-                                    style={{ marginLeft: "auto" }}
-                                >
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                            <div className="modal-body">
-                                <div className="row modal_body_height">
-                                    <div style={formGroupStyle}>
-                                        <label style={labelStyle}>Rating</label>
-                                        <div style={starsContainerStyle}>
-                                            {Array.from({ length: 5 }, (_, i) => (
-                                                <span
-                                                    key={i}
-                                                    style={starStyle(formData.rating >= i + 1)}
-                                                    onClick={() => handleRating(i + 1)}
-                                                >
-                                                    ★
-                                                </span>
-                                            ))}
+                        <div className="modal-header pt-0">
+                            <h5 className="card-title fw-bold" id="exampleModalLongTitle">
+                                {selectedFeedback?.feedback ? "Update Feedback" : "Add Feedback"}
+                            </h5>
+                            <button
+                                onClick={() => handleUpdate()}
+                                type="button"
+                                className="close px-3"
+                                style={{ marginLeft: "auto", border: "none", background: "none" }}
+                            >
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        
+                        {/* Scrollable Modal Body */}
+                        <div 
+                            className="modal-body" 
+                            style={{ 
+                                maxHeight: "70vh", 
+                                overflowY: "auto",
+                                overflowX: "hidden"
+                            }}
+                        >
+                            <form onSubmit={handleFeedbackUpdate}>
+                                {/* Service Details Section */}
+                                <div className="row mb-4">
+                                    <div className="col-12">
+                                        <h6 className="fw-bold text-primary mb-3">Service Details</h6>
+                                    </div>
+                                    <div className="col-sm-12 col-md-6 col-lg-6">
+                                        <h6>
+                                            <p className="fw-bold mb-1">Complaint:</p>
+                                            <span className="text-muted">{selectedFeedback?.ticket?.details || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Client:</p>
+                                            <span className="text-muted">{selectedFeedback?.ticket?.client?.custName || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Product:</p>
+                                            <span className="text-muted">{selectedFeedback?.ticket?.product || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Contact Person Name:</p>
+                                            <span className="text-muted">{selectedFeedback?.ticket?.contactPerson || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Contact Person Email:</p>
+                                            <span className="text-muted">{selectedFeedback?.ticket?.contactPersonEmail || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Contact Person No:</p>
+                                            <span className="text-muted">{selectedFeedback?.ticket?.contactNumber || "-"}</span>
+                                        </h6>
+                                    </div>
+                                    <div className="col-sm-12 col-md-6 col-lg-6">
+                                        <h6>
+                                            <p className="fw-bold mb-1">Feedback Type:</p>
+                                            <span className="text-muted">{selectedFeedback?.serviceType || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Actual Completion Date:</p>
+                                            <span className="text-muted">{formatDate(selectedFeedback?.actualCompletionDate) || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Allotment Date:</p>
+                                            <span className="text-muted">{formatDate(selectedFeedback?.allotmentDate) || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Assigned Engineer:</p>
+                                            <span className="text-muted">
+                                                {selectedFeedback?.allotTo?.map(person => person?.name).join(', ') || "-"}
+                                            </span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Status:</p>
+                                            <span className="text-muted">{selectedFeedback?.status || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Priority:</p>
+                                            <span className="text-muted">{selectedFeedback?.priority || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Work Mode:</p>
+                                            <span className="text-muted">{selectedFeedback?.workMode || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Created At:</p>
+                                            <span className="text-muted">{formatDate(selectedFeedback?.ticket?.date) || "-"}</span>
+                                        </h6>
+                                        <h6 className="mt-3">
+                                            <p className="fw-bold mb-1">Completion Date:</p>
+                                            <span className="text-muted">{formatDate(selectedFeedback?.completionDate) || "-"}</span>
+                                        </h6>
+                                    </div>
+                                </div>
+
+                                <hr />
+
+                                {/* Feedback Form Section */}
+                                <div className="row mt-4">
+                                    <div className="col-12">
+                                        <h6 className="fw-bold text-primary mb-3">Provide Your Feedback</h6>
+                                    </div>
+                                    <div className="col-12">
+                                        <div className="mb-3">
+                                            <label className="form-label fw-bold">Rating <span className="text-danger">*</span></label>
+                                            <div className="d-flex justify-content-center gap-2 my-3">
+                                                {Array.from({ length: 5 }, (_, i) => (
+                                                    <span
+                                                        key={i}
+                                                        style={starStyle(formData.rating >= i + 1)}
+                                                        onClick={() => handleRating(i + 1)}
+                                                    >
+                                                        ★
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <p className="text-center fw-bold" style={{ color: "#fcc419", fontSize: "16px" }}>
+                                                {messages[formData.rating - 1] || "Select a rating"}
+                                            </p>
                                         </div>
-                                        <p style={ratingMessageStyle}>
-                                            {messages[formData.rating - 1] || "Select a rating"}
-                                        </p>
                                     </div>
 
-                                    <div style={formGroupStyle}>
-                                        <label style={labelStyle} htmlFor="message">
-                                            Message
-                                        </label>
-                                        <textarea
-                                            id="message"
-                                            name="message"
-                                            style={textAreaStyle}
-                                            value={formData.message}
-                                            onChange={handleInputChange}
-                                            placeholder="Please share your feedback..."
-                                            required
-                                        />
-                                    </div>
-
-                                    <div className="row">
-                                        <div className="col-12 pt-3 mt-2">
-                                            <button
-                                                type="submit"
-                                                className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
-                                            >
-                                                Update
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleUpdate}
-                                                className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
-                                            >
-                                                Cancel
-                                            </button>
+                                    <div className="col-12">
+                                        <div className="mb-3">
+                                            <label htmlFor="message" className="form-label fw-bold">
+                                                Message <span className="text-danger">*</span>
+                                            </label>
+                                            <textarea
+                                                id="message"
+                                                name="message"
+                                                className="form-control"
+                                                rows="4"
+                                                value={formData.message}
+                                                onChange={handleInputChange}
+                                                placeholder="Please share your feedback..."
+                                                required
+                                            />
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </form>
+
+                                {/* Past Actions Section */}
+                                {hasRemarks && (
+                                    <div className="row mt-4">
+                                        <div className="col-12">
+                                            <hr />
+                                            <h6 className="fw-bold text-primary mb-3">Past Actions</h6>
+                                            <div className="table-responsive">
+                                                <table className="table table-bordered table-striped">
+                                                    <thead className="thead-light">
+                                                        <tr>
+                                                            <th scope="col" style={{ width: "80px" }}>Sr. No</th>
+                                                            <th scope="col">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {selectedFeedback.remarks.map((remark, index) => (
+                                                            <tr key={index}>
+                                                                <td>{index + 1}</td>
+                                                                <td>{remark}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="row mt-4 mb-3">
+                                    <div className="col-12 text-center">
+                                        <button
+                                            type="submit"
+                                            className="btn addbtn rounded-0 add_button m-2 px-4"
+                                        >
+                                            {selectedFeedback?.feedback ? "Update Feedback" : "Submit Feedback"}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleUpdate}
+                                            className="btn addbtn rounded-0 Cancel_button m-2 px-4"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>
