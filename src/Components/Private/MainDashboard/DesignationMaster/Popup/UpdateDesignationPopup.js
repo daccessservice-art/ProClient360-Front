@@ -793,6 +793,136 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
   </td>
 </tr>
 
+{/* ANNUAL REPORT PERMISSIONS - NEW */}
+<tr>
+  <td>Annual Report</td>
+  <td>
+    <div>
+      <label className="toggler-wrapper style-22">
+        <input type="checkbox"
+        id="permissions"
+        name="createAnnualReport"
+          checked={designation.permissions.includes('createAnnualReport')}
+          onChange={(e) => handlePermissionChange('createAnnualReport', e.target.checked)}
+        />
+        <div className="toggler-slider">
+          <div className="toggler-knob"></div>
+        </div>
+      </label>
+    </div>
+  </td>
+  <td>
+    <div>
+      <label className="toggler-wrapper style-22">
+        <input type="checkbox"
+        id="permissions"
+        name="viewAnnualReport"
+          checked={designation.permissions.includes('viewAnnualReport')}
+          onChange={(e) => handlePermissionChange('viewAnnualReport', e.target.checked)}
+        />
+        <div className="toggler-slider">
+          <div className="toggler-knob"></div>
+        </div>
+      </label>
+    </div>
+  </td>
+  <td>
+    <div>
+      <label className="toggler-wrapper style-22">
+        <input type="checkbox"
+        id="permissions"
+        name="updateAnnualReport"
+        checked={designation.permissions.includes('updateAnnualReport')}
+          onChange={(e) => handlePermissionChange('updateAnnualReport', e.target.checked)}
+        />
+        <div className="toggler-slider">
+          <div className="toggler-knob"></div>
+        </div>
+      </label>
+    </div>
+  </td>
+  <td>
+    <div>
+      <label className="toggler-wrapper style-22">
+        <input type="checkbox"
+        name="deleteAnnualReport"
+        id="permissions"
+          checked={designation.permissions.includes('deleteAnnualReport')}
+          onChange={(e) => handlePermissionChange('deleteAnnualReport', e.target.checked)}
+        />
+        <div className="toggler-slider">
+          <div className="toggler-knob"></div>
+        </div>
+      </label>
+    </div>
+  </td>
+</tr>
+
+{/* ACTIVITY LOGS PERMISSIONS - NEW */}
+<tr>
+  <td>Activity Logs</td>
+  <td>
+    <div>
+      <label className="toggler-wrapper style-22">
+        <input type="checkbox"
+        id="permissions"
+        name="createActivityLog"
+          checked={designation.permissions.includes('createActivityLog')}
+          onChange={(e) => handlePermissionChange('createActivityLog', e.target.checked)}
+        />
+        <div className="toggler-slider">
+          <div className="toggler-knob"></div>
+        </div>
+      </label>
+    </div>
+  </td>
+  <td>
+    <div>
+      <label className="toggler-wrapper style-22">
+        <input type="checkbox"
+        id="permissions"
+        name="viewActivityLog"
+          checked={designation.permissions.includes('viewActivityLog')}
+          onChange={(e) => handlePermissionChange('viewActivityLog', e.target.checked)}
+        />
+        <div className="toggler-slider">
+          <div className="toggler-knob"></div>
+        </div>
+      </label>
+    </div>
+  </td>
+  <td>
+    <div>
+      <label className="toggler-wrapper style-22">
+        <input type="checkbox"
+        id="permissions"
+        name="updateActivityLog"
+        checked={designation.permissions.includes('updateActivityLog')}
+          onChange={(e) => handlePermissionChange('updateActivityLog', e.target.checked)}
+        />
+        <div className="toggler-slider">
+          <div className="toggler-knob"></div>
+        </div>
+      </label>
+    </div>
+  </td>
+  <td>
+    <div>
+      <label className="toggler-wrapper style-22">
+        <input type="checkbox"
+        name="deleteActivityLog"
+        id="permissions"
+          checked={designation.permissions.includes('deleteActivityLog')}
+          onChange={(e) => handlePermissionChange('deleteActivityLog', e.target.checked)}
+        />
+        <div className="toggler-slider">
+          <div className="toggler-knob"></div>
+        </div>
+      </label>
+    </div>
+  </td>
+</tr>
+
 <tr>
   <td>Feedback</td>
   <td>
@@ -1616,4 +1746,4 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
   );
 };
 
-export default UpdateDesignationPopup; 
+export default UpdateDesignationPopup;

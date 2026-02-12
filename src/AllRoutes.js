@@ -55,6 +55,11 @@ import VendorRegistrationForm from "./Components/Private/MainDashboard/VendorMas
 import VendorRegistrationSuccess from "./Components/Private/MainDashboard/VendorMaster/PopUp/VendorRegistrationSuccess";
 
 import { CallUnansweredLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/CallUnansweredLeadPage';
+
+// Import Activity Log and Report Components
+import ActivityLogReport from "./Components/Private/MainDashboard/ActivityLogReport/ActivityLogReport";
+import AnnualReport from "./Components/Private/MainDashboard/AnnualReport/AnnualReport";
+
 // Custom component to check if user has required permissions
 const SalesManagerRoute = () => {
     const { user } = useContext(UserContext);
@@ -86,6 +91,66 @@ const SalesManagerRoute = () => {
     );
 };
 
+// Custom component for Activity Log Report with permission check
+const ActivityLogReportRoute = () => {
+    const { user } = useContext(UserContext);
+    
+    // Check if user has required permissions
+    const hasPermission = user?.permissions?.includes("viewActivityLog") || 
+                         user?.user === 'company';
+    
+    if (hasPermission) {
+        return <ActivityLogReport />;
+    }
+    
+    // If user doesn't have permission, show access denied
+    return (
+        <div className="container-fluid">
+            <div className="row justify-content-center">
+                <div className="col-md-6">
+                    <div className="card mt-5">
+                        <div className="card-body text-center">
+                            <h4 className="card-title">Access Denied</h4>
+                            <p className="card-text">You don't have permission to access the Activity Log Report.</p>
+                            <p className="card-text">Please contact your administrator if you believe this is an error.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Custom component for Annual Report with permission check
+const AnnualReportRoute = () => {
+    const { user } = useContext(UserContext);
+    
+    // Check if user has required permissions
+    const hasPermission = user?.permissions?.includes("viewAnnualReport") || 
+                         user?.user === 'company';
+    
+    if (hasPermission) {
+        return <AnnualReport />;
+    }
+    
+    // If user doesn't have permission, show access denied
+    return (
+        <div className="container-fluid">
+            <div className="row justify-content-center">
+                <div className="col-md-6">
+                    <div className="card mt-5">
+                        <div className="card-body text-center">
+                            <h4 className="card-title">Access Denied</h4>
+                            <p className="card-text">You don't have permission to access the Annual Report.</p>
+                            <p className="card-text">Please contact your administrator if you believe this is an error.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AllRoutes = () => {
     const { user } = useContext(UserContext);
 
@@ -107,6 +172,7 @@ const AllRoutes = () => {
                 <Route exact path="/ChangePassword" element={<ProtectRoute Component={ChangePassword} />} />
                 <Route exact path="/UserProfile" element={<ProtectRoute Component={UserProfile} />} />
                 
+                {/* Master Grid Routes */}
                 <Route exact path="/CustomerMasterGrid" element={<ProtectRoute Component={CustomerMasterGrid} />} />
                 <Route exact path="/EmployeeMasterGrid" element={<ProtectRoute Component={EmployeeMasterGrid} />} />
                 <Route exact path="/ServiceMasterGrid" element={<ProtectRoute Component={ServiceMasterGrid} />} />
@@ -117,8 +183,14 @@ const AllRoutes = () => {
                 <Route exact path="/DesignationMasterGird" element={<ProtectRoute Component={DesignationMasterGird} />} />
                 <Route exact path="/project/:id" element={<ProtectRoute Component={TaskSheetMaster} />} />
 
+                {/* Sales & Marketing Routes */}
                 <Route exact path="/SalesMasterGrid" element={<ProtectRoute Component={SalesMasterGrid} />} />
                 <Route exact path="/MarketingMasterGrid" element={<ProtectRoute Component={MarketingMasterGrid} />} />
+                
+                {/* Sales Manager Master Route with special permission check */}
+                <Route exact path="/SalesManagerMasterGrid" element={<ProtectRoute Component={SalesManagerRoute} />} />
+                
+                {/* Inventory Management Routes */}
                 <Route exact path="/AMCMasterGrid" element={<ProtectRoute Component={AMCMasterGrid} />} />
                 <Route exact path="/InventoryMasterGrid" element={<ProtectRoute Component={InventoryMasterGrid} />} />
                 <Route exact path="/VendorMasterGrid" element={<ProtectRoute Component={VendorMasterGrid} />} />
@@ -128,11 +200,13 @@ const AllRoutes = () => {
                 <Route exact path="/QCMasterGrid" element={<ProtectRoute Component={QCMasterGrid} />} />
                 <Route exact path="/DCMasterGrid" element={<ProtectRoute Component={DCMasterGrid} />} />
                 <Route exact path="/MRFMasterGrid" element={<ProtectRoute Component={MRFMasterGrid} />} />
-
-                {/* Sales Manager Master Route with special permission check */}
-                <Route exact path="/SalesManagerMasterGrid" element={<ProtectRoute Component={SalesManagerRoute} />} />
                 
-                <Route path="/call-unanswered-leads" element={<CallUnansweredLeadsPage />} />
+                <Route path="/call-unanswered-leads" element={<ProtectRoute Component={CallUnansweredLeadsPage} />} />
+
+                {/* REPORT ROUTES - Permission Based */}
+                <Route exact path="/ActivityLogReport" element={<ProtectRoute Component={ActivityLogReportRoute} />} />
+                <Route exact path="/AnnualReport" element={<ProtectRoute Component={AnnualReportRoute} />} />
+
                 {/* Company Routes */}
                 {user && user?.user === 'company' && (
                     <>

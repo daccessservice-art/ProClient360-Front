@@ -130,6 +130,34 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
+                    {/* REPORTS SECTION */}
+                    
+                    {/* Activity Log Report */}
+                    {user?.permissions?.includes("viewActivityLog") || user?.user === 'company' ? (
+                        <li title="Activity Logs"
+                            className={active === "ActivityLogReport" ? "nav-item active" : "nav-item sidebar_item"}>
+                            <Link to='/ActivityLogReport' className="nav-link ">
+                                <i className="fa-solid ps-3 fa-history side_icon_fs"></i>
+                                <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                                    Activity Logs
+                                </span>
+                            </Link>
+                        </li>
+                    ) : null}
+                    
+                    {/* Annual Report */}
+                    {user?.permissions?.includes("viewAnnualReport") || user?.user === 'company' ? (
+                        <li title="Annual Report"
+                            className={active === "AnnualReport" ? "nav-item active" : "nav-item sidebar_item"}>
+                            <Link to='/AnnualReport' className="nav-link ">
+                                <i className="fa-solid ps-3 fa-chart-bar side_icon_fs"></i>
+                                <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                                    Annual Report
+                                </span>
+                            </Link>
+                        </li>
+                    ) : null}
+
                     {/* Ticket Master - Only if user has viewService permission or is company */}
                     {user?.permissions?.includes("viewService") || user?.user === 'company' ? (
                         <li
@@ -158,7 +186,7 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
-                    {/* Inventory Master - NEW */}
+                    {/* Inventory Master */}
                     {user?.permissions?.includes("viewInventory") || user?.user === 'company' ? (
                         <li
                             title="Inventory Master"
@@ -172,7 +200,7 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
-
+                    {/* Vendor Master */}
                     {user?.permissions?.includes("viewVendor") || user?.user === 'company' ? (
                        <li
                          title="Vendor Master"
@@ -187,86 +215,86 @@ export const Sidebar = ({ isopen, active }) => {
                     ) : null}
 
                     {/* Product Master */}
-{user?.permissions?.includes("viewProduct") || user?.user === 'company' ? (
-  <li
-    title="Product Master"
-    className={active === "ProductMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-    <Link to='/ProductMasterGrid' className="nav-link ">
-      <i className="fa-solid fa-box ps-3 side_icon_fs"></i>
-      <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
-        Product Master
-      </span>
-    </Link>
-  </li>
-) : null}
+                    {user?.permissions?.includes("viewProduct") || user?.user === 'company' ? (
+                      <li
+                        title="Product Master"
+                        className={active === "ProductMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+                        <Link to='/ProductMasterGrid' className="nav-link ">
+                          <i className="fa-solid fa-box ps-3 side_icon_fs"></i>
+                          <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                            Product Master
+                          </span>
+                        </Link>
+                      </li>
+                    ) : null}
+
                     {/* Purchase Order Master */}
-{user?.permissions?.includes("viewPurchaseOrder") || user?.user === 'company' ? (
-  <li
-    title="Purchase Order Master"
-    className={active === "PurchaseOrderMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-    <Link to='/PurchaseOrderMasterGrid' className="nav-link ">
-      <i className="fa-solid fa-file-invoice ps-3 side_icon_fs"></i>
-      <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
-        Purchase Order Master
-      </span>
-    </Link>
-  </li>
-) : null}
+                    {user?.permissions?.includes("viewPurchaseOrder") || user?.user === 'company' ? (
+                      <li
+                        title="Purchase Order Master"
+                        className={active === "PurchaseOrderMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+                        <Link to='/PurchaseOrderMasterGrid' className="nav-link ">
+                          <i className="fa-solid fa-file-invoice ps-3 side_icon_fs"></i>
+                          <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                            Purchase Order Master
+                          </span>
+                        </Link>
+                      </li>
+                    ) : null}
 
-{/* GRN Master */}
-{user?.permissions?.includes("viewGRN") || user?.user === 'company' ? (
-  <li
-    title="GRN Master"
-    className={active === "GRNMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-    <Link to='/GRNMasterGrid' className="nav-link ">
-    
-      <i className="fa-solid fa-clipboard-check ps-3 side_icon_fs"></i>
-      <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
-        GRN Master
-      </span>
-    </Link>
-  </li>
-) : null}
+                    {/* GRN Master */}
+                    {user?.permissions?.includes("viewGRN") || user?.user === 'company' ? (
+                      <li
+                        title="GRN Master"
+                        className={active === "GRNMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+                        <Link to='/GRNMasterGrid' className="nav-link ">
+                          <i className="fa-solid fa-clipboard-check ps-3 side_icon_fs"></i>
+                          <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                            GRN Master
+                          </span>
+                        </Link>
+                      </li>
+                    ) : null}
 
-{/* Quality Inspection Master */}
-{user?.permissions?.includes("viewQC") || user?.user === 'company' ? (
-  <li title="Quality Inspection" className={active === "QCMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-    <Link to='/QCMasterGrid' className="nav-link ">
-      <i className="fa-solid fa-ranking-star ps-3 side_icon_fs"></i>
-      <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
-        Quality Inspection
-      </span>
-    </Link>
-  </li>
-) : null}
+                    {/* Quality Inspection Master */}
+                    {user?.permissions?.includes("viewQC") || user?.user === 'company' ? (
+                      <li title="Quality Inspection" className={active === "QCMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+                        <Link to='/QCMasterGrid' className="nav-link ">
+                          <i className="fa-solid fa-ranking-star ps-3 side_icon_fs"></i>
+                          <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                            Quality Inspection
+                          </span>
+                        </Link>
+                      </li>
+                    ) : null}
 
-{/* Delivery Challan Master */}
-{user?.permissions?.includes("viewDC") || user?.user === 'company' ? (
-  <li
-    title="Delivery Challan"
-    className={active === "DCMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-    <Link to='/DCMasterGrid' className="nav-link ">
-      <i className="fa-solid fa-truck-fast ps-3 side_icon_fs"></i>
-      <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
-        Delivery Challan
-      </span>
-    </Link>
-  </li>
-) : null}
+                    {/* Delivery Challan Master */}
+                    {user?.permissions?.includes("viewDC") || user?.user === 'company' ? (
+                      <li
+                        title="Delivery Challan"
+                        className={active === "DCMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+                        <Link to='/DCMasterGrid' className="nav-link ">
+                          <i className="fa-solid fa-truck-fast ps-3 side_icon_fs"></i>
+                          <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                            Delivery Challan
+                          </span>
+                        </Link>
+                      </li>
+                    ) : null}
 
-
-{user?.permissions?.includes("viewMRF") || user?.user === 'company' ? (
-  <li
-    title="MRF Master"
-    className={active === "MRFMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-    <Link to='/MRFMasterGrid' className="nav-link ">
-      <i className="fa-solid fa-file-lines ps-3 side_icon_fs"></i>
-      <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
-        MRF Master
-      </span>
-    </Link>
-  </li>
-) : null}
+                    {/* MRF Master */}
+                    {user?.permissions?.includes("viewMRF") || user?.user === 'company' ? (
+                      <li
+                        title="MRF Master"
+                        className={active === "MRFMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+                        <Link to='/MRFMasterGrid' className="nav-link ">
+                          <i className="fa-solid fa-file-lines ps-3 side_icon_fs"></i>
+                          <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                            MRF Master
+                          </span>
+                        </Link>
+                      </li>
+                    ) : null}
 
                     {/* Employee Master */}
                     {user?.permissions?.includes("viewEmployee") || user?.user === 'company' ? (

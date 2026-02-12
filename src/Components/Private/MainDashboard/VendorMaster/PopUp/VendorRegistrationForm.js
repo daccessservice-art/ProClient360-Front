@@ -31,7 +31,7 @@ const VendorRegistrationForm = () => {
     },
     companyProfile: null,
     materialCategory: 'Raw Material',
-    vendorRating: 3,
+    vendorRating: 0,
     brandsWorkWith: '',
     customVendorType: '',
     remarks: '',
@@ -126,7 +126,7 @@ const VendorRegistrationForm = () => {
             pincode: ''
           },
           materialCategory: data.vendor.materialCategory || 'Raw Material',
-          vendorRating: data.vendor.vendorRating || 3,
+          vendorRating: data.vendor.vendorRating || 0,
           brandsWorkWith: data.vendor.brandsWorkWith || '',
           customVendorType: data.vendor.customVendorType || '',
           remarks: data.vendor.remarks || '',
