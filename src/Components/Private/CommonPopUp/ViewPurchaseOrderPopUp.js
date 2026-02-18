@@ -119,18 +119,17 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
                   <img
-  src="/static/assets/img/nav/DACCESS.png"
-  alt="D ACCESS"
+  src="/static/assets/img/nav/ENTERO.png"
+  alt="ENTERO"
   style={{ height: '45px', objectFit: 'contain', marginBottom: '6px' }}
 />
-                  <div className="fw-bold" style={{ fontSize: '14px' }}>Daccess Security Systems Pvt Ltd</div>
+                  <div className="fw-bold" style={{ fontSize: '14px' }}>ENTERO SYSTEMS INDIA PVT. LTD.</div>
                   <div className="text-muted" style={{ fontSize: '11px' }}>
-                    Office No.05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society,
-                    Baner, Pune-411045, Maharashtra, India
+                    Factory Address: Gate No: Shop No.3, Sr.No.170, Gavhane Industrial Estate, Devkar vasti, Bhosari, Pune - 411039, Maharashtra, India
                   </div>
                 </div>
                 <div className="text-end">
-                  <div className="fw-bold" style={{ fontSize: '11px' }}>GSTIN/UIN: 27AACCD7325G1ZR</div>
+                  <div className="fw-bold" style={{ fontSize: '11px' }}>GSTIN/UIN: 27AAJCE1335Q1Z8</div>
                   <h4 className="text-danger fw-bold mt-1 mb-0">Purchase Order</h4>
                 </div>
               </div>
@@ -325,7 +324,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                 <strong>Payment Terms:</strong>{' '}{getPaymentText()}
               </div>
               <div className="col-6 p-2 text-end" style={{ fontSize: '11px' }}>
-                <div className="mb-1">For, Daccess Security Systems Pvt Ltd</div>
+                <div className="mb-1">For, ENTERO SYSTEMS INDIA PVT. LTD.</div>
                 <div className="border mx-auto mt-2 d-flex align-items-center justify-content-center"
                   style={{ width: '90px', height: '38px' }}>
                   <span className="text-muted" style={{ fontSize: '9px' }}>Authorised Signatory</span>
