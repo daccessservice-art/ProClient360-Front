@@ -38,6 +38,9 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
 
+  // ✅ Logo URL — hosted, always works regardless of server path
+  const LOGO_URL = 'https://image2url.com/r2/default/images/1771396818586-be570726-9409-4f91-97bd-dee0ec030a0b.png';
+
   // ── Payment terms string ──
   const getPaymentText = () => {
     const pt = po.paymentTerms || {};
@@ -50,18 +53,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
     return parts.join(' | ') || 'As per agreement';
   };
 
-  // ── Status badge ──
-  const getStatusBadge = (status) => {
-    const map = {
-      'Pending':           'bg-warning text-dark',
-      'Approved':          'bg-info',
-      'Partially Received':'bg-primary',
-      'Received':          'bg-success',
-      'Cancelled':         'bg-danger',
-    };
-    return map[status] || 'bg-secondary';
-  };
-
   // ── Download PDF via backend ──
   const handleDownloadPDF = async () => {
     const toastId = toast.loading('Generating PDF...');
@@ -70,11 +61,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
         `${API_URL}/api/purchaseOrder/${po._id}/pdf`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-          responseType: 'blob',   // ← important: receive binary
+          responseType: 'blob',
         }
       );
 
-      // Create download link
       const url      = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link     = document.createElement('a');
       link.href      = url;
@@ -98,7 +88,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
     >
       <div
         className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"
-        style={{ maxWidth: '950px', width: '96%' }}
+        style={{ maxWidth: '1050px', width: '96%' }}
       >
         <div className="modal-content" style={{ maxHeight: '93vh' }}>
 
@@ -118,11 +108,15 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
             <div className="px-4 pt-3 pb-2 border-bottom">
               <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
+                  {/* ✅ Logo from URL — always loads correctly */}
                   <img
-  src="/static/assets/img/nav/ENTERO.png"
-  alt="ENTERO"
-  style={{ height: '45px', objectFit: 'contain', marginBottom: '6px' }}
-/>
+                    src={LOGO_URL}
+                    alt="ENTERO"
+                    style={{ height: '45px', objectFit: 'contain', marginBottom: '6px' }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
                   <div className="fw-bold" style={{ fontSize: '14px' }}>ENTERO SYSTEMS INDIA PVT. LTD.</div>
                   <div className="text-muted" style={{ fontSize: '11px' }}>
                     Factory Address: Gate No: Shop No.3, Sr.No.170, Gavhane Industrial Estate, Devkar vasti, Bhosari, Pune - 411039, Maharashtra, India
@@ -153,10 +147,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                 </div>
                 <div className="p-2" style={{ fontSize: '11px' }}>
                   {[
-                    ['Order No.',       po.orderNumber],
-                    ['Order Date:',     po.orderDate ? new Date(po.orderDate).toLocaleDateString('en-GB').replace(/\//g,'-') : 'N/A'],
-                    ['Currency:',       'INR'],
-                    ['Conversion Rate:','1.00'],
+                    ['Order No.',        po.orderNumber],
+                    ['Order Date:',      po.orderDate ? new Date(po.orderDate).toLocaleDateString('en-GB').replace(/\//g,'-') : 'N/A'],
+                    ['Currency:',        'INR'],
+                    ['Conversion Rate:', '1.00'],
                   ].map(([lbl, val]) => (
                     <div className="row mb-1" key={lbl}>
                       <div className="col-5 fw-bold">{lbl}</div>
@@ -178,6 +172,8 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                     <th>UOM</th>
                     <th>QTY</th>
                     <th>RATE</th>
+                    {/* ✅ DISCOUNT % column added */}
+                    <th>DISC.%</th>
                     <th>TOTAL AMT.(₹)</th>
                     <th>GROSS AMT.(₹)</th>
                     <th>GST%/AMT.</th>
@@ -204,6 +200,8 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                         <td className="text-center">{item.baseUOM || item.unit || '-'}</td>
                         <td className="text-end">{qty.toFixed(2)}</td>
                         <td className="text-end">{rate.toFixed(2)}</td>
+                        {/* ✅ Discount % value */}
+                        <td className="text-center">{disc > 0 ? `${disc}%` : '-'}</td>
                         <td className="text-end">{lineAmt.toFixed(2)}</td>
                         <td className="text-end">{lineAmt.toFixed(2)}</td>
                         <td className="text-center">
@@ -216,7 +214,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                   {/* Filler rows */}
                   {Array(Math.max(0, 5 - items.length)).fill(null).map((_, i) => (
                     <tr key={`ef-${i}`} style={{ height: '22px' }}>
-                      {Array(10).fill(null).map((__, j) => <td key={j}></td>)}
+                      {Array(11).fill(null).map((__, j) => <td key={j}></td>)}
                     </tr>
                   ))}
                   {/* Total row */}
@@ -225,6 +223,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                     <td className="text-end">Total</td>
                     <td></td><td></td>
                     <td className="text-end">{items.reduce((s,i) => s+(Number(i.quantity)||0),0).toFixed(2)}</td>
+                    <td></td>
                     <td></td>
                     <td className="text-end">{totalAmt.toFixed(2)}</td>
                     <td className="text-end">{totalAmt.toFixed(2)}</td>
