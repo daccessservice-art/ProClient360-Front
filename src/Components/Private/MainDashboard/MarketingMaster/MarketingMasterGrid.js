@@ -192,7 +192,7 @@ export const MarketingMasterGrid = () => {
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
                 <div className="row px-2 py-1">
                   <div className="col-12 col-lg-4">
-                    <h5 className="text-white py-2">Marketing</h5>
+                    <h5 className="text-white py-2">Marketing Dashboard</h5>
                   </div>
                   <div className="col-12 col-lg-8 d-flex justify-content-end align-items-center">
                     {user?.permissions?.includes("admin") && (

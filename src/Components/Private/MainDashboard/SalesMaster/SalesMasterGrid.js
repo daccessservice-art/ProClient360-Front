@@ -7,7 +7,6 @@ import { formatDateforTaskUpdate } from "../../../../utils/formatDate";
 import SalesDashboardCards from './SalesDashboardCards';
 import SalesQuotationFunnel from './SalesQuotationFunnel';
 import { UserContext } from "../../../../context/UserContext";
-
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import ViewSalesLeadPopUp from "../../CommonPopUp/ViewSalesLeadPopUp";
 import UpdateSalesPopUp from "./PopUp/UpdateSalesPopUp";
@@ -66,7 +65,6 @@ export const SalesMasterGrid = () => {
       setPagination(prev => ({ ...prev, ...data.pagination }));
 
       if (data.leads) {
-
         if (!filters.followUpToday) {
           setAllLeads(data.leads);
         } else {
@@ -124,7 +122,6 @@ export const SalesMasterGrid = () => {
       return;
     }
 
-    // Add this check to prevent reassigning finalized leads
     if (lead && (lead.STATUS === 'Won' || lead.STATUS === 'Lost')) {
       toast.error(`Cannot reassign a lead with status "${lead.STATUS}". This lead is already finalized.`);
       return;
@@ -135,7 +132,6 @@ export const SalesMasterGrid = () => {
   };
 
   const handleDelete = (leadId) => {
-    // Find the lead to check its status
     const lead = allLeads.find(l => l._id === leadId);
     if (lead && (lead.STATUS === 'Won' || lead.STATUS === 'Lost')) {
       toast.error(`Cannot delete a lead with status "${lead.STATUS}". This lead is already finalized.`);
@@ -240,7 +236,6 @@ export const SalesMasterGrid = () => {
     setFilters(prevFilters => ({ ...prevFilters, searchTerm }));
   };
 
-
   const handleTodayFollowUpClick = () => {
     console.log("Today's FollowUp card clicked");
    
@@ -275,7 +270,7 @@ export const SalesMasterGrid = () => {
   };
 
   const resetSearch = () => {
-    setFilters(prev => ({ ...prev, searchTerm: "" }));
+    setFilters(prevFilters => ({ ...prevFilters, searchTerm: "" }));
     setAllLeads([]);
   };
 
@@ -295,6 +290,16 @@ export const SalesMasterGrid = () => {
   };
 
   const canAssignLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
+
+  // Helper function to check if a date is today
+  const isToday = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
 
   return (
     <>
@@ -317,14 +322,14 @@ export const SalesMasterGrid = () => {
               }}
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
-                <div className="row px-2 py-1">
+                <div className="row px-2 py-1 mb-3">
                   <div className="col-12 col-lg-4">
                     <h5 className="text-white py-2">My Sales Dashboard</h5>
                   </div>
                   {user?.permissions?.includes("createLead") || user?.user === 'company' ? (
                     <div className="col- col-lg-2 ms-auto text-end me-5">
-                      <button onClick={handleOpenAddModal} type="button" className="btn adbtn btn-dark">
-                        <i className="fa-solid fa-plus"></i> Add
+                      <button onClick={handleOpenAddModal} type="button" className="btn btn-primary">
+                        <i className="fa-solid fa-plus"></i> Add Lead
                       </button>
                     </div>
                   ) : null}
@@ -358,13 +363,13 @@ export const SalesMasterGrid = () => {
                   </div>
                 )}
 
-                <div className="row align-items-center p-2 m-1">
+                <div className="row align-items-center p-3 m-1 bg-light rounded mb-3">
                   <div className="col-12 col-lg-6">
                     <div className="input-group">
                       <input
                         type="text"
-                        className="form-control bg_edit"
-                        placeholder="Search by Mobile Number or Company Name....."
+                        className="form-control"
+                        placeholder="Search by Mobile Number or Company Name..."
                         value={filters.searchTerm || ""}
                         onChange={handleSearchChange}
                       />
@@ -377,7 +382,7 @@ export const SalesMasterGrid = () => {
                           <i className="fa-solid fa-times"></i>
                         </button>
                       )}
-                      <button className="btn btn-dark" type="button">
+                      <button className="btn btn-primary" type="button">
                         <i className="fa-solid fa-search"></i>
                       </button>
                     </div>
@@ -391,7 +396,7 @@ export const SalesMasterGrid = () => {
                     {isFollowUpTodayMode && (
                       <div className="mt-2">
                         <small className="text-info">
-                          Showing leads with follow-up scheduled for today
+                          <i className="fa-solid fa-info-circle"></i> Showing leads with follow-up scheduled for today
                         </small>
                       </div>
                     )}
@@ -401,7 +406,7 @@ export const SalesMasterGrid = () => {
                       <div className="col">
                         <input
                           type="date"
-                          className="form-control bg_edit"
+                          className="form-control"
                           name="date"
                           onChange={(e) => handleChange('date', e.target.value)}
                           value={filters.date || ""}
@@ -411,13 +416,13 @@ export const SalesMasterGrid = () => {
 
                       <div className="col">
                         <select
-                          className="form-select bg_edit"
+                          className="form-select"
                           name="callLeads"
                           onChange={(e) => handleChange('callLeads', e.target.value)}
                           value={filters.callLeads || ""}
                           disabled={isFollowUpTodayMode}
                         >
-                          <option value="">Leads....</option>
+                          <option value="">Leads...</option>
                           <option value="Hot Leads">Hot Leads</option>
                           <option value="Warm Leads">Warm Leads</option>
                           <option value="Cold Leads">Cold Leads</option>
@@ -427,13 +432,13 @@ export const SalesMasterGrid = () => {
 
                       <div className="col">
                         <select
-                          className="form-select bg_edit"
+                          className="form-select"
                           name="source"
                           onChange={(e) => handleChange('source', e.target.value)}
                           value={filters.source || ""}
                           disabled={isFollowUpTodayMode}
                         >
-                          <option value="">Sources....</option>
+                          <option value="">Sources...</option>
                           <option value="Direct">Direct</option>
                           <option value="IndiaMart">IndiaMart</option>
                           <option value="TradeIndia">TradeIndia</option>
@@ -457,13 +462,13 @@ export const SalesMasterGrid = () => {
 
                       <div className="col">
                         <select
-                          className="form-select bg_edit"
+                          className="form-select"
                           name="status"
                           onChange={(e) => handleChange('status', e.target.value)}
                           value={filters.status || ""}
                           disabled={isFollowUpTodayMode}
                         >
-                          <option value="">Status....</option>
+                          <option value="">Status...</option>
                           <option value="Won">Won</option>
                           <option value="Ongoing">Ongoing</option>
                           <option value="Pending">Pending</option>
@@ -485,77 +490,128 @@ export const SalesMasterGrid = () => {
                   </div>
                 </div>
 
-                <div className="row bg-white p-2 m-1 border rounded">
-                  <div className="col-12 py-2">
+                <div className="row bg-white p-3 m-1 border rounded shadow-sm">
+                  <div className="col-12">
                     <div className="table-responsive">
-                      <table className="table table-striped table-class" id="table-id">
-                        <thead>
-                          <tr className="th_border">
-                            <th>Sr.No</th>
-                            <th className="align_left_td td_width">Company Name</th>
-                            <th className="align_left_td td_width">Contact Name</th>
-                            <th className="align_left_td td_width">Product</th>
-                            <th>Sources</th>
-                            <th>Mobile</th>
-                            <th>Date</th>
-                            <th>Status</th>
-                            <th>Action</th>
+                      <table className="table table-hover table-striped" id="table-id">
+                        <thead className="table-dark">
+                          <tr>
+                            <th className="text-center" style={{width: '60px'}}>Sr.No</th>
+                            <th style={{minWidth: '150px'}}>Company Name</th>
+                            <th style={{minWidth: '120px'}}>Contact Name</th>
+                            <th style={{minWidth: '120px'}}>Product</th>
+                            <th style={{width: '100px'}}>Source</th>
+                            <th style={{width: '120px'}}>Mobile</th>
+                            <th style={{width: '120px'}}>Created Date</th>
+                            <th style={{width: '120px'}}>Follow-up Date</th>
+                            <th style={{width: '80px'}}>Status</th>
+                            <th className="text-center" style={{width: '100px'}}>Action</th>
                           </tr>
                         </thead>
-                        <tbody className="broder my-4">
+                        <tbody>
                           {(isSearchMode || isFollowUpTodayMode ? filteredLeads : data?.leads)?.length > 0 ? (
-                            (isSearchMode || isFollowUpTodayMode ? filteredLeads : data?.leads).map((lead, index) => (
-                              <tr key={lead._id}>
-                                <td>{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
-                                <td className="align_left_td td_width">{lead.SENDER_COMPANY||"Not available."}</td>
-                                <td className="align_left_td td_width">{lead.SENDER_NAME||"Not available."}</td>
-                                <td className="align_left_td td_width">{lead.QUERY_PRODUCT_NAME||"Not available."}</td>
-                                <td>{lead.SOURCE}</td>
-                                <td>{lead.SENDER_MOBILE||"Not available."}</td>
-                                <td>{formatDateforTaskUpdate(lead.nextFollowUpDate || lead.createdAt)}</td>
-                                <td>
-                                  <span className={handleBgColor(lead.STATUS)}>{lead.STATUS}</span>
-                                </td>
-                                <td>
-                                  {/* For Won and Lost leads - only show view button */}
-                                  {lead.STATUS === 'Won' || lead.STATUS === 'Lost' ? (
-                                    <span onClick={() => handleDetailsPopUpClick(lead)} title="View Lead Details">
-                                      <i className="mx-1 fa-solid fa-eye text-info cursor-pointer"></i>
-                                    </span>
-                                  ) : (
-                                    <>
-                                      {/* For other statuses - show regular action buttons */}
-                                      {(user?.permissions?.includes('updateLead') || user?.user === 'company') && (
-                                        <span onClick={() => handleUpdate(lead)} title="Action Lead">
-                                          <i className="mx-1 fa-solid fa-pen text-success cursor-pointer"></i>
+                            (isSearchMode || isFollowUpTodayMode ? filteredLeads : data?.leads).map((lead, index) => {
+                              const hasTodayFollowUp = isToday(lead.nextFollowUpDate);
+                              return (
+                                <tr 
+                                  key={lead._id} 
+                                  className={hasTodayFollowUp ? "today-followup-row" : ""}
+                                >
+                                  <td className="text-center">{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
+                                  <td className="position-relative">
+                                    <div className="d-flex align-items-center">
+                                      <span>{lead.SENDER_COMPANY || "Not available."}</span>
+                                      {hasTodayFollowUp && (
+                                        <span className="badge bg-danger text-white ms-2 today-badge">
+                                          <i className="fa-solid fa-bell"></i> TODAY
                                         </span>
                                       )}
+                                    </div>
+                                  </td>
+                                  <td>{lead.SENDER_NAME || "Not available."}</td>
+                                  <td>{lead.QUERY_PRODUCT_NAME || "Not available."}</td>
+                                  <td>
+                                    <small className="text-muted">{lead.SOURCE}</small>
+                                  </td>
+                                  <td>
+                                    <small className="text-muted">{lead.SENDER_MOBILE || "Not available."}</small>
+                                  </td>
+                                  <td>
+                                    <small className="text-muted">{formatDateforTaskUpdate(lead.createdAt)}</small>
+                                  </td>
+                                  <td>
+                                    {lead.nextFollowUpDate ? (
+                                      <span className={hasTodayFollowUp ? "fw-bold text-danger today-date" : "text-muted"}>
+                                        {formatDateforTaskUpdate(lead.nextFollowUpDate)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted">Not set</span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    <span className={handleBgColor(lead.STATUS)}>{lead.STATUS}</span>
+                                  </td>
+                                  <td className="text-center">
+                                    {/* For Won and Lost leads - only show view button */}
+                                    {lead.STATUS === 'Won' || lead.STATUS === 'Lost' ? (
+                                      <button 
+                                        className="btn btn-sm btn-outline-info" 
+                                        onClick={() => handleDetailsPopUpClick(lead)} 
+                                        title="View Lead Details"
+                                      >
+                                        <i className="fa-solid fa-eye"></i>
+                                      </button>
+                                    ) : (
+                                      <div className="btn-group" role="group">
+                                        {(user?.permissions?.includes('updateLead') || user?.user === 'company') && (
+                                          <button 
+                                            className="btn btn-sm btn-outline-success" 
+                                            onClick={() => handleUpdate(lead)} 
+                                            title="Update Lead"
+                                          >
+                                            <i className="fa-solid fa-pen"></i>
+                                          </button>
+                                        )}
 
-                                      {canAssignLead && (
-                                        <span onClick={() => handleAssign(lead)} title="Reassign Lead">
-                                          <i className="mx-1 fa-solid fa-share cursor-pointer"></i>
-                                        </span>
-                                      )}
+                                        {canAssignLead && (
+                                          <button 
+                                            className="btn btn-sm btn-outline-warning" 
+                                            onClick={() => handleAssign(lead)} 
+                                            title="Reassign Lead"
+                                          >
+                                            <i className="fa-solid fa-share"></i>
+                                          </button>
+                                        )}
 
-                                      {(lead.SOURCE==='Direct' && (user?.permissions?.includes('deleteLead') || user?.user === 'company')) && (
-                                        <span onClick={() => handleDelete(lead._id)} title="Delete Lead">
-                                          <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                        </span>
-                                      )}
-                                    </>
-                                  )}
-                                </td>
-                              </tr>
-                            ))
+                                        {(lead.SOURCE === 'Direct' && (user?.permissions?.includes('deleteLead') || user?.user === 'company')) && (
+                                          <button 
+                                            className="btn btn-sm btn-outline-danger" 
+                                            onClick={() => handleDelete(lead._id)} 
+                                            title="Delete Lead"
+                                          >
+                                            <i className="fa-solid fa-trash"></i>
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
                           ) : (
                             <tr>
-                              <td colSpan="9" className="text-center">
-                                {isSearchMode ?
-                                  "No leads found matching your search." :
-                                  isFollowUpTodayMode ?
-                                  "No leads with follow-up scheduled for today." :
-                                  "No More Leads."
-                                }
+                              <td colSpan="10" className="text-center py-4">
+                                <div className="text-muted">
+                                  <i className="fa-solid fa-inbox fa-2x mb-2"></i>
+                                  <p className="mb-0">
+                                    {isSearchMode ?
+                                      "No leads found matching your search." :
+                                      isFollowUpTodayMode ?
+                                      "No leads with follow-up scheduled for today." :
+                                      "No leads found."
+                                    }
+                                  </p>
+                                </div>
                               </td>
                             </tr>
                           )}
@@ -566,145 +622,244 @@ export const SalesMasterGrid = () => {
                 </div>
 
                 {!isSearchMode && !isFollowUpTodayMode && !loading && pagination.totalPages > 1 && (
-                  <div className="pagination-container text-center my-3">
-                    <button
-                      onClick={() => handlePageChange(1)}
-                      disabled={!pagination.hasPrevPage}
-                      className="btn btn-dark btn-sm me-1"
-                      style={{ borderRadius: "4px" }}
-                      aria-label="First Page"
-                    >
-                      First
-                    </button>
-                    <button
-                      onClick={() => handlePageChange(pagination.currentPage - 1)}
-                      disabled={!pagination.hasPrevPage}
-                      className="btn btn-dark btn-sm me-1"
-                      style={{ borderRadius: "4px" }}
-                      aria-label="Previous Page"
-                    >
-                      Previous
-                    </button>
-                    {(() => {
-                      const pageNumbers = [];
-                      const maxPagesToShow = 5;
-                      if (pagination.totalPages <= maxPagesToShow) {
-                        for (let i = 1; i <= pagination.totalPages; i++) {
-                          pageNumbers.push(i);
-                        }
-                      } else {
-                        let startPage, endPage;
-                        if (pagination.currentPage <= 3) {
-                      startPage = 1;
-                      endPage = maxPagesToShow;
-                    } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                      startPage = pagination.totalPages - maxPagesToShow + 1;
-                      endPage = pagination.totalPages;
-                    } else {
-                      startPage = pagination.currentPage - 2;
-                      endPage = pagination.currentPage + 2;
-                    }
-                    startPage = Math.max(1, startPage);
-                    endPage = Math.min(pagination.totalPages, endPage);
-                    for (let i = startPage; i <= endPage; i++) {
-                      pageNumbers.push(i);
-                    }
-                  }
-                  return pageNumbers.map((number) => (
-                    <button
-                      key={number}
-                      onClick={() => handlePageChange(number)}
-                      className={`btn btn-sm me-1 ${pagination.currentPage === number ? "btn-primary" : "btn-dark"
-                      }`}
-                      style={{ minWidth: "35px", borderRadius: "4px" }}
-                      aria-label={`Go to page ${number}`}
-                      aria-current={pagination.currentPage === number ? "page" : undefined}
-                    >
-                      {number}
-                    </button>
-                  ));
-                })()}
-                <button
-                  disabled={!pagination.hasNextPage}
-                  onClick={() => handlePageChange(pagination.currentPage + 1)}
-                  className="btn btn-dark btn-sm me-1"
-                >
-                  Next
-                </button>
-                <button
-                  onClick={() => handlePageChange(pagination.totalPages)}
-                  disabled={!pagination.hasNextPage}
-                  className="btn btn-dark btn-sm"
-                  style={{ borderRadius: "4px" }}
-                  aria-label="Last Page"
-                >
-                  Last
-                </button>
-              </div>
-            )}
+                  <div className="d-flex justify-content-center mt-3">
+                    <nav>
+                      <ul className="pagination mb-0">
+                        <li className={`page-item ${!pagination.hasPrevPage ? 'disabled' : ''}`}>
+                          <button 
+                            className="page-link" 
+                            onClick={() => handlePageChange(1)}
+                            disabled={!pagination.hasPrevPage}
+                          >
+                            First
+                          </button>
+                        </li>
+                        <li className={`page-item ${!pagination.hasPrevPage ? 'disabled' : ''}`}>
+                          <button 
+                            className="page-link" 
+                            onClick={() => handlePageChange(pagination.currentPage - 1)}
+                            disabled={!pagination.hasPrevPage}
+                          >
+                            Previous
+                          </button>
+                        </li>
+                        {(() => {
+                          const pageNumbers = [];
+                          const maxPagesToShow = 5;
+                          if (pagination.totalPages <= maxPagesToShow) {
+                            for (let i = 1; i <= pagination.totalPages; i++) {
+                              pageNumbers.push(i);
+                            }
+                          } else {
+                            let startPage, endPage;
+                            if (pagination.currentPage <= 3) {
+                              startPage = 1;
+                              endPage = maxPagesToShow;
+                            } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                              startPage = pagination.totalPages - maxPagesToShow + 1;
+                              endPage = pagination.totalPages;
+                            } else {
+                              startPage = pagination.currentPage - 2;
+                              endPage = pagination.currentPage + 2;
+                            }
+                            startPage = Math.max(1, startPage);
+                            endPage = Math.min(pagination.totalPages, endPage);
+                            for (let i = startPage; i <= endPage; i++) {
+                              pageNumbers.push(i);
+                            }
+                          }
+                          return pageNumbers.map((number) => (
+                            <li key={number} className={`page-item ${pagination.currentPage === number ? 'active' : ''}`}>
+                              <button 
+                                className="page-link" 
+                                onClick={() => handlePageChange(number)}
+                              >
+                                {number}
+                              </button>
+                            </li>
+                          ));
+                        })()}
+                        <li className={`page-item ${!pagination.hasNextPage ? 'disabled' : ''}`}>
+                          <button 
+                            className="page-link" 
+                            onClick={() => handlePageChange(pagination.currentPage + 1)}
+                            disabled={!pagination.hasNextPage}
+                          >
+                            Next
+                          </button>
+                        </li>
+                        <li className={`page-item ${!pagination.hasNextPage ? 'disabled' : ''}`}>
+                          <button 
+                            className="page-link" 
+                            onClick={() => handlePageChange(pagination.totalPages)}
+                            disabled={!pagination.hasNextPage}
+                          >
+                            Last
+                          </button>
+                        </li>
+                      </ul>
+                    </nav>
+                  </div>
+                )}
 
-            {(isSearchMode || isFollowUpTodayMode) && !loading && pagination.hasNextPage && (
-              <div className="text-center my-3">
-                <button
-                  className="btn btn-dark"
-                  onClick={() => handlePageChange(pagination.currentPage + 1)}
-                >
-                  Load More Results
-                </button>
+                {(isSearchMode || isFollowUpTodayMode) && !loading && pagination.hasNextPage && (
+                  <div className="text-center mt-3">
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handlePageChange(pagination.currentPage + 1)}
+                    >
+                      Load More Results
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  {addpop && (
-    <AddSalesLeadPopUp onAddLead={handleAddLeadSubmit} onClose={handleCloseAddModal} />
-  )}
+      {addpop && (
+        <AddSalesLeadPopUp onAddLead={handleAddLeadSubmit} onClose={handleCloseAddModal} />
+      )}
 
-  {UpdatePopUpShow && selectedLead && (
-    <UpdateSalesPopUp
-      selectedLead={selectedLead}
-      onUpdate={handleUpdateSubmit}
-      isCompany={user.user === 'company'}
-      onClose={() => {
-        setUpdatePopUpShow(false);
-        setSelectedLead(null);
-      }}
-    />
-  )}
+      {UpdatePopUpShow && selectedLead && (
+        <UpdateSalesPopUp
+          selectedLead={selectedLead}
+          onUpdate={handleUpdateSubmit}
+          isCompany={user.user === 'company'}
+          onClose={() => {
+            setUpdatePopUpShow(false);
+            setSelectedLead(null);
+          }}
+        />
+      )}
 
-  {assignPopUpShow && selectedLead && (
-    <AssignSalesLeadPopUp
-      selectedLead={selectedLead}
-      onUpdate={handleAssignSubmit}
-      onClose={() => {
-        setAssignPopUpShow(false);
-        setSelectedLead(null);
-      }}
-    />
-  )}
+      {assignPopUpShow && selectedLead && (
+        <AssignSalesLeadPopUp
+          selectedLead={selectedLead}
+          onUpdate={handleAssignSubmit}
+          onClose={() => {
+            setAssignPopUpShow(false);
+            setSelectedLead(null);
+          }}
+        />
+      )}
 
-  {deletePopUpShow && (
-    <DeletePopUP
-      message={"Are you sure you want to delete this lead?"}
-      heading={"Delete Lead"}
-      cancelBtnCallBack={() => setDeletePopUpShow(false)}
-      confirmBtnCallBack={handleDeleteConfirm}
-    />
-  )}
+      {deletePopUpShow && (
+        <DeletePopUP
+          message={"Are you sure you want to delete this lead?"}
+          heading={"Delete Lead"}
+          cancelBtnCallBack={() => setDeletePopUpShow(false)}
+          confirmBtnCallBack={handleDeleteConfirm}
+        />
+      )}
 
-  {showLeadPopUp && selectedLead && (
-    <ViewSalesLeadPopUp
-      closePopUp={() => {
-        setShowLeadPopUp(false);
-        setSelectedLead(null);
-      }}
-      selectedLead={selectedLead}
-    />
-  )}
-</>
-); };
+      {showLeadPopUp && selectedLead && (
+        <ViewSalesLeadPopUp
+          closePopUp={() => {
+            setShowLeadPopUp(false);
+            setSelectedLead(null);
+          }}
+          selectedLead={selectedLead}
+        />
+      )}
+      
+      <style jsx>{`
+        .today-followup-row {
+          position: relative;
+          animation: intenseBlink 1s infinite;
+          border-radius: 4px;
+        }
+        
+        @keyframes intenseBlink {
+          0% {
+            background-color: rgba(255, 50, 50, 0.1);
+            box-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
+          }
+          25% {
+            background-color: rgba(255, 100, 100, 0.3);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+          }
+          50% {
+            background-color: rgba(255, 150, 150, 0.5);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.7);
+          }
+          75% {
+            background-color: rgba(255, 100, 100, 0.3);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+          }
+          100% {
+            background-color: rgba(255, 50, 50, 0.1);
+            box-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
+          }
+        }
+        
+        .today-badge {
+          animation: badgePulse 1.5s infinite;
+          box-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+          font-weight: bold;
+          font-size: 0.75rem;
+        }
+        
+        @keyframes badgePulse {
+          0% {
+            transform: scale(1);
+            box-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+          }
+          50% {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.8);
+          }
+          100% {
+            transform: scale(1);
+            box-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+          }
+        }
+        
+        .today-date {
+          animation: textGlow 1.2s infinite;
+          text-shadow: 0 0 5px rgba(255, 0, 0, 0.8);
+        }
+        
+        @keyframes textGlow {
+          0% {
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+          }
+          50% {
+            text-shadow: 0 0 15px rgba(255, 0, 0, 0.9);
+          }
+          100% {
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+          }
+        }
+        
+        .table th {
+          border-top: none;
+          font-weight: 600;
+          font-size: 0.875rem;
+          white-space: nowrap;
+        }
+        
+        .table td {
+          vertical-align: middle;
+          font-size: 0.875rem;
+        }
+        
+        .btn-group .btn {
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
+        }
+        
+        .table-hover tbody tr:hover {
+          background-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        .today-followup-row:hover {
+          background-color: rgba(255, 100, 100, 0.2) !important;
+        }
+      `}</style>
+    </>
+  );
+};
 
 export default SalesMasterGrid;

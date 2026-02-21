@@ -1,4 +1,3 @@
-// In SalesManagerMasterGrid.js
 import { useState, useEffect, useMemo, useContext } from "react";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
@@ -13,22 +12,16 @@ import useSalesManagerTeam from "../../../../hooks/leads/useSalesManagerTeam";
 
 export const SalesManagerMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
-  const toggle = () => {
-    setIsOpen(!isopen);
-  };
+  const toggle = () => setIsOpen(!isopen);
 
   const [showLeadPopUp, setShowLeadPopUp] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
 
   const { user } = useContext(UserContext);
 
-  // Sales Employees List (not managers)
   const { managers: salesEmployees, loading: employeesLoading } = useSalesManagers();
-  
-  // Initialize with 'all' to show all leads by default
   const [selectedEmployee, setSelectedEmployee] = useState({ _id: 'all', name: 'All Leads' });
 
-  // Filters
   const [filters, setFilters] = useState({
     status: null,
     date: null,
@@ -48,7 +41,6 @@ export const SalesManagerMasterGrid = () => {
 
   const itemsPerPage = 20;
 
-  // Fetch data based on selected employee
   const { data, loading, error, refetch } = useSalesManagerTeam(
     selectedEmployee?._id,
     pagination.currentPage,
@@ -61,13 +53,9 @@ export const SalesManagerMasterGrid = () => {
   useEffect(() => {
     if (data) {
       setPagination(prev => ({ ...prev, ...data.pagination }));
-      if (data.leads) {
-        setAllLeads(data.leads);
-      }
+      if (data.leads) setAllLeads(data.leads);
     }
-    if (error) {
-      toast.error(error.message || "An error occurred");
-    }
+    if (error) toast.error(error.message || "An error occurred");
   }, [data, error]);
 
   useEffect(() => {
@@ -80,7 +68,6 @@ export const SalesManagerMasterGrid = () => {
 
   const filteredLeads = useMemo(() => {
     if (!filters.searchTerm) return allLeads;
-
     const searchLower = filters.searchTerm.toLowerCase();
     return allLeads.filter(lead =>
       (lead.SENDER_COMPANY && lead.SENDER_COMPANY.toLowerCase().includes(searchLower)) ||
@@ -89,6 +76,7 @@ export const SalesManagerMasterGrid = () => {
   }, [allLeads, filters.searchTerm]);
 
   const isSearchMode = filters.searchTerm !== "";
+  const isAllMode = selectedEmployee._id === 'all';
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= pagination.totalPages) {
@@ -102,82 +90,62 @@ export const SalesManagerMasterGrid = () => {
   };
 
   const handleChange = (filterType, value) => {
-    setFilters(prevFilters => ({
-      ...prevFilters,
-      [filterType]: value || null
-    }));
+    setFilters(prevFilters => ({ ...prevFilters, [filterType]: value || null }));
   };
 
   const handleSearchChange = (e) => {
-    const searchTerm = e.target.value;
-    setFilters(prevFilters => ({ ...prevFilters, searchTerm }));
+    setFilters(prevFilters => ({ ...prevFilters, searchTerm: e.target.value }));
   };
 
   const handleEmployeeSelect = (e) => {
     const employeeId = e.target.value;
-    
-    // If "All Leads" is selected, set selectedEmployee to a special object
     if (employeeId === 'all') {
       setSelectedEmployee({ _id: 'all', name: 'All Leads' });
     } else {
       const employee = salesEmployees.find(emp => emp._id === employeeId);
       setSelectedEmployee(employee || { _id: 'all', name: 'All Leads' });
     }
-    
     setPagination(prev => ({ ...prev, currentPage: 1 }));
-    setFilters({
-      status: null,
-      date: null,
-      callLeads: null,
-      source: null,
-      searchTerm: ""
-    });
+    setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "" });
   };
 
   const resetSearch = () => {
-    setFilters(prev => ({ ...prev, searchTerm: "" }));
+    setFilters(prevFilters => ({ ...prevFilters, searchTerm: "" }));
     setAllLeads([]);
   };
 
   const resetFilters = () => {
-    setFilters({
-      status: null,
-      date: null,
-      callLeads: null,
-      source: null,
-      searchTerm: ""
-    });
+    setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "" });
     setAllLeads([]);
     setPagination(prev => ({ ...prev, currentPage: 1 }));
     refetch();
   };
 
   const handleBgColor = (status) => {
-    // Handle null/undefined status
     if (!status) return "badge bg-secondary";
-    
-    // Normalize status for consistent comparison
-    const normalizedStatus = status.toString().trim();
-    
-    switch (normalizedStatus) {
-      case "Won":
-        return "badge bg-success text-white";
-      case "Ongoing":
-        return "badge bg-primary text-white";
-      case "Pending":
-        return "badge bg-warning text-dark";
-      case "Lost":
-        return "badge bg-danger text-white";
-      default:
-        return "badge bg-secondary";
+    switch (status.toString().trim()) {
+      case "Won":     return "badge bg-success text-white";
+      case "Ongoing": return "badge bg-primary text-white";
+      case "Pending": return "badge bg-warning text-dark";
+      case "Lost":    return "badge bg-danger text-white";
+      default:        return "badge bg-secondary";
     }
   };
 
-  // Check if user is a manager with proper permissions
-  const isManagerWithPermissions = user?.permissions?.includes("viewLead") && 
-                                  user?.permissions?.includes("viewSalesManagerMaster");
+  const isToday = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+  };
 
-  // If not a manager with proper permissions, show access denied
+  const isManagerWithPermissions =
+    user?.permissions?.includes("viewLead") &&
+    user?.permissions?.includes("viewSalesManagerMaster");
+
+  // Access Denied
   if (!isManagerWithPermissions && user?.user !== 'company') {
     return (
       <div className="container-scroller">
@@ -187,10 +155,7 @@ export const SalesManagerMasterGrid = () => {
             <Sidebar isopen={isopen} active="SalesManagerMasterGrid" />
             <div
               className="main-panel"
-              style={{
-                width: isopen ? "" : "calc(100% - 120px)",
-                marginLeft: isopen ? "" : "125px",
-              }}
+              style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
                 <div className="row px-2 py-1">
@@ -211,6 +176,9 @@ export const SalesManagerMasterGrid = () => {
     );
   }
 
+  const displayLeads = isSearchMode ? filteredLeads : data?.leads;
+  const colSpan = isAllMode ? 11 : 10;
+
   return (
     <>
       {(loading || employeesLoading) && (
@@ -226,70 +194,71 @@ export const SalesManagerMasterGrid = () => {
             <Sidebar isopen={isopen} active="SalesManagerMasterGrid" />
             <div
               className="main-panel"
-              style={{
-                width: isopen ? "" : "calc(100% - 120px)",
-                marginLeft: isopen ? "" : "125px",
-              }}
+              style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
-                <div className="row px-2 py-1">
-                  <div className="col-12 col-lg-6">
-                    <h5 className="text-white py-2">Sales Manager Master</h5>
+
+                {/* ── Page Header ── */}
+                <div className="row px-2 py-1 mb-3">
+                  <div className="col-12 col-lg-4">
+                    <h5 className="text-white py-2">Sales Manager Dashboard</h5>
                   </div>
                 </div>
 
-                {/* Employee Selection */}
-                <div className="row bg-white p-3 m-1 border rounded">
-                  <div className="col-12 col-lg-6">
-                    <label htmlFor="employeeSelect" className="form-label fw-bold">Select Sales Employee</label>
+                {/* ── Employee Selector ── */}
+                <div className="row align-items-center p-3 m-1 bg-light rounded mb-3">
+                  <div className="col-12 col-lg-5 mb-2 mb-lg-0">
+                    <label className="form-label fw-semibold mb-1">
+                      <i className="fa-solid fa-user-tie me-2 text-primary"></i>Select Sales Employee
+                    </label>
                     <select
                       id="employeeSelect"
                       className="form-select"
                       value={selectedEmployee?._id || "all"}
                       onChange={handleEmployeeSelect}
                     >
-                      <option value="all">-- All Leads --</option>
-                      {salesEmployees.map(employee => (
-                        <option key={employee._id} value={employee._id}>
-                          {employee.name} - {employee.department?.name || 'N/A'}
+                      <option value="all">— All Leads —</option>
+                      {salesEmployees.map(emp => (
+                        <option key={emp._id} value={emp._id}>
+                          {emp.name} — {emp.department?.name || 'N/A'}
                         </option>
                       ))}
                     </select>
                   </div>
-                </div>
 
-                {/* Employee Info Card - Only show when a specific employee is selected */}
-                {selectedEmployee && selectedEmployee._id !== 'all' && (
-                  <div className="row bg-white p-3 m-1 border rounded">
-                    <div className="col-12">
-                      <h6 className="fw-bold mb-3">Employee: {selectedEmployee.name}</h6>
-                      <div className="row">
-                        <div className="col-md-4">
-                          <p><strong>Email:</strong> {selectedEmployee.email}</p>
-                        </div>
-                        <div className="col-md-4">
-                          <p><strong>Department:</strong> {selectedEmployee.department?.name || 'N/A'}</p>
-                        </div>
-                        <div className="col-md-4">
-                          <p><strong>Designation:</strong> {selectedEmployee.designation?.name || 'N/A'}</p>
-                        </div>
+                  {/* Employee detail pills — only when a specific employee is selected */}
+                  {selectedEmployee && !isAllMode && (
+                    <div className="col-12 col-lg-7 mt-2 mt-lg-3">
+                      <div className="d-flex flex-wrap gap-2">
+                        <span className="badge bg-light text-dark border">
+                          <i className="fa-solid fa-envelope me-1 text-primary"></i>
+                          {selectedEmployee.email || 'N/A'}
+                        </span>
+                        <span className="badge bg-light text-dark border">
+                          <i className="fa-solid fa-building me-1 text-primary"></i>
+                          {selectedEmployee.department?.name || 'N/A'}
+                        </span>
+                        <span className="badge bg-light text-dark border">
+                          <i className="fa-solid fa-id-badge me-1 text-primary"></i>
+                          {selectedEmployee.designation?.name || 'N/A'}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* All Leads Info Card - Show when "All Leads" is selected */}
-                {selectedEmployee && selectedEmployee._id === 'all' && (
-                  <div className="row bg-white p-3 m-1 border rounded">
-                    <div className="col-12">
-                      <h6 className="fw-bold mb-3">Viewing: All Leads</h6>
-                      <p className="mb-0">Displaying all leads across all sales employees</p>
+                  {selectedEmployee && isAllMode && (
+                    <div className="col-12 col-lg-7 mt-2 mt-lg-3">
+                      <small className="text-info">
+                        <i className="fa-solid fa-layer-group me-1"></i>
+                        Displaying all leads across all sales employees
+                      </small>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {selectedEmployee && data && (
                   <>
+                    {/* ── Dashboard Cards ── */}
                     <SalesDashboardCards
                       allLeadsCount={data.leadCounts?.allLeadsCount || 0}
                       ongogingCount={data.leadCounts?.ongoingCount || 0}
@@ -304,6 +273,7 @@ export const SalesManagerMasterGrid = () => {
                       onTodayFollowUpClick={() => {}}
                     />
 
+                    {/* ── Quotation Funnel ── */}
                     {data.quotationFunnel && (
                       <div className="row p-2 m-1">
                         <div className="col-12">
@@ -317,65 +287,68 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     )}
 
-                    <div className="row align-items-center p-2 m-1">
+                    {/* ── Filter Bar ── (matches SalesMasterGrid exactly) */}
+                    <div className="row align-items-center p-3 m-1 bg-light rounded mb-3">
                       <div className="col-12 col-lg-6">
                         <div className="input-group">
                           <input
                             type="text"
-                            className="form-control bg_edit"
-                            placeholder="Search by Mobile Number or Company Name....."
+                            className="form-control"
+                            placeholder="Search by Mobile Number or Company Name..."
                             value={filters.searchTerm || ""}
                             onChange={handleSearchChange}
                           />
                           {filters.searchTerm && (
-                            <button
-                              className="btn btn-outline-secondary"
-                              type="button"
-                              onClick={resetSearch}
-                            >
+                            <button className="btn btn-outline-secondary" type="button" onClick={resetSearch}>
                               <i className="fa-solid fa-times"></i>
                             </button>
                           )}
-                          <button className="btn btn-dark" type="button">
+                          <button className="btn btn-primary" type="button">
                             <i className="fa-solid fa-search"></i>
                           </button>
                         </div>
+                        {isSearchMode && (
+                          <div className="mt-2">
+                            <small className="text-muted">
+                              Searching through {allLeads.length} leads. {filteredLeads.length} matches found.
+                            </small>
+                          </div>
+                        )}
                       </div>
+
                       <div className="col-12 col-lg-6 ms-auto text-end">
                         <div className="row g-2">
                           <div className="col">
                             <input
                               type="date"
-                              className="form-control bg_edit"
+                              className="form-control"
                               name="date"
                               onChange={(e) => handleChange('date', e.target.value)}
                               value={filters.date || ""}
                             />
                           </div>
-
                           <div className="col">
                             <select
-                              className="form-select bg_edit"
+                              className="form-select"
                               name="callLeads"
                               onChange={(e) => handleChange('callLeads', e.target.value)}
                               value={filters.callLeads || ""}
                             >
-                              <option value="">Leads....</option>
+                              <option value="">Leads...</option>
                               <option value="Hot Leads">Hot Leads</option>
                               <option value="Warm Leads">Warm Leads</option>
                               <option value="Cold Leads">Cold Leads</option>
                               <option value="Invalid Leads">Invalid Leads</option>
                             </select>
                           </div>
-
                           <div className="col">
                             <select
-                              className="form-select bg_edit"
+                              className="form-select"
                               name="source"
                               onChange={(e) => handleChange('source', e.target.value)}
                               value={filters.source || ""}
                             >
-                              <option value="">Sources....</option>
+                              <option value="">Sources...</option>
                               <option value="Direct">Direct</option>
                               <option value="IndiaMart">IndiaMart</option>
                               <option value="TradeIndia">TradeIndia</option>
@@ -385,22 +358,20 @@ export const SalesManagerMasterGrid = () => {
                               <option value="Other">Other</option>
                             </select>
                           </div>
-
                           <div className="col">
                             <select
-                              className="form-select bg_edit"
+                              className="form-select"
                               name="status"
                               onChange={(e) => handleChange('status', e.target.value)}
                               value={filters.status || ""}
                             >
-                              <option value="">Status....</option>
+                              <option value="">Status...</option>
                               <option value="Won">Won</option>
                               <option value="Ongoing">Ongoing</option>
                               <option value="Pending">Pending</option>
                               <option value="Lost">Lost</option>
                             </select>
                           </div>
-
                           <div className="col">
                             <button
                               className="btn btn-outline-secondary w-100"
@@ -415,54 +386,110 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     </div>
 
-                    <div className="row bg-white p-2 m-1 border rounded">
-                      <div className="col-12 py-2">
+                    {/* ── Table ── (matches SalesMasterGrid exactly) */}
+                    <div className="row bg-white p-3 m-1 border rounded shadow-sm">
+                      <div className="col-12">
                         <div className="table-responsive">
-                          <table className="table table-striped table-class" id="table-id">
-                            <thead>
-                              <tr className="th_border">
-                                <th>Sr.No</th>
-                                <th>Company Name</th>
-                                <th className="align_left_td td_width">Contact Name</th>
-                                <th className="align_left_td td_width">Product</th>
-                                <th>Sources</th>
-                                <th>Mobile</th>
-                                <th>Date</th>
-                                <th>Status</th>
-                                {selectedEmployee._id === 'all' && <th>Assigned To</th>}
-                                <th>Action</th>
+                          <table className="table table-hover table-striped" id="table-id">
+                            <thead className="table-dark">
+                              <tr>
+                                <th className="text-center" style={{ width: '60px' }}>Sr.No</th>
+                                <th style={{ minWidth: '150px' }}>Company Name</th>
+                                <th style={{ minWidth: '120px' }}>Contact Name</th>
+                                <th style={{ minWidth: '120px' }}>Product</th>
+                                <th style={{ width: '100px' }}>Source</th>
+                                <th style={{ width: '120px' }}>Mobile</th>
+                                <th style={{ width: '120px' }}>Created Date</th>
+                                <th style={{ width: '120px' }}>Follow-up Date</th>
+                                <th style={{ width: '80px' }}>Status</th>
+                                {isAllMode && <th style={{ width: '120px' }}>Assigned To</th>}
+                                <th className="text-center" style={{ width: '80px' }}>Action</th>
                               </tr>
                             </thead>
-                            <tbody className="broder my-4">
-                              {(isSearchMode ? filteredLeads : data.leads)?.length > 0 ? (
-                                (isSearchMode ? filteredLeads : data.leads).map((lead, index) => (
-                                  <tr key={lead._id}>
-                                    <td>{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
-                                    <td className="align_left_td td_width">{lead.SENDER_COMPANY || "Not available."}</td>
-                                    <td className="align_left_td td_width">{lead.SENDER_NAME || "Not available."}</td>
-                                    <td className="align_left_td td_width">{lead.QUERY_PRODUCT_NAME || "Not available."}</td>
-                                    <td>{lead.SOURCE}</td>
-                                    <td>{lead.SENDER_MOBILE || "Not available."}</td>
-                                    <td>{formatDateforTaskUpdate(lead.nextFollowUpDate || lead.createdAt)}</td>
-                                    <td>
-                                      <span className={handleBgColor(lead.STATUS)}>
-                                        {lead.STATUS || "N/A"}
-                                      </span>
-                                    </td>
-                                    {selectedEmployee._id === 'all' && (
-                                      <td>{lead.assignedTo?.name || "Not assigned"}</td>
-                                    )}
-                                    <td>
-                                      <span onClick={() => handleDetailsPopUpClick(lead)} title="View Details">
-                                        <i className="fa-solid fa-eye text-primary cursor-pointer"></i>
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))
+                            <tbody>
+                              {displayLeads?.length > 0 ? (
+                                displayLeads.map((lead, index) => {
+                                  const hasTodayFollowUp = isToday(lead.nextFollowUpDate);
+                                  return (
+                                    <tr
+                                      key={lead._id}
+                                      className={hasTodayFollowUp ? "today-followup-row" : ""}
+                                    >
+                                      <td className="text-center">
+                                        {(pagination.currentPage - 1) * itemsPerPage + index + 1}
+                                      </td>
+
+                                      <td className="position-relative">
+                                        <div className="d-flex align-items-center">
+                                          <span>{lead.SENDER_COMPANY || "Not available."}</span>
+                                          {hasTodayFollowUp && (
+                                            <span className="badge bg-danger text-white ms-2 today-badge">
+                                              <i className="fa-solid fa-bell"></i> TODAY
+                                            </span>
+                                          )}
+                                        </div>
+                                      </td>
+
+                                      <td>{lead.SENDER_NAME || "Not available."}</td>
+                                      <td>{lead.QUERY_PRODUCT_NAME || "Not available."}</td>
+
+                                      <td>
+                                        <small className="text-muted">{lead.SOURCE}</small>
+                                      </td>
+                                      <td>
+                                        <small className="text-muted">{lead.SENDER_MOBILE || "Not available."}</small>
+                                      </td>
+                                      <td>
+                                        <small className="text-muted">{formatDateforTaskUpdate(lead.createdAt)}</small>
+                                      </td>
+
+                                      <td>
+                                        {lead.nextFollowUpDate ? (
+                                          <span className={hasTodayFollowUp ? "fw-bold text-danger today-date" : "text-muted"}>
+                                            {formatDateforTaskUpdate(lead.nextFollowUpDate)}
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted">Not set</span>
+                                        )}
+                                      </td>
+
+                                      <td>
+                                        <span className={handleBgColor(lead.STATUS)}>
+                                          {lead.STATUS || "N/A"}
+                                        </span>
+                                      </td>
+
+                                      {isAllMode && (
+                                        <td>
+                                          <small className="text-muted">
+                                            {lead.assignedTo?.name || "Not assigned"}
+                                          </small>
+                                        </td>
+                                      )}
+
+                                      <td className="text-center">
+                                        <button
+                                          className="btn btn-sm btn-outline-info"
+                                          onClick={() => handleDetailsPopUpClick(lead)}
+                                          title="View Lead Details"
+                                        >
+                                          <i className="fa-solid fa-eye"></i>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
                               ) : (
                                 <tr>
-                                  <td colSpan={selectedEmployee._id === 'all' ? 10 : 9} className="text-center">
-                                    {isSearchMode ? "No leads found matching your search." : "No leads found."}
+                                  <td colSpan={colSpan} className="text-center py-4">
+                                    <div className="text-muted">
+                                      <i className="fa-solid fa-inbox fa-2x mb-2"></i>
+                                      <p className="mb-0">
+                                        {isSearchMode
+                                          ? "No leads found matching your search."
+                                          : "No leads found."}
+                                      </p>
+                                    </div>
                                   </td>
                                 </tr>
                               )}
@@ -472,41 +499,70 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     </div>
 
+                    {/* ── Pagination ── (matches SalesMasterGrid exactly) */}
                     {!isSearchMode && !loading && pagination.totalPages > 1 && (
-                      <div className="pagination-container text-center my-3">
-                        <button
-                          onClick={() => handlePageChange(1)}
-                          disabled={!pagination.hasPrevPage}
-                          className="btn btn-dark btn-sm me-1"
-                        >
-                          First
-                        </button>
-                        <button
-                          onClick={() => handlePageChange(pagination.currentPage - 1)}
-                          disabled={!pagination.hasPrevPage}
-                          className="btn btn-dark btn-sm me-1"
-                        >
-                          Previous
-                        </button>
-                        <span className="mx-2">Page {pagination.currentPage} of {pagination.totalPages}</span>
-                        <button
-                          disabled={!pagination.hasNextPage}
-                          onClick={() => handlePageChange(pagination.currentPage + 1)}
-                          className="btn btn-dark btn-sm me-1"
-                        >
-                          Next
-                        </button>
-                        <button
-                          onClick={() => handlePageChange(pagination.totalPages)}
-                          disabled={!pagination.hasNextPage}
-                          className="btn btn-dark btn-sm"
-                        >
-                          Last
+                      <div className="d-flex justify-content-center mt-3">
+                        <nav>
+                          <ul className="pagination mb-0">
+                            <li className={`page-item ${!pagination.hasPrevPage ? 'disabled' : ''}`}>
+                              <button className="page-link" onClick={() => handlePageChange(1)} disabled={!pagination.hasPrevPage}>
+                                First
+                              </button>
+                            </li>
+                            <li className={`page-item ${!pagination.hasPrevPage ? 'disabled' : ''}`}>
+                              <button className="page-link" onClick={() => handlePageChange(pagination.currentPage - 1)} disabled={!pagination.hasPrevPage}>
+                                Previous
+                              </button>
+                            </li>
+                            {(() => {
+                              const pageNumbers = [];
+                              const maxPagesToShow = 5;
+                              let startPage, endPage;
+                              if (pagination.totalPages <= maxPagesToShow) {
+                                startPage = 1; endPage = pagination.totalPages;
+                              } else if (pagination.currentPage <= 3) {
+                                startPage = 1; endPage = maxPagesToShow;
+                              } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                                startPage = pagination.totalPages - maxPagesToShow + 1; endPage = pagination.totalPages;
+                              } else {
+                                startPage = pagination.currentPage - 2; endPage = pagination.currentPage + 2;
+                              }
+                              startPage = Math.max(1, startPage);
+                              endPage = Math.min(pagination.totalPages, endPage);
+                              for (let i = startPage; i <= endPage; i++) pageNumbers.push(i);
+                              return pageNumbers.map(number => (
+                                <li key={number} className={`page-item ${pagination.currentPage === number ? 'active' : ''}`}>
+                                  <button className="page-link" onClick={() => handlePageChange(number)}>
+                                    {number}
+                                  </button>
+                                </li>
+                              ));
+                            })()}
+                            <li className={`page-item ${!pagination.hasNextPage ? 'disabled' : ''}`}>
+                              <button className="page-link" onClick={() => handlePageChange(pagination.currentPage + 1)} disabled={!pagination.hasNextPage}>
+                                Next
+                              </button>
+                            </li>
+                            <li className={`page-item ${!pagination.hasNextPage ? 'disabled' : ''}`}>
+                              <button className="page-link" onClick={() => handlePageChange(pagination.totalPages)} disabled={!pagination.hasNextPage}>
+                                Last
+                              </button>
+                            </li>
+                          </ul>
+                        </nav>
+                      </div>
+                    )}
+
+                    {isSearchMode && !loading && pagination.hasNextPage && (
+                      <div className="text-center mt-3">
+                        <button className="btn btn-primary" onClick={() => handlePageChange(pagination.currentPage + 1)}>
+                          Load More Results
                         </button>
                       </div>
                     )}
                   </>
                 )}
+
               </div>
             </div>
           </div>
@@ -515,13 +571,70 @@ export const SalesManagerMasterGrid = () => {
 
       {showLeadPopUp && selectedLead && (
         <ViewSalesLeadPopUp
-          closePopUp={() => {
-            setShowLeadPopUp(false);
-            setSelectedLead(null);
-          }}
+          closePopUp={() => { setShowLeadPopUp(false); setSelectedLead(null); }}
           selectedLead={selectedLead}
         />
       )}
+
+      <style jsx>{`
+        .today-followup-row {
+          position: relative;
+          animation: intenseBlink 1s infinite;
+          border-radius: 4px;
+        }
+
+        @keyframes intenseBlink {
+          0%   { background-color: rgba(255, 50, 50, 0.1);  box-shadow: 0 0 5px rgba(255, 0, 0, 0.3); }
+          25%  { background-color: rgba(255, 100, 100, 0.3); box-shadow: 0 0 15px rgba(255, 0, 0, 0.5); }
+          50%  { background-color: rgba(255, 150, 150, 0.5); box-shadow: 0 0 20px rgba(255, 0, 0, 0.7); }
+          75%  { background-color: rgba(255, 100, 100, 0.3); box-shadow: 0 0 15px rgba(255, 0, 0, 0.5); }
+          100% { background-color: rgba(255, 50, 50, 0.1);  box-shadow: 0 0 5px rgba(255, 0, 0, 0.3); }
+        }
+
+        .today-badge {
+          animation: badgePulse 1.5s infinite;
+          box-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+          font-weight: bold;
+          font-size: 0.75rem;
+        }
+
+        @keyframes badgePulse {
+          0%   { transform: scale(1);   box-shadow: 0 0 5px rgba(255, 0, 0, 0.5); }
+          50%  { transform: scale(1.1); box-shadow: 0 0 15px rgba(255, 0, 0, 0.8); }
+          100% { transform: scale(1);   box-shadow: 0 0 5px rgba(255, 0, 0, 0.5); }
+        }
+
+        .today-date {
+          animation: textGlow 1.2s infinite;
+          text-shadow: 0 0 5px rgba(255, 0, 0, 0.8);
+        }
+
+        @keyframes textGlow {
+          0%   { text-shadow: 0 0 5px rgba(255, 0, 0, 0.5); }
+          50%  { text-shadow: 0 0 15px rgba(255, 0, 0, 0.9); }
+          100% { text-shadow: 0 0 5px rgba(255, 0, 0, 0.5); }
+        }
+
+        .table th {
+          border-top: none;
+          font-weight: 600;
+          font-size: 0.875rem;
+          white-space: nowrap;
+        }
+
+        .table td {
+          vertical-align: middle;
+          font-size: 0.875rem;
+        }
+
+        .table-hover tbody tr:hover {
+          background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .today-followup-row:hover {
+          background-color: rgba(255, 100, 100, 0.2) !important;
+        }
+      `}</style>
     </>
   );
 };
