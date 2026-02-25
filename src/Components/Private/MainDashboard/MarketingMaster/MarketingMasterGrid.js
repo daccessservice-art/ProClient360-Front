@@ -48,10 +48,8 @@ export const MarketingMasterGrid = () => {
   const { createLead } = useCreateLead();
   const { deleteLead } = useDeleteLead();
 
-  // API endpoint
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
 
-  // Function to manually process stale leads
   const handleProcessStaleLeads = async () => {
     if (!user?.permissions?.includes('admin')) {
       toast.error('You do not have permission to perform this action.');
@@ -69,7 +67,7 @@ export const MarketingMasterGrid = () => {
 
       if (response.data && response.data.success) {
         toast.success(response.data.message);
-        refetch(); // Refresh the leads data
+        refetch();
       } else {
         toast.error(response.data.error || 'Failed to process stale leads');
       }
@@ -294,9 +292,9 @@ export const MarketingMasterGrid = () => {
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.SENDER_NAME || "Not available."}</td>
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.QUERY_PRODUCT_NAME || "Not available."}</td>
                                 <td>{lead?.SENDER_MOBILE || "Not available."}</td>
-                                <td>{formatDateTimeForDisplay(lead?.createdAt)}</td>
+                                {/* FIXED: Use QUERY_TIME (actual inquiry time) instead of createdAt (cron job time) */}
+                                <td>{formatDateTimeForDisplay(lead?.QUERY_TIME || lead?.createdAt)}</td>
                                 <td>
-                                  {/* Edit Button */}
                                   {(user?.permissions?.includes('assignLead')) &&
                                     <span onClick={() => handleUpdate(lead)} title="Edit Lead">
                                       <i className="mx-1 fa-solid fa-share cursor-pointer"></i>
@@ -307,8 +305,6 @@ export const MarketingMasterGrid = () => {
                                       <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
                                     </span>
                                   }
-
-                                  {/* View Button */}
                                   <span onClick={() => handleDetailsPopUpClick(lead)} title="View Details">
                                     <i className="fa-solid fa-eye cursor-pointer text-primary mx-1"></i>
                                   </span>

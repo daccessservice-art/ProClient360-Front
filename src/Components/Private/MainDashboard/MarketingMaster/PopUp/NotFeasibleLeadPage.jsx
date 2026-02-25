@@ -27,12 +27,9 @@ export const NotFeasibleLeadsPage = () => {
   });
   const itemsPerPage = 20;
 
-  // State for data, loading, and error
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  // State to track which reasons are expanded
   const [expandedReasons, setExpandedReasons] = useState({});
 
   const fetchLeads = async () => {
@@ -91,7 +88,6 @@ export const NotFeasibleLeadsPage = () => {
     handlePageChange(1);
   };
 
-  // Function to toggle reason expansion
   const toggleReasonExpansion = (leadId) => {
     setExpandedReasons(prev => ({
       ...prev,
@@ -99,7 +95,6 @@ export const NotFeasibleLeadsPage = () => {
     }));
   };
 
-  // Function to truncate text
   const truncateText = (text, maxLength = 50) => {
     if (!text || text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
@@ -120,7 +115,6 @@ export const NotFeasibleLeadsPage = () => {
               }}
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
-                {/* Header */}
                 <div className="row px-2 py-1">
                   <div className="col-12 col-lg-6">
                     <h5 className="text-white py-2">
@@ -130,7 +124,6 @@ export const NotFeasibleLeadsPage = () => {
                   </div>
                 </div>
 
-                {/* Stats Card */}
                 <div className="row bg-white p-3 m-1 border rounded">
                   <div className="col-md-4">
                     <div className="card border-danger">
@@ -152,13 +145,12 @@ export const NotFeasibleLeadsPage = () => {
                   <div className="col-md-8">
                     <div className="alert alert-danger mb-0">
                       <i className="fa-solid fa-exclamation-triangle me-2"></i>
-                      <strong>About Not Feasible Leads:</strong> These leads have been reviewed and determined to be not feasible for business. 
+                      <strong>About Not Feasible Leads:</strong> These leads have been reviewed and determined to be not feasible for business.
                       They typically have specific reasons for rejection and require no further action.
                     </div>
                   </div>
                 </div>
 
-                {/* Filters */}
                 <div className="row align-items-center p-2 m-1">
                   <div className="col-12 col-lg-4 ms-auto text-end">
                     <div className="row ms-auto">
@@ -193,7 +185,6 @@ export const NotFeasibleLeadsPage = () => {
                   </div>
                 </div>
 
-                {/* Table */}
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
                     <div className="table-responsive">
@@ -217,7 +208,7 @@ export const NotFeasibleLeadsPage = () => {
                               const isExpanded = expandedReasons[lead._id] || false;
                               const reasonText = lead.remark || 'No reason provided';
                               const shouldTruncate = reasonText.length > 50;
-                              
+
                               return (
                                 <tr key={lead._id}>
                                   <td>{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
@@ -241,16 +232,17 @@ export const NotFeasibleLeadsPage = () => {
                                       {lead?.SENDER_MOBILE || "Not available"}
                                     </a>
                                   </td>
-                                  <td>{formatDateTimeForDisplay(lead?.createdAt)}</td>
+                                  {/* FIXED: Use QUERY_TIME (actual inquiry time) instead of createdAt */}
+                                  <td>{formatDateTimeForDisplay(lead?.QUERY_TIME || lead?.createdAt)}</td>
                                   <td style={{ verticalAlign: 'top', padding: '8px' }}>
                                     <div className="d-flex flex-column">
                                       <span className="badge bg-danger mb-1" style={{ width: 'fit-content' }}>
                                         <i className="fa-solid fa-exclamation-circle me-1"></i>
                                         Not Feasible
                                       </span>
-                                      <div 
+                                      <div
                                         className="reason-text-container"
-                                        style={{ 
+                                        style={{
                                           fontSize: '0.85rem',
                                           color: '#6c757d',
                                           lineHeight: '1.4',
@@ -274,8 +266,8 @@ export const NotFeasibleLeadsPage = () => {
                                     </div>
                                   </td>
                                   <td>
-                                    <span 
-                                      onClick={() => handleDetailsPopUpClick(lead)} 
+                                    <span
+                                      onClick={() => handleDetailsPopUpClick(lead)}
                                       title="View Details"
                                       className="cursor-pointer"
                                     >
@@ -299,90 +291,28 @@ export const NotFeasibleLeadsPage = () => {
                   </div>
                 </div>
 
-                {/* Pagination */}
                 {!loading && pagination.totalPages > 1 && (
                   <div className="pagination-container text-center my-3">
-                    <button
-                      onClick={() => handlePageChange(1)}
-                      disabled={!pagination.hasPrevPage}
-                      className="btn btn-dark btn-sm me-1"
-                      style={{ borderRadius: "4px" }}
-                      aria-label="First Page"
-                    >
-                      First
-                    </button>
-
-                    <button
-                      onClick={() => handlePageChange(pagination.currentPage - 1)}
-                      disabled={!pagination.hasPrevPage}
-                      className="btn btn-dark btn-sm me-1"
-                      style={{ borderRadius: "4px" }}
-                      aria-label="Previous Page"
-                    >
-                      Previous
-                    </button>
-
+                    <button onClick={() => handlePageChange(1)} disabled={!pagination.hasPrevPage} className="btn btn-dark btn-sm me-1" style={{ borderRadius: "4px" }}>First</button>
+                    <button onClick={() => handlePageChange(pagination.currentPage - 1)} disabled={!pagination.hasPrevPage} className="btn btn-dark btn-sm me-1" style={{ borderRadius: "4px" }}>Previous</button>
                     {(() => {
                       const pageNumbers = [];
                       const maxPagesToShow = 5;
-
                       if (pagination.totalPages <= maxPagesToShow) {
-                        for (let i = 1; i <= pagination.totalPages; i++) {
-                          pageNumbers.push(i);
-                        }
+                        for (let i = 1; i <= pagination.totalPages; i++) pageNumbers.push(i);
                       } else {
                         let startPage, endPage;
-                        if (pagination.currentPage <= 3) {
-                          startPage = 1;
-                          endPage = maxPagesToShow;
-                        } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                          startPage = pagination.totalPages - maxPagesToShow + 1;
-                          endPage = pagination.totalPages;
-                        } else {
-                          startPage = pagination.currentPage - 2;
-                          endPage = pagination.currentPage + 2;
-                        }
-                        startPage = Math.max(1, startPage);
-                        endPage = Math.min(pagination.totalPages, endPage);
-
-                        for (let i = startPage; i <= endPage; i++) {
-                          pageNumbers.push(i);
-                        }
+                        if (pagination.currentPage <= 3) { startPage = 1; endPage = maxPagesToShow; }
+                        else if (pagination.currentPage >= pagination.totalPages - 2) { startPage = pagination.totalPages - maxPagesToShow + 1; endPage = pagination.totalPages; }
+                        else { startPage = pagination.currentPage - 2; endPage = pagination.currentPage + 2; }
+                        for (let i = Math.max(1, startPage); i <= Math.min(pagination.totalPages, endPage); i++) pageNumbers.push(i);
                       }
-
                       return pageNumbers.map((number) => (
-                        <button
-                          key={number}
-                          onClick={() => handlePageChange(number)}
-                          className={`btn btn-sm me-1 ${
-                            pagination.currentPage === number ? "btn-primary" : "btn-dark"
-                          }`}
-                          style={{ minWidth: "35px", borderRadius: "4px" }}
-                          aria-label={`Go to page ${number}`}
-                          aria-current={pagination.currentPage === number ? "page" : undefined}
-                        >
-                          {number}
-                        </button>
+                        <button key={number} onClick={() => handlePageChange(number)} className={`btn btn-sm me-1 ${pagination.currentPage === number ? "btn-primary" : "btn-dark"}`} style={{ minWidth: "35px", borderRadius: "4px" }}>{number}</button>
                       ));
                     })()}
-
-                    <button
-                      disabled={!pagination.hasNextPage}
-                      onClick={() => handlePageChange(pagination.currentPage + 1)}
-                      className="btn btn-dark btn-sm me-1"
-                    >
-                      Next
-                    </button>
-
-                    <button
-                      onClick={() => handlePageChange(pagination.totalPages)}
-                      disabled={!pagination.hasNextPage}
-                      className="btn btn-dark btn-sm"
-                      style={{ borderRadius: "4px" }}
-                      aria-label="Last Page"
-                    >
-                      Last
-                    </button>
+                    <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(pagination.currentPage + 1)} className="btn btn-dark btn-sm me-1">Next</button>
+                    <button onClick={() => handlePageChange(pagination.totalPages)} disabled={!pagination.hasNextPage} className="btn btn-dark btn-sm" style={{ borderRadius: "4px" }}>Last</button>
                   </div>
                 )}
               </div>

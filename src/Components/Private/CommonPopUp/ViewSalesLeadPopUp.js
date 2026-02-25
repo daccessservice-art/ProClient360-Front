@@ -157,7 +157,8 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   </h6>
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Query Time: </p>
-                    {formatDate(selectedLead?.createdAt) || "-"}
+                    {/* FIXED: Show actual inquiry time, fallback to createdAt */}
+                    {formatDate(selectedLead?.QUERY_TIME || selectedLead?.createdAt) || "-"}
                   </h6>
                   <h6 className="mt-3">
                     <p className="fw-bold d-inline">Assigned By: </p>
@@ -210,7 +211,6 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                       </span>
                     </h6>
 
-                    {/* Summary Stats */}
                     <div className="row mb-3">
                       <div className="col-md-4">
                         <div className="card border-info">
@@ -250,7 +250,6 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                       </div>
                     </div>
 
-                    {/* Group calls by day */}
                     {(() => {
                       const callsByDay = {};
                       selectedLead.callHistory.forEach(call => {
@@ -320,7 +319,6 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                       ));
                     })()}
 
-                    {/* Warning for 9 calls */}
                     {selectedLead.callHistory.length >= 9 && (
                       <div className="alert alert-danger d-flex align-items-center mt-3">
                         <i className="fa-solid fa-exclamation-triangle me-3" style={{ fontSize: '1.5rem' }}></i>
@@ -336,7 +334,6 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   </div>
                 )}
 
-                {/* No call history */}
                 {(!selectedLead?.callHistory || selectedLead.callHistory.length === 0) && (
                   <div className="col-12 mt-3">
                     <div className="alert alert-secondary">

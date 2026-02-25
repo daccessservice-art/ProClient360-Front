@@ -4,7 +4,7 @@ import { Sidebar } from "../../Sidebar/Sidebar";
 import toast from 'react-hot-toast';
 import { UserContext } from "../../../../../context/UserContext";
 import ViewSalesLeadPopUp from "../../../CommonPopUp/ViewSalesLeadPopUp";
-import CallUnansweredLeadPage from "../../../../../hooks/leads/CallUnansweredLeadPage";
+import useCallUnansweredLeads from "../../../../../hooks/leads/CallUnansweredLeadPage";
 import { formatDateTimeForDisplay } from "../../../../../utils/formatDate";
 
 export const CallUnansweredLeadsPage = () => {
@@ -28,7 +28,7 @@ export const CallUnansweredLeadsPage = () => {
   });
   const itemsPerPage = 20;
 
-  const { data, loading, error, refetch } = CallUnansweredLeadPage(
+  const { data, loading, error, refetch } = useCallUnansweredLeads( // ✅ FIXED hook call
     pagination.currentPage, 
     itemsPerPage, 
     filters
@@ -223,7 +223,8 @@ export const CallUnansweredLeadsPage = () => {
                                     {lead?.SENDER_MOBILE || "Not available"}
                                   </a>
                                 </td>
-                                <td>{formatDateTimeForDisplay(lead?.createdAt)}</td>
+                                {/* FIXED: actual inquiry time, fallback to createdAt */}
+                                <td>{formatDateTimeForDisplay(lead?.QUERY_TIME || lead?.createdAt)}</td>
                                 <td className="text-center">
                                   {getUniqueDaysCount(lead)}
                                 </td>
