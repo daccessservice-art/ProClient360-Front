@@ -13,12 +13,11 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
     const [loading, setLoading] = useState(false);
     const [retention, setRetention] = useState(0);
 
-    // Customer dropdown state
     const [custOptions, setCustOptions] = useState([]);
     const [selectedCustomer, setSelectedCustomer] = useState(
-        selectedProject?.custId ? { 
-            value: selectedProject.custId._id, 
-            label: selectedProject.custId.custName 
+        selectedProject?.custId ? {
+            value: selectedProject.custId._id,
+            label: selectedProject.custId.custName
         } : null
     );
     const [custPage, setCustPage] = useState(1);
@@ -45,7 +44,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         pincode: selectedProject?.Address?.pincode || "",
     });
 
-    // Handle pincode address fetch
     useEffect(() => {
         const fetchData = async () => {
             const data = await getAddress(address.pincode);
@@ -57,7 +55,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             fetchData();
     }, [address.pincode]);
 
-    // Fetch customers with pagination & search
     const loadCustomers = useCallback(async (page, search) => {
         if (custLoading || !custHasMore) return;
         setCustLoading(true);
@@ -76,7 +73,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         setCustPage(page + 1);
     }, [custLoading, custHasMore]);
 
-    // Initial & search-triggered load (reset on search)
     useEffect(() => {
         setCustPage(1);
         setCustHasMore(true);
@@ -84,53 +80,47 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         loadCustomers(1, custSearch);
     }, [custSearch]);
 
-    // Calculate retention
     useEffect(() => {
         const retentionValue = 100 - (Number(projects.advancePay || 0) + Number(projects.payAgainstDelivery || 0) + Number(projects.payAfterCompletion || 0));
         if (retentionValue >= 0) {
             setRetention(retentionValue);
-            setProjects(prev => ({
-                ...prev,
-                retention: retentionValue
-            }));
+            setProjects(prev => ({ ...prev, retention: retentionValue }));
         } else {
             toast.error("The total percentage cannot exceed 100%.");
             setRetention(0);
-            setProjects(prev => ({
-                ...prev,
-                retention: 0
-            }));
+            setProjects(prev => ({ ...prev, retention: 0 }));
         }
     }, [projects.advancePay, projects.payAgainstDelivery, projects.payAfterCompletion]);
 
     const handleChange = (event) => {
         const { name, value } = event.target;
 
-        // Handle numeric fields
-        if (["purchaseOrderValue", "completeLevel", "purchaseOrderNo"].includes(name)) {
+        // ✅ FIX: purchaseOrderNo removed — it accepts any alphanumeric format
+        // Only purchaseOrderValue and completeLevel are numeric-only
+        if (["purchaseOrderValue", "completeLevel"].includes(name)) {
             const numericValue = value.replace(/\D/g, "");
             const maxLength = {
                 purchaseOrderValue: 12,
                 completeLevel: 10,
-                purchaseOrderNo: 10
             }[name];
-            
             if (numericValue.length > maxLength) return;
             setProjects((prev) => ({ ...prev, [name]: numericValue }));
             return;
         }
 
-        // Handle customer selection
-        if (name === "custId") {
-            setSelectedCustomer({ value: value, label: event.target.options[event.target.selectedIndex].text });
-            setProjects((prev) => ({
-                ...prev,
-                custId: { _id: value },
-            }));
+        // ✅ FIX: purchaseOrderNo accepts letters, numbers, dashes, slashes etc.
+        if (name === "purchaseOrderNo") {
+            if (value.length > 200) return;
+            setProjects((prev) => ({ ...prev, [name]: value }));
             return;
         }
 
-        // Handle project status change
+        if (name === "custId") {
+            setSelectedCustomer({ value: value, label: event.target.options[event.target.selectedIndex].text });
+            setProjects((prev) => ({ ...prev, custId: { _id: value } }));
+            return;
+        }
+
         if (name === "projectStatus") {
             setProjects((prev) => ({
                 ...prev,
@@ -140,13 +130,11 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             return;
         }
 
-        // Handle warranty months
         if (name === "warrantyMonths") {
             setProjects((prev) => ({ ...prev, [name]: value }));
             return;
         }
 
-        // Handle file inputs
         if (name === "completionCertificate" || name === "warrantyCertificate") {
             const file = event.target.files[0];
             if (file) {
@@ -159,27 +147,20 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             return;
         }
 
-        // Handle all other fields
         setProjects((prev) => ({ ...prev, [name]: value }));
     };
 
     const handleAddressChange = (e) => {
         const { name, value } = e.target;
 
-        if (name === "city") {
+        if (name === "city" || name === "state" || name === "country") {
             const cleanValue = value.replace(/[^a-zA-Z\s]/g, "");
             setAddress({ ...address, [name]: cleanValue });
-        }
-        else if (name === "state" || name === "country") {
-            const cleanValue = value.replace(/[^a-zA-Z\s]/g, "");
-            setAddress({ ...address, [name]: cleanValue });
-        }
-        else if (name === "pincode") {
+        } else if (name === "pincode") {
             const numericValue = value.replace(/\D/g, "");
             if (numericValue.length > 6) return;
             setAddress({ ...address, [name]: numericValue });
-        }
-        else {
+        } else {
             setAddress({ ...address, [name]: value });
         }
     };
@@ -192,14 +173,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             ...projects,
             custId: selectedCustomer?.value,
             retention: retention,
-            Address: {
-                ...address
-            },
-            // Convert warrantyMonths to number if it exists
+            Address: { ...address },
             warrantyMonths: projects.warrantyMonths ? parseInt(projects.warrantyMonths) : 0
-        }
-        
-        // Required field validation
+        };
+
         if (
             !updatedProject.name ||
             !selectedCustomer ||
@@ -217,7 +194,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             return toast.error("Please fill all required fields");
         }
 
-        // Additional validation for completed projects
         if (updatedProject.projectStatus === "Completed") {
             if (!updatedProject.completionCertificate) {
                 setLoading(false);
@@ -241,6 +217,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             setLoading(false);
             return toast.error("Sum of Advance Payment, Pay Against Delivery, and Pay After Completion cannot exceed 100%");
         }
+
         if (updatedProject.startDate > updatedProject.endDate) {
             setLoading(false);
             return toast.error("Start Date cannot be greater than End Date");
@@ -257,7 +234,8 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                 toast.error(data.error);
             }
         } catch (error) {
-            toast.error(error);
+            toast.dismiss();
+            toast.error(error?.message || "Failed to update project");
         } finally {
             setLoading(false);
         }
@@ -269,9 +247,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             toast.error("No file available");
             return;
         }
-
         if (fileUrl.startsWith('data:')) {
-            // Handle base64 data
             const newWindow = window.open();
             newWindow.document.write(`
                 <html>
@@ -282,7 +258,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                 </html>
             `);
         } else {
-            // Handle URL
             window.open(fileUrl, '_blank');
         }
     };
@@ -335,23 +310,23 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
 
                                     <div className="mb-3">
                                         <label htmlFor="ProjectName" className="form-label label_text">Project Name <RequiredStar /></label>
-                                        <textarea 
-                                            type="text" 
-                                            className="form-control rounded-0" 
-                                            id="ProjectName" 
-                                            name="name" 
-                                            onChange={handleChange} 
-                                            maxLength={1000} 
-                                            placeholder="Update Project Name...." 
-                                            value={projects.name} 
+                                        <textarea
+                                            type="text"
+                                            className="form-control rounded-0"
+                                            id="ProjectName"
+                                            name="name"
+                                            onChange={handleChange}
+                                            maxLength={1000}
+                                            placeholder="Update Project Name...."
+                                            value={projects.name}
                                             aria-describedby="emailHelp"
                                         ></textarea>
                                     </div>
 
                                     <div className="col-12 col-lg-6 mt-2">
                                         <label htmlFor="projectStatus" className="form-label label_text">Project Status <RequiredStar /></label>
-                                        <select 
-                                            className="form-select rounded-0" 
+                                        <select
+                                            className="form-select rounded-0"
                                             aria-label="Project status"
                                             name="projectStatus"
                                             onChange={handleChange}
@@ -377,7 +352,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 maxLength="2"
                                                 className="form-control rounded-0"
                                                 id="completeLevel"
-                                                aria-describedby="dateHelp"
                                                 required
                                                 disabled={projects?.projectStatus === "Completed"}
                                             />
@@ -394,18 +368,16 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 type="date"
                                                 className="form-control rounded-0"
                                                 id="purchaseOrderDate"
-                                                aria-describedby="dateHelp"
                                             />
                                         </div>
                                     </div>
 
                                     <div className="col-12 col-lg-6 mt-2">
                                         <div className="mb-3">
+                                            {/* ✅ FIX: type="text" not numeric, no pattern restriction */}
                                             <label htmlFor="PurchaseOrderNumber" className="form-label label_text">Purchase Order Number <RequiredStar /></label>
                                             <input
                                                 type="text"
-                                                inputMode="numeric"
-                                                pattern="^\d{1,10}$"
                                                 className="form-control rounded-0"
                                                 id="PurchaseOrderNumber"
                                                 name="purchaseOrderNo"
@@ -413,7 +385,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 maxLength={200}
                                                 value={projects?.purchaseOrderNo}
                                                 onChange={handleChange}
-                                                aria-describedby="emailHelp"
                                                 required
                                             />
                                         </div>
@@ -441,8 +412,8 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     <div className="col-12 col-lg-6 mt-2">
                                         <div className="mb-3">
                                             <label htmlFor="category" className="form-label label_text">Category of Project <RequiredStar /></label>
-                                            <select 
-                                                className="form-select rounded-0" 
+                                            <select
+                                                className="form-select rounded-0"
                                                 aria-label="Project category"
                                                 name="category"
                                                 onChange={handleChange}
@@ -453,6 +424,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 <option value="Hajeri">Hajeri</option>
                                                 <option value="SmartFace">SmartFace</option>
                                                 <option value="ZKBioSecurity">ZKBioSecurity</option>
+                                                <option value="Surveillance System">Surveillance System</option>
                                                 <option value="Access Control System">Access Control System</option>
                                                 <option value="Turnkey Project">Turnkey Project</option>
                                                 <option value="Alleviz">Alleviz</option>
@@ -477,7 +449,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 <option value="EPBX System">EPBX System</option>
                                                 <option value="CMS">CMS</option>
                                                 <option value="Lift Eliviter System">Lift Eliviter System</option>
-                                                <option value="AV6">AV6</option>    
+                                                <option value="AV6">AV6</option>
                                                 <option value="Walky Talky System">Walky Talky System</option>
                                                 <option value="Device Management System">Device Management System</option>
                                             </select>
@@ -494,7 +466,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 type="date"
                                                 className="form-control rounded-0"
                                                 id="startDate"
-                                                aria-describedby="dateHelp"
                                             />
                                         </div>
                                     </div>
@@ -509,12 +480,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 name="endDate"
                                                 className="form-control rounded-0"
                                                 id="EndDate"
-                                                aria-describedby="dateHelp"
                                             />
                                         </div>
                                     </div>
 
-                                    {/* Completed Project Fields - Conditionally Rendered */}
                                     {projects?.projectStatus === "Completed" && (
                                         <div className="col-12 mt-4">
                                             <div className="row border bg-light mx-auto p-3">
@@ -525,7 +494,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 <div className="col-12 col-lg-6 mt-2">
                                                     <div className="mb-3">
                                                         <label htmlFor="completionCertificate" className="form-label label_text">
-                                                            Completion Come / Warranty Certificate <RequiredStar />
+                                                            Completion / Warranty Certificate <RequiredStar />
                                                         </label>
                                                         <input
                                                             type="file"
@@ -536,8 +505,8 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                                                         />
                                                         {projects.completionCertificate && (
-                                                            <button 
-                                                                type="button" 
+                                                            <button
+                                                                type="button"
                                                                 className="btn btn-outline-primary btn-sm mt-2"
                                                                 onClick={() => viewFile('completionCertificate')}
                                                             >
@@ -561,8 +530,8 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                                                         />
                                                         {projects.warrantyCertificate && (
-                                                            <button 
-                                                                type="button" 
+                                                            <button
+                                                                type="button"
                                                                 className="btn btn-outline-primary btn-sm mt-2"
                                                                 onClick={() => viewFile('warrantyCertificate')}
                                                             >
@@ -594,7 +563,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                         <label htmlFor="warrantyDuration" className="form-label label_text">
                                                             Warranty Duration <RequiredStar />
                                                         </label>
-                                                        <select 
+                                                        <select
                                                             className="form-select rounded-0"
                                                             name="warrantyMonths"
                                                             onChange={handleChange}
@@ -611,7 +580,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                         </div>
                                     )}
 
-                                    {/* Payment Terms Section */}
                                     <div className="col-12 mt-2">
                                         <div className="row border bg-gray mx-auto">
                                             <div className="col-10 mb-3">
@@ -677,9 +645,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                     <label htmlFor="retention" className="form-label label_text">Retention (%) <RequiredStar /></label>
                                                     <input
                                                         type="text"
-                                                        inputMode="numeric"
-                                                        pattern="^\d{1,3}$"
-                                                        maxLength={3}
                                                         className="form-control rounded-0"
                                                         id="retention"
                                                         name="retention"
@@ -693,7 +658,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                         </div>
                                     </div>
 
-                                    {/* Address Section */}
                                     <div className="col-12 mt-2">
                                         <div className="row border mt-4 bg-gray mx-auto">
                                             <div className="col-12 mb-3">
@@ -709,7 +673,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                         maxLength="6"
                                                         className="form-control rounded-0"
                                                         placeholder="Pincode"
-                                                        id="Pincode"
                                                         name="pincode"
                                                         onChange={handleAddressChange}
                                                         value={address.pincode}
@@ -724,12 +687,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                         type="text"
                                                         className="form-control rounded-0"
                                                         placeholder="State"
-                                                        id="State"
                                                         name="state"
                                                         onChange={handleAddressChange}
                                                         value={address.state}
                                                         maxLength={50}
-                                                        pattern="^[a-zA-Z\s]*$"
                                                         required
                                                     />
                                                 </div>
@@ -741,10 +702,8 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                         type="text"
                                                         className="form-control rounded-0"
                                                         placeholder="City"
-                                                        id="city"
                                                         name="city"
                                                         maxLength={50}
-                                                        pattern="^[a-zA-Z\s]{2,40}$"
                                                         onChange={handleAddressChange}
                                                         value={address.city}
                                                         required
@@ -758,12 +717,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                         type="text"
                                                         className="form-control rounded-0"
                                                         placeholder="Country"
-                                                        id="country"
                                                         name="country"
                                                         maxLength={50}
                                                         onChange={handleAddressChange}
                                                         value={address.country}
-                                                        pattern="^[a-zA-Z\s]{2,40}$"
                                                         required
                                                     />
                                                 </div>
@@ -773,7 +730,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 <div className="mb-3">
                                                     <textarea
                                                         className="textarea_edit col-12"
-                                                        id="add"
                                                         name="add"
                                                         maxLength={500}
                                                         placeholder="House NO., Building Name, Road Name, Area, Colony"
@@ -786,7 +742,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                         </div>
                                     </div>
 
-                                    {/* Purchase Order Copy */}
                                     <div className="col-12 col-lg-6 mt-2">
                                         <div className="mb-3">
                                             <label htmlFor="PurchaseOrderCopy" className="form-label label_text">
@@ -796,7 +751,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                         <button type="button" className="btn btn-outline-dark" onClick={() => viewFile('POCopy')}>View</button>
                                     </div>
 
-                                    {/* Remark */}
                                     <div className="col-12 col-lg-12 mt-2">
                                         <div className="mb-3">
                                             <label htmlFor="remark" className="form-label label_text">Remark</label>
@@ -809,13 +763,11 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 maxLength={1000}
                                                 placeholder="Enter a Remark..."
                                                 value={projects?.remark || ""}
-                                                aria-describedby="secemailHelp"
                                                 rows='2'
                                             />
                                         </div>
                                     </div>
 
-                                    {/* Action Buttons */}
                                     <div className="row">
                                         <div className="col-12 pt-3 mt-2">
                                             <button
