@@ -1,16 +1,35 @@
 import { useState, useContext, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "../../Header/Header";
 import { Sidebar } from "../../Sidebar/Sidebar";
 import toast from 'react-hot-toast';
 import { UserContext } from "../../../../../context/UserContext";
 import ViewSalesLeadPopUp from "../../../CommonPopUp/ViewSalesLeadPopUp";
-import { formatDateTimeForDisplay } from "../../../../../utils/formatDate";
+
+// ── IST time formatter ──
+const formatLeadTime = (rawDate) => {
+  if (!rawDate) return "—";
+  const d = new Date(rawDate);
+  if (isNaN(d.getTime())) return "—";
+  const datePart = d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
+  const timePart = d.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  });
+  return `${datePart} ${timePart}`;
+};
 
 export const NotFeasibleLeadsPage = () => {
+  const navigate = useNavigate();
   const [isopen, setIsOpen] = useState(false);
-  const toggle = () => {
-    setIsOpen(!isopen);
-  };
+  const toggle = () => setIsOpen(!isopen);
 
   const [detailsServicePopUp, setDetailsServicePopUp] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
@@ -29,7 +48,6 @@ export const NotFeasibleLeadsPage = () => {
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [expandedReasons, setExpandedReasons] = useState({});
 
   const fetchLeads = async () => {
@@ -44,25 +62,20 @@ export const NotFeasibleLeadsPage = () => {
       };
 
       const response = await fetch(`${API_URL}/api/leads/not-feasible?${new URLSearchParams(params)}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
 
       const responseData = await response.json();
 
       if (responseData.success) {
         setData(responseData);
-        setError(null);
         setPagination(prev => ({ ...prev, ...responseData.pagination }));
       } else {
         throw new Error(responseData.error || 'Failed to fetch not feasible leads');
       }
     } catch (err) {
-      const errorMessage = err.message || 'Failed to fetch not feasible leads';
-      setError(errorMessage);
+      toast.error(err.message || 'Failed to fetch not feasible leads');
       setData(null);
-      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -89,10 +102,7 @@ export const NotFeasibleLeadsPage = () => {
   };
 
   const toggleReasonExpansion = (leadId) => {
-    setExpandedReasons(prev => ({
-      ...prev,
-      [leadId]: !prev[leadId]
-    }));
+    setExpandedReasons(prev => ({ ...prev, [leadId]: !prev[leadId] }));
   };
 
   const truncateText = (text, maxLength = 50) => {
@@ -115,15 +125,26 @@ export const NotFeasibleLeadsPage = () => {
               }}
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
-                <div className="row px-2 py-1">
-                  <div className="col-12 col-lg-6">
-                    <h5 className="text-white py-2">
+
+                {/* Header with Back Button */}
+                <div className="row px-2 py-1 align-items-center">
+                  <div className="col-12 col-lg-6 d-flex align-items-center gap-3">
+                    <button
+                      onClick={() => navigate('/MarketingMasterGrid')}
+                      className="btn btn-sm btn-light border"
+                      title="Back to Marketing Dashboard"
+                      style={{ borderRadius: '6px', fontWeight: 500 }}
+                    >
+                      <i className="fa-solid fa-arrow-left me-1"></i> Back
+                    </button>
+                    <h5 className="text-white py-2 mb-0">
                       <i className="fa-solid fa-times-circle me-2"></i>
                       Not Feasible Leads
                     </h5>
                   </div>
                 </div>
 
+                {/* Stats */}
                 <div className="row bg-white p-3 m-1 border rounded">
                   <div className="col-md-4">
                     <div className="card border-danger">
@@ -131,13 +152,9 @@ export const NotFeasibleLeadsPage = () => {
                         <div className="d-flex justify-content-between align-items-center">
                           <div>
                             <h6 className="text-muted mb-1">Total Not Feasible</h6>
-                            <h3 className="fw-bold text-danger mb-0">
-                              {pagination.totalRecords || 0}
-                            </h3>
+                            <h3 className="fw-bold text-danger mb-0">{pagination.totalRecords || 0}</h3>
                           </div>
-                          <div>
-                            <i className="fa-solid fa-times-circle text-danger" style={{ fontSize: '3rem', opacity: 0.3 }}></i>
-                          </div>
+                          <i className="fa-solid fa-times-circle text-danger" style={{ fontSize: '3rem', opacity: 0.3 }}></i>
                         </div>
                       </div>
                     </div>
@@ -145,12 +162,12 @@ export const NotFeasibleLeadsPage = () => {
                   <div className="col-md-8">
                     <div className="alert alert-danger mb-0">
                       <i className="fa-solid fa-exclamation-triangle me-2"></i>
-                      <strong>About Not Feasible Leads:</strong> These leads have been reviewed and determined to be not feasible for business.
-                      They typically have specific reasons for rejection and require no further action.
+                      <strong>About Not Feasible Leads:</strong> These leads have been reviewed and determined to be not feasible for business. They typically have specific reasons for rejection and require no further action.
                     </div>
                   </div>
                 </div>
 
+                {/* Filters */}
                 <div className="row align-items-center p-2 m-1">
                   <div className="col-12 col-lg-4 ms-auto text-end">
                     <div className="row ms-auto">
@@ -163,7 +180,6 @@ export const NotFeasibleLeadsPage = () => {
                           value={filters.date || ""}
                         />
                       </div>
-
                       <div className="col-12 col-lg-6 mt-3">
                         <select
                           className="form-select bg_edit"
@@ -185,6 +201,7 @@ export const NotFeasibleLeadsPage = () => {
                   </div>
                 </div>
 
+                {/* Table */}
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
                     <div className="table-responsive">
@@ -197,12 +214,12 @@ export const NotFeasibleLeadsPage = () => {
                             <th style={{ minWidth: '150px' }}>Contact Name</th>
                             <th style={{ minWidth: '150px' }}>Product</th>
                             <th style={{ width: '130px' }}>Mobile</th>
-                            <th style={{ width: '140px' }}>Date</th>
+                            <th style={{ width: '160px' }}>Date & Time</th>
                             <th style={{ width: '300px' }}>Reason</th>
                             <th style={{ width: '80px' }}>Action</th>
                           </tr>
                         </thead>
-                        <tbody className="broder my-4">
+                        <tbody>
                           {data?.leads?.length > 0 ? (
                             data.leads.map((lead, index) => {
                               const isExpanded = expandedReasons[lead._id] || false;
@@ -212,36 +229,26 @@ export const NotFeasibleLeadsPage = () => {
                               return (
                                 <tr key={lead._id}>
                                   <td>{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
-                                  <td>
-                                    <span className="badge bg-secondary">
-                                      {lead?.SOURCE}
-                                    </span>
-                                  </td>
-                                  <td className="align_left_td wrap-text-of-col">
-                                    {lead?.SENDER_COMPANY || "Not available"}
-                                  </td>
-                                  <td className="align_left_td wrap-text-of-col">
-                                    {lead?.SENDER_NAME || "Not available"}
-                                  </td>
-                                  <td className="align_left_td wrap-text-of-col">
-                                    {lead?.QUERY_PRODUCT_NAME || "Not available"}
-                                  </td>
+                                  <td><span className="badge bg-secondary">{lead?.SOURCE}</span></td>
+                                  <td className="align_left_td wrap-text-of-col">{lead?.SENDER_COMPANY || "Not available"}</td>
+                                  <td className="align_left_td wrap-text-of-col">{lead?.SENDER_NAME || "Not available"}</td>
+                                  <td className="align_left_td wrap-text-of-col">{lead?.QUERY_PRODUCT_NAME || "Not available"}</td>
                                   <td>
                                     <a href={`tel:${lead?.SENDER_MOBILE}`} className="text-decoration-none">
                                       <i className="fa-solid fa-phone me-1"></i>
                                       {lead?.SENDER_MOBILE || "Not available"}
                                     </a>
                                   </td>
-                                  {/* FIXED: Use QUERY_TIME (actual inquiry time) instead of createdAt */}
-                                  <td>{formatDateTimeForDisplay(lead?.QUERY_TIME || lead?.createdAt)}</td>
+                                  {/* Proper IST time */}
+                                  <td style={{ whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                                    {formatLeadTime(lead?.QUERY_TIME || lead?.createdAt)}
+                                  </td>
                                   <td style={{ verticalAlign: 'top', padding: '8px' }}>
                                     <div className="d-flex flex-column">
                                       <span className="badge bg-danger mb-1" style={{ width: 'fit-content' }}>
-                                        <i className="fa-solid fa-exclamation-circle me-1"></i>
-                                        Not Feasible
+                                        <i className="fa-solid fa-exclamation-circle me-1"></i>Not Feasible
                                       </span>
                                       <div
-                                        className="reason-text-container"
                                         style={{
                                           fontSize: '0.85rem',
                                           color: '#6c757d',
@@ -251,10 +258,9 @@ export const NotFeasibleLeadsPage = () => {
                                           backgroundColor: '#f8f9fa',
                                           borderRadius: '4px',
                                           border: '1px solid #e9ecef',
-                                          cursor: shouldTruncate ? 'pointer' : 'default'
+                                          cursor: shouldTruncate ? 'pointer' : 'default',
                                         }}
                                         onClick={() => shouldTruncate && toggleReasonExpansion(lead._id)}
-                                        title={shouldTruncate ? (isExpanded ? "Click to collapse" : "Click to expand") : ""}
                                       >
                                         {isExpanded || !shouldTruncate ? reasonText : truncateText(reasonText)}
                                         {shouldTruncate && (
@@ -266,11 +272,7 @@ export const NotFeasibleLeadsPage = () => {
                                     </div>
                                   </td>
                                   <td>
-                                    <span
-                                      onClick={() => handleDetailsPopUpClick(lead)}
-                                      title="View Details"
-                                      className="cursor-pointer"
-                                    >
+                                    <span onClick={() => handleDetailsPopUpClick(lead)} title="View Details" style={{ cursor: 'pointer' }}>
                                       <i className="fa-solid fa-eye text-primary mx-1"></i>
                                     </span>
                                   </td>
@@ -291,6 +293,7 @@ export const NotFeasibleLeadsPage = () => {
                   </div>
                 </div>
 
+                {/* Pagination */}
                 {!loading && pagination.totalPages > 1 && (
                   <div className="pagination-container text-center my-3">
                     <button onClick={() => handlePageChange(1)} disabled={!pagination.hasPrevPage} className="btn btn-dark btn-sm me-1" style={{ borderRadius: "4px" }}>First</button>
@@ -323,10 +326,7 @@ export const NotFeasibleLeadsPage = () => {
 
       {detailsServicePopUp && selectedLead && (
         <ViewSalesLeadPopUp
-          closePopUp={() => {
-            setDetailsServicePopUp(false);
-            setSelectedLead(null);
-          }}
+          closePopUp={() => { setDetailsServicePopUp(false); setSelectedLead(null); }}
           selectedLead={selectedLead}
         />
       )}

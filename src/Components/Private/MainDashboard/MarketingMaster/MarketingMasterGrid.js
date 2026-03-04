@@ -17,11 +17,29 @@ import useCreateLead from "../../../../hooks/leads/useCreateLead";
 import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 
+// ── helper: format any date/string to "DD MMM YYYY HH:MM" in IST ──
+const formatLeadTime = (rawDate) => {
+  if (!rawDate) return "—";
+  const d = new Date(rawDate);
+  if (isNaN(d.getTime())) return "—";
+  const datePart = d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
+  const timePart = d.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  });
+  return `${datePart} ${timePart}`;
+};
+
 export const MarketingMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
-  const toggle = () => {
-    setIsOpen(!isopen);
-  };
+  const toggle = () => setIsOpen(!isopen);
 
   const [addpop, setIsAddModalVisible] = useState(false);
   const [UpdatePopUpShow, setUpdatePopUpShow] = useState(false);
@@ -55,7 +73,6 @@ export const MarketingMasterGrid = () => {
       toast.error('You do not have permission to perform this action.');
       return;
     }
-
     setProcessingStaleLeads(true);
     try {
       const response = await axios.post(`${API_URL}/api/leads/process-stale-leads`, {}, {
@@ -64,7 +81,6 @@ export const MarketingMasterGrid = () => {
           'Content-Type': 'application/json',
         },
       });
-
       if (response.data && response.data.success) {
         toast.success(response.data.message);
         refetch();
@@ -107,7 +123,6 @@ export const MarketingMasterGrid = () => {
   const handleDeleteConfirm = async () => {
     if (!selectedLeadId) return;
     try {
-      console.log("Deleting lead with ID:", selectedLeadId);
       toast.loading("Deleting lead...");
       const data = await deleteLead(selectedLeadId);
       toast.dismiss();
@@ -127,7 +142,6 @@ export const MarketingMasterGrid = () => {
   const handleAddLeadSubmit = async (leadData) => {
     toast.loading("Adding lead...");
     const data = await createLead(leadData);
-    console.log("Lead Data:", data);
     if (data?.success) {
       toast.dismiss();
       toast.success(data?.message || "Lead added successfully!");
@@ -142,7 +156,6 @@ export const MarketingMasterGrid = () => {
   const handleUpdateSubmit = async (id, actionData) => {
     try {
       if (actionData) {
-        console.log("Updating lead with ID:", id, "and data:", actionData);
         toast.loading("Assigning lead...");
         const data = await assignLead(id, actionData);
         toast.dismiss();
@@ -169,9 +182,19 @@ export const MarketingMasterGrid = () => {
 
   const handleChange = (filterType, value) => {
     setFilters(prevFilters => ({ ...prevFilters, [filterType]: value || null }));
-    console.log(filterType, value)
     handlePageChange(1);
   };
+
+  // ── derive pending count from current data ──
+  // The table only fetches feasibility:"none" leads.
+  // pagination.totalRecords = count of pending leads in current filter.
+  // For the card we use the unfiltered pending count from backend if available,
+  // otherwise fallback to allLeadsCount - feasible - notFeasible - callUnanswered.
+  const pendingLeadsCount =
+    (data?.allLeadsCount || 0) -
+    (data?.feasibleCount || 0) -
+    (data?.notFeasibleCount || 0) -
+    (data?.callUnansweredCount || 0);
 
   return (
     <>
@@ -230,10 +253,11 @@ export const MarketingMasterGrid = () => {
                   feasibleLeads={data?.feasibleCount || 0}
                   notFeasibleLeads={data?.notFeasibleCount || 0}
                   callUnansweredLeads={data?.callUnansweredCount || 0}
+                  pendingLeads={pendingLeadsCount >= 0 ? pendingLeadsCount : 0}
                 />
 
                 <div className="row align-items-center p-2 m-1">
-                  <div className="col-12 col-lg-4  ms-auto text-end">
+                  <div className="col-12 col-lg-4 ms-auto text-end">
                     <div className="row ms-auto">
                       <div className="col-12 col-lg-6 mt-4">
                         <input
@@ -244,7 +268,6 @@ export const MarketingMasterGrid = () => {
                           value={filters.date || ""}
                         />
                       </div>
-
                       <div className="col-12 col-lg-6 mt-4">
                         <select
                           className="form-select bg_edit"
@@ -292,20 +315,34 @@ export const MarketingMasterGrid = () => {
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.SENDER_NAME || "Not available."}</td>
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.QUERY_PRODUCT_NAME || "Not available."}</td>
                                 <td>{lead?.SENDER_MOBILE || "Not available."}</td>
-                                {/* FIXED: Use QUERY_TIME (actual inquiry time) instead of createdAt (cron job time) */}
-                                <td>{formatDateTimeForDisplay(lead?.QUERY_TIME || lead?.createdAt)}</td>
+                                {/* Use QUERY_TIME (actual inquiry time), formatted in IST */}
+                                <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                                  {formatLeadTime(lead?.QUERY_TIME || lead?.createdAt)}
+                                </td>
                                 <td>
-                                  {(user?.permissions?.includes('assignLead')) &&
-                                    <span onClick={() => handleUpdate(lead)} title="Edit Lead">
-                                      <i className="mx-1 fa-solid fa-share cursor-pointer"></i>
+                                  {user?.permissions?.includes('assignLead') && (
+                                    <span onClick={() => handleUpdate(lead)} title="Assign Lead" style={{ cursor: 'pointer' }}>
+                                      <i className="mx-1 fa-solid fa-share"></i>
                                     </span>
-                                  }
-                                  {(lead.SOURCE === 'Direct' && (user?.permissions?.includes('deleteLead') || user?.user === 'company')) &&
-                                    <span onClick={() => handleDelete(lead._id)} title="Delete Lead">
+                                  )}
+                                  {/* Show call attempt icon if lead has call history (came from call-unanswered flow) */}
+                                  {lead?.callHistory && lead.callHistory.length > 0 && (
+                                    <span
+                                      title={`${lead.callHistory.length} call attempt(s) recorded`}
+                                      style={{ cursor: 'default' }}
+                                    >
+                                      <i className="fa-solid fa-phone-volume text-warning mx-1"></i>
+                                      <small className="text-warning fw-bold" style={{ fontSize: '0.7rem' }}>
+                                        {lead.callHistory.length}
+                                      </small>
+                                    </span>
+                                  )}
+                                  {lead.SOURCE === 'Direct' && (user?.permissions?.includes('deleteLead') || user?.user === 'company') && (
+                                    <span onClick={() => handleDelete(lead._id)} title="Delete Lead" style={{ cursor: 'pointer' }}>
                                       <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
                                     </span>
-                                  }
-                                  <span onClick={() => handleDetailsPopUpClick(lead)} title="View Details">
+                                  )}
+                                  <span onClick={() => handleDetailsPopUpClick(lead)} title="View Details" style={{ cursor: 'pointer' }}>
                                     <i className="fa-solid fa-eye cursor-pointer text-primary mx-1"></i>
                                   </span>
                                 </td>
@@ -313,9 +350,7 @@ export const MarketingMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="8" className="text-center">
-                                No data found
-                              </td>
+                              <td colSpan="8" className="text-center">No data found</td>
                             </tr>
                           )}
                         </tbody>
@@ -327,85 +362,26 @@ export const MarketingMasterGrid = () => {
                 {/* Pagination */}
                 {!loading && pagination.totalPages > 1 && (
                   <div className="pagination-container text-center my-3">
-                    <button
-                      onClick={() => handlePageChange(1)}
-                      disabled={!pagination.hasPrevPage}
-                      className="btn btn-dark btn-sm me-1"
-                      style={{ borderRadius: "4px" }}
-                      aria-label="First Page"
-                    >
-                      First
-                    </button>
-
-                    <button
-                      onClick={() => handlePageChange(pagination.currentPage - 1)}
-                      disabled={!pagination.hasPrevPage}
-                      className="btn btn-dark btn-sm me-1"
-                      style={{ borderRadius: "4px" }}
-                      aria-label="Previous Page"
-                    >
-                      Previous
-                    </button>
-
+                    <button onClick={() => handlePageChange(1)} disabled={!pagination.hasPrevPage} className="btn btn-dark btn-sm me-1" style={{ borderRadius: "4px" }}>First</button>
+                    <button onClick={() => handlePageChange(pagination.currentPage - 1)} disabled={!pagination.hasPrevPage} className="btn btn-dark btn-sm me-1" style={{ borderRadius: "4px" }}>Previous</button>
                     {(() => {
                       const pageNumbers = [];
                       const maxPagesToShow = 5;
-
                       if (pagination.totalPages <= maxPagesToShow) {
-                        for (let i = 1; i <= pagination.totalPages; i++) {
-                          pageNumbers.push(i);
-                        }
+                        for (let i = 1; i <= pagination.totalPages; i++) pageNumbers.push(i);
                       } else {
                         let startPage, endPage;
-                        if (pagination.currentPage <= 3) {
-                          startPage = 1;
-                          endPage = maxPagesToShow;
-                        } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                          startPage = pagination.totalPages - maxPagesToShow + 1;
-                          endPage = pagination.totalPages;
-                        } else {
-                          startPage = pagination.currentPage - 2;
-                          endPage = pagination.currentPage + 2;
-                        }
-                        startPage = Math.max(1, startPage);
-                        endPage = Math.min(pagination.totalPages, endPage);
-
-                        for (let i = startPage; i <= endPage; i++) {
-                          pageNumbers.push(i);
-                        }
+                        if (pagination.currentPage <= 3) { startPage = 1; endPage = maxPagesToShow; }
+                        else if (pagination.currentPage >= pagination.totalPages - 2) { startPage = pagination.totalPages - maxPagesToShow + 1; endPage = pagination.totalPages; }
+                        else { startPage = pagination.currentPage - 2; endPage = pagination.currentPage + 2; }
+                        for (let i = Math.max(1, startPage); i <= Math.min(pagination.totalPages, endPage); i++) pageNumbers.push(i);
                       }
-
                       return pageNumbers.map((number) => (
-                        <button
-                          key={number}
-                          onClick={() => handlePageChange(number)}
-                          className={`btn btn-sm me-1 ${pagination.currentPage === number ? "btn-primary" : "btn-dark"}`}
-                          style={{ minWidth: "35px", borderRadius: "4px" }}
-                          aria-label={`Go to page ${number}`}
-                          aria-current={pagination.currentPage === number ? "page" : undefined}
-                        >
-                          {number}
-                        </button>
+                        <button key={number} onClick={() => handlePageChange(number)} className={`btn btn-sm me-1 ${pagination.currentPage === number ? "btn-primary" : "btn-dark"}`} style={{ minWidth: "35px", borderRadius: "4px" }}>{number}</button>
                       ));
                     })()}
-
-                    <button
-                      disabled={!pagination.hasNextPage}
-                      onClick={() => handlePageChange(pagination.currentPage + 1)}
-                      className="btn btn-dark btn-sm me-1"
-                    >
-                      Next
-                    </button>
-
-                    <button
-                      onClick={() => handlePageChange(pagination.totalPages)}
-                      disabled={!pagination.hasNextPage}
-                      className="btn btn-dark btn-sm"
-                      style={{ borderRadius: "4px" }}
-                      aria-label="Last Page"
-                    >
-                      Last
-                    </button>
+                    <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(pagination.currentPage + 1)} className="btn btn-dark btn-sm me-1">Next</button>
+                    <button onClick={() => handlePageChange(pagination.totalPages)} disabled={!pagination.hasNextPage} className="btn btn-dark btn-sm" style={{ borderRadius: "4px" }}>Last</button>
                   </div>
                 )}
               </div>
@@ -419,10 +395,7 @@ export const MarketingMasterGrid = () => {
           selectedLead={selectedLead}
           currentUser={user}
           onUpdate={handleUpdateSubmit}
-          onClose={() => {
-            setUpdatePopUpShow(false);
-            setSelectedLead(null);
-          }}
+          onClose={() => { setUpdatePopUpShow(false); setSelectedLead(null); }}
         />
       )}
 
@@ -441,10 +414,7 @@ export const MarketingMasterGrid = () => {
 
       {detailsServicePopUp && selectedLead && (
         <ViewSalesLeadPopUp
-          closePopUp={() => {
-            setDetailsServicePopUp(false);
-            setSelectedLead(null);
-          }}
+          closePopUp={() => { setDetailsServicePopUp(false); setSelectedLead(null); }}
           selectedLead={selectedLead}
         />
       )}
