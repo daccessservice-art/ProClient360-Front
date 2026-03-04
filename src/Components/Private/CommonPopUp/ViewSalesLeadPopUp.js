@@ -1,315 +1,719 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import Select from "react-select";
+import toast from 'react-hot-toast';
+import axios from 'axios';
+import validator from "validator";
+import { getVendors } from '../../../hooks/useVendor';
+import { getProducts } from '../../../hooks/useProduct';
+import { createPurchaseOrder } from '../../../hooks/usePurchaseOrder';
+import { getAddress } from '../../../hooks/usePincode';
+import { createCustomer, getCustomers } from '../../../hooks/useCustomer';
+import { useUser } from '../../../context/UserContext';
+import { RequiredStar } from "../RequiredStar/RequiredStar";
 
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
   try {
-    const options = {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    };
+    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(dateString).toLocaleDateString(undefined, options);
-  } catch (error) {
-    return dateString;
-  }
+  } catch (error) { return dateString; }
 };
 
 const formatCallDate = (dateString) => {
   if (!dateString) return "N/A";
   try {
-    const options = {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    };
+    const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(dateString).toLocaleDateString(undefined, options);
-  } catch (error) {
-    return dateString;
-  }
+  } catch (error) { return dateString; }
 };
 
+// ─────────────────────────────────────────────
+// Inline Add Customer Form
+// ─────────────────────────────────────────────
+const InlineAddCustomerForm = ({ selectedLead, onSuccess, onCancel }) => {
+  const { user } = useUser();
+
+  const [custName, setCustName] = useState(selectedLead?.SENDER_COMPANY || '');
+  const [phoneNumber1, setPhoneNumber1] = useState(selectedLead?.SENDER_MOBILE || '');
+  const [email, setEmail] = useState(selectedLead?.SENDER_EMAIL || '');
+  const [customerContactPersonName1, setCustomerContactPersonName1] = useState(selectedLead?.SENDER_NAME || '');
+  const [customerContactPersonName2, setCustomerContactPersonName2] = useState('');
+  const [phoneNumber2, setPhoneNumber2] = useState('');
+  const [GSTNo, setGSTNo] = useState('');
+  const [zone, setZone] = useState('');
+  const [ownedBy, setOwnedBy] = useState(user?.name || '');
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [existingCustomer, setExistingCustomer] = useState(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [duplicateChecked, setDuplicateChecked] = useState(false);
+
+  const [billingAddress, setBillingAddress] = useState({
+    pincode: selectedLead?.SENDER_PINCODE || '',
+    state: selectedLead?.SENDER_STATE || '',
+    city: selectedLead?.SENDER_CITY || '',
+    add: selectedLead?.SENDER_ADDRESS || '',
+    country: selectedLead?.SENDER_COUNTRY_ISO || '',
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (billingAddress.pincode && billingAddress.pincode.length === 6) {
+        setIsLoadingAddress(true);
+        try {
+          const data = await getAddress(billingAddress.pincode);
+          if (data) {
+            setBillingAddress(prev => ({ ...prev, state: data.state, city: data.city, country: data.country }));
+          } else {
+            setBillingAddress(prev => ({ ...prev, state: '', city: '', country: '' }));
+          }
+        } catch {
+          setBillingAddress(prev => ({ ...prev, state: '', city: '', country: '' }));
+        } finally {
+          setIsLoadingAddress(false);
+        }
+      } else if (billingAddress.pincode.length < 6) {
+        setBillingAddress(prev => ({ ...prev, state: '', city: '', country: '' }));
+      }
+    };
+    const timeoutId = setTimeout(fetchData, 500);
+    return () => clearTimeout(timeoutId);
+  }, [billingAddress.pincode]);
+
+  const checkDuplicate = async () => {
+    if (!email && !custName) return toast.error('Enter email or company name to check');
+    setCheckingDuplicate(true);
+    setExistingCustomer(null);
+    setDuplicateChecked(false);
+    try {
+      let found = null;
+      if (email) {
+        const emailResult = await getCustomers(1, 5, email);
+        if (emailResult?.customers?.length > 0) {
+          found = emailResult.customers.find(c => c.email?.toLowerCase() === email.toLowerCase());
+        }
+      }
+      if (!found && custName) {
+        const nameResult = await getCustomers(1, 5, custName);
+        if (nameResult?.customers?.length > 0) {
+          found = nameResult.customers.find(c => c.custName?.toLowerCase() === custName.toLowerCase());
+        }
+      }
+      setExistingCustomer(found || null);
+      setDuplicateChecked(true);
+      if (!found) toast.success('No duplicate found — safe to create!');
+    } catch {
+      toast.error('Could not check for duplicates');
+    } finally {
+      setCheckingDuplicate(false);
+    }
+  };
+
+  const handleCustomerSubmit = async (e) => {
+    e.preventDefault();
+    if (!custName || !phoneNumber1 || !email || !billingAddress.pincode ||
+        !billingAddress.state || !billingAddress.city || !billingAddress.add || !zone || !GSTNo) {
+      return toast.error('Please fill all required fields');
+    }
+    if (!validator.isEmail(email)) return toast.error('Enter valid Email');
+    if (billingAddress.pincode.length !== 6 || !/^\d{6}$/.test(billingAddress.pincode))
+      return toast.error('Enter valid 6-digit Pincode');
+    if (!validator.isMobilePhone(phoneNumber1, 'any', { strictMode: false }))
+      return toast.error('Please enter valid phone number for Contact Person 1.');
+    if (phoneNumber2 && !validator.isMobilePhone(phoneNumber2, 'any', { strictMode: false }))
+      return toast.error('Please enter valid phone number for Contact Person 2.');
+
+    setIsSubmitting(true);
+    const loadingToast = toast.loading('Creating Customer...');
+    const data = await createCustomer({
+      custName, phoneNumber1, email,
+      customerContactPersonName1, customerContactPersonName2,
+      phoneNumber2, billingAddress, zone, GSTNo, ownedBy,
+    });
+    toast.dismiss(loadingToast);
+    setIsSubmitting(false);
+
+    if (data?.success) {
+      toast.success('Customer created successfully!', { duration: 4000 });
+      onSuccess && onSuccess(data);
+    } else {
+      toast.error(data?.error || 'Failed to create customer', { duration: 5000 });
+    }
+  };
+
+  return (
+    <div className="border rounded p-3 mt-3" style={{ background: '#f8f9fa' }}>
+      <h6 className="fw-bold text-primary border-bottom pb-2 mb-3">
+        <i className="fa-solid fa-user-plus me-2"></i>Create Customer from this Lead
+      </h6>
+      <div className="alert alert-info py-2 mb-3">
+        <small>
+          <i className="fa fa-info-circle me-2"></i>
+          Lead data has been pre-filled. Please review and complete the form.
+          Creating as: <strong>{user?.name}</strong>
+        </small>
+      </div>
+
+      {duplicateChecked && existingCustomer && (
+        <div className="alert alert-warning border border-warning mb-3">
+          <div className="fw-bold mb-2">
+            <i className="fa-solid fa-triangle-exclamation me-2 text-warning"></i>Customer May Already Exist!
+          </div>
+          <div className="row g-2" style={{ fontSize: '13px' }}>
+            <div className="col-md-6"><span className="text-muted">Company Name:</span> <strong>{existingCustomer.custName || '—'}</strong></div>
+            <div className="col-md-6"><span className="text-muted">Email:</span> <strong>{existingCustomer.email || '—'}</strong></div>
+            <div className="col-md-6"><span className="text-muted">Phone:</span> <strong>{existingCustomer.phoneNumber1 || '—'}</strong></div>
+            <div className="col-md-6"><span className="text-muted">Contact Person:</span> <strong>{existingCustomer.customerContactPersonName1 || '—'}</strong></div>
+          </div>
+        </div>
+      )}
+      {duplicateChecked && !existingCustomer && (
+        <div className="alert alert-success py-2 mb-3">
+          <i className="fa-solid fa-circle-check me-2"></i>
+          <strong>No duplicate found</strong> — safe to create!
+        </div>
+      )}
+
+      <form onSubmit={handleCustomerSubmit}>
+        <div className="row g-3">
+          <div className="col-md-6">
+            <label className="form-label fw-bold">Full Name <RequiredStar /></label>
+            <input type="text" className="form-control" value={custName}
+              onChange={(e) => { if (/^[a-zA-Z0-9\s]*$/.test(e.target.value)) setCustName(e.target.value); }}
+              placeholder="Company / Customer Name" maxLength={300} required />
+          </div>
+          <div className="col-md-6">
+            <label className="form-label fw-bold">Email <RequiredStar /></label>
+            <input type="email" className="form-control" value={email}
+              onChange={(e) => setEmail(e.target.value)} placeholder="Enter Email" maxLength={50} required />
+          </div>
+          <div className="col-md-6">
+            <label className="form-label fw-bold">Owned By</label>
+            <input type="text" className="form-control" value={ownedBy}
+              onChange={(e) => setOwnedBy(e.target.value)} placeholder="Enter owner name" />
+          </div>
+          <div className="col-md-6">
+            <label className="form-label fw-bold">GST Number <RequiredStar /> <small className="text-muted fw-normal">[If not available, put NA]</small></label>
+            <input type="text" className="form-control text-uppercase" value={GSTNo}
+              onChange={(e) => setGSTNo(e.target.value.toUpperCase())}
+              placeholder="Enter GST Number" maxLength={15} minLength={2} required />
+          </div>
+          <div className="col-md-6">
+            <label className="form-label fw-bold">Zone <RequiredStar /></label>
+            <select className="form-select" value={zone} onChange={(e) => setZone(e.target.value)} required>
+              <option value="">Select Zone</option>
+              <option value="South">South</option>
+              <option value="North">North</option>
+              <option value="East">East</option>
+              <option value="West">West</option>
+              <option value="Central">Central</option>
+            </select>
+          </div>
+          <div className="col-12">
+            <div className="border rounded p-3 bg-white">
+              <span className="fw-bold text-muted small text-uppercase">Contact Information</span>
+              <div className="row g-2 mt-1">
+                <div className="col-md-6">
+                  <label className="form-label fw-bold">Contact Person 1 <RequiredStar /></label>
+                  <input type="text" className="form-control" value={customerContactPersonName1}
+                    onChange={(e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setCustomerContactPersonName1(e.target.value); }}
+                    maxLength={50} required />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label fw-bold">Contact Person 2</label>
+                  <input type="text" className="form-control" value={customerContactPersonName2}
+                    onChange={(e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setCustomerContactPersonName2(e.target.value); }}
+                    maxLength={50} />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label fw-bold">Phone 1 <RequiredStar /></label>
+                  <input type="tel" className="form-control" value={phoneNumber1}
+                    onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); if (v.length <= 10) setPhoneNumber1(v); }}
+                    maxLength={10} required />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label fw-bold">Phone 2</label>
+                  <input type="tel" className="form-control" value={phoneNumber2}
+                    onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); if (v.length <= 10) setPhoneNumber2(v); }}
+                    maxLength={10} />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="col-12">
+            <div className="border rounded p-3 bg-white">
+              <span className="fw-bold text-muted small text-uppercase">Address <RequiredStar /></span>
+              <div className="row g-2 mt-1">
+                <div className="col-md-6">
+                  <label className="form-label fw-bold">Pincode <RequiredStar /></label>
+                  <input type="text" className="form-control" value={billingAddress.pincode}
+                    onChange={(e) => { if (/^\d{0,6}$/.test(e.target.value)) setBillingAddress(prev => ({ ...prev, pincode: e.target.value })); }}
+                    placeholder="6-digit Pincode" maxLength={6} />
+                  {isLoadingAddress && <small className="text-info">Loading address...</small>}
+                  {billingAddress.pincode.length === 6 && !isLoadingAddress && !billingAddress.state && (
+                    <small className="text-danger">Invalid pincode</small>
+                  )}
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label fw-bold">State</label>
+                  <input type="text" className="form-control" value={billingAddress.state}
+                    onChange={(e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setBillingAddress(prev => ({ ...prev, state: e.target.value })); }}
+                    placeholder="State (Auto-filled)" style={{ backgroundColor: billingAddress.state ? '#f8f9fa' : 'white' }} />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label fw-bold">City</label>
+                  <input type="text" className="form-control" value={billingAddress.city}
+                    onChange={(e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setBillingAddress(prev => ({ ...prev, city: e.target.value })); }}
+                    placeholder="City (Auto-filled)" style={{ backgroundColor: billingAddress.city ? '#f8f9fa' : 'white' }} />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label fw-bold">Country</label>
+                  <input type="text" className="form-control" value={billingAddress.country}
+                    onChange={(e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setBillingAddress(prev => ({ ...prev, country: e.target.value })); }}
+                    placeholder="Country (Auto-filled)" style={{ backgroundColor: billingAddress.country ? '#f8f9fa' : 'white' }} />
+                </div>
+                <div className="col-12">
+                  <label className="form-label fw-bold">Full Address <RequiredStar /></label>
+                  <textarea className="form-control" rows={2} value={billingAddress.add}
+                    onChange={(e) => setBillingAddress(prev => ({ ...prev, add: e.target.value }))}
+                    placeholder="House No., Building Name, Road, Area, Colony" maxLength={500} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="d-flex gap-2 mt-3 flex-wrap align-items-center">
+          <button type="button" className="btn btn-warning px-4" onClick={checkDuplicate} disabled={checkingDuplicate || isSubmitting}>
+            {checkingDuplicate ? <><span className="spinner-border spinner-border-sm me-1"></span> Checking...</> : <><i className="fa-solid fa-magnifying-glass me-1"></i> Check Duplicate</>}
+          </button>
+          <button type="submit" className="btn btn-primary px-4" disabled={checkingDuplicate || isSubmitting}>
+            {isSubmitting ? <><span className="spinner-border spinner-border-sm me-1"></span> Adding...</> : <><i className="fa-solid fa-user-plus me-1"></i> Add Customer</>}
+          </button>
+          <button type="button" className="btn btn-secondary px-4" onClick={onCancel} disabled={isSubmitting}>Cancel</button>
+          {!checkingDuplicate && duplicateChecked && !existingCustomer && (
+            <span className="text-success fw-bold small">
+              <i className="fa-solid fa-circle-check me-1"></i> No duplicate — safe to add
+            </span>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// Inline Purchase Order Form
+// ─────────────────────────────────────────────
+const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel, projects }) => {
+  const today = new Date().toISOString().split('T')[0];
+  const [orderDate, setOrderDate] = useState(today);
+  const [orderTime, setOrderTime] = useState(new Date().toTimeString().slice(0, 5));
+  const [transactionType, setTransactionType] = useState('');
+  const [purchaseType, setPurchaseType] = useState('');
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [warehouseLocation, setWarehouseLocation] = useState('');
+  const [remark, setRemark] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [location, setLocation] = useState('');
+  const [useDefaultAddress, setUseDefaultAddress] = useState(false);
+  const [advancePay, setAdvancePay] = useState(0);
+  const [payAgainstDelivery, setPayAgainstDelivery] = useState(0);
+  const [payAfterCompletion, setPayAfterCompletion] = useState(0);
+  const [retention, setRetention] = useState(0);
+  const [creditPeriod, setCreditPeriod] = useState(0);
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [materialFollowupDate, setMaterialFollowupDate] = useState('');
+  const [termsDocument, setTermsDocument] = useState(null);
+  const [vendors, setVendors] = useState([]);
+  const [selectedVendor, setSelectedVendor] = useState(null);
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [allBrands, setAllBrands] = useState([]);
+  const [brandModelsMap, setBrandModelsMap] = useState(new Map());
+  const [products, setProducts] = useState([]);
+  const [allModels, setAllModels] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [showCreditPopup, setShowCreditPopup] = useState(false);
+  const [showPaymentTermsPopup, setShowPaymentTermsPopup] = useState(false);
+
+  const DEFAULT_DELIVERY_ADDRESS = 'Office No. - 05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India';
+  const DEFAULT_LOCATION = 'Baner, Pune';
+
+  const [items, setItems] = useState([{
+    brandName: '', modelNo: '', description: selectedLead?.QUERY_PRODUCT_NAME || '',
+    unit: '', baseUOM: '', quantity: 1, price: selectedLead?.quotation || 0,
+    discountPercent: 0, taxPercent: 0, netValue: selectedLead?.quotation || 0,
+  }]);
+
+  useEffect(() => {
+    const v = 100 - (Number(advancePay) + Number(payAgainstDelivery) + Number(payAfterCompletion));
+    setRetention(v >= 0 ? v : 0);
+  }, [advancePay, payAgainstDelivery, payAfterCompletion]);
+
+  useEffect(() => {
+    const loadVendors = async () => {
+      const data = await getVendors(1, 1000, vendorSearch);
+      if (data?.success) setVendors(data.vendors.map((v) => ({ value: v._id, label: `${v.vendorName} - ${v.email}` })));
+    };
+    loadVendors();
+  }, [vendorSearch]);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      setLoadingProducts(true);
+      let allProducts = []; let currentPage = 1; let hasMore = true;
+      try {
+        while (hasMore) {
+          const data = await getProducts(currentPage, 100, '');
+          if (data?.success && data.products?.length > 0) { allProducts = [...allProducts, ...data.products]; hasMore = data.products.length >= 100; currentPage++; }
+          else hasMore = false;
+        }
+        setProducts(allProducts);
+        const map = new Map();
+        allProducts.forEach((p) => { if (p.brandName && p.model) { if (!map.has(p.brandName)) map.set(p.brandName, new Set()); map.get(p.brandName).add(p.model); } });
+        setBrandModelsMap(map);
+        setAllBrands([...new Set(allProducts.map((p) => p.brandName).filter(Boolean))].map((b) => ({ value: b, label: b })));
+        setAllModels([...new Set(allProducts.map((p) => p.model).filter(Boolean))].map((m) => ({ value: m, label: m })));
+      } catch { toast.error('Failed to load products'); } finally { setLoadingProducts(false); }
+    };
+    loadProducts();
+  }, []);
+
+  const calculateNetValue = (item) => { const base = item.quantity * item.price; const ad = base - base * (item.discountPercent / 100); return ad + ad * (item.taxPercent / 100); };
+  const handleItemChange = (index, field, value) => {
+    const ni = [...items]; ni[index][field] = value;
+    if (field === 'brandName') { ni[index].modelNo = ''; ni[index].baseUOM = ''; }
+    if (field === 'modelNo' && value && ni[index].brandName) {
+      const p = products.find((p) => p.brandName === ni[index].brandName && p.model === value);
+      if (p) { ni[index].baseUOM = p.baseUOM || ''; ni[index].description = p.description || ''; ni[index].unit = p.baseUOM || ''; }
+    }
+    ni[index].netValue = calculateNetValue(ni[index]); setItems(ni);
+  };
+  const handleAddItem = () => setItems([...items, { brandName: '', modelNo: '', description: '', unit: '', baseUOM: '', quantity: 1, price: 0, discountPercent: 0, taxPercent: 0, netValue: 0 }]);
+  const handleRemoveItem = (i) => { if (items.length > 1) setItems(items.filter((_, idx) => idx !== i)); };
+  const calculateTotals = () => {
+    const totalAmount = items.reduce((s, i) => { const b = i.quantity * i.price; return s + b - b * (i.discountPercent / 100); }, 0);
+    const totalTax = items.reduce((s, i) => { const b = i.quantity * i.price; const ad = b - b * (i.discountPercent / 100); return s + ad * (i.taxPercent / 100); }, 0);
+    return { totalAmount, totalTax, grandTotal: totalAmount + totalTax };
+  };
+  const { totalAmount, totalTax, grandTotal } = calculateTotals();
+
+  const handleToggleDefaultAddress = () => {
+    const next = !useDefaultAddress; setUseDefaultAddress(next);
+    if (next) { setDeliveryAddress(DEFAULT_DELIVERY_ADDRESS); setLocation(DEFAULT_LOCATION); toast.success('Default address applied'); }
+    else { setDeliveryAddress(''); setLocation(''); }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedVendor) return toast.error('Please select a vendor');
+    for (const item of items) { if (item.quantity < 1 || item.price < 0) return toast.error('Please fill all item details correctly'); }
+    const orderDateTime = new Date(`${orderDate}T${orderTime}`);
+    const poData = {
+      vendor: selectedVendor.value, orderDate: orderDateTime, transactionType, purchaseType,
+      project: purchaseType === 'Project Purchase' ? selectedProject?.value : undefined,
+      warehouseLocation: purchaseType === 'Stock' ? warehouseLocation : undefined,
+      deliveryAddress, location, items, totalAmount, totalTax, grandTotal, remark,
+      paymentTerms: { advance: advancePay, payAgainstDelivery, payAfterCompletion, creditPeriod },
+      deliveryDate: deliveryDate ? new Date(deliveryDate) : undefined,
+      materialFollowupDate: materialFollowupDate ? new Date(materialFollowupDate) : undefined,
+      sourceLeadId: selectedLead?._id, sourceLeadCompany: selectedLead?.SENDER_COMPANY,
+    };
+    if (termsDocument) {
+      const fd = new FormData(); fd.append('file', termsDocument); fd.append('poData', JSON.stringify(poData));
+      toast.loading('Creating Purchase Order...');
+      try {
+        const r = await fetch(`${process.env.REACT_APP_API_URL}/api/purchaseOrder/upload`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, body: fd });
+        const data = await r.json(); toast.dismiss();
+        if (data.success) { toast.success(data.message || 'Purchase Order created!'); onSuccess && onSuccess(data); }
+        else toast.error(data.error || 'Failed to create purchase order');
+      } catch { toast.dismiss(); toast.error('Failed to upload document'); }
+    } else {
+      toast.loading('Creating Purchase Order...');
+      const data = await createPurchaseOrder(poData); toast.dismiss();
+      if (data?.success) { toast.success(data.message || 'Purchase Order created!'); onSuccess && onSuccess(data); }
+      else toast.error(data?.error || 'Failed to create purchase order');
+    }
+  };
+
+  return (
+    <div className="border rounded p-3 mt-3" style={{ background: '#f8f9fa' }}>
+      <h6 className="fw-bold text-success border-bottom pb-2 mb-3"><i className="fa-solid fa-file-invoice me-2"></i>Create Purchase Order from this Lead</h6>
+      <form onSubmit={handleSubmit}>
+        <div className="row g-3">
+          <div className="col-md-6"><label className="form-label fw-bold">Vendor Name <span className="text-danger">*</span></label><Select value={selectedVendor} onChange={setSelectedVendor} onInputChange={setVendorSearch} options={vendors} placeholder="Select Vendor..." isClearable /></div>
+          <div className="col-md-3"><label className="form-label fw-bold">Order Date</label><input type="date" className="form-control" value={orderDate} max={today} onChange={(e) => { if (new Date(e.target.value) <= new Date()) setOrderDate(e.target.value); else toast.error('Future dates not allowed'); }} /></div>
+          <div className="col-md-3"><label className="form-label fw-bold">Order Time</label><input type="time" className="form-control" value={orderTime} onChange={(e) => setOrderTime(e.target.value)} /></div>
+          <div className="col-md-6"><label className="form-label fw-bold">Transaction Type</label><select className="form-select" value={transactionType} onChange={(e) => setTransactionType(e.target.value)}><option value="">Select Transaction Type</option><option value="B2B">B2B</option><option value="SEZ">SEZ</option><option value="Import">Import</option><option value="Asset">Asset</option></select></div>
+          <div className="col-md-6"><label className="form-label fw-bold">Purchase Type</label><select className="form-select" value={purchaseType} onChange={(e) => setPurchaseType(e.target.value)}><option value="">Select Type</option><option value="Project Purchase">Project Purchase</option><option value="Stock">Stock</option></select></div>
+          {purchaseType === 'Project Purchase' && (<div className="col-md-6"><label className="form-label fw-bold">Project Name</label><Select value={selectedProject} onChange={setSelectedProject} options={projects} placeholder="Select Project..." isClearable /></div>)}
+          {purchaseType === 'Stock' && (<div className="col-md-6"><label className="form-label fw-bold">Warehouse Location</label><input type="text" className="form-control" value={warehouseLocation} onChange={(e) => setWarehouseLocation(e.target.value)} placeholder="Ex: Baner / Amazon / Mumbai" maxLength={200} /></div>)}
+          <div className="col-12"><div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="defaultAddressTogglePO" checked={useDefaultAddress} onChange={handleToggleDefaultAddress} style={{ cursor: 'pointer' }} /><label className="form-check-label" htmlFor="defaultAddressTogglePO" style={{ cursor: 'pointer' }}>Use Default Office Address</label></div></div>
+          <div className="col-md-6"><label className="form-label fw-bold">Delivery Address</label><textarea className="form-control" rows="2" value={deliveryAddress} onChange={(e) => { setDeliveryAddress(e.target.value); if (useDefaultAddress && e.target.value !== DEFAULT_DELIVERY_ADDRESS) setUseDefaultAddress(false); }} placeholder="Enter delivery address" maxLength={500} /></div>
+          <div className="col-md-6"><label className="form-label fw-bold">Location</label><input type="text" className="form-control" value={location} onChange={(e) => { setLocation(e.target.value); if (useDefaultAddress && e.target.value !== DEFAULT_LOCATION) setUseDefaultAddress(false); }} placeholder="Enter location" maxLength={200} /></div>
+          <div className="col-md-6"><label className="form-label fw-bold">Terms & Conditions Document</label><input type="file" className="form-control" onChange={(e) => setTermsDocument(e.target.files[0])} accept=".pdf,.doc,.docx" /></div>
+        </div>
+        <div className="mt-3">
+          <div className="d-flex justify-content-between align-items-center mb-2"><h6 className="fw-bold mb-0">Item Details</h6><button type="button" className="btn btn-sm btn-primary" onClick={handleAddItem}><i className="fa fa-plus me-1"></i> Add Item</button></div>
+          {loadingProducts && (<div className="text-center py-2"><div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Loading products...</div>)}
+          <div className="table-responsive">
+            <table className="table table-bordered table-sm">
+              <thead className="table-light"><tr><th>Brand</th><th>Model</th><th>Description</th><th>Base UOM</th><th>Qty</th><th>Price (₹)</th><th>Disc %</th><th>Tax %</th><th>Net Value</th><th>Action</th></tr></thead>
+              <tbody>
+                {items.map((item, index) => {
+                  const bm = brandModelsMap.get(item.brandName);
+                  const mo = bm ? Array.from(bm).map((m) => ({ value: m, label: m })) : [];
+                  return (
+                    <tr key={index}>
+                      <td style={{ minWidth: 140 }}><Select value={allBrands.find((b) => b.value === item.brandName) || null} onChange={(s) => handleItemChange(index, 'brandName', s ? s.value : '')} options={allBrands} placeholder="Brand..." isClearable menuPortalTarget={document.body} styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }} /></td>
+                      <td style={{ minWidth: 140 }}><Select value={mo.find((m) => m.value === item.modelNo) || null} onChange={(s) => handleItemChange(index, 'modelNo', s ? s.value : '')} options={mo} placeholder="Model..." isClearable isDisabled={!item.brandName} menuPortalTarget={document.body} styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }} /></td>
+                      <td><textarea className="form-control form-control-sm" style={{ width: 150 }} rows={1} value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} /></td>
+                      <td><input type="text" className="form-control form-control-sm" style={{ minWidth: 80 }} value={item.baseUOM} onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)} /></td>
+                      <td><input type="number" className="form-control form-control-sm" style={{ minWidth: 60 }} value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))} min="1" /></td>
+                      <td><input type="number" className="form-control form-control-sm" style={{ minWidth: 90 }} value={item.price} onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))} min="0" step="0.01" /></td>
+                      <td><input type="number" className="form-control form-control-sm" style={{ minWidth: 60 }} value={item.discountPercent} onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))} min="0" max="100" /></td>
+                      <td><input type="number" className="form-control form-control-sm" style={{ minWidth: 60 }} value={item.taxPercent} onChange={(e) => handleItemChange(index, 'taxPercent', Number(e.target.value))} min="0" max="100" /></td>
+                      <td><input type="text" className="form-control form-control-sm" style={{ minWidth: 90 }} value={item.netValue.toFixed(2)} readOnly /></td>
+                      <td><button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveItem(index)} disabled={items.length === 1}><i className="fa fa-trash"></i></button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr><td colSpan={8} className="text-end fw-bold">Total Amount</td><td className="fw-bold">₹{totalAmount.toFixed(2)}</td><td></td></tr>
+                <tr><td colSpan={8} className="text-end fw-bold">Total Tax</td><td className="fw-bold">₹{totalTax.toFixed(2)}</td><td></td></tr>
+                <tr className="table-success"><td colSpan={8} className="text-end fw-bold">Grand Total</td><td className="fw-bold">₹{grandTotal.toFixed(2)}</td><td></td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+        <div className="row g-3 mt-1">
+          <div className="col-md-6"><label className="form-label fw-bold">Credit Period</label><div className="input-group"><input type="text" className="form-control" value={creditPeriod ? `${creditPeriod} days` : 'Click to set credit period'} onClick={() => setShowCreditPopup(true)} readOnly style={{ cursor: 'pointer' }} /><button className="btn btn-outline-secondary" type="button" onClick={() => setShowCreditPopup(true)}><i className="fa fa-calendar"></i></button></div></div>
+          <div className="col-md-6"><label className="form-label fw-bold">Payment Terms</label><div className="input-group"><input type="text" className="form-control" value={`Advance: ${advancePay}%, Delivery: ${payAgainstDelivery}%, Completion: ${payAfterCompletion}%, Retention: ${retention}%`} onClick={() => setShowPaymentTermsPopup(true)} readOnly style={{ cursor: 'pointer' }} /><button className="btn btn-outline-secondary" type="button" onClick={() => setShowPaymentTermsPopup(true)}><i className="fa fa-percent"></i></button></div></div>
+          <div className="col-md-6"><label className="form-label fw-bold">Expected Delivery Date</label><input type="date" className="form-control" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} /></div>
+          <div className="col-md-6"><label className="form-label fw-bold">Material Followup Date</label><input type="date" className="form-control" value={materialFollowupDate} onChange={(e) => setMaterialFollowupDate(e.target.value)} /></div>
+          <div className="col-12"><label className="form-label fw-bold">Remark</label><textarea className="form-control" rows="2" value={remark} onChange={(e) => setRemark(e.target.value)} maxLength={1000} /></div>
+        </div>
+        <div className="d-flex gap-2 mt-3">
+          <button type="submit" className="btn btn-success px-4"><i className="fa-solid fa-file-invoice me-1"></i> Create MRF</button>
+          <button type="button" className="btn btn-secondary px-4" onClick={onCancel}>Cancel</button>
+        </div>
+      </form>
+      {showCreditPopup && (
+        <div className="modal fade show" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#00000090', zIndex: 9999 }}>
+          <div className="modal-dialog modal-dialog-centered"><div className="modal-content p-3">
+            <div className="modal-header pt-0"><h5 className="card-title fw-bold">Set Credit Period</h5><button onClick={() => setShowCreditPopup(false)} type="button" className="btn-close"></button></div>
+            <div className="modal-body">
+              <label className="form-label fw-bold">Credit Period (Days)</label>
+              <input type="number" className="form-control" value={creditPeriod} onChange={(e) => setCreditPeriod(Number(e.target.value))} min="0" />
+              <div className="d-flex justify-content-end mt-3 gap-2"><button type="button" className="btn btn-secondary" onClick={() => setShowCreditPopup(false)}>Cancel</button><button type="button" className="btn btn-primary" onClick={() => setShowCreditPopup(false)}>Save</button></div>
+            </div>
+          </div></div>
+        </div>
+      )}
+      {showPaymentTermsPopup && (
+        <div className="modal fade show" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#00000090', zIndex: 9999 }}>
+          <div className="modal-dialog modal-dialog-centered"><div className="modal-content p-3">
+            <div className="modal-header pt-0"><h5 className="card-title fw-bold">Payment Terms</h5><button onClick={() => setShowPaymentTermsPopup(false)} type="button" className="btn-close"></button></div>
+            <div className="modal-body">
+              {[{ label: 'Advance Payment (%)', value: advancePay, setter: setAdvancePay },{ label: 'Pay Against Delivery (%)', value: payAgainstDelivery, setter: setPayAgainstDelivery },{ label: 'Pay After Completion (%)', value: payAfterCompletion, setter: setPayAfterCompletion }].map(({ label, value, setter }) => (
+                <div className="mb-3" key={label}><label className="form-label fw-bold">{label}</label><input type="number" step="0.01" min="0" max="100" className="form-control" value={value} onChange={(e) => { const v = e.target.value; if (/^\d*\.?\d*$/.test(v) && Number(v) <= 100) setter(v); }} /></div>
+              ))}
+              <div className="mb-3"><label className="form-label fw-bold">Retention (%)</label><input type="number" className="form-control" value={retention} readOnly style={{ backgroundColor: '#e9ecef' }} /></div>
+              <div className="d-flex justify-content-end gap-2"><button type="button" className="btn btn-secondary" onClick={() => setShowPaymentTermsPopup(false)}>Cancel</button><button type="button" className="btn btn-primary" onClick={() => setShowPaymentTermsPopup(false)}>Save</button></div>
+            </div>
+          </div></div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// Main ViewSalesLeadPopUp Component
+// ─────────────────────────────────────────────
 const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
-  if (!selectedLead) {
-    return null;
-  }
+  const { user } = useUser();
 
-  console.log("Selected Lead Data:", selectedLead);
+  const [showPOForm, setShowPOForm] = useState(false);
+  const [poCreated, setPoCreated] = useState(false);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [customerCreated, setCustomerCreated] = useState(false);
+  const [projects, setProjects] = useState([]);
 
-  const fullAddress = [
-    selectedLead.SENDER_ADDRESS,
-    selectedLead.SENDER_CITY,
-    selectedLead.SENDER_STATE,
-    selectedLead.SENDER_PINCODE,
-    selectedLead.SENDER_COUNTRY_ISO,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const baseUrl = process.env.REACT_APP_API_URL;
+        const response = await axios.get(`${baseUrl}/api/project`, { params: { page: 1, limit: 100 }, headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+        if (response.data?.success) setProjects(response.data.projects.map((p) => ({ value: p._id, label: p.name })));
+      } catch (err) { console.error('Error fetching projects:', err); }
+    };
+    fetchProjects();
+  }, []);
+
+  if (!selectedLead) return null;
+
+  const isWonLead = selectedLead?.STATUS === 'Won';
+
+  // ✅ FIX: Sales employees have 'createLead' permission.
+  // Backend customerRoutes.js now accepts 'createLead' OR 'createCustomer'.
+  // So sales employees can now create customers from leads without needing 'createCustomer'.
+  const canCreateCustomer =
+    user?.permissions?.includes('createCustomer') ||
+    user?.permissions?.includes('createLead') ||
+    user?.user === 'company';
+
+  const fullAddress = [selectedLead.SENDER_ADDRESS, selectedLead.SENDER_CITY, selectedLead.SENDER_STATE, selectedLead.SENDER_PINCODE, selectedLead.SENDER_COUNTRY_ISO].filter(Boolean).join(', ');
+
+  const handlePOSuccess = (data) => {
+    setPoCreated(true); setShowPOForm(false);
+    toast.success(`Purchase Order ${data.orderNumber || ''} created successfully!`);
+  };
+
+  const handleCustomerSuccess = (data) => {
+    setCustomerCreated(true);
+    setShowCustomerForm(false);
+  };
 
   return (
     <>
-      <div
-        className="modal fade show"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          backgroundColor: "#00000090",
-        }}
-      >
-        <div className="modal-dialog modal-xl modal-dialog-centered" style={{ maxHeight: '90vh' }}>
-          <div className="modal-content p-3" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
-
-            {/* HEADER */}
+      <div className="modal fade show" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#00000090', zIndex: 1060 }}>
+        <div className="modal-dialog modal-xl modal-dialog-centered" style={{ maxHeight: '95vh', maxWidth: '1100px' }}>
+          <div className="modal-content p-3" style={{ maxHeight: '95vh', overflowY: 'auto' }}>
             <div className="modal-header pt-0 border-0">
               <h5 className="card-title fw-bold" id="exampleModalLongTitle">
-                <i className="fa-solid fa-eye me-2"></i>
-                Sales Lead Details{" "}
-                {selectedLead?.SOURCE?.toLowerCase().includes("indiamart") && (
-                  <img src="/static/assets/img/Indiamart.png" alt="Indiamart" style={{ height: "40px", marginLeft:"23px" }} />
-                )}
-                {selectedLead?.SOURCE?.toLowerCase().includes("tradeindia") && (
-                  <img src="/static/assets/img/tradeindia.png" alt="TradeIndia" style={{ width: "60px", marginLeft:"23px"}} />
-                )}
-                {selectedLead?.SOURCE?.toLowerCase().includes("facebook") && (
-                  <img src="/static/assets/img/facebook.png" alt="facebook" style={{ height: "40px", marginLeft:"23px" }} />
-                )}
-                {selectedLead?.SOURCE?.toLowerCase().includes("google") && (
-                  <img src="/static/assets/img/google.png" alt="google" style={{ height: "40px", marginLeft:"23px" }} />
-                )}
-                {selectedLead?.SOURCE?.toLowerCase().includes("linkedin") && (
-                  <img src="/static/assets/img/linkedin.png" alt="linkedin" style={{ height: "40px",marginLeft:"23px" }} />
-                )}
-                {selectedLead?.SOURCE?.toLowerCase().includes("direct") && (
-                  <img src="/static/assets/img/nav/DACCESS.png" alt="direct" style={{ height: "40px",marginLeft:"23px" }} />
-                )}
+                <i className="fa-solid fa-eye me-2"></i>Sales Lead Details{' '}
+                {selectedLead?.SOURCE?.toLowerCase().includes('indiamart') && <img src="/static/assets/img/Indiamart.png" alt="Indiamart" style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('tradeindia') && <img src="/static/assets/img/tradeindia.png" alt="TradeIndia" style={{ width: '60px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('facebook') && <img src="/static/assets/img/facebook.png" alt="facebook" style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('google') && <img src="/static/assets/img/google.png" alt="google" style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('linkedin') && <img src="/static/assets/img/linkedin.png" alt="linkedin" style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('direct') && <img src="/static/assets/img/nav/DACCESS.png" alt="direct" style={{ height: '40px', marginLeft: '23px' }} />}
               </h5>
-
-              <button
-                onClick={closePopUp}
-                type="button"
-                className="btn-close"
-                aria-label="Close"
-              ></button>
+              <button onClick={closePopUp} type="button" className="btn-close" aria-label="Close"></button>
             </div>
-
-            {/* BODY */}
             <div className="modal-body pt-0">
               <div className="row">
-
-                {/* Sender Information */}
                 <div className="col-md-6 mb-3">
-                  <h6 className="text-muted border-bottom pb-2 mb-3">
-                    <i className="fa-solid fa-user me-2"></i>
-                    Sender Information
+                  <h6 className="text-muted border-bottom pb-2 mb-3"><i className="fa-solid fa-user me-2"></i>Sender Information</h6>
+                  <h6 className="mt-3 d-flex align-items-center gap-2"><span className="fw-bold">Source:</span>
+                    {selectedLead?.SOURCE?.toLowerCase() === 'indiamart' && <span>IndiaMart</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'tradeindia' && <span>TradeIndia</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'facebook' && <span>Facebook</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'google' && <span>Google</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'linkedin' && <span>LinkedIn</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'direct' && <span>Direct</span>}
+                    {!['indiamart','tradeindia','facebook','google','linkedin','direct'].includes(selectedLead?.SOURCE?.toLowerCase()) && <span>{selectedLead?.SOURCE || '-'}</span>}
                   </h6>
-
-                  <h6 className="mt-3 d-flex align-items-center gap-2">
-                    <span className="fw-bold">Source:</span>
-                    {selectedLead?.SOURCE?.toLowerCase() === "indiamart" && <span>IndiaMart</span>}
-                    {selectedLead?.SOURCE?.toLowerCase() === "tradeindia" && <span>TradeIndia</span>}
-                    {selectedLead?.SOURCE?.toLowerCase() === "facebook" && <span>Facebook</span>}
-                    {selectedLead?.SOURCE?.toLowerCase() === "google" && <span>Google</span>}
-                    {selectedLead?.SOURCE?.toLowerCase() === "linkedin" && <span>LinkedIn</span>}
-                    {selectedLead?.SOURCE.toLowerCase() === "direct" && <span>Direct</span>}
-                    {!["indiamart", "tradeindia", "facebook", "google", "linkedin", "direct"].includes(selectedLead?.SOURCE?.toLowerCase()) && (
-                      <span>{selectedLead?.SOURCE || "-"}</span>
-                    )}
-                  </h6>
-
-                  <h6 className='mt-3'>
-                    <p className="fw-bold d-inline">Name: </p>
-                    {selectedLead?.SENDER_NAME || "-"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Company: </p>
-                    {selectedLead?.SENDER_COMPANY || "-"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Email: </p>
-                    {selectedLead?.SENDER_EMAIL || "-"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Mobile: </p>
-                    {selectedLead?.SENDER_MOBILE || "-"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Address: </p>
-                    {fullAddress || "-"}
-                  </h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Name: </p>{selectedLead?.SENDER_NAME || '-'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Company: </p>{selectedLead?.SENDER_COMPANY || '-'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Email: </p>{selectedLead?.SENDER_EMAIL || '-'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Mobile: </p>{selectedLead?.SENDER_MOBILE || '-'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Address: </p>{fullAddress || '-'}</h6>
                 </div>
-
-                {/* Query Information */}
                 <div className="col-md-6 mb-3">
-                  <h6 className="text-muted border-bottom pb-2 mb-3">
-                    <i className="fa-solid fa-clipboard-question me-2"></i>
-                    Query Information
+                  <h6 className="text-muted border-bottom pb-2 mb-3"><i className="fa-solid fa-clipboard-question me-2"></i>Query Information</h6>
+                  <h6><p className="fw-bold d-inline">Product: </p>{selectedLead?.QUERY_PRODUCT_NAME || '-'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Subject: </p>{selectedLead?.SUBJECT || '-'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Query Time: </p>{formatDate(selectedLead?.createdAt) || '-'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Assigned By: </p>{selectedLead?.assignedBy?.name || 'None'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Assigned To: </p>{selectedLead?.assignedTo?.name || 'None'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Status: </p>
+                    <span className={`badge ms-2 ${selectedLead?.STATUS === 'Won' ? 'bg-success' : selectedLead?.STATUS === 'Lost' ? 'bg-danger' : selectedLead?.STATUS === 'Ongoing' ? 'bg-primary' : 'bg-secondary'}`}>{selectedLead?.STATUS || '-'}</span>
                   </h6>
-                  <h6>
-                    <p className="fw-bold d-inline">Product: </p>
-                    {selectedLead?.QUERY_PRODUCT_NAME || "-"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Subject: </p>
-                    {selectedLead?.SUBJECT || "-"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Query Time: </p>
-                    {/* FIXED: Show actual inquiry time, fallback to createdAt */}
-                    {formatDate(selectedLead?.QUERY_TIME || selectedLead?.createdAt) || "-"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Assigned By: </p>
-                    {selectedLead?.assignedBy?.name || "None"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Assigned To: </p>
-                    {selectedLead?.assignedTo?.name || "None"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Status: </p>
-                    <span className={`badge ms-2 ${
-                      selectedLead?.STATUS === 'Won' ? 'bg-success' :
-                      selectedLead?.STATUS === 'Lost' ? 'bg-danger' :
-                      selectedLead?.STATUS === 'Ongoing' ? 'bg-primary' :
-                      'bg-secondary'
-                    }`}>
-                      {selectedLead?.STATUS || "-"}
-                    </span>
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Current Stage: </p>
-                    {selectedLead?.step || "-"}
-                  </h6>
-                  <h6 className="mt-3">
-                    <p className="fw-bold d-inline">Completed: </p>
-                    <span className="badge bg-info ms-2">{selectedLead?.complated || 0}%</span>
-                  </h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Current Stage: </p>{selectedLead?.step || '-'}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Completed: </p><span className="badge bg-info ms-2">{selectedLead?.complated || 0}%</span></h6>
+                  {isWonLead && (<h6 className="mt-3"><p className="fw-bold d-inline">Won Amount: </p><span className="badge bg-success ms-2">₹{selectedLead?.quotation || 0}</span></h6>)}
                 </div>
-
-                {/* Message */}
                 <div className="col-12 mt-2">
-                  <h6 className="text-muted border-bottom pb-2 mb-2">
-                    <i className="fa-solid fa-message me-2"></i>
-                    Message
-                  </h6>
-                  <p className="text-wrap" style={{ whiteSpace: "pre-wrap" }}>
-                    {selectedLead?.QUERY_MESSAGE || "No message provided."}
-                  </p>
+                  <h6 className="text-muted border-bottom pb-2 mb-2"><i className="fa-solid fa-message me-2"></i>Message</h6>
+                  <p className="text-wrap" style={{ whiteSpace: 'pre-wrap' }}>{selectedLead?.QUERY_MESSAGE || 'No message provided.'}</p>
                 </div>
 
-                {/* Call History */}
-                {selectedLead?.callHistory && selectedLead.callHistory.length > 0 && (
-                  <div className="col-12 mt-4">
-                    <h6 className="text-muted border-bottom pb-2 mb-3">
-                      <i className="fa-solid fa-phone-volume me-2"></i>
-                      Call History
-                      <span className="badge bg-primary ms-2">
-                        {selectedLead.callHistory.length} Total Calls
-                      </span>
+                {/* ✅ ADD CUSTOMER SECTION — only shown for Won leads */}
+                {isWonLead && <div className="col-12 mt-3">
+                  <div className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-2">
+                    <h6 className="text-muted mb-0">
+                      <i className="fa-solid fa-user-plus me-2 text-primary"></i>Add Customer
                     </h6>
+                    {customerCreated && (
+                      <span className="badge bg-success px-3 py-2" style={{ fontSize: '0.85rem' }}>
+                        <i className="fa-solid fa-check-circle me-1"></i> Customer Added Successfully
+                      </span>
+                    )}
+                    {canCreateCustomer && !showCustomerForm && !customerCreated && (
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCustomerForm(true)}>
+                        <i className="fa-solid fa-plus me-1"></i> Create Customer
+                      </button>
+                    )}
+                    {canCreateCustomer && showCustomerForm && !customerCreated && (
+                      <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setShowCustomerForm(false)}>
+                        <i className="fa-solid fa-chevron-up me-1"></i> Hide Form
+                      </button>
+                    )}
+                  </div>
 
-                    <div className="row mb-3">
-                      <div className="col-md-4">
-                        <div className="card border-info">
-                          <div className="card-body py-2">
-                            <div className="d-flex justify-content-between align-items-center">
-                              <span className="text-muted small">Days with Calls</span>
-                              <span className="fw-bold text-info">
-                                {[...new Set(selectedLead.callHistory.map(c => c.day))].length}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="card border-warning">
-                          <div className="card-body py-2">
-                            <div className="d-flex justify-content-between align-items-center">
-                              <span className="text-muted small">Total Attempts</span>
-                              <span className="fw-bold text-warning">
-                                {selectedLead.callHistory.length}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="card border-success">
-                          <div className="card-body py-2">
-                            <div className="d-flex justify-content-between align-items-center">
-                              <span className="text-muted small">Answered Calls</span>
-                              <span className="fw-bold text-success">
-                                {selectedLead.callHistory.filter(c => c.status === 'answered').length}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                  {canCreateCustomer && !showCustomerForm && !customerCreated && (
+                    <p className="text-muted small">
+                      Click <em>Create Customer</em> to add <strong>{selectedLead?.SENDER_COMPANY || 'this lead'}</strong> as a customer. Lead details will be pre-filled automatically.
+                    </p>
+                  )}
+
+                  {customerCreated && (
+                    <div className="alert alert-success d-flex align-items-center gap-2 mt-2">
+                      <i className="fa-solid fa-circle-check fs-5"></i>
+                      <div>
+                        <strong>Customer Added Successfully!</strong>
+                        <div className="small"><strong>{selectedLead?.SENDER_COMPANY || 'Customer'}</strong> has been added to Customer Master.</div>
                       </div>
                     </div>
+                  )}
 
+                  {canCreateCustomer && showCustomerForm && !customerCreated && (
+                    <InlineAddCustomerForm selectedLead={selectedLead} onSuccess={handleCustomerSuccess} onCancel={() => setShowCustomerForm(false)} />
+                  )}
+                </div>}
+
+                {/* PURCHASE ORDER SECTION */}
+                {(selectedLead?.STATUS === 'Won' || selectedLead?.STATUS === 'Ongoing') && (
+                  <div className="col-12 mt-3">
+                    <div className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-2">
+                      <h6 className="text-muted mb-0"><i className="fa-solid fa-file-invoice-dollar me-2 text-success"></i>Purchase Order</h6>
+                      {!showPOForm && !poCreated && (<button type="button" className="btn btn-success btn-sm" onClick={() => setShowPOForm(true)}><i className="fa-solid fa-plus me-1"></i> Create MRF</button>)}
+                      {poCreated && (<span className="badge bg-success fs-6"><i className="fa-solid fa-check me-1"></i> Purchase Order Created</span>)}
+                      {showPOForm && (<button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setShowPOForm(false)}><i className="fa-solid fa-chevron-up me-1"></i> Hide Form</button>)}
+                    </div>
+                    {!showPOForm && !poCreated && (<p className="text-muted small">This lead is marked as <strong>Won</strong> with a quotation of <strong>₹{selectedLead?.quotation || 0}</strong>. Click <em>Create MRF</em> to raise a PO from this lead.</p>)}
+                    {showPOForm && (<InlinePurchaseOrderForm selectedLead={selectedLead} projects={projects} onSuccess={handlePOSuccess} onCancel={() => setShowPOForm(false)} />)}
+                  </div>
+                )}
+
+                {/* CALL HISTORY */}
+                {selectedLead?.callHistory && selectedLead.callHistory.length > 0 && (
+                  <div className="col-12 mt-4">
+                    <h6 className="text-muted border-bottom pb-2 mb-3"><i className="fa-solid fa-phone-volume me-2"></i>Call History<span className="badge bg-primary ms-2">{selectedLead.callHistory.length} Total Calls</span></h6>
+                    <div className="row mb-3">
+                      <div className="col-md-4"><div className="card border-info"><div className="card-body py-2"><div className="d-flex justify-content-between align-items-center"><span className="text-muted small">Days with Calls</span><span className="fw-bold text-info">{[...new Set(selectedLead.callHistory.map((c) => c.day))].length}</span></div></div></div></div>
+                      <div className="col-md-4"><div className="card border-warning"><div className="card-body py-2"><div className="d-flex justify-content-between align-items-center"><span className="text-muted small">Total Attempts</span><span className="fw-bold text-warning">{selectedLead.callHistory.length}</span></div></div></div></div>
+                      <div className="col-md-4"><div className="card border-success"><div className="card-body py-2"><div className="d-flex justify-content-between align-items-center"><span className="text-muted small">Answered Calls</span><span className="fw-bold text-success">{selectedLead.callHistory.filter((c) => c.status === 'answered').length}</span></div></div></div></div>
+                    </div>
                     {(() => {
-                      const callsByDay = {};
-                      selectedLead.callHistory.forEach(call => {
-                        if (!callsByDay[call.day]) {
-                          callsByDay[call.day] = [];
-                        }
-                        callsByDay[call.day].push(call);
-                      });
-
-                      return Object.keys(callsByDay).sort((a, b) => a - b).map(day => (
+                      const cbd = {};
+                      selectedLead.callHistory.forEach((call) => { if (!cbd[call.day]) cbd[call.day] = []; cbd[call.day].push(call); });
+                      return Object.keys(cbd).sort((a, b) => a - b).map((day) => (
                         <div key={day} className="mb-4">
-                          <div className="d-flex align-items-center mb-2">
-                            <span className="badge bg-primary me-2" style={{ fontSize: '0.9rem' }}>
-                              <i className="fa-solid fa-calendar-day me-1"></i>
-                              Day {day}
-                            </span>
-                            <span className="text-muted small">
-                              {callsByDay[day].length} attempt{callsByDay[day].length > 1 ? 's' : ''}
-                            </span>
-                          </div>
-
+                          <div className="d-flex align-items-center mb-2"><span className="badge bg-primary me-2" style={{ fontSize: '0.9rem' }}><i className="fa-solid fa-calendar-day me-1"></i>Day {day}</span><span className="text-muted small">{cbd[day].length} attempt{cbd[day].length > 1 ? 's' : ''}</span></div>
                           <div className="table-responsive">
                             <table className="table table-sm table-bordered table-hover">
-                              <thead className="table-light">
-                                <tr>
-                                  <th style={{ width: '100px' }}>Attempt #</th>
-                                  <th>Date & Time</th>
-                                  <th style={{ width: '120px' }}>Status</th>
-                                  <th>Remarks</th>
-                                </tr>
-                              </thead>
+                              <thead className="table-light"><tr><th style={{ width: '100px' }}>Attempt #</th><th>Date & Time</th><th style={{ width: '120px' }}>Status</th><th>Remarks</th></tr></thead>
                               <tbody>
-                                {callsByDay[day].sort((a, b) => a.attempt - b.attempt).map((call, index) => (
+                                {cbd[day].sort((a, b) => a.attempt - b.attempt).map((call, index) => (
                                   <tr key={index}>
-                                    <td className="text-center fw-bold">
-                                      <i className="fa-solid fa-phone me-1 text-primary"></i>
-                                      Call {call.attempt}
-                                    </td>
-                                    <td>
-                                      <i className="fa-regular fa-clock me-1 text-muted"></i>
-                                      {formatCallDate(call.date)}
-                                    </td>
-                                    <td>
-                                      <span className={`badge w-100 ${call.status === 'answered' ? 'bg-success' : 'bg-warning'}`}>
-                                        {call.status === 'answered' ? (
-                                          <>
-                                            <i className="fa-solid fa-check me-1"></i>
-                                            Answered
-                                          </>
-                                        ) : (
-                                          <>
-                                            <i className="fa-solid fa-phone-slash me-1"></i>
-                                            Attempted
-                                          </>
-                                        )}
-                                      </span>
-                                    </td>
-                                    <td className="text-muted">
-                                      {call.remarks || '-'}
-                                    </td>
+                                    <td className="text-center fw-bold"><i className="fa-solid fa-phone me-1 text-primary"></i>Call {call.attempt}</td>
+                                    <td><i className="fa-regular fa-clock me-1 text-muted"></i>{formatCallDate(call.date)}</td>
+                                    <td><span className={`badge w-100 ${call.status === 'answered' ? 'bg-success' : 'bg-warning'}`}>{call.status === 'answered' ? <><i className="fa-solid fa-check me-1"></i>Answered</> : <><i className="fa-solid fa-phone-slash me-1"></i>Attempted</>}</span></td>
+                                    <td className="text-muted">{call.remarks || '-'}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -318,29 +722,16 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                         </div>
                       ));
                     })()}
-
                     {selectedLead.callHistory.length >= 9 && (
                       <div className="alert alert-danger d-flex align-items-center mt-3">
                         <i className="fa-solid fa-exclamation-triangle me-3" style={{ fontSize: '1.5rem' }}></i>
-                        <div>
-                          <strong>Maximum Call Attempts Reached</strong>
-                          <p className="mb-0 small">
-                            This lead has been called for 3 days with 3 attempts each day (9 total calls)
-                            and should be marked as Call Unanswered or Not Feasible.
-                          </p>
-                        </div>
+                        <div><strong>Maximum Call Attempts Reached</strong><p className="mb-0 small">This lead has been called for 3 days with 3 attempts each day (9 total calls) and should be marked as Call Unanswered or Not Feasible.</p></div>
                       </div>
                     )}
                   </div>
                 )}
-
                 {(!selectedLead?.callHistory || selectedLead.callHistory.length === 0) && (
-                  <div className="col-12 mt-3">
-                    <div className="alert alert-secondary">
-                      <i className="fa-solid fa-info-circle me-2"></i>
-                      No call attempts have been recorded for this lead yet.
-                    </div>
-                  </div>
+                  <div className="col-12 mt-3"><div className="alert alert-secondary"><i className="fa-solid fa-info-circle me-2"></i>No call attempts have been recorded for this lead yet.</div></div>
                 )}
               </div>
             </div>

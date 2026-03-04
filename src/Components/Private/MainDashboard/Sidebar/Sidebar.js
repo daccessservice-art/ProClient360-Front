@@ -124,7 +124,7 @@ export const Sidebar = ({ isopen, active }) => {
                             <Link to='/SalesManagerMasterGrid' className="nav-link ">
                                 <i className="fa-solid ps-3 fa-users-gear side_icon_fs"></i>
                                 <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
-                                    Sales Manager Master
+                                    Sales Manager Dashboard
                                 </span>
                             </Link>
                         </li>
