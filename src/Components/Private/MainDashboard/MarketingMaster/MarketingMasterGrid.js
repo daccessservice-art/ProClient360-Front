@@ -17,22 +17,19 @@ import useCreateLead from "../../../../hooks/leads/useCreateLead";
 import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 
-// ── helper: format any date/string to "DD MMM YYYY HH:MM" in IST ──
-const formatLeadTime = (rawDate) => {
+// ── TIME FIX: accepts full lead object, picks QUERY_TIME → createdAt ──
+// Both are stored as UTC in MongoDB.
+// toLocaleString with timeZone:"Asia/Kolkata" always converts correctly to IST.
+const formatLeadTime = (lead) => {
+  const rawDate = lead?.QUERY_TIME || lead?.createdAt;
   if (!rawDate) return "—";
   const d = new Date(rawDate);
   if (isNaN(d.getTime())) return "—";
   const datePart = d.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
+    day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata",
   });
   const timePart = d.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Asia/Kolkata",
+    hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata",
   });
   return `${datePart} ${timePart}`;
 };
@@ -185,11 +182,6 @@ export const MarketingMasterGrid = () => {
     handlePageChange(1);
   };
 
-  // ── derive pending count from current data ──
-  // The table only fetches feasibility:"none" leads.
-  // pagination.totalRecords = count of pending leads in current filter.
-  // For the card we use the unfiltered pending count from backend if available,
-  // otherwise fallback to allLeadsCount - feasible - notFeasible - callUnanswered.
   const pendingLeadsCount =
     (data?.allLeadsCount || 0) -
     (data?.feasibleCount || 0) -
@@ -302,6 +294,7 @@ export const MarketingMasterGrid = () => {
                             <th className="align_left_td td_width">Product</th>
                             <th>Mobile</th>
                             <th>Date</th>
+                            <th>Call Status</th>
                             <th>Action</th>
                           </tr>
                         </thead>
@@ -315,26 +308,29 @@ export const MarketingMasterGrid = () => {
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.SENDER_NAME || "Not available."}</td>
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.QUERY_PRODUCT_NAME || "Not available."}</td>
                                 <td>{lead?.SENDER_MOBILE || "Not available."}</td>
-                                {/* Use QUERY_TIME (actual inquiry time), formatted in IST */}
+
+                                {/* ── TIME FIX: pass full lead, not just date string ── */}
                                 <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
-                                  {formatLeadTime(lead?.QUERY_TIME || lead?.createdAt)}
+                                  {formatLeadTime(lead)}
                                 </td>
+
+                                <td className="text-center">
+                                  {lead?.callHistory && lead.callHistory.length > 0 ? (
+                                    <span title={`${lead.callHistory.length} call attempt(s) recorded`}>
+                                      <i className="fa-solid fa-phone-volume text-warning me-1"></i>
+                                      <span className="fw-bold text-warning" style={{ fontSize: '0.85rem' }}>
+                                        {lead.callHistory.length}
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted" style={{ fontSize: '0.8rem' }}>Pending</span>
+                                  )}
+                                </td>
+
                                 <td>
                                   {user?.permissions?.includes('assignLead') && (
                                     <span onClick={() => handleUpdate(lead)} title="Assign Lead" style={{ cursor: 'pointer' }}>
                                       <i className="mx-1 fa-solid fa-share"></i>
-                                    </span>
-                                  )}
-                                  {/* Show call attempt icon if lead has call history (came from call-unanswered flow) */}
-                                  {lead?.callHistory && lead.callHistory.length > 0 && (
-                                    <span
-                                      title={`${lead.callHistory.length} call attempt(s) recorded`}
-                                      style={{ cursor: 'default' }}
-                                    >
-                                      <i className="fa-solid fa-phone-volume text-warning mx-1"></i>
-                                      <small className="text-warning fw-bold" style={{ fontSize: '0.7rem' }}>
-                                        {lead.callHistory.length}
-                                      </small>
                                     </span>
                                   )}
                                   {lead.SOURCE === 'Direct' && (user?.permissions?.includes('deleteLead') || user?.user === 'company') && (
@@ -350,7 +346,7 @@ export const MarketingMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="8" className="text-center">No data found</td>
+                              <td colSpan="9" className="text-center">No data found</td>
                             </tr>
                           )}
                         </tbody>
