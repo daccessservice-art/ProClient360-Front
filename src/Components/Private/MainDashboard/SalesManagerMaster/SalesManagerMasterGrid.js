@@ -9,6 +9,7 @@ import { UserContext } from "../../../../context/UserContext";
 import ViewSalesLeadPopUp from "../../CommonPopUp/ViewSalesLeadPopUp";
 import useSalesManagers from "../../../../hooks/leads/useSalesManagers";
 import useSalesManagerTeam from "../../../../hooks/leads/useSalesManagerTeam";
+import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 
 export const SalesManagerMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
@@ -17,10 +18,16 @@ export const SalesManagerMasterGrid = () => {
   const [showLeadPopUp, setShowLeadPopUp] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
 
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState(null);
+
   const { user } = useContext(UserContext);
 
   const { managers: salesEmployees, loading: employeesLoading } = useSalesManagers();
   const [selectedEmployee, setSelectedEmployee] = useState({ _id: 'all', name: 'All Leads' });
+
+  const { deleteLead, loading: deleteLoading } = useDeleteLead();
 
   const [filters, setFilters] = useState({
     status: null,
@@ -106,6 +113,30 @@ export const SalesManagerMasterGrid = () => {
     refetch();
   };
 
+  // ── Delete handlers ──
+  const handleDeleteClick = (lead) => {
+    setLeadToDelete(lead);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!leadToDelete) return;
+    const result = await deleteLead(leadToDelete._id);
+    if (result?.success) {
+      toast.success('Lead deleted successfully');
+      setShowDeleteConfirm(false);
+      setLeadToDelete(null);
+      refetch();
+    } else {
+      toast.error(result?.error || 'Failed to delete lead');
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setLeadToDelete(null);
+  };
+
   const handleBgColor = (status) => {
     if (!status) return "badge bg-secondary";
     switch (status.toString().trim()) {
@@ -117,11 +148,6 @@ export const SalesManagerMasterGrid = () => {
     }
   };
 
-  /**
-   * Returns 'today' | 'overdue' | null
-   * - today   → follow-up date is today   → RED blink
-   * - overdue → follow-up date is past     → DARK RED blink
-   */
   const getFollowUpStatus = (dateString, leadStatus) => {
     if (!dateString) return null;
     if (leadStatus === 'Won' || leadStatus === 'Lost') return null;
@@ -167,11 +193,11 @@ export const SalesManagerMasterGrid = () => {
   }
 
   const displayLeads = data?.leads;
-  const colSpan = isAllMode ? 11 : 10;
+  const colSpan = isAllMode ? 12 : 11;
 
   return (
     <>
-      {(loading || employeesLoading) && (
+      {(loading || employeesLoading || deleteLoading) && (
         <div className="overlay"><span className="loader"></span></div>
       )}
 
@@ -319,7 +345,7 @@ export const SalesManagerMasterGrid = () => {
                                 <th style={{ width: '120px' }}>Follow-up Date</th>
                                 <th style={{ width: '80px' }}>Status</th>
                                 {isAllMode && <th style={{ width: '120px' }}>Assigned To</th>}
-                                <th className="text-center" style={{ width: '80px' }}>Action</th>
+                                <th className="text-center" style={{ width: '110px' }}>Action</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -328,7 +354,6 @@ export const SalesManagerMasterGrid = () => {
                                   const followUpStatus = getFollowUpStatus(lead.nextFollowUpDate, lead.STATUS);
                                   const isToday   = followUpStatus === 'today';
                                   const isOverdue = followUpStatus === 'overdue';
-
                                   return (
                                     <tr
                                       key={lead._id}
@@ -374,9 +399,22 @@ export const SalesManagerMasterGrid = () => {
                                       <td><span className={handleBgColor(lead.STATUS)}>{lead.STATUS || "N/A"}</span></td>
                                       {isAllMode && <td><small className="text-muted">{lead.assignedTo?.name || "Not assigned"}</small></td>}
                                       <td className="text-center">
-                                        <button className="btn btn-sm btn-outline-info" onClick={() => handleDetailsPopUpClick(lead)} title="View Lead Details">
-                                          <i className="fa-solid fa-eye"></i>
-                                        </button>
+                                        <div className="d-flex justify-content-center gap-1">
+                                          <button
+                                            className="btn btn-sm btn-outline-info"
+                                            onClick={() => handleDetailsPopUpClick(lead)}
+                                            title="View Lead Details"
+                                          >
+                                            <i className="fa-solid fa-eye"></i>
+                                          </button>
+                                          <button
+                                            className="btn btn-sm btn-outline-danger"
+                                            onClick={() => handleDeleteClick(lead)}
+                                            title="Delete Lead"
+                                          >
+                                            <i className="fa-solid fa-trash"></i>
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -440,6 +478,45 @@ export const SalesManagerMasterGrid = () => {
 
       {showLeadPopUp && selectedLead && (
         <ViewSalesLeadPopUp closePopUp={() => { setShowLeadPopUp(false); setSelectedLead(null); }} selectedLead={selectedLead} />
+      )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {showDeleteConfirm && leadToDelete && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header border-danger">
+                <h5 className="modal-title text-danger">
+                  <i className="fa-solid fa-triangle-exclamation me-2"></i>Delete Lead
+                </h5>
+                <button type="button" className="btn-close" onClick={handleDeleteCancel}></button>
+              </div>
+              <div className="modal-body">
+                <p className="mb-1">Are you sure you want to delete this lead?</p>
+                <div className="bg-light rounded p-3 mt-2">
+                  <p className="mb-1"><strong>Company:</strong> {leadToDelete.SENDER_COMPANY || "N/A"}</p>
+                  <p className="mb-1"><strong>Contact:</strong> {leadToDelete.SENDER_NAME || "N/A"}</p>
+                  <p className="mb-0"><strong>Mobile:</strong> {leadToDelete.SENDER_MOBILE || "N/A"}</p>
+                </div>
+                <p className="text-danger mt-3 mb-0 small">
+                  <i className="fa-solid fa-circle-info me-1"></i>This action cannot be undone.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={handleDeleteCancel}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleteLoading}>
+                  {deleteLoading ? (
+                    <><span className="spinner-border spinner-border-sm me-2"></span>Deleting...</>
+                  ) : (
+                    <><i className="fa-solid fa-trash me-1"></i>Delete</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <style jsx>{`
