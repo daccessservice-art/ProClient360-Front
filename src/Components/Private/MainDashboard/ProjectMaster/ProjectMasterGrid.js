@@ -132,6 +132,20 @@ export const ProjectMasterGrid = () => {
     fetchData();
   }, [pagination.currentPage, AddPopUpShow, UpdatePopUpShow, deletePopUpShow, filters, search]);
 
+  // Helper function to get status badge styles
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case "Upcoming":
+        return "bg-primary";           // Blue
+      case "Inprocess":
+        return "bg-warning text-dark"; // Orange
+      case "Completed":
+        return "bg-success";           // Green
+      default:
+        return "bg-secondary";
+    }
+  };
+
   return (
     <>
       {loading && (
@@ -244,7 +258,11 @@ export const ProjectMasterGrid = () => {
                                 <td className="w-20">{formatDate(project.createdAt)}</td>
                                 <td className="w-20">{formatDate(project.startDate)}</td>
                                 <td className="w-20">{formatDate(project.endDate)}</td>
-                                <td className="w-20">{project.projectStatus}</td>
+                                <td className="w-20">
+                                  <span className={`badge rounded-pill px-2 py-1 ${getStatusBadgeClass(project.projectStatus)}`}>
+                                    {project.projectStatus}
+                                  </span>
+                                </td>
                                 <td className="w-20">
                                   {user?.permissions?.includes("viewTaskSheet") || user?.user==='company'?(
                                   <i
