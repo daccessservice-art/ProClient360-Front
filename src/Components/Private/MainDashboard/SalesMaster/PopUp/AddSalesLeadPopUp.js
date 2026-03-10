@@ -27,6 +27,15 @@ const isValidSubject = (value) => /[A-Za-z]/.test(value.trim());
 /** Custom product / source must contain at least one letter */
 const isValidCustomText = (value) => /[A-Za-z]/.test(value.trim());
 
+/** Message must contain at least one letter (not just numbers/special chars) */
+const isValidMessage = (value) => !value.trim() || /[A-Za-z]/.test(value.trim());
+
+/** Pincode must be exactly 6 digits only */
+const isValidPincode = (value) => /^\d{6}$/.test(value.trim());
+
+/** State / City / Country: only letters and spaces */
+const isValidAddressText = (value) => !value.trim() || /^[A-Za-z\s]+$/.test(value.trim());
+
 const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const { user } = useContext(UserContext);
   const [customerType, setCustomerType] = useState('new');
@@ -51,9 +60,15 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     name:          '',
     email:         '',
     subject:       '',
+    message:       '',
     customProduct: '',
     customSource:  '',
+    pincode:       '',
+    state:         '',
+    city:          '',
+    country:       '',
   });
+  const [pincodeStatus, setPincodeStatus] = useState(''); // '' | 'loading' | 'valid' | 'invalid'
 
   const setFieldError = (field, msg) =>
     setFieldErrors(prev => ({ ...prev, [field]: msg }));
@@ -216,29 +231,74 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   /* ─── Auto-fetch address from pincode ─── */
   useEffect(() => {
     const fetchData = async () => {
-      if (formData.address.pincode?.length === 6) {
+      const pin = formData.address.pincode || '';
+
+      /* ── Row 25/26: reject non-digit or less than 6 digits ── */
+      if (pin.length > 0 && pin.length < 6) {
+        setFieldError('pincode', 'Pincode must be exactly 6 digits.');
+        setPincodeStatus('');
+        setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
+        return;
+      }
+      if (pin.length === 0) {
+        clearFieldError('pincode');
+        setPincodeStatus('');
+        return;
+      }
+      if (pin.length === 6) {
+        clearFieldError('pincode');
+        setPincodeStatus('loading');
         setIsLoadingAddress(true);
         try {
-          const data = await getAddress(formData.address.pincode);
-          if (data && data !== 'Error') {
+          const data = await getAddress(pin);
+          if (data && data !== 'Error' && (data.state || data.city)) {
+            /* ── Row 23/28: valid pincode — auto-fill ── */
             setFormData(prev => ({ ...prev, address: { ...prev.address, state: data.state || '', city: data.city || '', country: data.country || 'India' } }));
+            setPincodeStatus('valid');
+            clearFieldError('pincode');
           } else {
+            /* ── Row 29: pincode not found in API ── */
             setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
+            setPincodeStatus('invalid');
+            setFieldError('pincode', 'Invalid Pincode — no location found. Please check and try again.');
           }
-        } catch { setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } })); }
-        finally { setIsLoadingAddress(false); }
-      } else if (formData.address.pincode?.length < 6) {
-        setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
+        } catch {
+          setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
+          setPincodeStatus('invalid');
+          setFieldError('pincode', 'Could not verify pincode. Please check your connection.');
+        } finally { setIsLoadingAddress(false); }
       }
     };
-    const t = setTimeout(fetchData, 500);
+    const t = setTimeout(fetchData, 600);
     return () => clearTimeout(t);
   }, [formData.address.pincode]);
 
   /* ─── Address change ─── */
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
-    if (['state', 'city', 'country'].includes(name) && !/^[A-Za-z\s]*$/.test(value)) return;
+
+    /* ── Row 27: block numbers & special chars in state/city/country ── */
+    if (['state', 'city', 'country'].includes(name)) {
+      if (value && !isValidAddressText(value)) {
+        setFieldError(name, `${name.charAt(0).toUpperCase() + name.slice(1)} must contain only letters and spaces.`);
+        return; // don't update state if invalid char typed
+      } else {
+        clearFieldError(name);
+      }
+    }
+
+    /* Pincode: only allow digits */
+    if (name === 'pincode') {
+      const digitsOnly = value.replace(/[^0-9]/g, '');
+      if (value !== digitsOnly) {
+        setFieldError('pincode', 'Pincode must contain digits only (no letters or special characters).');
+      } else {
+        clearFieldError('pincode');
+      }
+      setFormData(prev => ({ ...prev, address: { ...prev.address, [name]: digitsOnly } }));
+      return;
+    }
+
     setFormData(prev => ({ ...prev, address: { ...prev.address, [name]: value } }));
   };
 
@@ -274,6 +334,17 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
         setFieldError('subject', 'Subject must contain at least one letter (not just numbers or special characters).');
       } else {
         clearFieldError('subject');
+      }
+      setFormData(prev => ({ ...prev, [name]: value }));
+      return;
+    }
+
+    /* ── Message (Row 21): must contain at least one letter if filled ── */
+    if (name === 'message') {
+      if (value && !isValidMessage(value)) {
+        setFieldError('message', 'Message must contain at least one letter (cannot be only numbers or special characters).');
+      } else {
+        clearFieldError('message');
       }
       setFormData(prev => ({ ...prev, [name]: value }));
       return;
@@ -380,7 +451,45 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       return;
     }
 
-    /* ── 5. Custom source ── */
+    /* ── 5. Message (Row 21): must contain at least one letter if filled ── */
+    if (message && !isValidMessage(message)) {
+      toast.error('Message must contain at least one letter (cannot be only numbers or special characters).');
+      setFieldError('message', 'Message must contain at least one letter (cannot be only numbers or special characters).');
+      return;
+    }
+
+    /* ── 6. Pincode (Row 25/26/29) ── */
+    if (customerType === 'new' && address.pincode) {
+      if (!isValidPincode(address.pincode)) {
+        toast.error('Pincode must be exactly 6 digits (no letters or special characters).');
+        setFieldError('pincode', 'Pincode must be exactly 6 digits (no letters or special characters).');
+        return;
+      }
+      if (pincodeStatus === 'invalid') {
+        toast.error('Invalid Pincode — no location found. Please enter a valid pincode.');
+        setFieldError('pincode', 'Invalid Pincode — no location found. Please check and try again.');
+        return;
+      }
+    }
+
+    /* ── 7. State/City/Country: letters only (Row 27) ── */
+    if (address.state && !isValidAddressText(address.state)) {
+      toast.error('State must contain only letters and spaces.');
+      setFieldError('state', 'State must contain only letters and spaces.');
+      return;
+    }
+    if (address.city && !isValidAddressText(address.city)) {
+      toast.error('City must contain only letters and spaces.');
+      setFieldError('city', 'City must contain only letters and spaces.');
+      return;
+    }
+    if (address.country && !isValidAddressText(address.country)) {
+      toast.error('Country must contain only letters and spaces.');
+      setFieldError('country', 'Country must contain only letters and spaces.');
+      return;
+    }
+
+    /* ── 8. Custom source ── */
     if (showCustomSource) {
       if (!customSource.trim()) { toast.error('Please enter a custom source.'); return; }
       if (!isValidCustomText(customSource)) {
@@ -390,7 +499,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       }
     }
 
-    /* ── 6. Custom product: must contain a letter (no numeric-only) ── */
+    /* ── 9. Custom product: must contain a letter (no numeric-only) ── */
     if (showCustomProduct) {
       if (!customProduct.trim()) { toast.error('Please enter a custom product name.'); return; }
       if (!isValidCustomText(customProduct)) {
@@ -400,13 +509,13 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       }
     }
 
-    /* ── 7. Employee assignment ── */
+    /* ── 10. Employee assignment ── */
     if (assignmentType === 'employee' && !assignedEmployee) {
       toast.error('Please select an employee to assign the lead to.');
       return;
     }
 
-    /* ── 8. Any remaining inline errors ── */
+    /* ── 11. Any remaining inline errors ── */
     const hasErrors = Object.values(fieldErrors).some(msg => msg !== '');
     if (hasErrors) {
       toast.error('Please fix the highlighted errors before submitting.');
@@ -670,11 +779,13 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                   <div className="col-md-6">
                     <label className="form-label">Message</label>
                     <textarea
-                      className="form-control" name="message"
-                      placeholder="Enter a Message...."
+                      className={`form-control ${fieldErrors.message ? 'is-invalid' : ''}`}
+                      name="message"
+                      placeholder="Enter a Message.... (must contain letters if filled)"
                       value={formData.message} onChange={handleInputChange}
                       style={{ width:'100%', height:'100px' }} maxLength={500}
                     />
+                    <FieldError msg={fieldErrors.message}/>
                   </div>
 
                   {/* Address */}
@@ -688,33 +799,50 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                       </div>
                       <div className="col-12 col-lg-6 mb-3">
                         <input
-                          type="text" className="form-control" name="pincode"
-                          placeholder="Pincode" maxLength="6"
+                          type="text"
+                          className={`form-control ${fieldErrors.pincode ? 'is-invalid' : pincodeStatus === 'valid' ? 'is-valid' : ''}`}
+                          name="pincode"
+                          placeholder="Pincode (6 digits only)"
+                          maxLength="6"
                           onChange={customerType === 'new' ? handleAddressChange : undefined}
                           value={formData.address.pincode}
                           required={customerType === 'new'}
                           readOnly={customerType === 'existing'}
                           style={customerType === 'existing' ? { backgroundColor:'#f8f9fa' } : {}}
                         />
-                        {isLoadingAddress && <small className="text-info">Loading address details...</small>}
+                        {pincodeStatus === 'loading' && <small className="text-info"><i className="fa-solid fa-spinner fa-spin me-1"></i>Verifying pincode...</small>}
+                        {pincodeStatus === 'valid'   && <small className="text-success"><i className="fa-solid fa-circle-check me-1"></i>Valid pincode — address auto-filled.</small>}
+                        <FieldError msg={fieldErrors.pincode}/>
                       </div>
                       <div className="col-12 col-lg-6 mb-3">
-                        <input type="text" maxLength={50} className="form-control" name="state" placeholder="State"
+                        <input
+                          type="text" maxLength={50}
+                          className={`form-control ${fieldErrors.state ? 'is-invalid' : ''}`}
+                          name="state" placeholder="State (letters only)"
                           onChange={customerType === 'new' ? handleAddressChange : undefined}
                           value={formData.address.state} required={customerType === 'new'}
                           readOnly={customerType === 'existing'} style={customerType === 'existing' ? { backgroundColor:'#f8f9fa' } : {}}/>
+                        <FieldError msg={fieldErrors.state}/>
                       </div>
                       <div className="col-12 col-lg-6 mb-3">
-                        <input type="text" maxLength={50} className="form-control" name="city" placeholder="City"
+                        <input
+                          type="text" maxLength={50}
+                          className={`form-control ${fieldErrors.city ? 'is-invalid' : ''}`}
+                          name="city" placeholder="City (letters only)"
                           onChange={customerType === 'new' ? handleAddressChange : undefined}
                           value={formData.address.city} required={customerType === 'new'}
                           readOnly={customerType === 'existing'} style={customerType === 'existing' ? { backgroundColor:'#f8f9fa' } : {}}/>
+                        <FieldError msg={fieldErrors.city}/>
                       </div>
                       <div className="col-12 col-lg-6 mb-3">
-                        <input type="text" maxLength={50} className="form-control" name="country" placeholder="Country"
+                        <input
+                          type="text" maxLength={50}
+                          className={`form-control ${fieldErrors.country ? 'is-invalid' : ''}`}
+                          name="country" placeholder="Country (letters only)"
                           onChange={customerType === 'new' ? handleAddressChange : undefined}
                           value={formData.address.country} required={customerType === 'new'}
                           readOnly={customerType === 'existing'} style={customerType === 'existing' ? { backgroundColor:'#f8f9fa' } : {}}/>
+                        <FieldError msg={fieldErrors.country}/>
                       </div>
                       <div className="col-12">
                         <textarea className="form-control" name="add" maxLength={500} rows="2"
