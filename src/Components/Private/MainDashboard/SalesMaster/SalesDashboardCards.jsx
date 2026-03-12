@@ -171,7 +171,7 @@ const SalesDashboardCards = ({
               <div className="row">
                 <div className="col-9">
                   <h6 className="text-dark card_heading">
-                    Pending Inquiry
+                    Pending Enquiries
                   </h6>
                   <h2 className="pt-2 fw-bold card_count">
                     {pendingCount || 0}
@@ -193,7 +193,7 @@ const SalesDashboardCards = ({
               <div className="row">
                 <div className="col-9">
                   <h6 className="text-dark card_heading">
-                    Today's FollowUp
+                    Today's Follow-Ups
                   </h6>
                   <h2 className="pt-2 fw-bold card_count">
                     {todayCount || 0}
