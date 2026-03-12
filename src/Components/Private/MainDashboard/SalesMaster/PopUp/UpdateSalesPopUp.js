@@ -128,6 +128,14 @@ const callLeadsOptions = [
   'Invalid Leads'
 ];
 
+// Steps that show the Amount field
+const amountSteps = [
+  '7. Quotation Submission',
+  '8. Quotation Discussion',
+  '10. Negotiation Call',
+  '11. Negotiation Meetings',
+];
+
 const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
   const [showInfo, setShowInfo] = useState(isCompany);
   const [isLoading, setIsLoading] = useState(false);
@@ -138,7 +146,7 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
     status: '', 
     quotation: '',
     rem: '',
-    callLeads: '' // Add the callLeads field
+    callLeads: ''
   });
   
   const [previousActions, setPreviousActions] = useState([]);
@@ -160,7 +168,7 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
         status: selectedLead.status || selectedLead?.STATUS || '',
         quotation: selectedLead?.quotation?.toString() || selectedLead?.actionDetails?.quotation?.toString() || '0',
         rem: selectedLead?.rem || selectedLead?.actionDetails?.rem || '',
-        callLeads: selectedLead?.callLeads || '' // Initialize with existing value
+        callLeads: selectedLead?.callLeads || ''
       });
       
       let actions = [];
@@ -267,7 +275,7 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
       nextFollowUpDate: actionData.date ? new Date(actionData.date).toISOString() : null,
       quotation: actionData.quotation ? parseFloat(actionData.quotation) : 0,
       rem: actionData.rem || '',
-      callLeads: actionData.callLeads || 'Warm Leads' // Include callLeads in the form data
+      callLeads: actionData.callLeads || 'Warm Leads'
     };
 
     const newAction = {
@@ -278,7 +286,7 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
       rem: actionData.rem || '',
       completion: actionData.completion ? parseFloat(actionData.completion) : 0,
       quotation: actionData.quotation ? parseFloat(actionData.quotation) : 0,
-      callLeads: actionData.callLeads || 'Warm Leads', // Include callLeads in the action
+      callLeads: actionData.callLeads || 'Warm Leads',
       actionBy: {
         name: "Current User"
       },
@@ -427,6 +435,7 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
                         </div>
                       )}
 
+                      {/* Amount field for Won status — required */}
                       {actionData.status === 'Won' && (
                         <div className="col-md-6">
                           <label htmlFor="quotation" className="form-label fw-bold">Amount Show (₹)<RequiredStar /></label>
@@ -443,9 +452,15 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
                         </div>
                       )}
 
-                      {actionData.status !== 'Won' && actionData.status !== 'Lost' && actionData.actionType === '7. Quotation Submission' && (
+                      {/* Amount field for Quotation Submission (required),
+                          Quotation Discussion, Negotiation Call, Negotiation Meetings (optional) */}
+                      {actionData.status !== 'Won' && actionData.status !== 'Lost' &&
+                        amountSteps.includes(actionData.actionType) && (
                         <div className="col-md-6">
-                          <label htmlFor="quotation" className="form-label fw-bold">Amount Show (₹)<RequiredStar /></label>
+                          <label htmlFor="quotation" className="form-label fw-bold">
+                            Amount Show (₹)
+                            {actionData.actionType === '7. Quotation Submission' && <RequiredStar />}
+                          </label>
                           <input 
                             type="text" 
                             className="form-control" 
@@ -453,8 +468,8 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
                             name="quotation" 
                             placeholder="Enter quotation amount" 
                             value={actionData.quotation}
-                            onChange={handleActionChange} 
-                            required 
+                            onChange={handleActionChange}
+                            required={actionData.actionType === '7. Quotation Submission'}
                           />
                         </div>
                       )}
@@ -521,7 +536,7 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
                         <th scope="col">Next Follow-up Date</th>
                         <th scope="col">Remark</th> 
                         <th scope="col">Quotation</th>
-                        <th scope="col">Leads</th> {/* Add Leads column */}
+                        <th scope="col">Leads</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -546,7 +561,7 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
                           <td>{formatDateForDisplay(action.nextFollowUpDate)}</td>
                           <td>{action.rem}</td>
                           <td>₹{action.quotation || 0}</td>
-                          <td>{action.callLeads || 'Warm Leads'}</td> {/* Display Leads value */}
+                          <td>{action.callLeads || 'Warm Leads'}</td>
                         </tr>
                       ))}
                     </tbody>
