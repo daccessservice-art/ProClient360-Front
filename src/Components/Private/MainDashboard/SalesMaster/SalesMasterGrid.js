@@ -18,46 +18,41 @@ import useSubmitEnquiry from "../../../../hooks/leads/useSubmitEnquiry";
 import useCreateLead from "../../../../hooks/leads/useCreateLead";
 import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import useReassignLead from "../../../../hooks/leads/useReassignLead";
+import MeetingDrawer from "./PopUp/MeetingDrawer";
 
-/* ─── API base URL ─────────────────────────────────── */
 const ALL_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/my-leads`;
 
 export const SalesMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => setIsOpen(!isopen);
 
-  /* ── View mode ── */
   const [viewMode, setViewMode] = useState("table");
 
-  /* ── Popup states ── */
-  const [addpop,          setIsAddModalVisible] = useState(false);
-  const [UpdatePopUpShow, setUpdatePopUpShow]   = useState(false);
-  const [showLeadPopUp,   setShowLeadPopUp]     = useState(false);
-  const [assignPopUpShow, setAssignPopUpShow]   = useState(false);
-  const [selectedLead,    setSelectedLead]      = useState(null);
-  const [deletePopUpShow, setDeletePopUpShow]   = useState(false);
-  const [selectedLeadId,  setSelectedLeadId]    = useState(null);
+  const [addpop,           setIsAddModalVisible] = useState(false);
+  const [UpdatePopUpShow,  setUpdatePopUpShow]   = useState(false);
+  const [showLeadPopUp,    setShowLeadPopUp]     = useState(false);
+  const [assignPopUpShow,  setAssignPopUpShow]   = useState(false);
+  const [selectedLead,     setSelectedLead]      = useState(null);
+  const [deletePopUpShow,  setDeletePopUpShow]   = useState(false);
+  const [selectedLeadId,   setSelectedLeadId]    = useState(null);
+  const [meetingDrawer,    setMeetingDrawer]     = useState(false);
 
   const { user } = useContext(UserContext);
 
-  /* ── Filters ── */
   const [filters, setFilters] = useState({
     status: null, date: null, callLeads: null,
     source: null, searchTerm: "", followUpToday: false,
   });
 
-  /* ── TABLE pagination ── */
   const [pagination, setPagination] = useState({
     currentPage: 1, totalPages: 0, totalServices: 0,
     limit: 20, hasNextPage: true, hasPrevPage: false,
   });
   const itemsPerPage = 20;
 
-  /* ── ALL leads for funnel (no page limit) ── */
-  const [funnelLeads,        setFunnelLeads]        = useState([]);
-  const [funnelLoading,      setFunnelLoading]      = useState(false);
+  const [funnelLeads,   setFunnelLeads]   = useState([]);
+  const [funnelLoading, setFunnelLoading] = useState(false);
 
-  /* ── Hooks ── */
   const { data, loading, error, refetch } = useMyLeads(
     pagination.currentPage, itemsPerPage, filters
   );
@@ -67,58 +62,35 @@ export const SalesMasterGrid = () => {
   const { reassignLead }  = useReassignLead();
   const [allLeads, setAllLeads] = useState([]);
 
-  /* ═══════════════════════════════════════════════════
-     FETCH ALL LEADS FOR FUNNEL  (no pagination)
-  ═══════════════════════════════════════════════════ */
   const fetchAllLeadsForFunnel = useCallback(async () => {
     setFunnelLoading(true);
     try {
-      /* Build same filters but with a very high limit (or limit=0 if your API supports it) */
       const params = {
-        page: 1,
-        limit: 99999,                                      // ← get everything
-        ...(filters.source      && { source:       filters.source      }),
-        ...(filters.date        && { date:         filters.date        }),
-        ...(filters.status      && { status:       filters.status      }),
-        ...(filters.callLeads   && { callLeads:    filters.callLeads   }),
-        ...(filters.searchTerm  && { search:       filters.searchTerm  }),
-        ...(filters.followUpToday && { followUpToday: 'true'           }),
+        page: 1, limit: 99999,
+        ...(filters.source      && { source:        filters.source      }),
+        ...(filters.date        && { date:           filters.date        }),
+        ...(filters.status      && { status:         filters.status      }),
+        ...(filters.callLeads   && { callLeads:      filters.callLeads   }),
+        ...(filters.searchTerm  && { search:         filters.searchTerm  }),
+        ...(filters.followUpToday && { followUpToday: 'true'             }),
       };
-
       const response = await axios.get(ALL_LEADS_URL, {
         params,
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-
-      if (response.data.success) {
-        setFunnelLeads(response.data.leads || []);
-      } else {
-        setFunnelLeads([]);
-      }
+      if (response.data.success) setFunnelLeads(response.data.leads || []);
+      else setFunnelLeads([]);
     } catch (err) {
       console.error("Funnel leads fetch error:", err);
       setFunnelLeads([]);
     } finally {
       setFunnelLoading(false);
     }
-  }, [
-    filters.source, filters.date, filters.status,
-    filters.callLeads, filters.searchTerm, filters.followUpToday,
-  ]);
+  }, [filters.source, filters.date, filters.status, filters.callLeads, filters.searchTerm, filters.followUpToday]);
 
-  /* Auto-fetch funnel leads whenever filters change */
-  useEffect(() => {
-    fetchAllLeadsForFunnel();
-  }, [fetchAllLeadsForFunnel]);
+  useEffect(() => { fetchAllLeadsForFunnel(); }, [fetchAllLeadsForFunnel]);
+  useEffect(() => { if (viewMode === "funnel") fetchAllLeadsForFunnel(); }, [viewMode]);
 
-  /* Also re-fetch funnel when switching to funnel view */
-  useEffect(() => {
-    if (viewMode === "funnel") fetchAllLeadsForFunnel();
-  }, [viewMode]);
-
-  /* ═══════════════════════════════════════════════════
-     TABLE data sync
-  ═══════════════════════════════════════════════════ */
   const formatDateOnly = (dateString) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
@@ -163,7 +135,6 @@ export const SalesMasterGrid = () => {
 
   const isFollowUpTodayMode = filters.followUpToday;
 
-  /* ── Pagination ── */
   const handlePageChange = (page) => {
     if (page >= 1 && page <= pagination.totalPages)
       setPagination(prev => ({ ...prev, currentPage: page }));
@@ -179,7 +150,6 @@ export const SalesMasterGrid = () => {
     }
   };
 
-  /* ── Lead actions ── */
   const handleUpdate = (lead = null) => {
     if (lead && (lead.STATUS === 'Won' || lead.STATUS === 'Lost')) {
       toast.error(`Cannot update a "${lead.STATUS}" lead. Already finalized.`); return;
@@ -197,8 +167,7 @@ export const SalesMasterGrid = () => {
   };
 
   const handleDelete = (leadId) => {
-    const lead = allLeads.find(l => l._id === leadId)
-               || funnelLeads.find(l => l._id === leadId);
+    const lead = allLeads.find(l => l._id === leadId) || funnelLeads.find(l => l._id === leadId);
     if (lead && (lead.STATUS === 'Won' || lead.STATUS === 'Lost')) {
       toast.error(`Cannot delete a "${lead.STATUS}" lead. Already finalized.`); return;
     }
@@ -244,7 +213,27 @@ export const SalesMasterGrid = () => {
 
   const handleDetailsPopUpClick = (lead) => { setSelectedLead(lead); setShowLeadPopUp(true); };
 
-  /* ── Filters ── */
+  // ── Open meeting drawer — always use the freshest lead from allLeads/funnelLeads
+  const handleMeeting = (lead) => {
+    // Try to get the latest version of this lead from the already-fetched lists
+    const freshLead =
+      allLeads.find(l => l._id === lead._id) ||
+      funnelLeads.find(l => l._id === lead._id) ||
+      lead;
+    setSelectedLead(freshLead);
+    setMeetingDrawer(true);
+  };
+
+  // ── Close meeting drawer — refetch so next open has updated previousActions
+  const handleMeetingClose = () => {
+    setMeetingDrawer(false);
+    setSelectedLead(null);
+    // Refetch ensures the lead objects in allLeads and funnelLeads
+    // include the new previousActions entries just saved by MeetingDrawer
+    refetch();
+    fetchAllLeadsForFunnel();
+  };
+
   const handleChange = (filterType, value) =>
     setFilters(prev => ({ ...prev, [filterType]: value || null }));
 
@@ -258,8 +247,7 @@ export const SalesMasterGrid = () => {
       ...prev, followUpToday: true, date: null, status: null, source: null, callLeads: null,
     }));
 
-  const resetSearch = () => { setFilters(prev => ({ ...prev, searchTerm: "" })); setAllLeads([]); };
-
+  const resetSearch  = () => { setFilters(prev => ({ ...prev, searchTerm: "" })); setAllLeads([]); };
   const resetFilters = () => {
     setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "", followUpToday: false });
     setAllLeads([]);
@@ -279,19 +267,14 @@ export const SalesMasterGrid = () => {
       handleCloseAddModal();
       setAllLeads([]);
       setPagination(prev => ({ ...prev, currentPage: 1 }));
-      refetch();
-      fetchAllLeadsForFunnel();
+      refetch(); fetchAllLeadsForFunnel();
     } else { toast.error(res?.error || "Failed to add lead"); }
   };
 
-  /* ── Permissions ── */
   const canAssignLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
   const canUpdateLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
   const canDeleteLead = user?.permissions?.includes('deleteLead') || user?.user === 'company';
 
-  /* ═══════════════════════════════════════════════════════════════
-     RENDER
-  ═══════════════════════════════════════════════════════════════ */
   return (
     <>
       {(loading || funnelLoading) && (
@@ -303,8 +286,10 @@ export const SalesMasterGrid = () => {
           <Header toggle={toggle} isopen={isopen} />
           <div className="container-fluid page-body-wrapper">
             <Sidebar isopen={isopen} active="SalesMasterGrid" />
-            <div className="main-panel"
-              style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}>
+            <div
+              className="main-panel"
+              style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}
+            >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
                 {/* ── Title + toggle + add ── */}
@@ -314,14 +299,18 @@ export const SalesMasterGrid = () => {
                   </div>
                   <div className="col-12 col-lg-8 d-flex align-items-center justify-content-end gap-2 pe-4">
                     <div className="btn-group" role="group">
-                      <button type="button"
+                      <button
+                        type="button"
                         className={`btn btn-sm ${viewMode === "table" ? "btn-primary" : "btn-outline-secondary"}`}
-                        onClick={() => setViewMode("table")} title="Table View">
+                        onClick={() => setViewMode("table")} title="Table View"
+                      >
                         <i className="fa-solid fa-table-list"></i> Table
                       </button>
-                      <button type="button"
+                      <button
+                        type="button"
                         className={`btn btn-sm ${viewMode === "funnel" ? "btn-primary" : "btn-outline-secondary"}`}
-                        onClick={() => setViewMode("funnel")} title="Funnel View">
+                        onClick={() => setViewMode("funnel")} title="Funnel View"
+                      >
                         <i className="fa-solid fa-filter"></i> Funnel
                       </button>
                     </div>
@@ -348,7 +337,7 @@ export const SalesMasterGrid = () => {
                   onTodayFollowUpClick={handleTodayFollowUpClick}
                 />
 
-                {/* ── Quotation Funnel (if present) ── */}
+                {/* ── Quotation Funnel ── */}
                 {data?.quotationFunnel && (
                   <div className="row p-2 m-1">
                     <div className="col-12">
@@ -366,9 +355,11 @@ export const SalesMasterGrid = () => {
                 <div className="row align-items-center p-3 m-1 bg-light rounded mb-3">
                   <div className="col-12 col-lg-6">
                     <div className="input-group">
-                      <input type="text" className="form-control"
+                      <input
+                        type="text" className="form-control"
                         placeholder="Search by Mobile Number or Company Name..."
-                        value={filters.searchTerm || ""} onChange={handleSearchChange} />
+                        value={filters.searchTerm || ""} onChange={handleSearchChange}
+                      />
                       {filters.searchTerm && (
                         <button className="btn btn-outline-secondary" type="button" onClick={resetSearch}>
                           <i className="fa-solid fa-times"></i>
@@ -389,14 +380,18 @@ export const SalesMasterGrid = () => {
                   <div className="col-12 col-lg-6 ms-auto text-end">
                     <div className="row g-2">
                       <div className="col">
-                        <input type="date" className="form-control" name="date"
+                        <input
+                          type="date" className="form-control" name="date"
                           onChange={e => handleChange('date', e.target.value)}
-                          value={filters.date || ""} disabled={isFollowUpTodayMode} />
+                          value={filters.date || ""} disabled={isFollowUpTodayMode}
+                        />
                       </div>
                       <div className="col">
-                        <select className="form-select" name="callLeads"
+                        <select
+                          className="form-select" name="callLeads"
                           onChange={e => handleChange('callLeads', e.target.value)}
-                          value={filters.callLeads || ""} disabled={isFollowUpTodayMode}>
+                          value={filters.callLeads || ""} disabled={isFollowUpTodayMode}
+                        >
                           <option value="">Leads...</option>
                           <option value="Hot Leads">Hot Leads</option>
                           <option value="Warm Leads">Warm Leads</option>
@@ -405,9 +400,11 @@ export const SalesMasterGrid = () => {
                         </select>
                       </div>
                       <div className="col">
-                        <select className="form-select" name="source"
+                        <select
+                          className="form-select" name="source"
                           onChange={e => handleChange('source', e.target.value)}
-                          value={filters.source || ""} disabled={isFollowUpTodayMode}>
+                          value={filters.source || ""} disabled={isFollowUpTodayMode}
+                        >
                           <option value="">Sources...</option>
                           <option value="Direct">Direct</option>
                           <option value="IndiaMart">IndiaMart</option>
@@ -430,9 +427,11 @@ export const SalesMasterGrid = () => {
                         </select>
                       </div>
                       <div className="col">
-                        <select className="form-select" name="status"
+                        <select
+                          className="form-select" name="status"
                           onChange={e => handleChange('status', e.target.value)}
-                          value={filters.status || ""} disabled={isFollowUpTodayMode}>
+                          value={filters.status || ""} disabled={isFollowUpTodayMode}
+                        >
                           <option value="">Status...</option>
                           <option value="Won">Won</option>
                           <option value="Ongoing">Ongoing</option>
@@ -441,8 +440,10 @@ export const SalesMasterGrid = () => {
                         </select>
                       </div>
                       <div className="col">
-                        <button className="btn btn-outline-secondary w-100" type="button"
-                          onClick={resetFilters} title="Reset all filters">
+                        <button
+                          className="btn btn-outline-secondary w-100" type="button"
+                          onClick={resetFilters} title="Reset all filters"
+                        >
                           <i className="fa-solid fa-filter-circle-xmark"></i> Reset
                         </button>
                       </div>
@@ -450,9 +451,7 @@ export const SalesMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* ══════════════════════════════════════
-                    FUNNEL VIEW  ←  uses funnelLeads (ALL)
-                ══════════════════════════════════════ */}
+                {/* ══ FUNNEL VIEW ══ */}
                 {viewMode === "funnel" && (
                   <div className="row bg-white p-3 m-1 border rounded shadow-sm">
                     <div className="col-12" style={{ overflowX: "auto" }}>
@@ -468,6 +467,7 @@ export const SalesMasterGrid = () => {
                           onUpdate={handleUpdate}
                           onAssign={handleAssign}
                           onDelete={handleDelete}
+                          onMeeting={handleMeeting}
                           canUpdate={canUpdateLead}
                           canAssign={canAssignLead}
                           canDelete={canDeleteLead}
@@ -477,9 +477,7 @@ export const SalesMasterGrid = () => {
                   </div>
                 )}
 
-                {/* ══════════════════════════════════════
-                    TABLE VIEW  ←  paginated (20/page)
-                ══════════════════════════════════════ */}
+                {/* ══ TABLE VIEW ══ */}
                 {viewMode === "table" && (
                   <div className="row bg-white p-3 m-1 border rounded shadow-sm">
                     <div className="col-12">
@@ -496,7 +494,7 @@ export const SalesMasterGrid = () => {
                               <th style={{ width: '120px' }}>Created Date</th>
                               <th style={{ width: '120px' }}>Follow-up Date</th>
                               <th style={{ width: '80px' }}>Status</th>
-                              <th className="text-center" style={{ width: '100px' }}>Action</th>
+                              <th className="text-center" style={{ width: '120px' }}>Action</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -506,8 +504,10 @@ export const SalesMasterGrid = () => {
                                 const isToday   = followUpStatus === 'today';
                                 const isOverdue = followUpStatus === 'overdue';
                                 return (
-                                  <tr key={lead._id}
-                                    className={isToday ? "row-today-followup" : isOverdue ? "row-overdue-followup" : ""}>
+                                  <tr
+                                    key={lead._id}
+                                    className={isToday ? "row-today-followup" : isOverdue ? "row-overdue-followup" : ""}
+                                  >
                                     <td className="text-center">
                                       {(pagination.currentPage - 1) * itemsPerPage + index + 1}
                                     </td>
@@ -534,7 +534,7 @@ export const SalesMasterGrid = () => {
                                     <td>
                                       {lead.nextFollowUpDate ? (
                                         <span className={
-                                          isToday ? "fw-bold text-danger date-glow-red" :
+                                          isToday   ? "fw-bold text-danger date-glow-red" :
                                           isOverdue ? "fw-bold text-danger date-glow-dark-red" : "text-muted"
                                         }>
                                           {formatDateOnly(lead.nextFollowUpDate)}
@@ -544,29 +544,55 @@ export const SalesMasterGrid = () => {
                                     <td>
                                       <span className={handleBgColor(lead.STATUS)}>{lead.STATUS}</span>
                                     </td>
+
+                                    {/* ── Action column ── */}
                                     <td className="text-center">
                                       {lead.STATUS === 'Won' || lead.STATUS === 'Lost' ? (
-                                        <button className="btn btn-sm btn-outline-info"
-                                          onClick={() => handleDetailsPopUpClick(lead)} title="View">
-                                          <i className="fa-solid fa-eye"></i>
-                                        </button>
+                                        <div className="btn-group" role="group">
+                                          <button
+                                            className="btn btn-sm btn-outline-info"
+                                            onClick={() => handleDetailsPopUpClick(lead)} title="View"
+                                          >
+                                            <i className="fa-solid fa-eye"></i>
+                                          </button>
+                                          <button
+                                            className="btn btn-sm btn-outline-primary"
+                                            onClick={() => handleMeeting(lead)}
+                                            title="Schedule Meeting"
+                                          >
+                                            <i className="fa-solid fa-video"></i>
+                                          </button>
+                                        </div>
                                       ) : (
                                         <div className="btn-group" role="group">
                                           {canUpdateLead && (
-                                            <button className="btn btn-sm btn-outline-success"
-                                              onClick={() => handleUpdate(lead)} title="Update">
+                                            <button
+                                              className="btn btn-sm btn-outline-success"
+                                              onClick={() => handleUpdate(lead)} title="Update"
+                                            >
                                               <i className="fa-solid fa-pen"></i>
                                             </button>
                                           )}
                                           {canAssignLead && (
-                                            <button className="btn btn-sm btn-outline-warning"
-                                              onClick={() => handleAssign(lead)} title="Reassign">
+                                            <button
+                                              className="btn btn-sm btn-outline-warning"
+                                              onClick={() => handleAssign(lead)} title="Reassign"
+                                            >
                                               <i className="fa-solid fa-share"></i>
                                             </button>
                                           )}
+                                          <button
+                                            className="btn btn-sm btn-outline-primary"
+                                            onClick={() => handleMeeting(lead)}
+                                            title="Schedule Meeting"
+                                          >
+                                            <i className="fa-solid fa-video"></i>
+                                          </button>
                                           {lead.SOURCE === 'Direct' && canDeleteLead && (
-                                            <button className="btn btn-sm btn-outline-danger"
-                                              onClick={() => handleDelete(lead._id)} title="Delete">
+                                            <button
+                                              className="btn btn-sm btn-outline-danger"
+                                              onClick={() => handleDelete(lead._id)} title="Delete"
+                                            >
                                               <i className="fa-solid fa-trash"></i>
                                             </button>
                                           )}
@@ -593,7 +619,7 @@ export const SalesMasterGrid = () => {
                   </div>
                 )}
 
-                {/* ── Pagination (table only) ── */}
+                {/* ── Pagination ── */}
                 {viewMode === "table" && !loading && pagination.totalPages > 1 && (
                   <div className="d-flex justify-content-center mt-3">
                     <nav>
@@ -648,55 +674,80 @@ export const SalesMasterGrid = () => {
         </div>
       </div>
 
-      {/* ── Popups ── */}
+      {/* ══ POPUPS ══ */}
       {addpop && (
         <AddSalesLeadPopUp onAddLead={handleAddLeadSubmit} onClose={handleCloseAddModal} />
       )}
       {UpdatePopUpShow && selectedLead && (
-        <UpdateSalesPopUp selectedLead={selectedLead} onUpdate={handleUpdateSubmit}
+        <UpdateSalesPopUp
+          selectedLead={selectedLead} onUpdate={handleUpdateSubmit}
           isCompany={user.user === 'company'}
-          onClose={() => { setUpdatePopUpShow(false); setSelectedLead(null); }} />
+          onClose={() => { setUpdatePopUpShow(false); setSelectedLead(null); }}
+        />
       )}
       {assignPopUpShow && selectedLead && (
-        <AssignSalesLeadPopUp selectedLead={selectedLead} onUpdate={handleAssignSubmit}
-          onClose={() => { setAssignPopUpShow(false); setSelectedLead(null); }} />
+        <AssignSalesLeadPopUp
+          selectedLead={selectedLead} onUpdate={handleAssignSubmit}
+          onClose={() => { setAssignPopUpShow(false); setSelectedLead(null); }}
+        />
       )}
       {deletePopUpShow && (
-        <DeletePopUP message={"Are you sure you want to delete this lead?"} heading={"Delete Lead"}
+        <DeletePopUP
+          message={"Are you sure you want to delete this lead?"} heading={"Delete Lead"}
           cancelBtnCallBack={() => setDeletePopUpShow(false)}
-          confirmBtnCallBack={handleDeleteConfirm} />
+          confirmBtnCallBack={handleDeleteConfirm}
+        />
       )}
       {showLeadPopUp && selectedLead && (
-        <ViewSalesLeadPopUp closePopUp={() => { setShowLeadPopUp(false); setSelectedLead(null); }}
-          selectedLead={selectedLead} />
+        <ViewSalesLeadPopUp
+          closePopUp={() => { setShowLeadPopUp(false); setSelectedLead(null); }}
+          selectedLead={selectedLead}
+        />
+      )}
+
+      {/* ── Meeting Drawer ── */}
+      {/* handleMeetingClose calls refetch() + fetchAllLeadsForFunnel()
+          so the next time this lead is opened in MeetingDrawer it
+          carries the fresh previousActions with saved meeting history */}
+      {meetingDrawer && selectedLead && (
+        <MeetingDrawer
+          lead={selectedLead}
+          onClose={handleMeetingClose}
+        />
       )}
 
       {/* ── Global CSS ── */}
       <style jsx>{`
         .row-today-followup { animation: blinkRed 1s infinite; }
         @keyframes blinkRed {
-          0%,100%{background-color:rgba(255,50,50,0.08);box-shadow:0 0 4px rgba(255,0,0,0.25);}
-          50%    {background-color:rgba(255,150,150,0.45);box-shadow:0 0 18px rgba(255,0,0,0.6);}
+          0%,100% { background-color: rgba(255,50,50,0.08);  box-shadow: 0 0 4px  rgba(255,0,0,0.25); }
+          50%      { background-color: rgba(255,150,150,0.45); box-shadow: 0 0 18px rgba(255,0,0,0.6);  }
         }
-        .badge-pulse-red{animation:badgeRed 1.5s infinite;box-shadow:0 0 8px rgba(255,0,0,0.6);font-size:.72rem;}
-        @keyframes badgeRed{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
-        .date-glow-red{animation:glowRed 1.2s infinite;}
-        @keyframes glowRed{0%,100%{text-shadow:0 0 4px rgba(255,0,0,0.5);}50%{text-shadow:0 0 12px rgba(255,0,0,0.9);}}
-        .row-overdue-followup{animation:blinkDarkRed 1.2s infinite;}
-        @keyframes blinkDarkRed{
-          0%,100%{background-color:rgba(139,0,0,0.10);box-shadow:0 0 4px rgba(139,0,0,0.3);}
-          50%    {background-color:rgba(139,0,0,0.35);box-shadow:0 0 16px rgba(139,0,0,0.7);}
+        .badge-pulse-red { animation: badgeRed 1.5s infinite; box-shadow: 0 0 8px rgba(255,0,0,0.6); font-size: .72rem; }
+        @keyframes badgeRed { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+        .date-glow-red { animation: glowRed 1.2s infinite; }
+        @keyframes glowRed {
+          0%,100% { text-shadow: 0 0 4px  rgba(255,0,0,0.5); }
+          50%      { text-shadow: 0 0 12px rgba(255,0,0,0.9); }
         }
-        .badge-pulse-dark-red{animation:badgeDarkRed 1.5s infinite;box-shadow:0 0 8px rgba(139,0,0,0.6);font-size:.72rem;}
-        @keyframes badgeDarkRed{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
-        .date-glow-dark-red{animation:glowDarkRed 1.2s infinite;}
-        @keyframes glowDarkRed{0%,100%{text-shadow:0 0 4px rgba(139,0,0,0.5);}50%{text-shadow:0 0 12px rgba(139,0,0,0.9);}}
-        .table th{border-top:none;font-weight:600;font-size:.875rem;white-space:nowrap;}
-        .table td{vertical-align:middle;font-size:.875rem;}
-        .btn-group .btn{padding:.25rem .5rem;font-size:.75rem;}
-        .table-hover tbody tr:hover{background-color:rgba(0,0,0,0.05);}
-        .row-today-followup:hover  {background-color:rgba(255,100,100,0.2)!important;}
-        .row-overdue-followup:hover{background-color:rgba(139,0,0,0.2)!important;}
+        .row-overdue-followup { animation: blinkDarkRed 1.2s infinite; }
+        @keyframes blinkDarkRed {
+          0%,100% { background-color: rgba(139,0,0,0.10); box-shadow: 0 0 4px  rgba(139,0,0,0.3); }
+          50%      { background-color: rgba(139,0,0,0.35); box-shadow: 0 0 16px rgba(139,0,0,0.7); }
+        }
+        .badge-pulse-dark-red { animation: badgeDarkRed 1.5s infinite; box-shadow: 0 0 8px rgba(139,0,0,0.6); font-size: .72rem; }
+        @keyframes badgeDarkRed { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+        .date-glow-dark-red { animation: glowDarkRed 1.2s infinite; }
+        @keyframes glowDarkRed {
+          0%,100% { text-shadow: 0 0 4px  rgba(139,0,0,0.5); }
+          50%      { text-shadow: 0 0 12px rgba(139,0,0,0.9); }
+        }
+        .table th { border-top: none; font-weight: 600; font-size: .875rem; white-space: nowrap; }
+        .table td { vertical-align: middle; font-size: .875rem; }
+        .btn-group .btn { padding: .25rem .5rem; font-size: .75rem; }
+        .table-hover tbody tr:hover { background-color: rgba(0,0,0,0.05); }
+        .row-today-followup:hover   { background-color: rgba(255,100,100,0.2) !important; }
+        .row-overdue-followup:hover { background-color: rgba(139,0,0,0.2)   !important; }
       `}</style>
     </>
   );

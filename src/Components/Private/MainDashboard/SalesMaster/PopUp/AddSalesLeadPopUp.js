@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useRef } from 'react'; // +useRef
 import toast from 'react-hot-toast';
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getAddress } from "../../../../../hooks/usePincode";
@@ -76,17 +76,20 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const clearFieldError = (field) =>
     setFieldErrors(prev => ({ ...prev, [field]: '' }));
 
-  // Customer dropdown state
+  // ── CHANGE 1: added debouncedCustSearch state and latestCustRequestId ref ──
   const [custOptions,              setCustOptions]              = useState([]);
   const [selectedCustomer,         setSelectedCustomer]         = useState(null);
   const [custPage,                 setCustPage]                 = useState(1);
   const [custHasMore,              setCustHasMore]              = useState(true);
   const [custLoading,              setCustLoading]              = useState(false);
   const [custSearch,               setCustSearch]               = useState('');
+  const [debouncedCustSearch,      setDebouncedCustSearch]      = useState(''); // NEW
   const [isLoadingCustomerAddress, setIsLoadingCustomerAddress] = useState(false);
   const [isLoadingAddress,         setIsLoadingAddress]         = useState(false);
 
-  // Assignment state
+  const latestCustRequestId = useRef(0); // NEW — prevents stale responses overwriting fresh data
+
+  // Assignment state — unchanged
   const [assignmentType,     setAssignmentType]     = useState('self');
   const [departments,        setDepartments]        = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
@@ -157,21 +160,53 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     } finally { setLoadingEmployees(false); }
   }, [selectedDepartment]);
 
-  /* ─── Load customers ─── */
+  // ── CHANGE 2: debounce custSearch → debouncedCustSearch (400ms) ──
+  // Prevents a new API call on every single keypress in production (50k records).
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCustSearch(custSearch), 400);
+    return () => clearTimeout(t);
+  }, [custSearch]);
+
+  // ── CHANGE 3: loadCustomers with request-ID stale-response protection ──
+  // - Empty deps: no stale closure (fixes local bug from before)
+  // - Request ID: if a newer call arrives while this one is in-flight,
+  //   the older response is silently discarded (fixes production bug)
   const loadCustomers = useCallback(async (page, search) => {
-    if (custLoading || !custHasMore) return;
+    const requestId = ++latestCustRequestId.current;
     setCustLoading(true);
     try {
-      const data = await getCustomers(page, PAGE_SIZE, search);
-      if (data.error) { toast.error(data.error || 'Failed to load customers'); return; }
+      const searchParam = search && search.trim() !== '' ? search.trim() : null;
+      const data = await getCustomers(page, PAGE_SIZE, searchParam);
+
+      if (requestId !== latestCustRequestId.current) return; // stale — discard
+
+      if (!data || data.error) {
+        toast.error(data?.error || 'Failed to load customers');
+        if (page === 1) setCustOptions([]);
+        return;
+      }
       const customers = data.customers || data.data || [];
       const newOpts = customers.map(c => ({ value: c._id, label: c.custName || c.name || 'Unnamed' }));
       setCustOptions(prev => page === 1 ? newOpts : [...prev, ...newOpts]);
       setCustHasMore(customers.length === PAGE_SIZE);
       setCustPage(page + 1);
-    } catch (error) { toast.error('Failed to load customers'); }
-    finally { setCustLoading(false); }
-  }, [custLoading, custHasMore]);
+    } catch (error) {
+      if (requestId !== latestCustRequestId.current) return;
+      toast.error('Failed to load customers');
+    } finally {
+      if (requestId === latestCustRequestId.current) setCustLoading(false);
+    }
+  }, []); // empty deps — no stale closure risk
+
+  // ── CHANGE 4: trigger on debouncedCustSearch (not custSearch) ──
+  useEffect(() => {
+    if (customerType === 'existing') {
+      setCustPage(1);
+      setCustHasMore(true);
+      setCustOptions([]);
+      loadCustomers(1, debouncedCustSearch);
+    }
+  }, [customerType, debouncedCustSearch, loadCustomers]);
 
   /* ─── Customer selection ─── */
   const handleCustomerSelect = async (selectedOption) => {
@@ -212,13 +247,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   };
 
   /* ─── Effects ─── */
-  useEffect(() => {
-    if (customerType === 'existing') {
-      setCustPage(1); setCustHasMore(true); setCustOptions([]);
-      loadCustomers(1, custSearch);
-    }
-  }, [customerType]);
-
   useEffect(() => { loadDepartments(1, deptSearchTerm); }, [loadDepartments, deptSearchTerm]);
 
   useEffect(() => {
@@ -233,7 +261,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     const fetchData = async () => {
       const pin = formData.address.pincode || '';
 
-      /* ── Row 25/26: reject non-digit or less than 6 digits ── */
       if (pin.length > 0 && pin.length < 6) {
         setFieldError('pincode', 'Pincode must be exactly 6 digits.');
         setPincodeStatus('');
@@ -252,12 +279,10 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
         try {
           const data = await getAddress(pin);
           if (data && data !== 'Error' && (data.state || data.city)) {
-            /* ── Row 23/28: valid pincode — auto-fill ── */
             setFormData(prev => ({ ...prev, address: { ...prev.address, state: data.state || '', city: data.city || '', country: data.country || 'India' } }));
             setPincodeStatus('valid');
             clearFieldError('pincode');
           } else {
-            /* ── Row 29: pincode not found in API ── */
             setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
             setPincodeStatus('invalid');
             setFieldError('pincode', 'Invalid Pincode — no location found. Please check and try again.');
@@ -277,17 +302,15 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
 
-    /* ── Row 27: block numbers & special chars in state/city/country ── */
     if (['state', 'city', 'country'].includes(name)) {
       if (value && !isValidAddressText(value)) {
         setFieldError(name, `${name.charAt(0).toUpperCase() + name.slice(1)} must contain only letters and spaces.`);
-        return; // don't update state if invalid char typed
+        return;
       } else {
         clearFieldError(name);
       }
     }
 
-    /* Pincode: only allow digits */
     if (name === 'pincode') {
       const digitsOnly = value.replace(/[^0-9]/g, '');
       if (value !== digitsOnly) {
@@ -306,7 +329,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
-    /* ── Contact Name: block non-alpha chars on input ── */
     if (name === 'name') {
       if (value && !isValidName(value)) {
         setFieldError('name', 'Contact Name must contain only letters and spaces (no numbers or special characters).');
@@ -317,7 +339,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       return;
     }
 
-    /* ── Email: live format check ── */
     if (name === 'email') {
       if (value && !isValidEmail(value)) {
         setFieldError('email', 'Please enter a valid email address (e.g., example@domain.com).');
@@ -328,7 +349,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       return;
     }
 
-    /* ── Subject: must contain at least one letter ── */
     if (name === 'subject') {
       if (value && !isValidSubject(value)) {
         setFieldError('subject', 'Subject must contain at least one letter (not just numbers or special characters).');
@@ -339,7 +359,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       return;
     }
 
-    /* ── Message (Row 21): must contain at least one letter if filled ── */
     if (name === 'message') {
       if (value && !isValidMessage(value)) {
         setFieldError('message', 'Message must contain at least one letter (cannot be only numbers or special characters).');
@@ -350,7 +369,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       return;
     }
 
-    /* ── Sources dropdown ── */
     if (name === 'sources') {
       if (value === 'Other') {
         setShowCustomSource(true);
@@ -364,7 +382,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       return;
     }
 
-    /* ── Products dropdown ── */
     if (name === 'products') {
       if (value === 'Other') {
         setShowCustomProduct(true);
@@ -393,7 +410,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     }
   };
 
-  /* ── Custom product change with validation (FIX: no numeric-only) ── */
+  /* ── Custom product change with validation ── */
   const handleCustomProductChange = (e) => {
     const value = e.target.value;
     setCustomProduct(value);
@@ -408,7 +425,16 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const handleCustomerTypeChange = (e) => {
     const type = e.target.value;
     setCustomerType(type);
-    if (type === 'new') { resetFormData(); setSelectedCustomer(null); }
+    if (type === 'new') {
+      resetFormData();
+      setSelectedCustomer(null);
+      // ── CHANGE 5: also reset debounced search so next 'existing' visit starts fresh ──
+      setCustPage(1);
+      setCustHasMore(true);
+      setCustOptions([]);
+      setCustSearch('');
+      setDebouncedCustSearch('');
+    }
   };
 
   /* ─── Form submit with full validation ─── */
@@ -417,7 +443,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
     const { name, email, contact, subject, company, products, sources, callLeads, message, address } = formData;
 
-    /* ── 1. Required field check ── */
     if (customerType === 'new') {
       if (!name || !company || !contact || !products || !address.pincode || !address.add || !sources) {
         toast.error('Please fill in all required fields, including Pincode, full address, and source.');
@@ -430,35 +455,30 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       }
     }
 
-    /* ── 2. Contact Name: letters only ── */
     if (name && !isValidName(name)) {
       toast.error('Contact Name must contain only letters and spaces.');
       setFieldError('name', 'Contact Name must contain only letters and spaces (no numbers or special characters).');
       return;
     }
 
-    /* ── 3. Email: proper format including TLD ── */
     if (email && !isValidEmail(email)) {
       toast.error('Please enter a valid email address (e.g., example@domain.com).');
       setFieldError('email', 'Please enter a valid email address (e.g., example@domain.com).');
       return;
     }
 
-    /* ── 4. Subject: must have at least one letter ── */
     if (subject && !isValidSubject(subject)) {
       toast.error('Subject must contain at least one letter (not just numbers or special characters).');
       setFieldError('subject', 'Subject must contain at least one letter (not just numbers or special characters).');
       return;
     }
 
-    /* ── 5. Message (Row 21): must contain at least one letter if filled ── */
     if (message && !isValidMessage(message)) {
       toast.error('Message must contain at least one letter (cannot be only numbers or special characters).');
       setFieldError('message', 'Message must contain at least one letter (cannot be only numbers or special characters).');
       return;
     }
 
-    /* ── 6. Pincode (Row 25/26/29) ── */
     if (customerType === 'new' && address.pincode) {
       if (!isValidPincode(address.pincode)) {
         toast.error('Pincode must be exactly 6 digits (no letters or special characters).');
@@ -472,7 +492,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       }
     }
 
-    /* ── 7. State/City/Country: letters only (Row 27) ── */
     if (address.state && !isValidAddressText(address.state)) {
       toast.error('State must contain only letters and spaces.');
       setFieldError('state', 'State must contain only letters and spaces.');
@@ -489,7 +508,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       return;
     }
 
-    /* ── 8. Custom source ── */
     if (showCustomSource) {
       if (!customSource.trim()) { toast.error('Please enter a custom source.'); return; }
       if (!isValidCustomText(customSource)) {
@@ -499,7 +517,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       }
     }
 
-    /* ── 9. Custom product: must contain a letter (no numeric-only) ── */
     if (showCustomProduct) {
       if (!customProduct.trim()) { toast.error('Please enter a custom product name.'); return; }
       if (!isValidCustomText(customProduct)) {
@@ -509,13 +526,11 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       }
     }
 
-    /* ── 10. Employee assignment ── */
     if (assignmentType === 'employee' && !assignedEmployee) {
       toast.error('Please select an employee to assign the lead to.');
       return;
     }
 
-    /* ── 11. Any remaining inline errors ── */
     const hasErrors = Object.values(fieldErrors).some(msg => msg !== '');
     if (hasErrors) {
       toast.error('Please fix the highlighted errors before submitting.');
@@ -593,13 +608,17 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                           options={custOptions}
                           value={selectedCustomer}
                           onChange={handleCustomerSelect}
+                          // ── CHANGE 6: onInputChange only sets custSearch (debounce handles the rest) ──
                           onInputChange={val => setCustSearch(val)}
-                          onMenuScrollToBottom={() => { if (!custLoading && custHasMore) loadCustomers(custPage, custSearch); }}
+                          // ── CHANGE 7: scroll guard uses debouncedCustSearch so search term stays in sync ──
+                          onMenuScrollToBottom={() => { if (!custLoading && custHasMore) loadCustomers(custPage, debouncedCustSearch); }}
                           isLoading={custLoading}
                           placeholder="Search and select client..."
                           noOptionsMessage={({ inputValue }) => inputValue ? 'No clients found.' : 'Type to search...'}
                           loadingMessage={() => 'Loading clients...'}
                           closeMenuOnSelect
+                          // ── CHANGE 8: disable client-side filter — server handles search ──
+                          filterOption={() => true}
                           styles={{
                             control: p => ({ ...p, borderRadius:0, borderColor:'#ced4da', fontSize:'16px', minHeight:'38px' }),
                             option:  (p, s) => ({ ...p, backgroundColor: s.isSelected ? '#007bff' : s.isFocused ? '#f8f9fa' : 'white', color: s.isSelected ? 'white' : '#212529' }),
@@ -626,7 +645,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                     />
                   </div>
 
-                  {/* ── Contact Name — FIX rows 9, 10, 11 ── */}
+                  {/* ── Contact Name ── */}
                   <div className="col-md-6">
                     <label className="form-label">Contact Name <RequiredStar /></label>
                     <input
@@ -638,7 +657,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                       value={formData.name}
                       onChange={handleInputChange}
                       onKeyPress={(e) => {
-                        /* Block digits and special chars on keypress for immediate feedback */
                         if (!/[A-Za-z\s]/.test(e.key)) e.preventDefault();
                       }}
                       required
@@ -648,7 +666,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                     <FieldError msg={fieldErrors.name}/>
                   </div>
 
-                  {/* ── Contact Email — FIX row 13 ── */}
+                  {/* ── Contact Email ── */}
                   <div className="col-md-6">
                     <label className="form-label">Contact Email <RequiredStar /></label>
                     <input
@@ -689,7 +707,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                     />
                   </div>
 
-                  {/* ── Subject — FIX row 19 ── */}
+                  {/* ── Subject ── */}
                   <div className="col-md-6">
                     <label className="form-label">Subject <RequiredStar /></label>
                     <textarea
@@ -711,7 +729,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                     <FieldError msg={fieldErrors.subject}/>
                   </div>
 
-                  {/* ── Products — FIX row 20 (custom product) ── */}
+                  {/* ── Products ── */}
                   <div className="col-md-6">
                     <label className="form-label">Products <RequiredStar /></label>
                     <select
