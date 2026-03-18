@@ -220,7 +220,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
           const billingAddress = customer.billingAddress || customer.address || {};
           setFormData(prev => ({
             ...prev,
-            name:    customer.custName || customer.name || customer.contactPerson || '',
+            name: customer.customerContactPersonName1 || customer.customerContactPersonName2 || '',
             email:   customer.email || customer.contactPersonEmail || '',
             contact: customer.phoneNumber1 || customer.contact || customer.contactNumber || '',
             company: customer.custName || customer.name || customer.companyName || '',
