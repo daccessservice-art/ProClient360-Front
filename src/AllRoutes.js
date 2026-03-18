@@ -61,6 +61,10 @@ import ActivityLogReport from "./Components/Private/MainDashboard/ActivityLogRep
 import AnnualReport from "./Components/Private/MainDashboard/AnnualReport/AnnualReport";
 
 import { NotFeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/NotFeasibleLeadPage';
+
+// ✅ Match exact filename case on disk
+import { FeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/Feasibleleadspage';
+
 // Custom component to check if user has required permissions
 const SalesManagerRoute = () => {
     const { user } = useContext(UserContext);
@@ -207,7 +211,9 @@ const AllRoutes = () => {
                 {/* REPORT ROUTES - Permission Based */}
                 <Route exact path="/ActivityLogReport" element={<ProtectRoute Component={ActivityLogReportRoute} />} />
                 <Route exact path="/AnnualReport" element={<ProtectRoute Component={AnnualReportRoute} />} />
-                <Route path="/not-feasible-leads" element={<ProtectRoute Component={NotFeasibleLeadsPage} />} />               
+                <Route path="/not-feasible-leads" element={<ProtectRoute Component={NotFeasibleLeadsPage} />} />
+                <Route path="/feasible-leads" element={<ProtectRoute Component={FeasibleLeadsPage} />} />   
+                            
                 {/* Company Routes */}
                 {user && user?.user === 'company' && (
                     <>

@@ -23,12 +23,15 @@ const MarketingDashboardCards = ({ allLeads, feasibleLeads, notFeasibleLeads, ca
       clickable: false,
     },
     {
+      // ✅ NOW CLICKABLE — navigates to FeasibleLeadsPage
       title: 'Feasible',
       count: feasibleLeads || 0,
       bgColor: '#F8EFDE',
       countColor: '#E65100',
       img: './static/assets/img/process.png',
-      clickable: false,
+      clickable: true,
+      path: '/feasible-leads',
+      subText: 'Click to view details',
     },
     {
       title: 'Not Feasible',
