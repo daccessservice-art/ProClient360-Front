@@ -355,7 +355,7 @@ export const FeasibleLeadsPage = () => {
                   <div className="col-12 d-flex gap-2 flex-wrap">
                     <div className="input-group" style={{ maxWidth: '280px' }}>
                       <input type="text" className="form-control form-control-sm"
-                        placeholder="Search company / mobile / name..."
+                        placeholder="Search company / mobile / name / assigned to..."
                         value={filters.search || ""} onChange={handleSearchChange} />
                       {filters.search && (
                         <button className="btn btn-outline-secondary btn-sm" type="button"
