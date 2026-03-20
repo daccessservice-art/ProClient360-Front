@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 
+// ── "Initial" stage REMOVED — leads with no step now map to first real stage ──
 const FUNNEL_STAGES = [
-  { key: "Initial",                    label: "New Inquiry",               color: "#6366f1" },
   { key: "Call Not Connect/ Callback", label: "Call Not Connect",          color: "#818cf8" },
   { key: "Requirement Understanding",  label: "Requirement Understanding", color: "#3b82f6" },
   { key: "Site Visit",                 label: "Site Visit",                color: "#0ea5e9" },
@@ -21,6 +21,9 @@ const CLOSING_STAGES = [
 ];
 
 const ALL_STAGES = [...FUNNEL_STAGES, ...CLOSING_STAGES];
+
+// ── Leads with no step (null / undefined) now fall to first real stage ──
+const FIRST_REAL_STAGE_KEY = "Call Not Connect/ Callback";
 
 const STEP_TO_KEY = {
   "1. Call Not Connect/ Callback" : "Call Not Connect/ Callback",
@@ -54,7 +57,6 @@ const fmtDate = (d) => {
   return isNaN(dt) ? null : dt.toLocaleDateString("en-GB");
 };
 
-/* Format currency in Indian format — compact for small spaces */
 const fmtCurrency = (n) => {
   if (!n || n <= 0) return null;
   return new Intl.NumberFormat("en-IN", {
@@ -64,7 +66,6 @@ const fmtCurrency = (n) => {
   }).format(n);
 };
 
-/* Compact currency: ₹1.2L, ₹45K, ₹2.3Cr */
 const fmtCurrencyCompact = (n) => {
   if (!n || n <= 0) return null;
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(1)}Cr`;
@@ -111,7 +112,6 @@ const LeadCard = ({ lead, onView, onUpdate, onAssign, onDelete, canUpdate, canAs
       {lead.SENDER_MOBILE&&<div style={{color:"#64748b",marginBottom:2}}><i className="fa-solid fa-phone" style={{marginRight:5,color:"#94a3b8",fontSize:10}}></i>{lead.SENDER_MOBILE}</div>}
       {lead.QUERY_PRODUCT_NAME&&<div style={{color:"#3b82f6",marginBottom:2}}><i className="fa-solid fa-box" style={{marginRight:5,color:"#93c5fd",fontSize:10}}></i>{lead.QUERY_PRODUCT_NAME}</div>}
 
-      {/* ── Quotation Amount Badge ── */}
       {lead.quotation > 0 && (
         <div style={{marginBottom:4}}>
           <span style={{
@@ -164,18 +164,11 @@ const LeadsModal = ({stage,leads,onClose,onView,onUpdate,onAssign,onDelete,canUp
             <i className="fa-solid fa-layer-group" style={{color:"rgba(255,255,255,0.9)",fontSize:17}}></i>
             <span style={{fontWeight:700,fontSize:17,color:"#fff"}}>{stage.label}</span>
             <span style={{background:"rgba(255,255,255,0.25)",color:"#fff",borderRadius:99,padding:"3px 12px",fontSize:12,fontWeight:700}}>{leads.length} lead{leads.length!==1?"s":""}</span>
-            {/* ── Total Quotation in Modal Header ── */}
             {totalQuotation > 0 && (
               <span style={{
-                background:"rgba(255,255,255,0.2)",
-                color:"#fff",
-                borderRadius:99,
-                padding:"3px 12px",
-                fontSize:12,
-                fontWeight:700,
-                display:"flex",
-                alignItems:"center",
-                gap:4,
+                background:"rgba(255,255,255,0.2)",color:"#fff",borderRadius:99,
+                padding:"3px 12px",fontSize:12,fontWeight:700,
+                display:"flex",alignItems:"center",gap:4,
                 border:"1px solid rgba(255,255,255,0.35)",
               }}>
                 <i className="fa-solid fa-indian-rupee-sign" style={{fontSize:10}}></i>
@@ -203,10 +196,9 @@ const LeadsModal = ({stage,leads,onClose,onView,onUpdate,onAssign,onDelete,canUp
           )}
         </div>
         <div style={{borderTop:"1px solid #e2e8f0",padding:"10px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,background:"#f8fafc"}}>
-          {/* Footer total */}
           {totalQuotation > 0 && (
             <span style={{fontSize:12,fontWeight:700,color:"#15803d"}}>
-              <i className="fa-solid fa-Indian-rupee-sign" style={{marginRight:4}}></i>
+              <i className="fa-solid fa-indian-rupee-sign" style={{marginRight:4}}></i>
               Total Quotation: {fmtCurrency(totalQuotation)}
             </span>
           )}
@@ -273,7 +265,6 @@ const CurvedFunnel = ({ stages, grouped, quotationByStage, totalLeads, activeKey
         const y0    = i * SLICE_H + 4;
         const midY  = y0 + SLICE_H / 2 + 3;
 
-        /* Quotation amount for this stage */
         const stageQuotation = quotationByStage[stage.key] || 0;
         const amtLabel = fmtCurrencyCompact(stageQuotation);
 
@@ -299,14 +290,12 @@ const CurvedFunnel = ({ stages, grouped, quotationByStage, totalLeads, activeKey
             {count > 0 && (
               <>
                 {i % 2 === 0 ? (
-                  /* LEFT side */
                   <>
                     <line
                       x1={CX - rx(i + 0.5)} y1={midY}
                       x2={CX - rx(i + 0.5) - 22} y2={midY}
                       stroke={stage.color} strokeWidth={1.5}
                     />
-                    {/* Count box */}
                     <rect
                       x={CX - rx(i + 0.5) - 22 - 30} y={midY - 11}
                       width={30} height={22} rx={5}
@@ -321,34 +310,29 @@ const CurvedFunnel = ({ stages, grouped, quotationByStage, totalLeads, activeKey
                       style={{ pointerEvents:"none" }}
                     >{count}</text>
 
-                    {/* Quotation amount label — only for Quotation Submission stage */}
                     {amtLabel && stage.key === "Quotation Submission" && (
                       <>
                         <rect
                           x={CX - rx(i + 0.5) - 22 - 62} y={midY - 10}
                           width={28} height={18} rx={4}
-                          fill="#dcfce7"
-                          stroke="#16a34a" strokeWidth={1}
+                          fill="#dcfce7" stroke="#16a34a" strokeWidth={1}
                         />
                         <text
                           x={CX - rx(i + 0.5) - 22 - 48} y={midY + 1}
                           textAnchor="middle" dominantBaseline="middle"
-                          fill="#15803d"
-                          fontSize={8} fontWeight={700}
+                          fill="#15803d" fontSize={8} fontWeight={700}
                           style={{ pointerEvents:"none" }}
                         >{amtLabel}</text>
                       </>
                     )}
                   </>
                 ) : (
-                  /* RIGHT side */
                   <>
                     <line
                       x1={CX + rx(i + 0.5)} y1={midY}
                       x2={CX + rx(i + 0.5) + 22} y2={midY}
                       stroke={stage.color} strokeWidth={1.5}
                     />
-                    {/* Count box */}
                     <rect
                       x={CX + rx(i + 0.5) + 22} y={midY - 11}
                       width={30} height={22} rx={5}
@@ -363,20 +347,17 @@ const CurvedFunnel = ({ stages, grouped, quotationByStage, totalLeads, activeKey
                       style={{ pointerEvents:"none" }}
                     >{count}</text>
 
-                    {/* Quotation amount label — only for Quotation Submission stage */}
                     {amtLabel && stage.key === "Quotation Submission" && (
                       <>
                         <rect
                           x={CX + rx(i + 0.5) + 22 + 34} y={midY - 10}
                           width={28} height={18} rx={4}
-                          fill="#dcfce7"
-                          stroke="#16a34a" strokeWidth={1}
+                          fill="#dcfce7" stroke="#16a34a" strokeWidth={1}
                         />
                         <text
                           x={CX + rx(i + 0.5) + 22 + 48} y={midY + 1}
                           textAnchor="middle" dominantBaseline="middle"
-                          fill="#15803d"
-                          fontSize={8} fontWeight={700}
+                          fill="#15803d" fontSize={8} fontWeight={700}
                           style={{ pointerEvents:"none" }}
                         >{amtLabel}</text>
                       </>
@@ -389,7 +370,6 @@ const CurvedFunnel = ({ stages, grouped, quotationByStage, totalLeads, activeKey
         );
       })}
 
-      {/* Bottom cap ellipse */}
       <ellipse
         cx={CX} cy={capY + 5}
         rx={capRx + 2} ry={6}
@@ -408,15 +388,21 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
   const [modalStageKey, setModalStageKey] = useState(null);
   const [hoveredKey,    setHoveredKey]    = useState(null);
 
-  /* ── Group leads by stage AND compute quotation totals ── */
+  /* ── Group leads by stage AND compute quotation totals ──
+     Leads with no step (null/undefined) → first real stage "Call Not Connect/ Callback"
+  ── */
   const { grouped, quotationByStage } = useMemo(() => {
-    const map = {};
+    const map   = {};
     const qtMap = {};
     ALL_STAGES.forEach(s => { map[s.key] = []; qtMap[s.key] = 0; });
 
     leads.forEach(lead => {
-      const step = STEP_TO_KEY[lead.step] || "Initial";
-      const key  = map[step] !== undefined ? step : "Initial";
+      // STEP_TO_KEY returns undefined for null/undefined step → falls to FIRST_REAL_STAGE_KEY
+      const mapped = STEP_TO_KEY[lead.step];
+      const key    = (mapped !== undefined && map[mapped] !== undefined)
+        ? mapped
+        : FIRST_REAL_STAGE_KEY;
+
       map[key].push(lead);
       if (lead.quotation > 0) qtMap[key] += lead.quotation;
     });
@@ -428,7 +414,6 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
   const funnelTotal  = FUNNEL_STAGES.reduce((s,st)=>s+(grouped[st.key]?.length||0),0);
   const closingTotal = CLOSING_STAGES.reduce((s,st)=>s+(grouped[st.key]?.length||0),0);
 
-  /* Total quotation across ALL stages (for summary bar) */
   const totalQuotationAllStages = Object.values(quotationByStage).reduce((a, b) => a + b, 0);
 
   const modalStage = ALL_STAGES.find(s=>s.key===modalStageKey)||null;
@@ -436,8 +421,12 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
 
   const hoveredStage = hoveredKey ? ALL_STAGES.find(s=>s.key===hoveredKey) : null;
   const hoveredCount = hoveredKey ? (grouped[hoveredKey]?.length||0) : 0;
-  const hoveredPct   = funnelTotal>0 && hoveredKey
-    ? ((hoveredCount/funnelTotal)*100).toFixed(1) : "0.0";
+
+  // ── FIX: use totalLeads (all leads) as denominator for consistent % across funnel + closing ──
+  const hoveredPct = totalLeads > 0 && hoveredKey
+    ? ((hoveredCount / totalLeads) * 100).toFixed(1)
+    : "0.0";
+
   const hoveredQuotation = hoveredKey ? (quotationByStage[hoveredKey] || 0) : 0;
 
   return (
@@ -463,13 +452,12 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
         </div>
         <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
           {[
-            {label:"Total Leads",       val:totalLeads,               color:"#1e293b", bg:"#f8fafc", isNum:true},
-            {label:"In Funnel",         val:funnelTotal,              color:"#6366f1", bg:"#eef2ff", isNum:true},
-            {label:"Closing",           val:closingTotal,             color:"#16a34a", bg:"#f0fdf4", isNum:true},
-            /* ── NEW: Total Quotation card ── */
+            {label:"Total Leads",   val:totalLeads,   color:"#1e293b", bg:"#f8fafc", isNum:true},
+            {label:"In Funnel",     val:funnelTotal,  color:"#6366f1", bg:"#eef2ff", isNum:true},
+            {label:"Won",       val:closingTotal, color:"#16a34a", bg:"#f0fdf4", isNum:true},
             ...(totalQuotationAllStages > 0 ? [{
               label:"Total Quotation",
-              val: fmtCurrencyCompact(totalQuotationAllStages),
+              val: fmtCurrency(totalQuotationAllStages),
               color:"#b45309", bg:"#fffbeb", isNum:false,
             }] : []),
           ].map(s=>(
@@ -500,8 +488,10 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
                 <div style={{width:10,height:10,borderRadius:2,background:hoveredStage.color}}/>
                 <span style={{fontWeight:700,fontSize:13,color:hoveredStage.color}}>{hoveredStage.label}</span>
                 <span style={{fontWeight:800,fontSize:18,color:hoveredStage.color}}>{hoveredCount}</span>
-                <span style={{fontSize:11.5,color:"#64748b"}}>leads · {hoveredPct}%</span>
-                {/* ── Show quotation in tooltip ── */}
+                {/* ── FIX: percentage now uses totalLeads denominator ── */}
+                <span style={{fontSize:11.5,color:"#64748b"}}>
+                  leads · {hoveredPct}% of total
+                </span>
                 {hoveredQuotation > 0 && (
                   <span style={{
                     fontSize:11,fontWeight:700,
@@ -544,17 +534,20 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
           <div style={{display:"flex",flexWrap:"wrap",gap:"5px 14px",marginTop:14,maxWidth:460}}>
             {FUNNEL_STAGES.map(s=>{
               const stageAmt = quotationByStage[s.key] || 0;
+              const count    = grouped[s.key]?.length || 0;
+              // ── FIX: legend % also uses totalLeads ──
+              const pct = totalLeads > 0 ? ((count / totalLeads) * 100).toFixed(1) : "0.0";
               return (
                 <div key={s.key}
                   style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",
                     opacity:hoveredKey&&hoveredKey!==s.key?0.4:1,transition:"opacity .2s"}}
                   onMouseEnter={()=>setHoveredKey(s.key)}
                   onMouseLeave={()=>setHoveredKey(null)}
-                  onClick={()=>(grouped[s.key]?.length||0)>0&&setModalStageKey(s.key)}
+                  onClick={()=>count>0&&setModalStageKey(s.key)}
                 >
                   <div style={{width:11,height:11,borderRadius:2,background:s.color,flexShrink:0}}/>
                   <span style={{fontSize:11,color:"#374151"}}>
-                    {s.label} ({grouped[s.key]?.length||0})
+                    {s.label} ({count} · {pct}%)
                     {stageAmt > 0 && (
                       <span style={{marginLeft:4,fontSize:10,color:"#15803d",fontWeight:600}}>
                         · {fmtCurrencyCompact(stageAmt)}
@@ -575,12 +568,11 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
               <i className="fa-solid fa-arrow-trend-up" style={{color:"#fff",fontSize:12}}></i>
             </div>
             <div>
-              <div style={{fontWeight:700,fontSize:13.5,color:"#1e293b",lineHeight:1}}>Closing Stages</div>
+              <div style={{fontWeight:700,fontSize:13.5,color:"#1e293b",lineHeight:1}}>Won Stages</div>
               <div style={{fontSize:11,color:"#64748b",marginTop:2}}>After Quotation Submission</div>
             </div>
           </div>
 
-          {/* connector banner */}
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12,padding:"7px 11px",background:"linear-gradient(90deg,#fef3c7,#fef9c3)",borderRadius:8,border:"1px solid #fde68a"}}>
             <i className="fa-solid fa-arrow-right" style={{color:"#d97706",fontSize:12}}></i>
             <span style={{fontSize:11.5,color:"#92400e",fontWeight:600}}>Post-Quotation Pipeline</span>
@@ -590,8 +582,9 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
             const count   = grouped[stage.key]?.length||0;
             const isEmpty = count===0;
             const isHov   = hoveredKey===stage.key;
-            const pct     = totalLeads>0?((count/totalLeads)*100).toFixed(1):"0.0";
-            const stageAmt= quotationByStage[stage.key] || 0;
+            // ── FIX: closing stage % uses totalLeads ──
+            const pct = totalLeads > 0 ? ((count / totalLeads) * 100).toFixed(1) : "0.0";
+            const stageAmt = quotationByStage[stage.key] || 0;
 
             return(
               <div key={stage.key}
@@ -601,20 +594,16 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
                 onMouseLeave={()=>setHoveredKey(null)}
                 onClick={()=>!isEmpty&&setModalStageKey(stage.key)}
               >
-                {/* step number */}
                 <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:isEmpty?"#e2e8f0":`${stage.color}22`,border:`1.5px solid ${isEmpty?"#cbd5e1":stage.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:isEmpty?"#94a3b8":stage.color}}>
                   {idx+1}
                 </div>
-                {/* icon */}
                 <div style={{width:34,height:34,borderRadius:8,flexShrink:0,background:isEmpty?"#f1f5f9":`${stage.color}18`,display:"flex",alignItems:"center",justifyContent:"center"}}>
                   <i className={`fa-solid ${stage.icon}`} style={{color:isEmpty?"#94a3b8":stage.color,fontSize:14}}></i>
                 </div>
-                {/* text */}
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:600,fontSize:12.5,color:isHov?stage.color:"#1e293b",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{stage.label}</div>
                   <div style={{fontSize:10.5,color:"#94a3b8",marginTop:1,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                     <span>{count} leads · {pct}%</span>
-                    {/* ── Quotation amount for closing stage ── */}
                     {stageAmt > 0 && (
                       <span style={{
                         background:"#dcfce7",color:"#15803d",
@@ -628,7 +617,6 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
                     )}
                   </div>
                 </div>
-                {/* count badge */}
                 <div style={{minWidth:30,height:26,borderRadius:7,padding:"0 8px",background:count>0?stage.color:"#e2e8f0",color:count>0?"#fff":"#94a3b8",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,boxShadow:count>0?`0 2px 6px ${stage.color}55`:"none",flexShrink:0}}>
                   {count}
                 </div>

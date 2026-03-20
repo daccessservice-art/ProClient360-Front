@@ -13,21 +13,20 @@ import useSalesManagerTeam from "../../../../hooks/leads/useSalesManagerTeam";
 import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import SalesFunnelView from "../SalesMaster/PopUp/SalesFunnelView";
 
-const ALL_LEADS_URL  = `${process.env.REACT_APP_API_URL}/api/leads/all-leads`;
-const EMP_LEADS_URL  = `${process.env.REACT_APP_API_URL}/api/leads/employee-leads`;
+const ALL_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/all-leads`;
+const EMP_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/employee-leads`;
 
 export const SalesManagerMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => setIsOpen(!isopen);
 
-  /* ── View mode ── */
   const [viewMode, setViewMode] = useState("table");
 
-  const [showLeadPopUp, setShowLeadPopUp] = useState(false);
-  const [selectedLead,  setSelectedLead]  = useState(null);
-
+  const [showLeadPopUp,     setShowLeadPopUp]     = useState(false);
+  const [selectedLead,      setSelectedLead]      = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [leadToDelete,      setLeadToDelete]      = useState(null);
+  const [generatingPDF,     setGeneratingPDF]     = useState(false);
 
   const { user } = useContext(UserContext);
 
@@ -40,76 +39,59 @@ export const SalesManagerMasterGrid = () => {
     status: null, date: null, callLeads: null, source: null, searchTerm: "",
   });
 
+  // ✅ Debounced search — prevents API call on every keypress
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(filters.searchTerm), 500);
+    return () => clearTimeout(t);
+  }, [filters.searchTerm]);
+
   const [pagination, setPagination] = useState({
     currentPage: 1, totalPages: 0, totalRecords: 0,
     limit: 20, hasNextPage: true, hasPrevPage: false,
   });
   const itemsPerPage = 20;
 
-  /* ── ALL leads for funnel (no pagination) ── */
   const [funnelLeads,   setFunnelLeads]   = useState([]);
   const [funnelLoading, setFunnelLoading] = useState(false);
 
+  // ✅ Pass debouncedSearch to hook
   const { data, loading, error, refetch } = useSalesManagerTeam(
     selectedEmployee?._id,
     pagination.currentPage,
     itemsPerPage,
-    filters
+    { ...filters, searchTerm: debouncedSearch }
   );
 
-  /* ═══════════════════════════════════════════════════
-     Fetch ALL leads for funnel (no page limit)
-     Uses the same employee filter as the table view.
-  ═══════════════════════════════════════════════════ */
+  // ✅ Funnel uses debouncedSearch
   const fetchFunnelLeads = useCallback(async () => {
     setFunnelLoading(true);
     try {
       const isAll = selectedEmployee?._id === "all";
-      const url   = isAll
-        ? ALL_LEADS_URL
-        : `${EMP_LEADS_URL}/${selectedEmployee._id}`;
-
+      const url   = isAll ? ALL_LEADS_URL : `${EMP_LEADS_URL}/${selectedEmployee._id}`;
       const params = {
-        page:  1,
-        limit: 99999,
+        page: 1, limit: 99999,
         ...(filters.source    && { source:    filters.source    }),
         ...(filters.date      && { date:      filters.date      }),
         ...(filters.status    && { status:    filters.status    }),
         ...(filters.callLeads && { callLeads: filters.callLeads }),
-        ...(filters.searchTerm && { search:  filters.searchTerm }),
+        ...(debouncedSearch   && { search:    debouncedSearch   }),
       };
-
       const response = await axios.get(url, {
         params,
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
-
-      if (response.data.success) {
-        setFunnelLeads(response.data.leads || []);
-      } else {
-        setFunnelLeads([]);
-      }
+      if (response.data.success) setFunnelLeads(response.data.leads || []);
+      else setFunnelLeads([]);
     } catch (err) {
       console.error("Funnel leads fetch error:", err);
       setFunnelLeads([]);
-    } finally {
-      setFunnelLoading(false);
-    }
-  }, [
-    selectedEmployee?._id,
-    filters.source, filters.date, filters.status,
-    filters.callLeads, filters.searchTerm,
-  ]);
+    } finally { setFunnelLoading(false); }
+  }, [selectedEmployee?._id, filters.source, filters.date, filters.status, filters.callLeads, debouncedSearch]);
 
-  /* Auto-fetch funnel leads whenever employee or filters change */
   useEffect(() => { fetchFunnelLeads(); }, [fetchFunnelLeads]);
+  useEffect(() => { if (viewMode === "funnel") fetchFunnelLeads(); }, [viewMode]);
 
-  /* Also re-fetch when switching to funnel view */
-  useEffect(() => {
-    if (viewMode === "funnel") fetchFunnelLeads();
-  }, [viewMode]);
-
-  /* ── Helpers ── */
   const formatDateOnly = (dateString) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
@@ -117,14 +99,23 @@ export const SalesManagerMasterGrid = () => {
     return date.toLocaleDateString("en-GB");
   };
 
+  const formatLeadTimeIST = (rawDate) => {
+    if (!rawDate) return "—";
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric", timeZone:"Asia/Kolkata" })
+      + " " + d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:false, timeZone:"Asia/Kolkata" });
+  };
+
   useEffect(() => {
     if (data) setPagination(prev => ({ ...prev, ...data.pagination }));
     if (error) toast.error(error.message || "An error occurred");
   }, [data, error]);
 
+  // ✅ Reset page on filter/search change
   useEffect(() => {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
-  }, [filters.status, filters.date, filters.source, filters.callLeads, filters.searchTerm]);
+  }, [filters.status, filters.date, filters.source, filters.callLeads, debouncedSearch]);
 
   const isAllMode = selectedEmployee._id === "all";
 
@@ -134,48 +125,40 @@ export const SalesManagerMasterGrid = () => {
   };
 
   const handleDetailsPopUpClick = (lead) => { setSelectedLead(lead); setShowLeadPopUp(true); };
-
-  const handleChange = (filterType, value) =>
-    setFilters(prev => ({ ...prev, [filterType]: value || null }));
-
-  const handleSearchChange = (e) =>
-    setFilters(prev => ({ ...prev, searchTerm: e.target.value }));
+  const handleChange = (filterType, value) => setFilters(prev => ({ ...prev, [filterType]: value || null }));
+  const handleSearchChange = (e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }));
 
   const handleEmployeeSelect = (e) => {
     const employeeId = e.target.value;
-    if (employeeId === "all") {
-      setSelectedEmployee({ _id: "all", name: "All Leads" });
-    } else {
+    if (employeeId === "all") setSelectedEmployee({ _id: "all", name: "All Leads" });
+    else {
       const employee = salesEmployees.find(emp => emp._id === employeeId);
       setSelectedEmployee(employee || { _id: "all", name: "All Leads" });
     }
     setPagination(prev => ({ ...prev, currentPage: 1 }));
     setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "" });
+    setDebouncedSearch("");
   };
 
-  const resetSearch  = () => setFilters(prev => ({ ...prev, searchTerm: "" }));
+  const resetSearch  = () => { setFilters(prev => ({ ...prev, searchTerm: "" })); setDebouncedSearch(""); };
   const resetFilters = () => {
     setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "" });
+    setDebouncedSearch("");
     setPagination(prev => ({ ...prev, currentPage: 1 }));
     refetch();
   };
 
-  /* ── Delete ── */
-  const handleDeleteClick = (lead) => { setLeadToDelete(lead); setShowDeleteConfirm(true); };
+  const handleDeleteClick   = (lead) => { setLeadToDelete(lead); setShowDeleteConfirm(true); };
+  const handleDeleteCancel  = () => { setShowDeleteConfirm(false); setLeadToDelete(null); };
   const handleDeleteConfirm = async () => {
     if (!leadToDelete) return;
     const result = await deleteLead(leadToDelete._id);
     if (result?.success) {
       toast.success("Lead deleted successfully");
-      setShowDeleteConfirm(false);
-      setLeadToDelete(null);
-      refetch();
-      fetchFunnelLeads();
-    } else {
-      toast.error(result?.error || "Failed to delete lead");
-    }
+      setShowDeleteConfirm(false); setLeadToDelete(null);
+      refetch(); fetchFunnelLeads();
+    } else { toast.error(result?.error || "Failed to delete lead"); }
   };
-  const handleDeleteCancel = () => { setShowDeleteConfirm(false); setLeadToDelete(null); };
 
   const handleBgColor = (status) => {
     switch ((status || "").toString().trim()) {
@@ -197,6 +180,174 @@ export const SalesManagerMasterGrid = () => {
     if (date >= s && date <= e) return "today";
     if (date < s) return "overdue";
     return null;
+  };
+
+  // ✅ Fetch ALL leads for PDF
+  const fetchAllLeadsForPDF = async () => {
+    try {
+      const isAll = selectedEmployee?._id === "all";
+      const url   = isAll ? ALL_LEADS_URL : `${EMP_LEADS_URL}/${selectedEmployee._id}`;
+      const params = {
+        page: 1, limit: 99999,
+        ...(filters.source    && { source:    filters.source    }),
+        ...(filters.date      && { date:      filters.date      }),
+        ...(filters.status    && { status:    filters.status    }),
+        ...(filters.callLeads && { callLeads: filters.callLeads }),
+        ...(debouncedSearch   && { search:    debouncedSearch   }),
+      };
+      const response = await axios.get(url, {
+        params,
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      return response.data.success ? (response.data.leads || []) : [];
+    } catch (err) {
+      console.error("PDF fetch error:", err);
+      return [];
+    }
+  };
+
+  // ✅ PDF Report
+  const handlePrintReport = async () => {
+    setGeneratingPDF(true);
+    toast.loading("Preparing report...");
+    try {
+      const leads = await fetchAllLeadsForPDF();
+      toast.dismiss();
+
+      const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+      const employeeName = selectedEmployee._id === "all" ? "All Employees" : selectedEmployee.name;
+      const filterSummary = [
+        `Employee: ${employeeName}`,
+        filters.date      ? `Date: ${filters.date}`         : null,
+        filters.source    ? `Source: ${filters.source}`     : null,
+        filters.status    ? `Status: ${filters.status}`     : null,
+        filters.callLeads ? `Leads: ${filters.callLeads}`   : null,
+        debouncedSearch   ? `Search: "${debouncedSearch}"`  : null,
+      ].filter(Boolean).join(' | ');
+
+      const counts = {
+        total:   leads.length,
+        pending: leads.filter(l => l.STATUS === 'Pending').length,
+        ongoing: leads.filter(l => l.STATUS === 'Ongoing').length,
+        won:     leads.filter(l => l.STATUS === 'Won').length,
+        lost:    leads.filter(l => l.STATUS === 'Lost').length,
+      };
+
+      const rowsHTML = leads.map((lead, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${lead.SENDER_COMPANY || '—'}</td>
+          <td>${lead.SENDER_NAME    || '—'}</td>
+          <td>${lead.QUERY_PRODUCT_NAME || '—'}</td>
+          <td>${lead.SOURCE || '—'}</td>
+          <td>${lead.SENDER_MOBILE || '—'}</td>
+          <td style="white-space:nowrap">${formatLeadTimeIST(lead.createdAt)}</td>
+          <td style="white-space:nowrap">${lead.nextFollowUpDate ? formatLeadTimeIST(lead.nextFollowUpDate) : '—'}</td>
+          <td>${lead.assignedTo?.name || 'Unassigned'}</td>
+          <td><span class="status-badge status-${(lead.STATUS || 'Pending').toLowerCase()}">${lead.STATUS || 'Pending'}</span></td>
+        </tr>
+      `).join('');
+
+      const printContent = `
+        <!DOCTYPE html><html>
+        <head><meta charset="UTF-8"/><title>Sales Manager Report</title>
+        <style>
+          *{margin:0;padding:0;box-sizing:border-box;}
+          body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#1a1a2e;background:#fff;}
+          .report-header{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);color:white;padding:22px 28px 18px;display:flex;justify-content:space-between;align-items:flex-start;}
+          .header-left .title{font-size:20px;font-weight:700;letter-spacing:1px;margin-bottom:4px;}
+          .header-left .sub{font-size:12px;opacity:.8;}
+          .header-right{text-align:right;font-size:9.5px;opacity:.85;line-height:1.9;}
+          .header-right .gen{font-size:11px;font-weight:600;opacity:1;}
+          .filter-bar{background:#f0f4ff;border-left:4px solid #0f3460;padding:8px 28px;font-size:10px;color:#444;display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
+          .filter-bar strong{color:#0f3460;}
+          .summary-section{padding:14px 28px 8px;}
+          .section-title{font-size:11px;font-weight:700;color:#0f3460;text-transform:uppercase;letter-spacing:1px;border-bottom:2px solid #0f3460;padding-bottom:4px;margin-bottom:10px;}
+          .summary-cards{display:flex;gap:10px;}
+          .s-card{flex:1;border-radius:6px;padding:10px 12px;text-align:center;border:1px solid #e0e0e0;}
+          .s-card .cnt{font-size:24px;font-weight:800;line-height:1;margin-bottom:3px;}
+          .s-card .lbl{font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;opacity:.7;}
+          .c-total{background:#e8f4fd;color:#1565C0;}.c-pending{background:#fff8e1;color:#F57F17;}
+          .c-ongoing{background:#e3f2fd;color:#0277BD;}.c-won{background:#e8f5e9;color:#2E7D32;}
+          .c-lost{background:#fce4ec;color:#B71C1C;}
+          .table-section{padding:8px 28px 20px;}
+          table{width:100%;border-collapse:collapse;}
+          thead tr{background:#0f3460;color:white;}
+          thead th{padding:8px 7px;text-align:left;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;}
+          tbody tr{border-bottom:1px solid #eef0f5;}
+          tbody tr:nth-child(even){background:#f8f9ff;}
+          tbody td{padding:6px 7px;font-size:9.5px;color:#333;vertical-align:middle;}
+          .status-badge{padding:2px 7px;border-radius:10px;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;}
+          .status-pending{background:#fff3cd;color:#856404;}
+          .status-ongoing{background:#cfe2ff;color:#084298;}
+          .status-won{background:#d1e7dd;color:#0f5132;}
+          .status-lost{background:#f8d7da;color:#842029;}
+          .report-footer{background:#f8f9ff;border-top:2px solid #0f3460;padding:10px 28px;display:flex;justify-content:space-between;font-size:9px;color:#666;}
+          .confidential{color:#B71C1C;font-weight:700;font-size:9.5px;}
+          @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4 landscape;margin:8mm;}}
+        </style></head>
+        <body>
+          <div class="report-header">
+            <div class="header-left">
+              <div class="title">&#x1F4CA; Sales Manager Report</div>
+              <div class="sub">Sales Dashboard — Lead Analysis by Employee</div>
+            </div>
+            <div class="header-right">
+              <div class="gen">Generated: ${now}</div>
+              <div>Prepared By: ${user?.name || 'System'}</div>
+              <div>Employee: ${employeeName}</div>
+              <div>Total Records: ${counts.total}</div>
+            </div>
+          </div>
+          <div class="filter-bar">
+            <span><strong>Filters:</strong> ${filterSummary}</span>
+            <span><strong>Date:</strong> ${now}</span>
+          </div>
+          <div class="summary-section">
+            <div class="section-title">Executive Summary</div>
+            <div class="summary-cards">
+              <div class="s-card c-total"><div class="cnt">${counts.total}</div><div class="lbl">Total Leads</div></div>
+              <div class="s-card c-pending"><div class="cnt">${counts.pending}</div><div class="lbl">Pending</div></div>
+              <div class="s-card c-ongoing"><div class="cnt">${counts.ongoing}</div><div class="lbl">Ongoing</div></div>
+              <div class="s-card c-won"><div class="cnt">${counts.won}</div><div class="lbl">Won</div></div>
+              <div class="s-card c-lost"><div class="cnt">${counts.lost}</div><div class="lbl">Lost</div></div>
+            </div>
+          </div>
+          <div class="table-section">
+            <div class="section-title">Detailed Leads Data (${counts.total} Records)</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th><th>Company Name</th><th>Contact Name</th><th>Product</th>
+                  <th>Source</th><th>Mobile</th><th>Created Date</th><th>Follow-up Date</th>
+                  <th>Assigned To</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHTML || '<tr><td colspan="10" style="text-align:center;padding:16px;color:#999;">No leads found</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          <div class="report-footer">
+            <div><span class="confidential">CONFIDENTIAL</span> — For Internal Use Only</div>
+            <div>Sales Manager Report &nbsp;|&nbsp; ${counts.total} records &nbsp;|&nbsp; ${now}</div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; };
+          </script>
+        </body></html>
+      `;
+
+      const pw = window.open('', '_blank', 'width=1200,height=850');
+      if (!pw) { toast.error('Popup blocked! Please allow popups.'); return; }
+      pw.document.write(printContent);
+      pw.document.close();
+      toast.success("Report ready — Save as PDF using Ctrl+P");
+    } catch (err) {
+      toast.dismiss();
+      toast.error("Failed to generate report.");
+      console.error("PDF Error:", err);
+    } finally { setGeneratingPDF(false); }
   };
 
   const isManagerWithPermissions =
@@ -241,25 +392,33 @@ export const SalesManagerMasterGrid = () => {
             <div className="main-panel" style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}>
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
-                {/* ── Title + view toggle ── */}
+                {/* ── Title + view toggle + PDF ── */}
                 <div className="row px-2 py-1 mb-3">
                   <div className="col-12 col-lg-4">
                     <h5 className="text-white py-2">Sales Manager Dashboard</h5>
                   </div>
                   <div className="col-12 col-lg-8 d-flex align-items-center justify-content-end gap-2 pe-4">
+                    {/* ✅ PDF Report Button */}
+                    <button
+                      className="btn btn-danger btn-sm d-flex align-items-center gap-2"
+                      onClick={handlePrintReport}
+                      disabled={generatingPDF}
+                      style={{ borderRadius:'6px', fontWeight:600, minWidth:160 }}
+                    >
+                      {generatingPDF
+                        ? <><span className="spinner-border spinner-border-sm" role="status"></span> Generating...</>
+                        : <><i className="fa-solid fa-file-pdf"></i> Download PDF</>
+                      }
+                    </button>
                     <div className="btn-group" role="group">
-                      <button
-                        type="button"
+                      <button type="button"
                         className={`btn btn-sm ${viewMode === "table" ? "btn-primary" : "btn-outline-secondary"}`}
-                        onClick={() => setViewMode("table")} title="Table View"
-                      >
+                        onClick={() => setViewMode("table")} title="Table View">
                         <i className="fa-solid fa-table-list"></i> Table
                       </button>
-                      <button
-                        type="button"
+                      <button type="button"
                         className={`btn btn-sm ${viewMode === "funnel" ? "btn-primary" : "btn-outline-secondary"}`}
-                        onClick={() => setViewMode("funnel")} title="Funnel View"
-                      >
+                        onClick={() => setViewMode("funnel")} title="Funnel View">
                         <i className="fa-solid fa-filter"></i> Funnel
                       </button>
                     </div>
@@ -287,24 +446,24 @@ export const SalesManagerMasterGrid = () => {
                     <SalesDashboardCards
                       allLeadsCount={data.leadCounts?.allLeadsCount || 0}
                       ongogingCount={data.leadCounts?.ongoingCount  || 0}
-                      winCount={data.leadCounts?.wonCount     || 0}
-                      pendingCount={data.leadCounts?.pendingCount  || 0}
-                      lostCount={data.leadCounts?.lostCount    || 0}
+                      winCount={data.leadCounts?.wonCount           || 0}
+                      pendingCount={data.leadCounts?.pendingCount   || 0}
+                      lostCount={data.leadCounts?.lostCount         || 0}
                       todayCount={data.leadCounts?.todaysFollowUpCount || 0}
-                      hotleadsCount={data.leadCounts?.hotLeadsCount   || 0}
+                      hotleadsCount={data.leadCounts?.hotLeadsCount    || 0}
                       warmLeadsCount={data.leadCounts?.warmLeadsCount  || 0}
                       coldLeadsCount={data.leadCounts?.coldLeadsCount  || 0}
                       invalidLeadsCount={data.leadCounts?.invalidLeadsCount || 0}
                     />
 
-                    {/* ── Quotation funnel card ── */}
+                    {/* ── Quotation Funnel ── */}
                     {data.quotationFunnel && (
                       <div className="row p-2 m-1">
                         <div className="col-12">
                           <SalesQuotationFunnel
                             totalQuotationAmount={data.quotationFunnel.totalActiveQuotationAmount || 0}
                             activeQuotationLeads={data.quotationFunnel.activeQuotationLeads || []}
-                            wonAmount={data.quotationFunnel.totalWonAmount  || 0}
+                            wonAmount={data.quotationFunnel.totalWonAmount   || 0}
                             lostAmount={data.quotationFunnel.totalLostAmount || 0}
                           />
                         </div>
@@ -317,7 +476,7 @@ export const SalesManagerMasterGrid = () => {
                         <div className="input-group">
                           <input
                             type="text" className="form-control"
-                            placeholder="Search by Mobile Number or Company Name..."
+                            placeholder="Search company, mobile, contact, assigned to..."
                             value={filters.searchTerm || ""} onChange={handleSearchChange}
                           />
                           {filters.searchTerm && (
@@ -329,14 +488,23 @@ export const SalesManagerMasterGrid = () => {
                             <i className="fa-solid fa-search"></i>
                           </button>
                         </div>
+                        {/* ✅ Search hint */}
+                        {debouncedSearch && (
+                          <small className="text-info mt-1 d-block">
+                            <i className="fa-solid fa-info-circle me-1"></i>
+                            Searching for "<strong>{debouncedSearch}</strong>"
+                          </small>
+                        )}
                       </div>
                       <div className="col-12 col-lg-6 ms-auto text-end">
                         <div className="row g-2">
                           <div className="col">
-                            <input type="date" className="form-control" onChange={e => handleChange("date", e.target.value)} value={filters.date || ""}/>
+                            <input type="date" className="form-control"
+                              onChange={e => handleChange("date", e.target.value)} value={filters.date || ""}/>
                           </div>
                           <div className="col">
-                            <select className="form-select" onChange={e => handleChange("callLeads", e.target.value)} value={filters.callLeads || ""}>
+                            <select className="form-select"
+                              onChange={e => handleChange("callLeads", e.target.value)} value={filters.callLeads || ""}>
                               <option value="">Leads...</option>
                               <option value="Hot Leads">Hot Leads</option>
                               <option value="Warm Leads">Warm Leads</option>
@@ -345,7 +513,8 @@ export const SalesManagerMasterGrid = () => {
                             </select>
                           </div>
                           <div className="col">
-                            <select className="form-select" onChange={e => handleChange("source", e.target.value)} value={filters.source || ""}>
+                            <select className="form-select"
+                              onChange={e => handleChange("source", e.target.value)} value={filters.source || ""}>
                               <option value="">Sources...</option>
                               <option value="Direct">Direct</option>
                               <option value="IndiaMart">IndiaMart</option>
@@ -357,7 +526,8 @@ export const SalesManagerMasterGrid = () => {
                             </select>
                           </div>
                           <div className="col">
-                            <select className="form-select" onChange={e => handleChange("status", e.target.value)} value={filters.status || ""}>
+                            <select className="form-select"
+                              onChange={e => handleChange("status", e.target.value)} value={filters.status || ""}>
                               <option value="">Status...</option>
                               <option value="Won">Won</option>
                               <option value="Ongoing">Ongoing</option>
@@ -374,9 +544,7 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     </div>
 
-                    {/* ══════════════════════════════════
-                        FUNNEL VIEW — uses funnelLeads (ALL)
-                    ══════════════════════════════════ */}
+                    {/* ── Funnel View ── */}
                     {viewMode === "funnel" && (
                       <div className="row bg-white p-3 m-1 border rounded shadow-sm">
                         <div className="col-12" style={{ overflowX:"auto" }}>
@@ -401,9 +569,7 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     )}
 
-                    {/* ══════════════════════════════════
-                        TABLE VIEW — paginated 20/page
-                    ══════════════════════════════════ */}
+                    {/* ── Table View ── */}
                     {viewMode === "table" && (
                       <div className="row bg-white p-3 m-1 border rounded shadow-sm">
                         <div className="col-12">
@@ -472,7 +638,7 @@ export const SalesManagerMasterGrid = () => {
                                     <td colSpan={colSpan} className="text-center py-4">
                                       <div className="text-muted">
                                         <i className="fa-solid fa-inbox fa-2x mb-2"></i>
-                                        <p className="mb-0">No leads found.</p>
+                                        <p className="mb-0">{debouncedSearch ? `No leads found for "${debouncedSearch}"` : "No leads found."}</p>
                                       </div>
                                     </td>
                                   </tr>
@@ -484,7 +650,7 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     )}
 
-                    {/* ── Pagination (table only) ── */}
+                    {/* ── Pagination ── */}
                     {viewMode === "table" && !loading && pagination.totalPages > 1 && (
                       <div className="d-flex justify-content-center mt-3">
                         <nav>
@@ -496,8 +662,7 @@ export const SalesManagerMasterGrid = () => {
                               <button className="page-link" onClick={() => handlePageChange(pagination.currentPage - 1)} disabled={!pagination.hasPrevPage}>Previous</button>
                             </li>
                             {(() => {
-                              const pages = [];
-                              const max = 5;
+                              const pages = []; const max = 5;
                               let start = Math.max(1, pagination.currentPage - 2);
                               let end   = Math.min(pagination.totalPages, start + max - 1);
                               if (end - start < max - 1) start = Math.max(1, end - max + 1);

@@ -478,14 +478,15 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
                         <div className="col-md-6">
                           <label htmlFor="date" className="form-label fw-bold">Next Follow-up Date<RequiredStar /></label>
                           <input 
-                            id="date" 
-                            type="datetime-local" 
-                            className="form-control bg_edit" 
-                            name="date" 
-                            value={actionData.date || ''} 
-                            onChange={handleActionChange} 
-                            required
-                          />
+  id="date" 
+  type="datetime-local" 
+  className="form-control bg_edit" 
+  name="date" 
+  value={actionData.date || ''} 
+  onChange={handleActionChange}
+  min={new Date().toISOString().slice(0, 16)}
+  required
+/>
                         </div>
                       )}
 
