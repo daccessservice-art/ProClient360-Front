@@ -12,6 +12,7 @@ import useSalesManagers from "../../../../hooks/leads/useSalesManagers";
 import useSalesManagerTeam from "../../../../hooks/leads/useSalesManagerTeam";
 import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import SalesFunnelView from "../SalesMaster/PopUp/SalesFunnelView";
+import ChatbotDrawer from "../SalesMaster/PopUp/ChatbotDrawer";
 
 const ALL_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/all-leads`;
 const EMP_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/employee-leads`;
@@ -729,6 +730,8 @@ export const SalesManagerMasterGrid = () => {
           </div>
         </div>
       )}
+      <ChatbotDrawer page="manager" employeeId={selectedEmployee?._id} />
+
 
       <style jsx>{`
         .row-today-followup{animation:blinkRed 1s infinite;}

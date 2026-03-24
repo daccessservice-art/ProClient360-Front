@@ -6,6 +6,7 @@ import Select from "react-select";
 import {
   formatDate,
   formatDateforupdate,
+  formatDateTimeForDisplay,
 } from "../../../../../utils/formatDate";
 import {
   createServiceAction,
@@ -27,14 +28,14 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
   const [previousActions, setPreviousActions] = useState([]);
 
   const [responsibleParty, setResponsibleParty] = useState("");
-  
+
   // Department dropdown state
   const [departments, setDepartments] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [hasMoreDepartments, setHasMoreDepartments] = useState(true);
   const [deptPage, setDeptPage] = useState(1);
   const [deptSearchTerm, setDeptSearchTerm] = useState("");
-  
+
   // Employee dropdown state
   const [employees, setEmployees] = useState("");
   const [employeeOptions, setEmployeeOptions] = useState([]);
@@ -50,69 +51,49 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
 
   // Extract completion percentage from action text if not in complateLevel field
   const extractCompletionFromAction = (action) => {
-    // First check if complateLevel exists and is valid
     if (action.complateLevel !== undefined && action.complateLevel !== null && action.complateLevel !== '' && action.complateLevel !== 0) {
       const level = parseInt(action.complateLevel);
       return (level >= 0 && level <= 100) ? level : 0;
     }
-    
-    // If not, try to extract from action text
+
     const actionText = (action.action || '').toLowerCase().trim();
-    
     if (!actionText) return 0;
-    
-    // Pattern 1: Look for "X percent" or "X %" anywhere in text
+
     const percentPatterns = [
       /(\d+)\s*percent/gi,
       /(\d+)\s*%/gi,
       /(\d+)\s*per\s*cent/gi
     ];
-    
+
     for (const pattern of percentPatterns) {
       const matches = actionText.match(pattern);
       if (matches) {
-        // Get all numbers and return the highest one (most likely the completion)
         const numbers = matches.map(match => {
           const num = parseInt(match.match(/\d+/)[0]);
           return (num >= 0 && num <= 100) ? num : 0;
         }).filter(num => num > 0);
-        
-        if (numbers.length > 0) {
-          return Math.max(...numbers);
-        }
+        if (numbers.length > 0) return Math.max(...numbers);
       }
     }
-    
-    // Pattern 2: Check for completion keywords and extract associated numbers
+
     const completionKeywords = ['completed', 'complete', 'done', 'finished', 'progress'];
     const hasCompletionKeyword = completionKeywords.some(keyword => actionText.includes(keyword));
-    
+
     if (hasCompletionKeyword) {
-      // Look for any number near completion keywords
       const numberMatch = actionText.match(/(\d+)/);
       if (numberMatch) {
         const num = parseInt(numberMatch[1]);
-        if (num >= 0 && num <= 100) {
-          return num;
-        }
+        if (num >= 0 && num <= 100) return num;
       }
-      
-      // If just says "completed" or "work completed", treat as 100%
-      if (actionText.match(/^(work\s+)?(completed|complete|done|finished)$/)) {
-        return 100;
-      }
+      if (actionText.match(/^(work\s+)?(completed|complete|done|finished)$/)) return 100;
     }
-    
-    // Pattern 3: Check if it's just a number (like "20", "77", etc.)
+
     const justNumberMatch = actionText.match(/^\d+$/);
     if (justNumberMatch) {
       const num = parseInt(actionText);
-      if (num >= 0 && num <= 100) {
-        return num;
-      }
+      if (num >= 0 && num <= 100) return num;
     }
-    
-    // Pattern 4: Look for fractions like "3/4" and convert to percentage
+
     const fractionMatch = actionText.match(/(\d+)\s*\/\s*(\d+)/);
     if (fractionMatch) {
       const numerator = parseInt(fractionMatch[1]);
@@ -122,8 +103,7 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
         return (percentage >= 0 && percentage <= 100) ? percentage : 0;
       }
     }
-    
-    // Pattern 5: Look for words like "half", "quarter", etc.
+
     const wordToPercent = {
       'half': 50,
       'quarter': 25,
@@ -132,14 +112,11 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
       'full': 100,
       'complete': 100
     };
-    
+
     for (const [word, percent] of Object.entries(wordToPercent)) {
-      if (actionText.includes(word)) {
-        return percent;
-      }
+      if (actionText.includes(word)) return percent;
     }
-    
-    // Pattern 6: Advanced number extraction with context
+
     const advancedPatterns = [
       /work\s+(\d+)/i,
       /(\d+)\s+work/i,
@@ -148,17 +125,15 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
       /level\s+(\d+)/i,
       /(\d+)\s+level/i
     ];
-    
+
     for (const pattern of advancedPatterns) {
       const match = actionText.match(pattern);
       if (match) {
         const num = parseInt(match[1]);
-        if (num >= 0 && num <= 100) {
-          return num;
-        }
+        if (num >= 0 && num <= 100) return num;
       }
     }
-    
+
     return 0;
   };
 
@@ -166,19 +141,13 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
   useEffect(() => {
     const calculateCurrentCompletion = () => {
       let latestCompletion = parseInt(selectedService.complateLevel) || 0;
-      
       if (previousActions && previousActions.length > 0) {
-        // Extract completion percentages from all actions
         const completionLevels = previousActions.map(action => extractCompletionFromAction(action));
-        
-        // Get the highest completion level
         const maxCompletion = Math.max(latestCompletion, ...completionLevels);
         latestCompletion = maxCompletion;
       }
-      
       setCurrentCompletionLevel(latestCompletion);
     };
-
     calculateCurrentCompletion();
   }, [selectedService, previousActions]);
 
@@ -203,14 +172,12 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
   const loadEmployees = useCallback(async (page = 1, search = "") => {
     try {
       if (!selectedDepartment) return;
-
       const data = await getEmployee(selectedDepartment.value, page, PAGE_SIZE, search);
       if (data && data.employee) {
         const formattedData = data.employee.map((employee) => ({
           value: employee._id,
           label: employee.name,
         }));
-        
         if (page === 1) {
           setEmployeeOptions(formattedData);
         } else {
@@ -265,32 +232,26 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
 
   const handleMyService = async (event) => {
     event.preventDefault();
-    
+
     let actionData = {};
-    
+
     if (startTime === null || endTime === null) {
       return toast.error("Please select Date and Time");
     }
     if (status === "") {
       return toast.error("Please select status");
     }
-    if (status!=='Stuck' && action === "" ) {
+    if (status !== 'Stuck' && action === "") {
       return toast.error("Please enter Action");
     }
-    
-    // Updated validation for work completion
+
     if (status === "Inprogress") {
       if (workComplete === "") {
         return toast.error("Please enter Work Complete Percentage");
       }
-      
-      const workCompleteNum = parseInt(workComplete);
-      // Removed validation that prevents completion below current level
-      // Removed validation that prevents 100% for Inprogress
     }
 
     if (status === "Completed") {
-      // For completed status, automatically set to 100%
       setWorkComplete('100');
     }
 
@@ -308,13 +269,11 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
         if (!employees || employees === "") {
           return toast.error("Please select Employee");
         }
-
         handleSendNotification();
         handleUpdate();
       }
     }
 
-    // Determine the completion level to save
     let completionLevelToSave = currentCompletionLevel;
     if (status === "Completed") {
       completionLevelToSave = 100;
@@ -332,9 +291,9 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
       action,
     };
 
-    toast.loading("Create Service Action...")
+    toast.loading("Create Service Action...");
     const data = await createServiceAction(actionData);
-    toast.dismiss()
+    toast.dismiss();
     if (data.success) {
       toast.success(data.message);
       handleUpdate();
@@ -346,14 +305,10 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
 
   const onStatusChange = (e) => {
     setStatus(e.target.value);
-    console.log(e.target.value);
-    
     if (e.target.value !== "Stuck") {
       setResponsibleParty("");
       setStuckReason("");
     }
-    
-    // Reset work complete when status changes
     if (e.target.value === "Completed") {
       setWorkComplete('100');
     } else if (e.target.value === "Inprogress") {
@@ -361,20 +316,15 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
     } else {
       setWorkComplete('');
     }
-  }
+  };
 
-  // Handle work completion input with validation
   const handleWorkCompleteChange = (e) => {
     const value = e.target.value;
-    
     if (value === '') {
       setWorkComplete('');
       return;
     }
-    
     const numValue = parseInt(value);
-    
-    // Validate the input - only check if it's a number between 0-100
     if (value.length <= 3 && numValue >= 0 && numValue <= 100) {
       setWorkComplete(value);
     }
@@ -420,11 +370,11 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                     <div className="row">
                       <div className="col-sm- col-md col-lg">
                         <h6>
-                          <p className="fw-bold ">Complaint:</p>{" "}
+                          <p className="fw-bold">Complaint:</p>{" "}
                           {selectedService?.ticket?.details || "-"}
                         </h6>
                         <h6>
-                          <p className="fw-bold mt-3 ">Client:</p>{" "}
+                          <p className="fw-bold mt-3">Client:</p>{" "}
                           {selectedService?.ticket?.client?.custName}
                         </h6>
                         <h6>
@@ -438,7 +388,7 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                       </div>
                       <div className="col-sm- col-md col-lg">
                         <p className="fw-bold"> Allotment Date: </p>
-                        {formatDateforupdate(selectedService.allotmentDate)}
+                        {formatDateTimeForDisplay(selectedService.allotmentDate)}
                         <p className="fw-bold mt-3"> Allocated to: </p>
                         {selectedService.allotTo[0].name}
                         <p className="fw-bold mt-3"> Status: </p>
@@ -448,7 +398,7 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                         <p className="fw-bold mt-3"> Work Mode: </p>
                         {selectedService.workMode}
                         <p className="fw-bold mt-3"> Created At: </p>
-                        {formatDateforupdate(selectedService.ticket.date)}
+                        {formatDateTimeForDisplay(selectedService.ticket.date)}
                         <p className="fw-bold mt-3">Current Work Complete: </p>
                         <span className="badge bg-primary">{currentCompletionLevel}%</span>
                       </div>
@@ -518,10 +468,7 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                   {status === "Stuck" && (
                     <div className="col-12 mt-2 inprocess">
                       <div className="">
-                        <label
-                          htmlFor="stuckResion"
-                          className="form-label label_text"
-                        >
+                        <label htmlFor="stuckResion" className="form-label label_text">
                           Responsible Party <RequiredStar />
                         </label>
                         <select
@@ -540,100 +487,97 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                     </div>
                   )}
 
-                {responsibleParty === "Company" && (
-                  <div className="row">
-                    <div className="col-6 col-lg-6 mt-2 inprogress-field">
-                      <div className="mb-3">
-                        <label htmlFor="department" className="form-label label_text">
-                          Department <RequiredStar />
-                        </label>
-                        <Select
-                          id="department"
-                          options={departments.map(dept => ({ value: dept._id, label: dept.name }))}
-                          value={selectedDepartment}
-                          onChange={(selectedOption) => setSelectedDepartment(selectedOption)}
-                          onInputChange={(inputValue) => {
-                            setDeptSearchTerm(inputValue);
-                            setDeptPage(1);
-                          }}
-                          onMenuScrollToBottom={() => {
-                            if (hasMoreDepartments) {
-                              const nextPage = deptPage + 1;
-                              setDeptPage(nextPage);
-                              loadDepartments(nextPage, deptSearchTerm);
-                            }
-                          }}
-                          placeholder="Select Department..."
-                          isClearable
-                          styles={{
-                            control: (provided) => ({
-                              ...provided,
-                              borderRadius: 0,
-                              borderColor: '#ced4da',
-                              fontSize: '16px',
-                            }),
-                            option: (provided, state) => ({
-                              ...provided,
-                              backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
-                              color: state.isSelected ? 'white' : '#212529',
-                            }),
-                          }}
-                        />
+                  {responsibleParty === "Company" && (
+                    <div className="row">
+                      <div className="col-6 col-lg-6 mt-2 inprogress-field">
+                        <div className="mb-3">
+                          <label htmlFor="department" className="form-label label_text">
+                            Department <RequiredStar />
+                          </label>
+                          <Select
+                            id="department"
+                            options={departments.map(dept => ({ value: dept._id, label: dept.name }))}
+                            value={selectedDepartment}
+                            onChange={(selectedOption) => setSelectedDepartment(selectedOption)}
+                            onInputChange={(inputValue) => {
+                              setDeptSearchTerm(inputValue);
+                              setDeptPage(1);
+                            }}
+                            onMenuScrollToBottom={() => {
+                              if (hasMoreDepartments) {
+                                const nextPage = deptPage + 1;
+                                setDeptPage(nextPage);
+                                loadDepartments(nextPage, deptSearchTerm);
+                              }
+                            }}
+                            placeholder="Select Department..."
+                            isClearable
+                            styles={{
+                              control: (provided) => ({
+                                ...provided,
+                                borderRadius: 0,
+                                borderColor: '#ced4da',
+                                fontSize: '16px',
+                              }),
+                              option: (provided, state) => ({
+                                ...provided,
+                                backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
+                                color: state.isSelected ? 'white' : '#212529',
+                              }),
+                            }}
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="col-6 col-lg-6 mt-2">
-                      <div className="mb-3">
-                        <label htmlFor="employeeSelect" className="form-label label_text">
-                          Employee Name <RequiredStar />
-                        </label>
-                        <Select
-                          inputId="employeeSelect"
-                          options={employeeOptions}
-                          value={employeeOptions.find(option => option.value === employees)}
-                          onChange={(selectedOption) => {
-                            setEmployees(selectedOption ? selectedOption.value : "");
-                          }}
-                          onInputChange={(inputValue) => {
-                            setEmpSearchTerm(inputValue);
-                            setEmpPage(1);
-                          }}
-                          onMenuScrollToBottom={() => {
-                            if (hasMoreEmployees) {
-                              const nextPage = empPage + 1;
-                              setEmpPage(nextPage);
-                              loadEmployees(nextPage, empSearchTerm);
-                            }
-                          }}
-                          placeholder="Select Employee..."
-                          isClearable
-                          isDisabled={!selectedDepartment}
-                          styles={{
-                            control: (provided) => ({
-                              ...provided,
-                              borderRadius: 0,
-                              borderColor: '#ced4da',
-                              fontSize: '16px',
-                            }),
-                            option: (provided, state) => ({
-                              ...provided,
-                              backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
-                              color: state.isSelected ? 'white' : '#212529',
-                            }),
-                          }}
-                        />
+                      <div className="col-6 col-lg-6 mt-2">
+                        <div className="mb-3">
+                          <label htmlFor="employeeSelect" className="form-label label_text">
+                            Employee Name <RequiredStar />
+                          </label>
+                          <Select
+                            inputId="employeeSelect"
+                            options={employeeOptions}
+                            value={employeeOptions.find(option => option.value === employees)}
+                            onChange={(selectedOption) => {
+                              setEmployees(selectedOption ? selectedOption.value : "");
+                            }}
+                            onInputChange={(inputValue) => {
+                              setEmpSearchTerm(inputValue);
+                              setEmpPage(1);
+                            }}
+                            onMenuScrollToBottom={() => {
+                              if (hasMoreEmployees) {
+                                const nextPage = empPage + 1;
+                                setEmpPage(nextPage);
+                                loadEmployees(nextPage, empSearchTerm);
+                              }
+                            }}
+                            placeholder="Select Employee..."
+                            isClearable
+                            isDisabled={!selectedDepartment}
+                            styles={{
+                              control: (provided) => ({
+                                ...provided,
+                                borderRadius: 0,
+                                borderColor: '#ced4da',
+                                fontSize: '16px',
+                              }),
+                              option: (provided, state) => ({
+                                ...provided,
+                                backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
+                                color: state.isSelected ? 'white' : '#212529',
+                              }),
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                   {status === "Stuck" && (
                     <div className="col-12 mt-2">
                       <div className="">
-                        <label
-                          htmlFor="stuckResion"
-                          className="form-label label_text"
-                        >
+                        <label htmlFor="stuckResion" className="form-label label_text">
                           Stuck Reason <RequiredStar />
                         </label>
                         <textarea
@@ -657,7 +601,7 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                         <label htmlFor="action" className="form-label label_text">
                           Action & Progress {status !== "Stuck" && <RequiredStar />}
                         </label>
-                        <textarea 
+                        <textarea
                           type="textarea"
                           className="form-control rounded-0"
                           id="action"
@@ -672,49 +616,50 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                     </div>
                   )}
 
-                    <div className="row g-3 mt-2">
-                      <div className="col">
-                        <label htmlFor="StartTime" className="form-label label_text">
-                          Start Date & Time <RequiredStar />
-                        </label>
-                        <input
-                          className="form-control rounded-0"
-                          id="StartTime"
-                          type="datetime-local"
-                          onChange={(e) => setStartTime(e.target.value)}
-                          value={startTime}
-                          aria-describedby="statusHelp"
-                          required
-                        />
-                      </div>
-
-                      <div className="col">
-                        <label htmlFor="EndTime" className="form-label label_text">
-                          End Date & Time <RequiredStar />
-                        </label>
-                        <input
-                          className="form-control rounded-0"
-                          id="EndTime"
-                          type="datetime-local"
-                          onChange={(e) => setEndTime(e.target.value)}
-                          value={endTime}
-                          aria-describedby="statusHelp"
-                          required
-                        />
-                      </div>
+                  <div className="row g-3 mt-2">
+                    <div className="col">
+                      <label htmlFor="StartTime" className="form-label label_text">
+                        Start Date & Time <RequiredStar />
+                      </label>
+                      <input
+                        className="form-control rounded-0"
+                        id="StartTime"
+                        type="datetime-local"
+                        onChange={(e) => setStartTime(e.target.value)}
+                        value={startTime}
+                        aria-describedby="statusHelp"
+                        required
+                      />
                     </div>
+
+                    <div className="col">
+                      <label htmlFor="EndTime" className="form-label label_text">
+                        End Date & Time <RequiredStar />
+                      </label>
+                      <input
+                        className="form-control rounded-0"
+                        id="EndTime"
+                        type="datetime-local"
+                        onChange={(e) => setEndTime(e.target.value)}
+                        value={endTime}
+                        aria-describedby="statusHelp"
+                        required
+                      />
+                    </div>
+                  </div>
+
                   <div className="row">
                     <div className="col-12 pt-3 mt-2">
                       <button
                         type="submit"
-                        className="w-80 btn addbtn rounded-0 add_button   m-2 px-4"
+                        className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
                       >
                         Submit Work
                       </button>
                       <button
                         type="button"
                         onClick={handleUpdate}
-                        className="w-80  btn addbtn rounded-0 Cancel_button m-2 px-4"
+                        className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
                       >
                         Cancel
                       </button>
@@ -728,9 +673,7 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                         <thead className="thead-light">
                           <tr>
                             <th scope="col">Sr. No</th>
-                            <th scope="col" className="text-start">
-                              Action
-                            </th>
+                            <th scope="col" className="text-start">Action</th>
                             <th scope="col">Action By</th>
                             <th scope="col">Start Date</th>
                             <th scope="col">End Date</th>
@@ -745,43 +688,30 @@ const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate}) => {
                                 <td>{index + 1}</td>
                                 <td
                                   className="text-start text-wrap w-100"
-                                  style={{
-                                    maxWidth: "22rem",
-                                  }}
+                                  style={{ maxWidth: "22rem" }}
                                 >
                                   {action?.action}
                                 </td>
                                 <td>{action?.actionBy?.name}</td>
-                                <td>{formatDate(action?.startTime)}</td>
-                                <td>{formatDate(action?.endTime)}</td>
+                                <td>{formatDateTimeForDisplay(action?.startTime)}</td>
+                                <td>{formatDateTimeForDisplay(action?.endTime)}</td>
                                 <td>
                                   <div className="d-flex flex-column align-items-center">
                                     {completionPercent > 0 ? (
-
-      <span className={`badge mb-1 ${
-
-        completionPercent >= 100 ? 'bg-success' :
-
-        completionPercent >= 75 ? 'bg-primary' :
-
-        completionPercent >= 50 ? 'bg-warning' : 
-
-        completionPercent > 0 ? 'bg-info' : 'bg-secondary'
-
-      }`}>
-
-        {completionPercent}%
-
-      </span>
-
-    ) : (
-
-      <span className="text-muted">-</span>
-
-    )}
+                                      <span className={`badge mb-1 ${
+                                        completionPercent >= 100 ? 'bg-success' :
+                                        completionPercent >= 75 ? 'bg-primary' :
+                                        completionPercent >= 50 ? 'bg-warning' :
+                                        completionPercent > 0 ? 'bg-info' : 'bg-secondary'
+                                      }`}>
+                                        {completionPercent}%
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted">-</span>
+                                    )}
                                     {completionPercent > 0 && (
                                       <div className="progress" style={{ width: '60px', height: '4px' }}>
-                                        <div 
+                                        <div
                                           className={`progress-bar ${
                                             completionPercent >= 100 ? 'bg-success' :
                                             completionPercent >= 75 ? 'bg-primary' :

@@ -154,12 +154,12 @@ const AddServicePopup = ({ handleAddService, selectedTicket }) => {
                         Allotment Date <RequiredStar />
                       </label>
                       <input
-                        onChange={(e) => setAllotmentDate(e.target.value)}
-                        value={allotmentDate}
-                        type="date"
-                        className="form-control rounded-0"
-                        min={new Date().toISOString().split("T")[0]}
-                      />
+                       onChange={(e) => setAllotmentDate(e.target.value)}
+                       value={allotmentDate}
+                       type="datetime-local"
+                       className="form-control rounded-0"
+                       min={new Date().toISOString().slice(0, 16)}
+                       />
                     </div>
                   </div>
 

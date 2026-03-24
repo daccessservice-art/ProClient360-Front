@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-const baseUrl= process.env.REACT_APP_API_URL;
-const url = baseUrl+"/api/service";
 
-const useServices = (page = 1, limit = 20, filters = {}) => {
-  const [data, setData] = useState(null);
+const baseUrl = process.env.REACT_APP_API_URL;
+const url = baseUrl + "/api/service";
+
+// searchQuery + filters.allotTo both sent to backend (server-side, all pages)
+const useServices = (page = 1, limit = 20, filters = {}, searchQuery = "") => {
+  const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError]     = useState(null);
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -16,15 +18,15 @@ const useServices = (page = 1, limit = 20, filters = {}) => {
           page,
           limit,
           ...(filters.serviceType && { serviceType: filters.serviceType }),
-          ...(filters.status && { status: filters.status }),
-          ...(filters.priority && { priority: filters.priority }),
+          ...(filters.status      && { status:      filters.status }),
+          ...(filters.priority    && { priority:    filters.priority }),
+          ...(filters.allotTo     && { allotTo:     filters.allotTo }),
+          ...(searchQuery && searchQuery.trim() !== "" && { q: searchQuery.trim() }),
         };
 
         const response = await axios.get(url, {
           params,
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         });
 
         setData(response.data);
@@ -38,7 +40,7 @@ const useServices = (page = 1, limit = 20, filters = {}) => {
     };
 
     fetchServices();
-  }, [page, limit, filters.serviceType, filters.status, filters.priority]);
+  }, [page, limit, filters.serviceType, filters.status, filters.priority, filters.allotTo, searchQuery]);
 
   return { data, loading, error };
 };

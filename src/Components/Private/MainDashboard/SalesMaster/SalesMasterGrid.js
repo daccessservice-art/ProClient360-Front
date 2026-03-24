@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useCallback } from "react";
+import { useState, useContext, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
@@ -19,8 +19,196 @@ import useCreateLead from "../../../../hooks/leads/useCreateLead";
 import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import useReassignLead from "../../../../hooks/leads/useReassignLead";
 import MeetingDrawer from "./PopUp/MeetingDrawer";
+import ChatbotDrawer from "./PopUp/ChatbotDrawer";
+
 
 const ALL_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/my-leads`;
+
+// ── Today's Action Popup ──────────────────────────────────────────────────
+// POSITION: fixed, top of page, horizontally centered inside main panel only
+// sidebarW: px width of sidebar (125 collapsed / 260 open)
+const TodayActionHoverPopup = ({ lead, sidebarW, onMouseEnter, onMouseLeave }) => {
+  if (!lead) return null;
+
+  const today = new Date().toDateString();
+  const todayActions = (lead.previousActions || [])
+    .filter(a => new Date(a.createdAt).toDateString() === today)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  if (todayActions.length === 0) return null;
+
+  const formatTime = (dateStr) => {
+    if (!dateStr) return "—";
+    try { return new Date(dateStr).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }); }
+    catch { return "—"; }
+  };
+
+  const formatFollowUp = (dateStr) => {
+    if (!dateStr) return "Not set";
+    try { return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
+    catch { return "—"; }
+  };
+
+  const statusColor = (s) => {
+    switch (s) {
+      case 'Won':     return '#198754';
+      case 'Ongoing': return '#0d6efd';
+      case 'Pending': return '#ffc107';
+      case 'Lost':    return '#dc3545';
+      default:        return '#6c757d';
+    }
+  };
+
+  // ── KEY: left = sidebarW + half of remaining space, then translateX(-50%)
+  // This always centers the popup inside the main panel regardless of popup width
+  return (
+    <div
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{
+        position:  'fixed',
+        top:       '78px',                                        // just below header
+        left:      `calc(${sidebarW}px + (100vw - ${sidebarW}px) / 2)`,
+        transform: 'translateX(-50%)',                            // center it
+        width:     '400px',
+        maxWidth:  `calc(100vw - ${sidebarW}px - 32px)`,
+        zIndex:    9999,
+        background:   '#fff',
+        border:       '1px solid #e2e8f0',
+        borderRadius: '12px',
+        boxShadow:    '0 16px 56px rgba(0,0,0,0.25)',
+        fontSize:     '0.8rem',
+        animation:    'popupFadeIn 0.18s ease',
+      }}
+    >
+      {/* ── Header ── */}
+      <div style={{
+        background:   'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+        color:        '#fff',
+        padding:      '12px 16px',
+        borderRadius: '12px 12px 0 0',
+        display:      'flex',
+        alignItems:   'center',
+        gap:          '8px',
+      }}>
+        <i className="fa-solid fa-bolt" style={{ fontSize: '0.9rem' }}></i>
+        <span style={{ fontWeight: 700, fontSize: '0.85rem', letterSpacing: '0.3px' }}>
+          Today's Action{todayActions.length > 1 ? ` (${todayActions.length})` : ''}
+        </span>
+        <span style={{
+          marginLeft:   'auto',
+          background:   'rgba(255,255,255,0.22)',
+          borderRadius: '12px',
+          padding:      '2px 10px',
+          fontSize:     '0.73rem',
+          fontWeight:   600,
+          maxWidth:     '160px',
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace:   'nowrap',
+        }}>
+          {lead.SENDER_COMPANY || lead.SENDER_NAME || '—'}
+        </span>
+      </div>
+
+      {/* ── Actions list ── */}
+      <div style={{ padding: '14px 16px', maxHeight: '340px', overflowY: 'auto' }}>
+        {todayActions.map((action, idx) => (
+          <div key={action._id || idx} style={{
+            borderLeft:   `3px solid ${statusColor(action.status)}`,
+            paddingLeft:  '12px',
+            marginBottom: idx < todayActions.length - 1 ? '14px' : 0,
+            paddingBottom:idx < todayActions.length - 1 ? '14px' : 0,
+            borderBottom: idx < todayActions.length - 1 ? '1px dashed #e9ecef' : 'none',
+          }}>
+            {/* Step */}
+            <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: '6px', fontSize: '0.82rem' }}>
+              <i className="fa-solid fa-shoe-prints me-1" style={{ color: '#64748b', fontSize: '0.72rem' }}></i>
+              {action.step || '—'}
+            </div>
+
+            {/* Status + Completion + Lead type */}
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap' }}>
+              <span style={{
+                background:   statusColor(action.status),
+                color:        action.status === 'Pending' ? '#000' : '#fff',
+                borderRadius: '4px',
+                padding:      '2px 9px',
+                fontWeight:   600,
+                fontSize:     '0.72rem',
+              }}>
+                {action.status || '—'}
+              </span>
+              {action.completion !== undefined && (
+                <span style={{ color: '#475569', fontSize: '0.73rem' }}>
+                  <i className="fa-solid fa-circle-check me-1" style={{ color: '#22c55e', fontSize: '0.65rem' }}></i>
+                  {action.completion}% done
+                </span>
+              )}
+              {action.callLeads && (
+                <span style={{
+                  background:   '#f1f5f9',
+                  border:       '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  padding:      '1px 7px',
+                  color:        '#475569',
+                  fontSize:     '0.68rem',
+                }}>
+                  {action.callLeads}
+                </span>
+              )}
+            </div>
+
+            {/* Quotation */}
+            {action.quotation > 0 && (
+              <div style={{ color: '#16a34a', fontWeight: 600, marginBottom: '5px', fontSize: '0.76rem' }}>
+                <i className="fa-solid fa-indian-rupee-sign me-1"></i>
+                {Number(action.quotation).toLocaleString('en-IN')}
+              </div>
+            )}
+
+            {/* Remark */}
+            {action.rem && (
+              <div style={{
+                background:   '#f8fafc',
+                borderRadius: '5px',
+                padding:      '6px 10px',
+                color:        '#334155',
+                marginBottom: '6px',
+                fontSize:     '0.73rem',
+                fontStyle:    'italic',
+                maxHeight:    '60px',
+                overflow:     'hidden',
+                lineHeight:   1.4,
+              }}>
+                <i className="fa-solid fa-quote-left me-1" style={{ color: '#94a3b8', fontSize: '0.65rem' }}></i>
+                {action.rem}
+              </div>
+            )}
+
+            {/* Follow-up + Time + ActionBy */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+              {action.nextFollowUpDate && (
+                <span style={{ color: '#7c3aed', fontSize: '0.71rem' }}>
+                  <i className="fa-solid fa-calendar-check me-1"></i>
+                  {formatFollowUp(action.nextFollowUpDate)}
+                </span>
+              )}
+              <span style={{ color: '#94a3b8', fontSize: '0.69rem', marginLeft: 'auto' }}>
+                <i className="fa-regular fa-clock me-1"></i>
+                {formatTime(action.createdAt)}
+                {action.actionBy?.name && action.actionBy.name !== 'Current User' && (
+                  <span style={{ marginLeft: '5px', color: '#64748b' }}>· {action.actionBy.name}</span>
+                )}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const SalesMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
@@ -37,11 +225,15 @@ export const SalesMasterGrid = () => {
   const [selectedLeadId,   setSelectedLeadId]    = useState(null);
   const [meetingDrawer,    setMeetingDrawer]     = useState(false);
 
+  // ── Hover popup ──
+  const [hoverLead,  setHoverLead]  = useState(null);
+  const hideTimerRef = useRef(null);
+
   const { user } = useContext(UserContext);
 
   const [filters, setFilters] = useState({
-    status: null, date: null, callLeads: null,
-    source: null, searchTerm: "", followUpToday: false,
+    status: null, date: null, callLeads: null, source: null,
+    searchTerm: "", followUpToday: false, todayAction: false,
   });
 
   const [pagination, setPagination] = useState({
@@ -53,9 +245,7 @@ export const SalesMasterGrid = () => {
   const [funnelLeads,   setFunnelLeads]   = useState([]);
   const [funnelLoading, setFunnelLoading] = useState(false);
 
-  const { data, loading, error, refetch } = useMyLeads(
-    pagination.currentPage, itemsPerPage, filters
-  );
+  const { data, loading, error, refetch } = useMyLeads(pagination.currentPage, itemsPerPage, filters);
   const { submitEnquiry } = useSubmitEnquiry();
   const { createLead }    = useCreateLead();
   const { deleteLead }    = useDeleteLead();
@@ -67,12 +257,13 @@ export const SalesMasterGrid = () => {
     try {
       const params = {
         page: 1, limit: 99999,
-        ...(filters.source      && { source:        filters.source      }),
-        ...(filters.date        && { date:           filters.date        }),
-        ...(filters.status      && { status:         filters.status      }),
-        ...(filters.callLeads   && { callLeads:      filters.callLeads   }),
-        ...(filters.searchTerm  && { search:         filters.searchTerm  }),
-        ...(filters.followUpToday && { followUpToday: 'true'             }),
+        ...(filters.source        && { source:       filters.source        }),
+        ...(filters.date          && { date:          filters.date          }),
+        ...(filters.status        && { status:        filters.status        }),
+        ...(filters.callLeads     && { callLeads:     filters.callLeads     }),
+        ...(filters.searchTerm    && { search:        filters.searchTerm    }),
+        ...(filters.followUpToday && { followUpToday: 'true'                }),
+        ...(filters.todayAction   && { todayAction:   'true'                }),
       };
       const response = await axios.get(ALL_LEADS_URL, {
         params,
@@ -83,13 +274,12 @@ export const SalesMasterGrid = () => {
     } catch (err) {
       console.error("Funnel leads fetch error:", err);
       setFunnelLeads([]);
-    } finally {
-      setFunnelLoading(false);
-    }
-  }, [filters.source, filters.date, filters.status, filters.callLeads, filters.searchTerm, filters.followUpToday]);
+    } finally { setFunnelLoading(false); }
+  }, [filters.source, filters.date, filters.status, filters.callLeads, filters.searchTerm, filters.followUpToday, filters.todayAction]);
 
   useEffect(() => { fetchAllLeadsForFunnel(); }, [fetchAllLeadsForFunnel]);
   useEffect(() => { if (viewMode === "funnel") fetchAllLeadsForFunnel(); }, [viewMode]);
+  useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
   const formatDateOnly = (dateString) => {
     if (!dateString) return "N/A";
@@ -120,20 +310,19 @@ export const SalesMasterGrid = () => {
   }, [data, error]);
 
   useEffect(() => {
-    if (
-      filters.status    !== null ||
-      filters.date      !== null ||
-      filters.source    !== null ||
-      filters.callLeads !== null ||
-      filters.followUpToday
-    ) {
+    if (filters.status !== null || filters.date !== null || filters.source !== null ||
+        filters.callLeads !== null || filters.followUpToday || filters.todayAction) {
       setAllLeads([]);
       setPagination(prev => ({ ...prev, currentPage: 1 }));
       refetch();
     }
-  }, [filters.status, filters.date, filters.source, filters.callLeads, filters.followUpToday]);
+  }, [filters.status, filters.date, filters.source, filters.callLeads, filters.followUpToday, filters.todayAction]);
 
   const isFollowUpTodayMode = filters.followUpToday;
+  const isTodayActionMode   = filters.todayAction;
+
+  // sidebar pixel width — must match actual CSS
+  const sidebarW = isopen ? 260 : 125;
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= pagination.totalPages)
@@ -213,23 +402,15 @@ export const SalesMasterGrid = () => {
 
   const handleDetailsPopUpClick = (lead) => { setSelectedLead(lead); setShowLeadPopUp(true); };
 
-  // ── Open meeting drawer — always use the freshest lead from allLeads/funnelLeads
   const handleMeeting = (lead) => {
-    // Try to get the latest version of this lead from the already-fetched lists
-    const freshLead =
-      allLeads.find(l => l._id === lead._id) ||
-      funnelLeads.find(l => l._id === lead._id) ||
-      lead;
+    const freshLead = allLeads.find(l => l._id === lead._id) || funnelLeads.find(l => l._id === lead._id) || lead;
     setSelectedLead(freshLead);
     setMeetingDrawer(true);
   };
 
-  // ── Close meeting drawer — refetch so next open has updated previousActions
   const handleMeetingClose = () => {
     setMeetingDrawer(false);
     setSelectedLead(null);
-    // Refetch ensures the lead objects in allLeads and funnelLeads
-    // include the new previousActions entries just saved by MeetingDrawer
     refetch();
     fetchAllLeadsForFunnel();
   };
@@ -243,13 +424,14 @@ export const SalesMasterGrid = () => {
   };
 
   const handleTodayFollowUpClick = () =>
-    setFilters(prev => ({
-      ...prev, followUpToday: true, date: null, status: null, source: null, callLeads: null,
-    }));
+    setFilters(prev => ({ ...prev, followUpToday: true, todayAction: false, date: null, status: null, source: null, callLeads: null }));
+
+  const handleTodayActionClick = () =>
+    setFilters(prev => ({ ...prev, todayAction: true, followUpToday: false, date: null, status: null, source: null, callLeads: null }));
 
   const resetSearch  = () => { setFilters(prev => ({ ...prev, searchTerm: "" })); setAllLeads([]); };
   const resetFilters = () => {
-    setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "", followUpToday: false });
+    setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "", followUpToday: false, todayAction: false });
     setAllLeads([]);
     setPagination(prev => ({ ...prev, currentPage: 1 }));
     refetch();
@@ -271,6 +453,22 @@ export const SalesMasterGrid = () => {
     } else { toast.error(res?.error || "Failed to add lead"); }
   };
 
+  // ── Hover handlers with 250ms hide-delay so popup stays stable ──
+  const showPopup = (lead) => {
+    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+    setHoverLead(lead);
+  };
+  const scheduleHide          = () => { hideTimerRef.current = setTimeout(() => setHoverLead(null), 250); };
+  const handleRowMouseEnter   = (lead) => {
+    if (!isTodayActionMode) return;
+    const todayStr = new Date().toDateString();
+    const has = (lead.previousActions || []).some(a => new Date(a.createdAt).toDateString() === todayStr);
+    if (has) showPopup(lead);
+  };
+  const handleRowMouseLeave   = () => { if (isTodayActionMode) scheduleHide(); };
+  const handlePopupMouseEnter = () => { if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; } };
+  const handlePopupMouseLeave = () => scheduleHide();
+
   const canAssignLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
   const canUpdateLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
   const canDeleteLead = user?.permissions?.includes('deleteLead') || user?.user === 'company';
@@ -279,6 +477,16 @@ export const SalesMasterGrid = () => {
     <>
       {(loading || funnelLoading) && (
         <div className="overlay"><span className="loader"></span></div>
+      )}
+
+      {/* ── Popup: fixed top, centered inside main panel (right of sidebar) ── */}
+      {isTodayActionMode && hoverLead && (
+        <TodayActionHoverPopup
+          lead={hoverLead}
+          sidebarW={sidebarW}
+          onMouseEnter={handlePopupMouseEnter}
+          onMouseLeave={handlePopupMouseLeave}
+        />
       )}
 
       <div className="container-scroller">
@@ -292,25 +500,29 @@ export const SalesMasterGrid = () => {
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
-                {/* ── Title + toggle + add ── */}
+                {/* ── Title row ── */}
                 <div className="row px-2 py-1 mb-3">
                   <div className="col-12 col-lg-4">
                     <h5 className="text-white py-2">My Sales Dashboard</h5>
                   </div>
                   <div className="col-12 col-lg-8 d-flex align-items-center justify-content-end gap-2 pe-4">
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${isTodayActionMode ? "btn-warning" : "btn-outline-warning"}`}
+                      onClick={handleTodayActionClick}
+                      title="Show leads with actions done today"
+                    >
+                      <i className="fa-solid fa-bolt me-1"></i>Today's Action
+                    </button>
                     <div className="btn-group" role="group">
-                      <button
-                        type="button"
+                      <button type="button"
                         className={`btn btn-sm ${viewMode === "table" ? "btn-primary" : "btn-outline-secondary"}`}
-                        onClick={() => setViewMode("table")} title="Table View"
-                      >
+                        onClick={() => setViewMode("table")} title="Table View">
                         <i className="fa-solid fa-table-list"></i> Table
                       </button>
-                      <button
-                        type="button"
+                      <button type="button"
                         className={`btn btn-sm ${viewMode === "funnel" ? "btn-primary" : "btn-outline-secondary"}`}
-                        onClick={() => setViewMode("funnel")} title="Funnel View"
-                      >
+                        onClick={() => setViewMode("funnel")} title="Funnel View">
                         <i className="fa-solid fa-filter"></i> Funnel
                       </button>
                     </div>
@@ -355,11 +567,9 @@ export const SalesMasterGrid = () => {
                 <div className="row align-items-center p-3 m-1 bg-light rounded mb-3">
                   <div className="col-12 col-lg-6">
                     <div className="input-group">
-                      <input
-                        type="text" className="form-control"
+                      <input type="text" className="form-control"
                         placeholder="Search by Mobile Number or Company Name..."
-                        value={filters.searchTerm || ""} onChange={handleSearchChange}
-                      />
+                        value={filters.searchTerm || ""} onChange={handleSearchChange} />
                       {filters.searchTerm && (
                         <button className="btn btn-outline-secondary" type="button" onClick={resetSearch}>
                           <i className="fa-solid fa-times"></i>
@@ -376,22 +586,28 @@ export const SalesMasterGrid = () => {
                         </small>
                       </div>
                     )}
+                    {isTodayActionMode && (
+                      <div className="mt-2">
+                        <small className="text-warning">
+                          <i className="fa-solid fa-bolt me-1"></i>
+                          Showing leads with actions submitted today — hover a row to see details
+                        </small>
+                      </div>
+                    )}
                   </div>
                   <div className="col-12 col-lg-6 ms-auto text-end">
                     <div className="row g-2">
                       <div className="col">
-                        <input
-                          type="date" className="form-control" name="date"
+                        <input type="date" className="form-control" name="date"
                           onChange={e => handleChange('date', e.target.value)}
-                          value={filters.date || ""} disabled={isFollowUpTodayMode}
-                        />
+                          value={filters.date || ""}
+                          disabled={isFollowUpTodayMode || isTodayActionMode} />
                       </div>
                       <div className="col">
-                        <select
-                          className="form-select" name="callLeads"
+                        <select className="form-select" name="callLeads"
                           onChange={e => handleChange('callLeads', e.target.value)}
-                          value={filters.callLeads || ""} disabled={isFollowUpTodayMode}
-                        >
+                          value={filters.callLeads || ""}
+                          disabled={isFollowUpTodayMode || isTodayActionMode}>
                           <option value="">Leads...</option>
                           <option value="Hot Leads">Hot Leads</option>
                           <option value="Warm Leads">Warm Leads</option>
@@ -400,11 +616,10 @@ export const SalesMasterGrid = () => {
                         </select>
                       </div>
                       <div className="col">
-                        <select
-                          className="form-select" name="source"
+                        <select className="form-select" name="source"
                           onChange={e => handleChange('source', e.target.value)}
-                          value={filters.source || ""} disabled={isFollowUpTodayMode}
-                        >
+                          value={filters.source || ""}
+                          disabled={isFollowUpTodayMode || isTodayActionMode}>
                           <option value="">Sources...</option>
                           <option value="Direct">Direct</option>
                           <option value="IndiaMart">IndiaMart</option>
@@ -427,11 +642,10 @@ export const SalesMasterGrid = () => {
                         </select>
                       </div>
                       <div className="col">
-                        <select
-                          className="form-select" name="status"
+                        <select className="form-select" name="status"
                           onChange={e => handleChange('status', e.target.value)}
-                          value={filters.status || ""} disabled={isFollowUpTodayMode}
-                        >
+                          value={filters.status || ""}
+                          disabled={isFollowUpTodayMode || isTodayActionMode}>
                           <option value="">Status...</option>
                           <option value="Won">Won</option>
                           <option value="Ongoing">Ongoing</option>
@@ -440,10 +654,8 @@ export const SalesMasterGrid = () => {
                         </select>
                       </div>
                       <div className="col">
-                        <button
-                          className="btn btn-outline-secondary w-100" type="button"
-                          onClick={resetFilters} title="Reset all filters"
-                        >
+                        <button className="btn btn-outline-secondary w-100" type="button"
+                          onClick={resetFilters} title="Reset all filters">
                           <i className="fa-solid fa-filter-circle-xmark"></i> Reset
                         </button>
                       </div>
@@ -503,10 +715,22 @@ export const SalesMasterGrid = () => {
                                 const followUpStatus = getFollowUpStatus(lead.nextFollowUpDate, lead.STATUS);
                                 const isToday   = followUpStatus === 'today';
                                 const isOverdue = followUpStatus === 'overdue';
+                                const todayStr  = new Date().toDateString();
+                                const hasTodayAction = isTodayActionMode && (lead.previousActions || []).some(
+                                  a => new Date(a.createdAt).toDateString() === todayStr
+                                );
+
                                 return (
                                   <tr
                                     key={lead._id}
-                                    className={isToday ? "row-today-followup" : isOverdue ? "row-overdue-followup" : ""}
+                                    className={
+                                      hasTodayAction ? "row-today-action"    :
+                                      isToday        ? "row-today-followup"  :
+                                      isOverdue      ? "row-overdue-followup": ""
+                                    }
+                                    onMouseEnter={() => handleRowMouseEnter(lead)}
+                                    onMouseLeave={handleRowMouseLeave}
+                                    style={isTodayActionMode ? { cursor: 'default' } : {}}
                                   >
                                     <td className="text-center">
                                       {(pagination.currentPage - 1) * itemsPerPage + index + 1}
@@ -514,12 +738,17 @@ export const SalesMasterGrid = () => {
                                     <td>
                                       <div className="d-flex align-items-center">
                                         <span>{lead.SENDER_COMPANY || "Not available."}</span>
-                                        {isToday && (
+                                        {hasTodayAction && (
+                                          <span className="badge bg-warning text-dark ms-2 badge-today-action">
+                                            <i className="fa-solid fa-bolt me-1"></i>ACTION TODAY
+                                          </span>
+                                        )}
+                                        {!hasTodayAction && isToday && (
                                           <span className="badge bg-danger text-white ms-2 badge-pulse-red">
                                             <i className="fa-solid fa-bell"></i> TODAY FOLLOWUP
                                           </span>
                                         )}
-                                        {isOverdue && (
+                                        {!hasTodayAction && isOverdue && (
                                           <span className="badge bg-danger text-white ms-2 badge-pulse-dark-red">
                                             <i className="fa-solid fa-triangle-exclamation"></i> OVERDUE
                                           </span>
@@ -541,58 +770,40 @@ export const SalesMasterGrid = () => {
                                         </span>
                                       ) : <span className="text-muted">Not set</span>}
                                     </td>
-                                    <td>
-                                      <span className={handleBgColor(lead.STATUS)}>{lead.STATUS}</span>
-                                    </td>
-
-                                    {/* ── Action column ── */}
+                                    <td><span className={handleBgColor(lead.STATUS)}>{lead.STATUS}</span></td>
                                     <td className="text-center">
                                       {lead.STATUS === 'Won' || lead.STATUS === 'Lost' ? (
                                         <div className="btn-group" role="group">
-                                          <button
-                                            className="btn btn-sm btn-outline-info"
-                                            onClick={() => handleDetailsPopUpClick(lead)} title="View"
-                                          >
+                                          <button className="btn btn-sm btn-outline-info"
+                                            onClick={() => handleDetailsPopUpClick(lead)} title="View">
                                             <i className="fa-solid fa-eye"></i>
                                           </button>
-                                          <button
-                                            className="btn btn-sm btn-outline-primary"
-                                            onClick={() => handleMeeting(lead)}
-                                            title="Schedule Meeting"
-                                          >
+                                          <button className="btn btn-sm btn-outline-primary"
+                                            onClick={() => handleMeeting(lead)} title="Schedule Meeting">
                                             <i className="fa-solid fa-video"></i>
                                           </button>
                                         </div>
                                       ) : (
                                         <div className="btn-group" role="group">
                                           {canUpdateLead && (
-                                            <button
-                                              className="btn btn-sm btn-outline-success"
-                                              onClick={() => handleUpdate(lead)} title="Update"
-                                            >
+                                            <button className="btn btn-sm btn-outline-success"
+                                              onClick={() => handleUpdate(lead)} title="Update">
                                               <i className="fa-solid fa-pen"></i>
                                             </button>
                                           )}
                                           {canAssignLead && (
-                                            <button
-                                              className="btn btn-sm btn-outline-warning"
-                                              onClick={() => handleAssign(lead)} title="Reassign"
-                                            >
+                                            <button className="btn btn-sm btn-outline-warning"
+                                              onClick={() => handleAssign(lead)} title="Reassign">
                                               <i className="fa-solid fa-share"></i>
                                             </button>
                                           )}
-                                          <button
-                                            className="btn btn-sm btn-outline-primary"
-                                            onClick={() => handleMeeting(lead)}
-                                            title="Schedule Meeting"
-                                          >
+                                          <button className="btn btn-sm btn-outline-primary"
+                                            onClick={() => handleMeeting(lead)} title="Schedule Meeting">
                                             <i className="fa-solid fa-video"></i>
                                           </button>
                                           {lead.SOURCE === 'Direct' && canDeleteLead && (
-                                            <button
-                                              className="btn btn-sm btn-outline-danger"
-                                              onClick={() => handleDelete(lead._id)} title="Delete"
-                                            >
+                                            <button className="btn btn-sm btn-outline-danger"
+                                              onClick={() => handleDelete(lead._id)} title="Delete">
                                               <i className="fa-solid fa-trash"></i>
                                             </button>
                                           )}
@@ -625,43 +836,33 @@ export const SalesMasterGrid = () => {
                     <nav>
                       <ul className="pagination mb-0">
                         <li className={`page-item ${!pagination.hasPrevPage ? 'disabled' : ''}`}>
-                          <button className="page-link"
-                            onClick={() => handlePageChange(1)} disabled={!pagination.hasPrevPage}>First</button>
+                          <button className="page-link" onClick={() => handlePageChange(1)} disabled={!pagination.hasPrevPage}>First</button>
                         </li>
                         <li className={`page-item ${!pagination.hasPrevPage ? 'disabled' : ''}`}>
-                          <button className="page-link"
-                            onClick={() => handlePageChange(pagination.currentPage - 1)}
-                            disabled={!pagination.hasPrevPage}>Previous</button>
+                          <button className="page-link" onClick={() => handlePageChange(pagination.currentPage - 1)} disabled={!pagination.hasPrevPage}>Previous</button>
                         </li>
                         {(() => {
                           const pageNumbers = [];
-                          const maxPagesToShow = 5;
-                          if (pagination.totalPages <= maxPagesToShow) {
+                          const max = 5;
+                          if (pagination.totalPages <= max) {
                             for (let i = 1; i <= pagination.totalPages; i++) pageNumbers.push(i);
                           } else {
-                            let startPage = Math.max(1, pagination.currentPage - 2);
-                            let endPage   = Math.min(pagination.totalPages, startPage + maxPagesToShow - 1);
-                            if (endPage - startPage < maxPagesToShow - 1)
-                              startPage = Math.max(1, endPage - maxPagesToShow + 1);
-                            for (let i = startPage; i <= endPage; i++) pageNumbers.push(i);
+                            let s = Math.max(1, pagination.currentPage - 2);
+                            let e = Math.min(pagination.totalPages, s + max - 1);
+                            if (e - s < max - 1) s = Math.max(1, e - max + 1);
+                            for (let i = s; i <= e; i++) pageNumbers.push(i);
                           }
-                          return pageNumbers.map(number => (
-                            <li key={number} className={`page-item ${pagination.currentPage === number ? 'active' : ''}`}>
-                              <button className="page-link" onClick={() => handlePageChange(number)}>
-                                {number}
-                              </button>
+                          return pageNumbers.map(n => (
+                            <li key={n} className={`page-item ${pagination.currentPage === n ? 'active' : ''}`}>
+                              <button className="page-link" onClick={() => handlePageChange(n)}>{n}</button>
                             </li>
                           ));
                         })()}
                         <li className={`page-item ${!pagination.hasNextPage ? 'disabled' : ''}`}>
-                          <button className="page-link"
-                            onClick={() => handlePageChange(pagination.currentPage + 1)}
-                            disabled={!pagination.hasNextPage}>Next</button>
+                          <button className="page-link" onClick={() => handlePageChange(pagination.currentPage + 1)} disabled={!pagination.hasNextPage}>Next</button>
                         </li>
                         <li className={`page-item ${!pagination.hasNextPage ? 'disabled' : ''}`}>
-                          <button className="page-link"
-                            onClick={() => handlePageChange(pagination.totalPages)}
-                            disabled={!pagination.hasNextPage}>Last</button>
+                          <button className="page-link" onClick={() => handlePageChange(pagination.totalPages)} disabled={!pagination.hasNextPage}>Last</button>
                         </li>
                       </ul>
                     </nav>
@@ -675,53 +876,34 @@ export const SalesMasterGrid = () => {
       </div>
 
       {/* ══ POPUPS ══ */}
-      {addpop && (
-        <AddSalesLeadPopUp onAddLead={handleAddLeadSubmit} onClose={handleCloseAddModal} />
-      )}
+      {addpop && <AddSalesLeadPopUp onAddLead={handleAddLeadSubmit} onClose={handleCloseAddModal} />}
       {UpdatePopUpShow && selectedLead && (
-        <UpdateSalesPopUp
-          selectedLead={selectedLead} onUpdate={handleUpdateSubmit}
+        <UpdateSalesPopUp selectedLead={selectedLead} onUpdate={handleUpdateSubmit}
           isCompany={user.user === 'company'}
-          onClose={() => { setUpdatePopUpShow(false); setSelectedLead(null); }}
-        />
+          onClose={() => { setUpdatePopUpShow(false); setSelectedLead(null); }} />
       )}
       {assignPopUpShow && selectedLead && (
-        <AssignSalesLeadPopUp
-          selectedLead={selectedLead} onUpdate={handleAssignSubmit}
-          onClose={() => { setAssignPopUpShow(false); setSelectedLead(null); }}
-        />
+        <AssignSalesLeadPopUp selectedLead={selectedLead} onUpdate={handleAssignSubmit}
+          onClose={() => { setAssignPopUpShow(false); setSelectedLead(null); }} />
       )}
       {deletePopUpShow && (
-        <DeletePopUP
-          message={"Are you sure you want to delete this lead?"} heading={"Delete Lead"}
+        <DeletePopUP message={"Are you sure you want to delete this lead?"} heading={"Delete Lead"}
           cancelBtnCallBack={() => setDeletePopUpShow(false)}
-          confirmBtnCallBack={handleDeleteConfirm}
-        />
+          confirmBtnCallBack={handleDeleteConfirm} />
       )}
       {showLeadPopUp && selectedLead && (
-        <ViewSalesLeadPopUp
-          closePopUp={() => { setShowLeadPopUp(false); setSelectedLead(null); }}
-          selectedLead={selectedLead}
-        />
+        <ViewSalesLeadPopUp closePopUp={() => { setShowLeadPopUp(false); setSelectedLead(null); }}
+          selectedLead={selectedLead} />
       )}
-
-      {/* ── Meeting Drawer ── */}
-      {/* handleMeetingClose calls refetch() + fetchAllLeadsForFunnel()
-          so the next time this lead is opened in MeetingDrawer it
-          carries the fresh previousActions with saved meeting history */}
       {meetingDrawer && selectedLead && (
-        <MeetingDrawer
-          lead={selectedLead}
-          onClose={handleMeetingClose}
-        />
+        <MeetingDrawer lead={selectedLead} onClose={handleMeetingClose} />
       )}
-
-      {/* ── Global CSS ── */}
+      <ChatbotDrawer page="sales" />
       <style jsx>{`
         .row-today-followup { animation: blinkRed 1s infinite; }
         @keyframes blinkRed {
           0%,100% { background-color: rgba(255,50,50,0.08);  box-shadow: 0 0 4px  rgba(255,0,0,0.25); }
-          50%      { background-color: rgba(255,150,150,0.45); box-shadow: 0 0 18px rgba(255,0,0,0.6);  }
+          50%      { background-color: rgba(255,150,150,0.45); box-shadow: 0 0 18px rgba(255,0,0,0.6); }
         }
         .badge-pulse-red { animation: badgeRed 1.5s infinite; box-shadow: 0 0 8px rgba(255,0,0,0.6); font-size: .72rem; }
         @keyframes badgeRed { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
@@ -747,7 +929,18 @@ export const SalesMasterGrid = () => {
         .btn-group .btn { padding: .25rem .5rem; font-size: .75rem; }
         .table-hover tbody tr:hover { background-color: rgba(0,0,0,0.05); }
         .row-today-followup:hover   { background-color: rgba(255,100,100,0.2) !important; }
-        .row-overdue-followup:hover { background-color: rgba(139,0,0,0.2)   !important; }
+        .row-overdue-followup:hover { background-color: rgba(139,0,0,0.2)    !important; }
+        .row-today-action { background-color: rgba(255,193,7,0.08) !important; box-shadow: inset 3px 0 0 #ffc107; }
+        .row-today-action:hover { background-color: rgba(255,193,7,0.18) !important; }
+        .badge-today-action { font-size: .7rem; animation: badgeActionPulse 2s infinite; }
+        @keyframes badgeActionPulse {
+          0%,100% { transform: scale(1);    box-shadow: 0 0 0   rgba(255,193,7,0.5); }
+          50%      { transform: scale(1.05); box-shadow: 0 0 8px rgba(255,193,7,0.8); }
+        }
+        @keyframes popupFadeIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.96); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0)      scale(1);   }
+        }
       `}</style>
     </>
   );

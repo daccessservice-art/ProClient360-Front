@@ -4,7 +4,7 @@ import { Sidebar } from "../../MainDashboard/Sidebar/Sidebar";
 import toast from 'react-hot-toast';
 import EmployeeUpdateFeedbackPopUp from "./PopUp/EmployeeUpdateFeedbackPopUp";
 import { getRemaningFeedback } from "../../../../hooks/useFeedback";
-import { formatDate } from "../../../../utils/formatDate";
+import { formatDate, formatDateTimeForDisplay } from "../../../../utils/formatDate";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -22,11 +22,9 @@ export const EmployeeFeedbackMasterGrid = () => {
     const [showFeedbackGiven, setShowFeedbackGiven] = useState(false);
     const [showHighRatingOnly, setShowHighRatingOnly] = useState(false);
 
-    // ALL records — single source of truth for stats, table, and counts
     const [allFeedbacks, setAllFeedbacks] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
 
-    // Fetch ALL records once (and after popup closes)
     const fetchAllData = async () => {
         try {
             setLoading(true);
@@ -50,7 +48,6 @@ export const EmployeeFeedbackMasterGrid = () => {
         fetchAllData();
     }, [UpdatePopUpShow]);
 
-    // Client-side search filter
     const searchFiltered = useMemo(() => {
         if (!search.trim()) return allFeedbacks;
         const q = search.trim().toLowerCase();
@@ -63,7 +60,6 @@ export const EmployeeFeedbackMasterGrid = () => {
         });
     }, [allFeedbacks, search]);
 
-    // Filter by feedback status
     const filteredFeedbacks = useMemo(() => {
         return searchFiltered.filter(feedback => {
             const hasFeedback  = feedback.feedback && feedback.feedback.rating;
@@ -74,19 +70,16 @@ export const EmployeeFeedbackMasterGrid = () => {
         });
     }, [searchFiltered, showFeedbackGiven, showHighRatingOnly]);
 
-    // Client-side pagination
     const totalPages = Math.ceil(filteredFeedbacks.length / ITEMS_PER_PAGE);
     const paginatedFeedbacks = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
         return filteredFeedbacks.slice(start, start + ITEMS_PER_PAGE);
     }, [filteredFeedbacks, currentPage]);
 
-    // Reset page when filter/search changes
     useEffect(() => {
         setCurrentPage(1);
     }, [showFeedbackGiven, showHighRatingOnly, search]);
 
-    // Statistics from ALL records
     const stats = useMemo(() => {
         const result = { total: allFeedbacks.length, pending: 0, completed: 0, highRating: 0, avgRating: 0, topEngineers: {} };
         let totalRating = 0, ratingCount = 0;
@@ -126,7 +119,6 @@ export const EmployeeFeedbackMasterGrid = () => {
         [stats]
     );
 
-    // Toggle button counts from ALL filtered records (not just current page)
     const pendingCount    = useMemo(() => searchFiltered.filter(f => !(f.feedback && f.feedback.rating)).length, [searchFiltered]);
     const givenCount      = useMemo(() => searchFiltered.filter(f => f.feedback && f.feedback.rating).length, [searchFiltered]);
     const highRatingCount = useMemo(() => searchFiltered.filter(f => f.feedback && f.feedback.rating >= 4).length, [searchFiltered]);
@@ -186,7 +178,6 @@ export const EmployeeFeedbackMasterGrid = () => {
         setShowFeedbackGiven(true);
     };
 
-    // Pagination buttons
     const maxPageButtons = 5;
     const halfMax = Math.floor(maxPageButtons / 2);
     let startPage = Math.max(1, currentPage - halfMax);
@@ -409,10 +400,10 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                 <tbody className="broder my-4">
                                                     {paginatedFeedbacks.length > 0 ? (
                                                         paginatedFeedbacks.map((feedback, index) => {
-                                                            const hasFeedback  = feedback.feedback && feedback.feedback.rating;
+                                                            const hasFeedback   = feedback.feedback && feedback.feedback.rating;
                                                             const hasHighRating = hasFeedback && feedback.feedback.rating >= 4;
-                                                            const cardType = getCardType(feedback);
-                                                            const globalIndex = (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
+                                                            const cardType      = getCardType(feedback);
+                                                            const globalIndex   = (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
 
                                                             return (
                                                                 <tr className="border my-4" key={feedback._id}
@@ -427,8 +418,8 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                                     <td className="align_left_td">{feedback.ticket?.contactPerson || 'N/A'}</td>
                                                                     <td className="align_left_td">{feedback.ticket?.contactNumber || 'N/A'}</td>
                                                                     <td className="align_left_td">{feedback.ticket?.product || 'N/A'}</td>
-                                                                    <td>{formatDate(feedback.allotmentDate)}</td>
-                                                                    <td>{formatDate(feedback.completionDate)}</td>
+                                                                    <td>{formatDateTimeForDisplay(feedback.allotmentDate)}</td>
+                                                                    <td>{formatDateTimeForDisplay(feedback.completionDate)}</td>
                                                                     <td>
                                                                         {feedback.allotTo?.map(person =>
                                                                             renderEngineerName(person, hasHighRating)

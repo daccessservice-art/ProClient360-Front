@@ -7,7 +7,7 @@ import SubmitServiceWorkPopUp from "./PopUp/SubmitServiceWorkPopUp";
 import ViewServicePopUp from "../../CommonPopUp/ViewServicePopUp";
 import useMyServices from "../../../../hooks/service/useMyService";
 import useDeleteService from "../../../../hooks/service/useDeleteService";
-import { formatDate } from "../../../../utils/formatDate";
+import { formatDate, formatDateTimeForDisplay } from "../../../../utils/formatDate";
 
 export const EmployeeMyServiceMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
@@ -46,22 +46,21 @@ export const EmployeeMyServiceMasterGrid = () => {
   const { deleteService, loading: deleteLoading } = useDeleteService();
 
   // Update state with fetched data
-// Update state with fetched data
-useEffect(() => {
-  if (data && data.pagination) {
-    setPagination({
-      currentPage: data.pagination.currentPage,
-      totalPages: data.pagination.totalPages,
-      totalServices: data.pagination.totalRecords,
-      limit: data.pagination.limit,
-      hasNextPage: data.pagination.hasNextPage,
-      hasPrevPage: data.pagination.hasPrevPage,
-    });
-  }
-  if (error) {
-    toast.error(error);
-  }
-}, [data, error]);
+  useEffect(() => {
+    if (data && data.pagination) {
+      setPagination({
+        currentPage: data.pagination.currentPage,
+        totalPages: data.pagination.totalPages,
+        totalServices: data.pagination.totalRecords,
+        limit: data.pagination.limit,
+        hasNextPage: data.pagination.hasNextPage,
+        hasPrevPage: data.pagination.hasPrevPage,
+      });
+    }
+    if (error) {
+      toast.error(error);
+    }
+  }, [data, error]);
 
   // Event Handlers
   const handlePageChange = (page) => {
@@ -92,7 +91,7 @@ useEffect(() => {
         if (result) {
           toast.success("Service deleted successfully.");
           setDeletePopUpShow(false);
-          setPagination((prev) => ({ ...prev, currentPage: 1 })); // Refresh list
+          setPagination((prev) => ({ ...prev, currentPage: 1 }));
         }
       } catch (err) {
         toast.error(err.message || "Failed to delete service.");
@@ -105,7 +104,6 @@ useEffect(() => {
     setFilters(updatedFilters);
     setPagination((prev) => ({ ...prev, currentPage: 1 }));
   };
-
 
   // Pagination Buttons
   const maxPageButtons = 5;
@@ -137,7 +135,6 @@ useEffect(() => {
                   </div>
 
                   <div className="col-12 col-lg-8">
-                    
                     <div className="row g-2 justify-content-end align-items-center">
                       <div className="col-md-3 col-lg-3">
                         <select
@@ -213,20 +210,18 @@ useEffect(() => {
                                 <td className="align_left_td width_tdd wrap-text-of-col">
                                   {service.ticket?.client?.custName || "N/A"}
                                 </td>
-                                <td
-                                  className="align_left_td width_tdd wrap-text-of-col"
-                                >
+                                <td className="align_left_td width_tdd wrap-text-of-col">
                                   {service.ticket?.details || "N/A"}
                                 </td>
                                 <td>{service.ticket?.product || "N/A"}</td>
                                 <td>{service.priority || "N/A"}</td>
-                                <td>{formatDate(service.allotmentDate)}</td>
+                                <td>{formatDateTimeForDisplay(service.allotmentDate)}</td>
                                 <td
                                   className="font-weight-bold"
-                                  style={{ 
-                                    color: service.status === 'Completed' ? '#28a745' : 
-                                           service.status === 'Inprogress' ? '#0000FF' : 
-                                           service.status === 'Pending' ? '#FFA726' : 
+                                  style={{
+                                    color: service.status === 'Completed' ? '#28a745' :
+                                           service.status === 'Inprogress' ? '#0000FF' :
+                                           service.status === 'Pending' ? '#FFA726' :
                                            service.status === 'Stuck' ? '#E53935' : '#000'
                                   }}
                                 >
@@ -249,15 +244,6 @@ useEffect(() => {
                                   >
                                     <i className="fa-solid fa-eye text-primary"></i>
                                   </span>
-                                  {/* Uncomment if delete is needed */}
-                                  {/* <span
-                                    onClick={() => handleDeleteClosePopUpClick(service._id)}
-                                    className="delete ms-2"
-                                    style={{ cursor: "pointer" }}
-                                    title="Delete Service"
-                                  >
-                                    <i className="fa-solid fa-trash text-danger"></i>
-                                  </span> */}
                                 </td>
                               </tr>
                             ))

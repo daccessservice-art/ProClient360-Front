@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { formatDate } from "../../../utils/formatDate";
+import { formatDate, formatDateTimeForDisplay } from "../../../utils/formatDate";
 import { getAllServiceActions } from "../../../hooks/useServiceAction";
 import toast from "react-hot-toast";
 
@@ -10,18 +10,14 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
 
   // Extract completion percentage from action text if not in complateLevel field
   const extractCompletionFromAction = (action) => {
-    // First check if complateLevel exists and is valid
     if (action.complateLevel !== undefined && action.complateLevel !== null && action.complateLevel !== '' && action.complateLevel !== 0) {
       const level = parseInt(action.complateLevel);
       return (level >= 0 && level <= 100) ? level : 0;
     }
     
-    // If not, try to extract from action text
     const actionText = (action.action || '').toLowerCase().trim();
-    
     if (!actionText) return 0;
     
-    // Pattern 1: Look for "X percent" or "X %" anywhere in text
     const percentPatterns = [
       /(\d+)\s*percent/gi,
       /(\d+)\s*%/gi,
@@ -31,48 +27,32 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
     for (const pattern of percentPatterns) {
       const matches = actionText.match(pattern);
       if (matches) {
-        // Get all numbers and return the highest one (most likely the completion)
         const numbers = matches.map(match => {
           const num = parseInt(match.match(/\d+/)[0]);
           return (num >= 0 && num <= 100) ? num : 0;
         }).filter(num => num > 0);
-        
-        if (numbers.length > 0) {
-          return Math.max(...numbers);
-        }
+        if (numbers.length > 0) return Math.max(...numbers);
       }
     }
     
-    // Pattern 2: Check for completion keywords and extract associated numbers
     const completionKeywords = ['completed', 'complete', 'done', 'finished', 'progress'];
     const hasCompletionKeyword = completionKeywords.some(keyword => actionText.includes(keyword));
     
     if (hasCompletionKeyword) {
-      // Look for any number near completion keywords
       const numberMatch = actionText.match(/(\d+)/);
       if (numberMatch) {
         const num = parseInt(numberMatch[1]);
-        if (num >= 0 && num <= 100) {
-          return num;
-        }
+        if (num >= 0 && num <= 100) return num;
       }
-      
-      // If just says "completed" or "work completed", treat as 100%
-      if (actionText.match(/^(work\s+)?(completed|complete|done|finished)$/)) {
-        return 100;
-      }
+      if (actionText.match(/^(work\s+)?(completed|complete|done|finished)$/)) return 100;
     }
     
-    // Pattern 3: Check if it's just a number (like "20", "77", etc.)
     const justNumberMatch = actionText.match(/^\d+$/);
     if (justNumberMatch) {
       const num = parseInt(actionText);
-      if (num >= 0 && num <= 100) {
-        return num;
-      }
+      if (num >= 0 && num <= 100) return num;
     }
     
-    // Pattern 4: Look for fractions like "3/4" and convert to percentage
     const fractionMatch = actionText.match(/(\d+)\s*\/\s*(\d+)/);
     if (fractionMatch) {
       const numerator = parseInt(fractionMatch[1]);
@@ -83,7 +63,6 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
       }
     }
     
-    // Pattern 5: Look for words like "half", "quarter", etc.
     const wordToPercent = {
       'half': 50,
       'quarter': 25,
@@ -94,12 +73,9 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
     };
     
     for (const [word, percent] of Object.entries(wordToPercent)) {
-      if (actionText.includes(word)) {
-        return percent;
-      }
+      if (actionText.includes(word)) return percent;
     }
     
-    // Pattern 6: Advanced number extraction with context
     const advancedPatterns = [
       /work\s+(\d+)/i,
       /(\d+)\s+work/i,
@@ -113,9 +89,7 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
       const match = actionText.match(pattern);
       if (match) {
         const num = parseInt(match[1]);
-        if (num >= 0 && num <= 100) {
-          return num;
-        }
+        if (num >= 0 && num <= 100) return num;
       }
     }
     
@@ -125,16 +99,11 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
   // Calculate current completion level from service and previous actions
   const calculateCurrentCompletion = () => {
     let latestCompletion = parseInt(service.complateLevel) || 0;
-    
     if (previousActions && previousActions.length > 0) {
-      // Extract completion percentages from all actions
       const completionLevels = previousActions.map(action => extractCompletionFromAction(action));
-      
-      // Get the highest completion level
       const maxCompletion = Math.max(latestCompletion, ...completionLevels);
       latestCompletion = maxCompletion;
     }
-    
     setCurrentCompletionLevel(latestCompletion);
   };
 
@@ -143,20 +112,19 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
       try {
         toast.loading("Loading Previous Actions...");
         const data = await getAllServiceActions(selectedService._id);
-        if(data.success){
+        if (data.success) {
           toast.dismiss();
           setPreviousActions(data.serviceActions);
         } else {
           toast.dismiss();
           setPreviousActions([]);
-          toast(data.error)
+          toast(data.error);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
         toast.dismiss();
       }
     };
-
     FetchPreviousActions();
   }, [selectedService._id]);
 
@@ -192,14 +160,13 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
             <div className="modal-body">
               <div className="row modal_body_height_details">
                 <div className="row">
-
                   <div className="col-sm- col-md col-lg">
                     <h6>
-                      <p className="fw-bold ">Complaint:</p>
+                      <p className="fw-bold">Complaint:</p>
                       {service?.ticket?.details || "-"}
                     </h6>
                     <h6>
-                      <p className="fw-bold mt-3 ">Client:</p>
+                      <p className="fw-bold mt-3">Client:</p>
                       {service?.ticket?.client?.custName}
                     </h6>
                     <h6>
@@ -210,17 +177,18 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
                       <p className="fw-bold mt-3">Service Type:</p>
                       {service.serviceType}
                     </h6>
-
-                    {service.completionDate && <h6>
-                      <p className="fw-bold mt-3">Completion Date:</p>
-                      {formatDate(service.completionDate)}
-                    </h6>}
+                    {service.completionDate && (
+                      <h6>
+                        <p className="fw-bold mt-3">Completion Date:</p>
+                        {formatDateTimeForDisplay(service.completionDate)}
+                      </h6>
+                    )}
                   </div>
                   <div className="col-sm- col-md col-lg">
                     <p className="fw-bold"> Allotment Date: </p>
-                    {formatDate(service.allotmentDate)}
+                    {formatDateTimeForDisplay(service.allotmentDate)}
                     <p className="fw-bold mt-3"> Allocated to: </p>
-                    {service.allotTo.map((item, index) => item.name).join(', ')}
+                    {service.allotTo.map((item) => item.name).join(', ')}
                     <p className="fw-bold mt-3"> Status: </p>
                     {service.status}
                     <p className="fw-bold mt-3"> Priority: </p>
@@ -228,23 +196,29 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
                     <p className="fw-bold mt-3"> Work Mode: </p>
                     {service.workMode}
                     <p className="fw-bold mt-3"> Created At: </p>
-                    {formatDate(service.ticket.date)}
+                    {formatDateTimeForDisplay(service.ticket.date)}
                     <p className="fw-bold mt-3">Work Complete(%): </p>
                     <span className="badge bg-primary">{currentCompletionLevel}%</span>
                   </div>
 
-                  {service.status === "Stuck" ? <div className="col-12">
-                    <h5>This Service is Stuck due to: <span className="text-danger text-xl-center"> {service.stuckReason}</span></h5>
-                  </div> : ""}
+                  {service.status === "Stuck" ? (
+                    <div className="col-12">
+                      <h5>
+                        This Service is Stuck due to:{" "}
+                        <span className="text-danger text-xl-center">{service.stuckReason}</span>
+                      </h5>
+                    </div>
+                  ) : ""}
                 </div>
               </div>
+
               {previousActions ? (
                 <>
                   <h6 className="mt-2"> Past Actions</h6>
-                  <div 
-                    className="table-responsive" 
-                    style={{ 
-                      maxHeight: '170px', 
+                  <div
+                    className="table-responsive"
+                    style={{
+                      maxHeight: '170px',
                       overflowY: 'auto',
                       border: '1px solid #dee2e6',
                       borderRadius: '0.375rem'
@@ -254,9 +228,7 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
                       <thead className="thead-light sticky-top" style={{ backgroundColor: '#f8f9fa' }}>
                         <tr>
                           <th scope="col">Sr. No</th>
-                          <th scope="col" className="text-start">
-                            Action
-                          </th>
+                          <th scope="col" className="text-start">Action</th>
                           <th scope="col">Action By</th>
                           <th scope="col">Start Date</th>
                           <th scope="col">End Date</th>
@@ -271,22 +243,20 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
                               <td>{index + 1}</td>
                               <td
                                 className="text-start text-wrap w-100"
-                                style={{
-                                  maxWidth: "22rem",
-                                }}
+                                style={{ maxWidth: "22rem" }}
                               >
                                 {action?.action}
                               </td>
                               <td>{action?.actionBy?.name}</td>
-                              <td>{formatDate(action?.startTime)}</td>
-                              <td>{formatDate(action?.endTime)}</td>
+                              <td>{formatDateTimeForDisplay(action?.startTime)}</td>
+                              <td>{formatDateTimeForDisplay(action?.endTime)}</td>
                               <td>
                                 <div className="d-flex flex-column align-items-center">
                                   {completionPercent > 0 ? (
                                     <span className={`badge mb-1 ${
                                       completionPercent >= 100 ? 'bg-success' :
                                       completionPercent >= 75 ? 'bg-primary' :
-                                      completionPercent >= 50 ? 'bg-warning' : 
+                                      completionPercent >= 50 ? 'bg-warning' :
                                       completionPercent > 0 ? 'bg-info' : 'bg-secondary'
                                     }`}>
                                       {completionPercent}%
@@ -296,7 +266,7 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
                                   )}
                                   {completionPercent > 0 && (
                                     <div className="progress" style={{ width: '60px', height: '4px' }}>
-                                      <div 
+                                      <div
                                         className={`progress-bar ${
                                           completionPercent >= 100 ? 'bg-success' :
                                           completionPercent >= 75 ? 'bg-primary' :
