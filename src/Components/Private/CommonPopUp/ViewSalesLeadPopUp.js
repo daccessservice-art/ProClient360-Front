@@ -27,6 +27,32 @@ const formatCallDate = (dateString) => {
 };
 
 // ─────────────────────────────────────────────
+// ✅ FIXED: Smart Helper to handle Object, Name, or ID
+// ─────────────────────────────────────────────
+const resolveName = (field) => {
+  if (!field) return 'None';
+  
+  // 1. If backend sent a populated object (Correct scenario)
+  if (typeof field === 'object') {
+    return field.name || field.empName || field.fullName || 'None';
+  }
+  
+  // 2. If backend sent a string
+  if (typeof field === 'string') {
+    // Regex to detect MongoDB ObjectId (24 hex characters)
+    if (/^[a-fA-F0-9]{24}$/.test(field)) {
+      // It's an ID! Backend forgot to populate.
+      // Returning 'None' is better than showing the ugly ID.
+      return 'None'; 
+    }
+    // It's a normal string (a name)
+    return field;
+  }
+  
+  return 'None';
+};
+
+// ─────────────────────────────────────────────
 // Inline Add Customer Form
 // ─────────────────────────────────────────────
 const InlineAddCustomerForm = ({ selectedLead, onSuccess, onCancel }) => {
@@ -311,7 +337,6 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
   const [transactionType, setTransactionType] = useState('');
   const [purchaseType, setPurchaseType] = useState('');
   
-  // ✅ Project State moved inside to ensure loading works independently
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -330,7 +355,6 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
   const [materialFollowupDate, setMaterialFollowupDate] = useState('');
   const [termsDocument, setTermsDocument] = useState(null);
   
-  // Product States
   const [allBrands, setAllBrands] = useState([]);
   const [brandModelsMap, setBrandModelsMap] = useState(new Map());
   const [products, setProducts] = useState([]);
@@ -354,37 +378,29 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
     setRetention(v >= 0 ? v : 0);
   }, [advancePay, payAgainstDelivery, payAfterCompletion]);
 
-  // ✅ FIX 1: Fetch Projects inside the form (Robust)
-useEffect(() => {
-  const fetchProjects = async () => {
-    setLoadingProjects(true);
-    try {
-      const baseUrl = process.env.REACT_APP_API_URL;
-      const token = localStorage.getItem('token');
+  useEffect(() => {
+    const fetchProjects = async () => {
+      setLoadingProjects(true);
+      try {
+        const baseUrl = process.env.REACT_APP_API_URL;
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${baseUrl}/api/project`, {
+          params: { page: 1, limit: 100 },
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const projectList = response.data?.projects || [];
+        setProjects(projectList.map((p) => ({ value: p._id, label: p.name })));
+      } catch (err) {
+        console.error('Project fetch error:', err?.response?.data || err.message);
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+    fetchProjects();
+  }, []);
 
-      const response = await axios.get(`${baseUrl}/api/project`, {
-        params: { page: 1, limit: 100 },
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      const projectList = response.data?.projects || [];
-      setProjects(projectList.map((p) => ({ value: p._id, label: p.name })));
-
-    } catch (err) {
-      console.error('Project fetch error:', err?.response?.data || err.message);
-    } finally {
-      setLoadingProjects(false);
-    }
-  };
-
-  fetchProjects();
-}, []);
-
-
-  // ✅ FIX 2: Robust Brand Loading Logic (from AddPurchaseOrderPopUp)
   useEffect(() => {
     const loadInitialData = async () => {
-      // Load Brands from LocalStorage or Defaults
       const savedBrands = localStorage.getItem('productBrands');
       let brandsFromStorage = [];
       
@@ -396,7 +412,6 @@ useEffect(() => {
         setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
       }
       
-      // Fetch Products from API
       setLoadingProducts(true);
       let allProducts = [];
       let currentPage = 1;
@@ -406,53 +421,36 @@ useEffect(() => {
       try {
         while (hasMore) {
           const data = await getProducts(currentPage, pageSize, "");
-          
           if (data?.success && data.products && data.products.length > 0) {
             allProducts = [...allProducts, ...data.products];
-            
-            if (data.products.length < pageSize) {
-              hasMore = false;
-            } else {
-              currentPage++;
-            }
+            if (data.products.length < pageSize) hasMore = false;
+            else currentPage++;
           } else {
             hasMore = false;
           }
         }
         
         setProducts(allProducts);
-        
-        // Build Brand-Model Map
         const newBrandModelsMap = new Map();
-        
         allProducts.forEach(product => {
           if (product.brandName && product.model) {
-            if (!newBrandModelsMap.has(product.brandName)) {
-              newBrandModelsMap.set(product.brandName, new Set());
-            }
+            if (!newBrandModelsMap.has(product.brandName)) newBrandModelsMap.set(product.brandName, new Set());
             newBrandModelsMap.get(product.brandName).add(product.model);
           }
         });
         
-        // Ensure storage brands exist in map
         brandsFromStorage.forEach(brand => {
-          if (!newBrandModelsMap.has(brand)) {
-            newBrandModelsMap.set(brand, new Set());
-          }
+          if (!newBrandModelsMap.has(brand)) newBrandModelsMap.set(brand, new Set());
         });
         
         setBrandModelsMap(newBrandModelsMap);
         
-        // Merge and Set All Brands
         const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
         const mergedBrands = [...new Set([...brandsFromStorage, ...productBrands])];
-        const brandOptions = mergedBrands.map(brand => ({ value: brand, label: brand }));
-        setAllBrands(brandOptions);
+        setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));
         
-        // Set All Models
         const uniqueModels = [...new Set(allProducts.map(p => p.model).filter(Boolean))];
-        const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
-        setAllModels(modelOptions);
+        setAllModels(uniqueModels.map(model => ({ value: model, label: model })));
         
       } catch (error) {
         console.error("[InlinePO] Error loading products:", error);
@@ -461,7 +459,6 @@ useEffect(() => {
         setLoadingProducts(false);
       }
     };
-    
     loadInitialData();
   }, []);
 
@@ -548,29 +545,17 @@ useEffect(() => {
           <div className="col-md-6"><label className="form-label fw-bold">Transaction Type</label><select className="form-select" value={transactionType} onChange={(e) => setTransactionType(e.target.value)}><option value="">Select Transaction Type</option><option value="B2B">B2B</option><option value="Import">Import</option><option value="Asset">Asset</option></select></div>
           <div className="col-md-6"><label className="form-label fw-bold">Purchase Type</label><select className="form-select" value={purchaseType} onChange={(e) => setPurchaseType(e.target.value)}><option value="">Select Type</option><option value="Project Purchase">Project Purchase</option><option value="Stock">Stock</option></select></div>
           
-          {/* ✅ Project Select now uses internal state */}
-{purchaseType === 'Project Purchase' && (
-  <div className="col-md-6">
-    <label className="form-label fw-bold">Project Name</label>
-    <Select
-      value={selectedProject}
-      onChange={setSelectedProject}
-      options={projects}
-      placeholder={loadingProjects ? 'Loading projects...' : projects.length === 0 ? 'No projects found' : 'Select Project...'}
-      isClearable
-      isLoading={loadingProjects}
-      isDisabled={loadingProjects}
-      menuPortalTarget={document.body}
-      styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }}
-    />
-    {!loadingProjects && projects.length === 0 && (
-      <small className="text-warning">
-        <i className="fa fa-exclamation-triangle me-1"></i>
-        No projects available. Please create a project first.
-      </small>
-    )}
-  </div>
-)}
+          {purchaseType === 'Project Purchase' && (
+            <div className="col-md-6">
+              <label className="form-label fw-bold">Project Name</label>
+              <Select
+                value={selectedProject} onChange={setSelectedProject} options={projects}
+                placeholder={loadingProjects ? 'Loading projects...' : projects.length === 0 ? 'No projects found' : 'Select Project...'}
+                isClearable isLoading={loadingProjects} isDisabled={loadingProjects}
+                menuPortalTarget={document.body} styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }}
+              />
+            </div>
+          )}
           
           {purchaseType === 'Stock' && (<div className="col-md-6"><label className="form-label fw-bold">Warehouse Location</label><input type="text" className="form-control" value={warehouseLocation} onChange={(e) => setWarehouseLocation(e.target.value)} placeholder="Ex: Baner / Amazon / Mumbai" maxLength={200} /></div>)}
           <div className="col-12"><div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="defaultAddressTogglePO" checked={useDefaultAddress} onChange={handleToggleDefaultAddress} style={{ cursor: 'pointer' }} /><label className="form-check-label" htmlFor="defaultAddressTogglePO" style={{ cursor: 'pointer' }}>Use Default Office Address</label></div></div>
@@ -591,29 +576,8 @@ useEffect(() => {
                   const mo = bm ? Array.from(bm).map((m) => ({ value: m, label: m })) : [];
                   return (
                     <tr key={index}>
-                      <td style={{ minWidth: 140 }}>
-                        <Select 
-                          value={allBrands.find((b) => b.value === item.brandName) || null} 
-                          onChange={(s) => handleItemChange(index, 'brandName', s ? s.value : '')} 
-                          options={allBrands} 
-                          placeholder="Brand..." 
-                          isClearable 
-                          menuPortalTarget={document.body} 
-                          styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }} 
-                        />
-                      </td>
-                      <td style={{ minWidth: 140 }}>
-                        <Select 
-                          value={mo.find((m) => m.value === item.modelNo) || null} 
-                          onChange={(s) => handleItemChange(index, 'modelNo', s ? s.value : '')} 
-                          options={mo} 
-                          placeholder="Model..." 
-                          isClearable 
-                          isDisabled={!item.brandName} 
-                          menuPortalTarget={document.body} 
-                          styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }} 
-                        />
-                      </td>
+                      <td style={{ minWidth: 140 }}><Select value={allBrands.find((b) => b.value === item.brandName) || null} onChange={(s) => handleItemChange(index, 'brandName', s ? s.value : '')} options={allBrands} placeholder="Brand..." isClearable menuPortalTarget={document.body} styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }} /></td>
+                      <td style={{ minWidth: 140 }}><Select value={mo.find((m) => m.value === item.modelNo) || null} onChange={(s) => handleItemChange(index, 'modelNo', s ? s.value : '')} options={mo} placeholder="Model..." isClearable isDisabled={!item.brandName} menuPortalTarget={document.body} styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }} /></td>
                       <td><textarea className="form-control form-control-sm" style={{ width: 150 }} rows={1} value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)} /></td>
                       <td><input type="text" className="form-control form-control-sm" style={{ minWidth: 80 }} value={item.baseUOM} onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)} /></td>
                       <td><input type="number" className="form-control form-control-sm" style={{ minWidth: 60 }} value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))} min="1" /></td>
@@ -752,8 +716,11 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   <h6><p className="fw-bold d-inline">Product: </p>{selectedLead?.QUERY_PRODUCT_NAME || '-'}</h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Subject: </p>{selectedLead?.SUBJECT || '-'}</h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Query Time: </p>{formatDate(selectedLead?.createdAt) || '-'}</h6>
-                  <h6 className="mt-3"><p className="fw-bold d-inline">Assigned By: </p>{selectedLead?.assignedBy?.name || 'None'}</h6>
-                  <h6 className="mt-3"><p className="fw-bold d-inline">Assigned To: </p>{selectedLead?.assignedTo?.name || 'None'}</h6>
+                  
+                  {/* ✅ FINAL FIX: Uses smart helper to handle ID vs Object */}
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Assigned By: </p>{resolveName(selectedLead?.assignedBy)}</h6>
+                  <h6 className="mt-3"><p className="fw-bold d-inline">Assigned To: </p>{resolveName(selectedLead?.assignedTo)}</h6>
+                  
                   <h6 className="mt-3"><p className="fw-bold d-inline">Status: </p>
                     <span className={`badge ms-2 ${selectedLead?.STATUS === 'Won' ? 'bg-success' : selectedLead?.STATUS === 'Lost' ? 'bg-danger' : selectedLead?.STATUS === 'Ongoing' ? 'bg-primary' : 'bg-secondary'}`}>{selectedLead?.STATUS || '-'}</span>
                   </h6>
@@ -820,7 +787,6 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                       {showPOForm && (<button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setShowPOForm(false)}><i className="fa-solid fa-chevron-up me-1"></i> Hide Form</button>)}
                     </div>
                     {!showPOForm && !poCreated && (<p className="text-muted small">This lead is marked as <strong>Won</strong> with a quotation of <strong>₹{selectedLead?.quotation || 0}</strong>. Click <em>Create MRF</em> to raise a PO from this lead.</p>)}
-                    {/* ✅ Removed projects prop as it's handled internally now */}
                     {showPOForm && (<InlinePurchaseOrderForm selectedLead={selectedLead} onSuccess={handlePOSuccess} onCancel={() => setShowPOForm(false)} />)}
                   </div>
                 )}

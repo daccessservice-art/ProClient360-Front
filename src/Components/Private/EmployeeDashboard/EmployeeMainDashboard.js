@@ -5,6 +5,8 @@ import { AssignInproccessSection } from "./AssignInproccessSection";
 import { PerFormanceChart } from "./PerFormanceChart";
 import { getEmployeeDashboard } from "../../../hooks/useEmployees";
 import { Header } from "../MainDashboard/Header/Header";
+import useMyLeads from "../../../hooks/leads/useMyLeads";
+import { EmployeeLeadFollowUpSection } from "./EmployeeLeadFollowUpSection";
 
 function EmployeeMainDashboard() {
     const [isopen, setIsOpen] = useState(false);
@@ -16,13 +18,15 @@ function EmployeeMainDashboard() {
     const [inprocessTasks, setInproccessTasks] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // ── Fetch all my leads (no filters) to derive today/overdue on client ──
+    const { data: leadsData, loading: leadsLoading } = useMyLeads(1, 200, {});
+    const allMyLeads = leadsData?.leads || [];
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
                 const data = await getEmployeeDashboard();
-                console.log("data", data);
                 if (data) {
                     setTotalProjectCount(data.totalProjects);
                     setCompletedProjectCount(data.completedCount);
@@ -45,15 +49,9 @@ function EmployeeMainDashboard() {
         setIsOpen(!isopen);
     };
 
-    // const [Language, setLanguage] = useState({
-    //   DDL: [],
-    //   ID: 0,
-    //   Label: sessionStorage.getItem('LanguageChange')
-    // })
-
     return (
         <>
-            {loading && (
+            {(loading || leadsLoading) && (
                 <div className="overlay">
                     <span className="loader"></span>
                 </div>
@@ -62,8 +60,6 @@ function EmployeeMainDashboard() {
             <div className="container-scroller">
                 <div className="row background_main_all">
                     <Header
-                        // Language={Language}
-                        // setLanguage={setLanguage}
                         toggle={toggle} isopen={isopen}
                     />
                     <div className="container-fluid page-body-wrapper">
@@ -71,49 +67,42 @@ function EmployeeMainDashboard() {
                         <div className="main-panel" style={{ width: isopen ? "" : "calc(100%  - 120px )", marginLeft: isopen ? "" : "125px" }}>
                             <div className="content-wrapper ps-3 ps-md-0">
 
-                                <div className="row p-2   ">
+                                <div className="row p-2">
                                     <div className="col-12 col-lg-6">
                                         <h5 className="text-white fw-bold py-2">
                                             Dashboard
                                         </h5>
                                     </div>
-
-                                    <div className="col-12 col-lg-6  ms-auto text-end">
+                                    <div className="col-12 col-lg-6 ms-auto text-end">
                                         <span>
-                                            {/* <img
-                                                src="static/assets/img/satisfaction.png"
-                                                className="customer_img"
-                                               
-                                                
-                                            /> */}
                                             <span className="Customer_fs ps-3 text-white">
-                                                <span className="Customer_count ms-2"></span></span>
+                                                <span className="Customer_count ms-2"></span>
+                                            </span>
                                         </span>
-
-
                                     </div>
-
                                 </div>
+
                                 <EmployeeDasboardCards
                                     totalProjectCount={totalProjectCount}
                                     completedProjectCount={completedProjectCount}
-                                    inproccessProjectCount={inproccessProjectCount} />
-
+                                    inproccessProjectCount={inproccessProjectCount}
+                                />
 
                                 <AssignInproccessSection
                                     assignedTasks={assignedTasks}
                                     inprocessTasks={inprocessTasks}
                                 />
-                                <PerFormanceChart />
 
+                                {/* ── Today Follow-up & Overdue Leads ── */}
+                                <EmployeeLeadFollowUpSection leads={allMyLeads} />
+
+                                <PerFormanceChart />
 
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            {/* </div> */}
         </>
     );
 }

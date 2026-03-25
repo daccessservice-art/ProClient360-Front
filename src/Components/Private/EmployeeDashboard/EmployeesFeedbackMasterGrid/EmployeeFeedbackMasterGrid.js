@@ -21,6 +21,7 @@ export const EmployeeFeedbackMasterGrid = () => {
 
     const [showFeedbackGiven, setShowFeedbackGiven] = useState(false);
     const [showHighRatingOnly, setShowHighRatingOnly] = useState(false);
+    const [selectedRating, setSelectedRating] = useState(0); // 0 = no filter
 
     const [allFeedbacks, setAllFeedbacks] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
@@ -52,11 +53,11 @@ export const EmployeeFeedbackMasterGrid = () => {
         if (!search.trim()) return allFeedbacks;
         const q = search.trim().toLowerCase();
         return allFeedbacks.filter(fb => {
-            const client  = fb.ticket?.client?.custName?.toLowerCase() || '';
-            const person  = fb.ticket?.contactPerson?.toLowerCase() || '';
-            const product = fb.ticket?.product?.toLowerCase() || '';
-            const contact = fb.ticket?.contactNumber?.toLowerCase() || '';
-            return client.includes(q) || person.includes(q) || product.includes(q) || contact.includes(q);
+            const client     = fb.ticket?.client?.custName?.toLowerCase() || '';
+            const person     = fb.ticket?.contactPerson?.toLowerCase() || '';
+            const contact    = fb.ticket?.contactNumber != null ? String(fb.ticket.contactNumber).toLowerCase() : '';
+            const assignedTo = (fb.allotTo || []).map(e => e?.name ? e.name.toLowerCase() : '').join(' ');
+            return client.includes(q) || person.includes(q) || contact.includes(q) || assignedTo.includes(q);
         });
     }, [allFeedbacks, search]);
 
@@ -64,11 +65,17 @@ export const EmployeeFeedbackMasterGrid = () => {
         return searchFiltered.filter(feedback => {
             const hasFeedback  = feedback.feedback && feedback.feedback.rating;
             const isHighRating = hasFeedback && feedback.feedback.rating >= 4;
+
+            // Rating filter — exact star match (only when a specific star is selected)
+            if (selectedRating > 0) {
+                return hasFeedback && feedback.feedback.rating === selectedRating;
+            }
+
             if (showHighRatingOnly) return isHighRating;
             if (showFeedbackGiven) return hasFeedback;
             return !hasFeedback;
         });
-    }, [searchFiltered, showFeedbackGiven, showHighRatingOnly]);
+    }, [searchFiltered, showFeedbackGiven, showHighRatingOnly, selectedRating]);
 
     const totalPages = Math.ceil(filteredFeedbacks.length / ITEMS_PER_PAGE);
     const paginatedFeedbacks = useMemo(() => {
@@ -78,7 +85,7 @@ export const EmployeeFeedbackMasterGrid = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [showFeedbackGiven, showHighRatingOnly, search]);
+    }, [showFeedbackGiven, showHighRatingOnly, search, selectedRating]);
 
     const stats = useMemo(() => {
         const result = { total: allFeedbacks.length, pending: 0, completed: 0, highRating: 0, avgRating: 0, topEngineers: {} };
@@ -171,11 +178,13 @@ export const EmployeeFeedbackMasterGrid = () => {
     const handleToggleFeedback = () => {
         setShowFeedbackGiven(!showFeedbackGiven);
         setShowHighRatingOnly(false);
+        setSelectedRating(0); // clear rating filter
     };
 
     const handleToggleHighRating = () => {
         setShowHighRatingOnly(!showHighRatingOnly);
         setShowFeedbackGiven(true);
+        setSelectedRating(0); // clear rating filter
     };
 
     const maxPageButtons = 5;
@@ -210,7 +219,7 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                     <input
                                                         type="text"
                                                         className="form-control me-2"
-                                                        placeholder="Search Client, Person, Product..."
+                                                        placeholder="Search Client, Contact Person, Contact No, Assigned To..."
                                                         value={searchText}
                                                         onChange={handleSearchChange}
                                                     />
@@ -377,6 +386,49 @@ export const EmployeeFeedbackMasterGrid = () => {
                                     </div>
                                 </div>
 
+                                {/* Rating Filter Bar — always visible */}
+                                <div className="row px-2 pb-2">
+                                    <div className="col-12">
+                                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                                            <span className="text-white fw-bold me-1" style={{ fontSize: '14px' }}>
+                                                Filter by Rating:
+                                            </span>
+                                            {[1, 2, 3, 4, 5].map(star => (
+                                                <button
+                                                    key={star}
+                                                    onClick={() => {
+                                                        if (selectedRating === star) {
+                                                            setSelectedRating(0);
+                                                        } else {
+                                                            setSelectedRating(star);
+                                                            setShowFeedbackGiven(true);
+                                                            setShowHighRatingOnly(false);
+                                                        }
+                                                    }}
+                                                    className={`btn btn-sm ${selectedRating === star ? 'btn-warning' : 'btn-outline-secondary'}`}
+                                                    style={{ fontWeight: 'bold', minWidth: '70px' }}
+                                                >
+                                                    {[...Array(star)].map((_, i) => (
+                                                        <i key={i} className="fa fa-star text-warning" style={{ fontSize: '12px' }}></i>
+                                                    ))}
+                                                    {selectedRating !== star && (
+                                                        <span className="ms-1" style={{ fontSize: '12px' }}>{star}</span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                            {selectedRating > 0 && (
+                                                <button
+                                                    onClick={() => setSelectedRating(0)}
+                                                    className="btn btn-sm btn-outline-danger"
+                                                    title="Clear rating filter"
+                                                >
+                                                    <i className="fa fa-times me-1"></i> Clear
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Table */}
                                 <div className="row bg-white p-2 m-1 border rounded">
                                     <div className="col-12 py-2">
@@ -445,10 +497,11 @@ export const EmployeeFeedbackMasterGrid = () => {
                                                         <tr>
                                                             <td colSpan="11" className="text-center">
                                                                 {loading ? 'Loading...' :
-                                                                    showHighRatingOnly ? 'No high ratings found.' :
-                                                                        showFeedbackGiven ? 'No feedback given yet.' :
-                                                                            search ? `No results found for "${search}"` :
-                                                                                'No pending feedback found.'}
+                                                                    selectedRating > 0 ? `No feedback found with ${selectedRating} star${selectedRating > 1 ? 's' : ''}.` :
+                                                                        showHighRatingOnly ? 'No high ratings found.' :
+                                                                            showFeedbackGiven ? 'No feedback given yet.' :
+                                                                                search ? `No results found for "${search}"` :
+                                                                                    'No pending feedback found.'}
                                                             </td>
                                                         </tr>
                                                     )}
