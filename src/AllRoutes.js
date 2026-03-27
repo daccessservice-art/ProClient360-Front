@@ -166,7 +166,7 @@ const AllRoutes = () => {
                 <Route exact path="/" element={<AutoLoggedIn Component={LogIn} />} />
                 <Route exact path="/ForgotPassword" element={<ForgotPassword />} />
                 <Route exact path="/Mailsentsuccessfully" element={<Mailsentsuccessfully />} />
-                <Route exact path="/ResetPassword/:id/:token" element={<ForgotPasswordConfirm />} />
+                <Route exact path="/reset-password/:id/:token" element={<ForgotPasswordConfirm />} />
                 <Route exact path="/feedback/:id" element={<Feedback />} />
                 
                 {/* New Public Routes for Vendor Registration */}
