@@ -452,14 +452,14 @@ const SalesFunnelView = ({ leads=[], onView, onUpdate, onAssign, onDelete, canUp
         </div>
         <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
           {[
-            {label:"Total Leads",   val:totalLeads,   color:"#1e293b", bg:"#f8fafc", isNum:true},
-            {label:"In Funnel",     val:funnelTotal,  color:"#6366f1", bg:"#eef2ff", isNum:true},
-            {label:"Won",       val:closingTotal, color:"#16a34a", bg:"#f0fdf4", isNum:true},
-            ...(totalQuotationAllStages > 0 ? [{
-              label:"Total Quotation",
-              val: fmtCurrency(totalQuotationAllStages),
-              color:"#b45309", bg:"#fffbeb", isNum:false,
-            }] : []),
+          //  {label:"Total Leads",   val:totalLeads,   color:"#1e293b", bg:"#f8fafc", isNum:true},
+          //  {label:"In Funnel",     val:funnelTotal,  color:"#6366f1", bg:"#eef2ff", isNum:true},
+          //  {label:"Won",           val:closingTotal, color:"#16a34a", bg:"#f0fdf4", isNum:true},
+          //  ...(totalQuotationAllStages > 0 ? [{
+          //    label:"Total Quotation",
+          //    val: fmtCurrency(totalQuotationAllStages),
+          //    color:"#b45309", bg:"#fffbeb", isNum:false,
+          //  }] : []),
           ].map(s=>(
             <div key={s.label} style={{textAlign:"center",padding:"7px 16px",borderRadius:10,background:s.bg,border:`1px solid ${s.color}22`}}>
               <div style={{fontWeight:800,fontSize:s.isNum?20:16,color:s.color,lineHeight:1}}>{s.val}</div>
