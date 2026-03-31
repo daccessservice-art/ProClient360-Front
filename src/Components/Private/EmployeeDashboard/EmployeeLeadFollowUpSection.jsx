@@ -1,6 +1,33 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import axios from "axios";
 
 export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
+
+  // ── Fetch ALL leads for accurate counts ──
+  const [allLeads, setAllLeads] = useState([]);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const response = await axios.get(
+          `${process.env.REACT_APP_API_URL}/api/leads/my-leads`,
+          {
+            params: { page: 1, limit: 99999 },
+            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          }
+        );
+        if (response.data.success) {
+          setAllLeads(response.data.leads || []);
+        }
+      } catch (err) {
+        console.error("EmployeeLeadFollowUpSection fetch error:", err);
+      }
+    };
+    fetchAll();
+  }, []);
+
+  // Use allLeads if fetched, fallback to prop
+  const sourceLeads = allLeads.length > 0 ? allLeads : leads;
 
   const { todayLeads, overdueLeads, pendingLeads } = useMemo(() => {
     const today = [];
@@ -9,9 +36,15 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const endOfToday   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); 
+    const endOfToday   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-    leads.forEach((lead) => {
+    sourceLeads.forEach((lead) => {
+      // ── Pending Enquiries: STATUS === "Pending", not Won/Lost ──
+      if (lead.STATUS === "Pending") {
+        pending.push(lead);
+      }
+
+      // ── Today / Overdue: based on nextFollowUpDate, skip Won/Lost ──
       if (!lead.nextFollowUpDate) return;
       if (lead.STATUS === "Won" || lead.STATUS === "Lost") return;
 
@@ -22,14 +55,11 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
         today.push(lead);
       } else if (followUp < startOfToday) {
         overdue.push(lead);
-      } else {
-        // Future dates are considered Pending/Upcoming
-        pending.push(lead);
       }
     });
 
     return { todayLeads: today, overdueLeads: overdue, pendingLeads: pending };
-  }, [leads]);
+  }, [sourceLeads]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "N/A";
@@ -48,13 +78,11 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
     }
   };
 
-  // Check if we have any data at all (optional, prevents rendering empty container if prop is empty)
   const hasAnyData = todayLeads.length > 0 || overdueLeads.length > 0 || pendingLeads.length > 0;
-  if (!hasAnyData && leads.length === 0) return null;
+  if (!hasAnyData && sourceLeads.length === 0) return null;
 
   const todayDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
-  // Helper to render table body
   const renderTableBody = (data, type) => {
     if (data.length === 0) {
       return (
@@ -65,13 +93,12 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
         </tr>
       );
     }
-    
+
     return data.map((lead, idx) => {
       const sb = statusBadge(lead.STATUS);
-      const isUrgent = type === "Overdue" || type === "Today";
       const rowAnimation = type === "Overdue" ? "blinkDarkRed 1.4s infinite" : type === "Today" ? "blinkRed 1.4s infinite" : "none";
       const dotColor = type === "Overdue" ? "#8b0000" : type === "Today" ? "#dc3545" : "#6366f1";
-      
+
       return (
         <tr key={lead._id} style={{
           animation: rowAnimation,
@@ -128,7 +155,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
           overflow: "hidden",
           height: "100%"
         }}>
-
           {/* Header */}
           <div style={{
             background: "linear-gradient(135deg, #fff8f8 0%, #ffe8e8 100%)",
@@ -161,7 +187,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
               📅 {todayDate}
             </span>
           </div>
-
           {/* Table */}
           <div className="table-responsive" style={{ maxHeight: "300px", overflowY: "auto" }}>
             <table className="table mb-0" style={{ fontSize: "0.81rem" }}>
@@ -197,7 +222,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
           overflow: "hidden",
           height: "100%"
         }}>
-
           {/* Header */}
           <div style={{
             background: "linear-gradient(135deg, #fff8f8 0%, #fce8e8 100%)",
@@ -230,7 +254,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
               ⚠️ Action Required
             </span>
           </div>
-
           {/* Table */}
           <div className="table-responsive" style={{ maxHeight: "300px", overflowY: "auto" }}>
             <table className="table mb-0" style={{ fontSize: "0.81rem" }}>
@@ -256,7 +279,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
         </div>
       </div>
 
-      {/* ========= Pending/Upcoming Followup ========== */}
+      {/* ========= Pending Enquiries ========== */}
       <div className="col-12 col-md-6 col-xl-4">
         <div style={{
           background: "#fff",
@@ -266,7 +289,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
           overflow: "hidden",
           height: "100%"
         }}>
-
           {/* Header */}
           <div style={{
             background: "linear-gradient(135deg, #f8faff 0%, #eef2ff 100%)",
@@ -282,7 +304,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
               animation: "pulseIndigo 1.2s infinite",
             }} />
             <h6 className="mb-0 fw-bold" style={{ color: "#4338ca", fontSize: "0.9rem" }}>
-              Today's / Pending Enquiries
+              Pending Enquiries
             </h6>
             <span style={{
               background: "#6366f1", color: "#fff", borderRadius: "20px",
@@ -296,10 +318,9 @@ export const EmployeeLeadFollowUpSection = ({ leads = [] }) => {
               background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.18)",
               borderRadius: "8px", padding: "2px 10px", fontWeight: 600,
             }}>
-              📅 Today’s assigned work
+              🕐 Pending
             </span>
           </div>
-
           {/* Table */}
           <div className="table-responsive" style={{ maxHeight: "300px", overflowY: "auto" }}>
             <table className="table mb-0" style={{ fontSize: "0.81rem" }}>
