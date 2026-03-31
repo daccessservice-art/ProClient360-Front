@@ -2,7 +2,6 @@ import React from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-// ── Number to words (for display in modal) ───────────────────────────────────
 const numberToWords = (num) => {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven',
     'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen',
@@ -26,7 +25,6 @@ const numberToWords = (num) => {
   return result;
 };
 
-// ── Main Component ────────────────────────────────────────────────────────────
 const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
   const po         = selectedPO || {};
   const items      = po.items      || [];
@@ -36,12 +34,9 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
   const cgst       = totalTax / 2;
   const sgst       = totalTax / 2;
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
-
-  // ✅ Logo URL — hosted, always works regardless of server path
+  const API_URL  = process.env.REACT_APP_API_URL || 'http://localhost:5443';
   const LOGO_URL = 'https://image2url.com/r2/default/images/1771396818586-be570726-9409-4f91-97bd-dee0ec030a0b.png';
 
-  // ── Payment terms string ──
   const getPaymentText = () => {
     const pt = po.paymentTerms || {};
     if (Number(pt.advance) === 100) return '100% ADVANCE';
@@ -53,7 +48,24 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
     return parts.join(' | ') || 'As per agreement';
   };
 
-  // ── Download PDF via backend ──
+  // ✅ FIXED: build vendor address from billingAddress object or manualAddress string
+  const getVendorAddress = () => {
+    const vendor = po.vendor || {};
+    if (vendor.typeOfVendor === 'Import') {
+      return vendor.manualAddress || null;
+    }
+    if (vendor.billingAddress?.add) {
+      return [
+        vendor.billingAddress.add,
+        vendor.billingAddress.city,
+        vendor.billingAddress.state,
+        vendor.billingAddress.country,
+        vendor.billingAddress.pincode,
+      ].filter(Boolean).join(', ');
+    }
+    return null;
+  };
+
   const handleDownloadPDF = async () => {
     const toastId = toast.loading('Generating PDF...');
     try {
@@ -64,7 +76,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
           responseType: 'blob',
         }
       );
-
       const url      = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link     = document.createElement('a');
       link.href      = url;
@@ -73,7 +84,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-
       toast.success('PDF downloaded successfully!', { id: toastId });
     } catch (error) {
       console.error('PDF download error:', error);
@@ -92,7 +102,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
       >
         <div className="modal-content" style={{ maxHeight: '93vh' }}>
 
-          {/* ── Modal Header ── */}
+          {/* Modal Header */}
           <div className="modal-header bg-dark text-white py-2">
             <h5 className="modal-title fw-bold mb-0">
               <i className="fa-solid fa-file-invoice me-2 text-warning"></i>
@@ -101,21 +111,18 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
             </h5>
           </div>
 
-          {/* ── Modal Body ── */}
+          {/* Modal Body */}
           <div className="modal-body p-0" style={{ overflowY: 'auto', backgroundColor: '#fff' }}>
 
-            {/* ── Company Header ── */}
+            {/* Company Header */}
             <div className="px-4 pt-3 pb-2 border-bottom">
               <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
-                  {/* ✅ Logo from URL — always loads correctly */}
                   <img
                     src={LOGO_URL}
                     alt="ENTERO"
                     style={{ height: '45px', objectFit: 'contain', marginBottom: '6px' }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
+                    onError={(e) => { e.target.style.display = 'none'; }}
                   />
                   <div className="fw-bold" style={{ fontSize: '14px' }}>ENTERO SYSTEMS INDIA PVT. LTD.</div>
                   <div className="text-muted" style={{ fontSize: '11px' }}>
@@ -129,16 +136,21 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               </div>
             </div>
 
-            {/* ── Vendor + Invoice Details ── */}
+            {/* Vendor + Invoice Details */}
             <div className="row g-0 border-bottom mx-0">
               <div className="col-6 border-end">
                 <div className="px-2 py-1 fw-bold" style={{ backgroundColor: '#b4b49a', fontSize: '11px' }}>
                   VENDOR DETAILS
                 </div>
+                {/* ✅ FIXED: vendor address display */}
                 <div className="p-2" style={{ fontSize: '11px', minHeight: '75px' }}>
                   <div className="fw-bold">{po.vendor?.vendorName || 'N/A'}</div>
-                  {po.vendor?.address && <div className="text-muted mt-1">{po.vendor.address}</div>}
-                  {po.vendor?.gstin   && <div className="mt-1"><strong>GSTIN/UIN:</strong> {po.vendor.gstin}</div>}
+                  {getVendorAddress() && (
+                    <div className="text-muted mt-1">{getVendorAddress()}</div>
+                  )}
+                  {po.vendor?.gstin && (
+                    <div className="mt-1"><strong>GSTIN/UIN:</strong> {po.vendor.gstin}</div>
+                  )}
                 </div>
               </div>
               <div className="col-6">
@@ -161,7 +173,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               </div>
             </div>
 
-            {/* ── Items Table ── */}
+            {/* Items Table */}
             <div className="table-responsive">
               <table className="table table-bordered mb-0" style={{ fontSize: '11px' }}>
                 <thead style={{ backgroundColor: '#b4b49a' }}>
@@ -172,7 +184,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                     <th>UOM</th>
                     <th>QTY</th>
                     <th>RATE</th>
-                    {/* ✅ DISCOUNT % column added */}
                     <th>DISC.%</th>
                     <th>TOTAL AMT.(₹)</th>
                     <th>GROSS AMT.(₹)</th>
@@ -200,7 +211,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                         <td className="text-center">{item.baseUOM || item.unit || '-'}</td>
                         <td className="text-end">{qty.toFixed(2)}</td>
                         <td className="text-end">{rate.toFixed(2)}</td>
-                        {/* ✅ Discount % value */}
                         <td className="text-center">{disc > 0 ? `${disc}%` : '-'}</td>
                         <td className="text-end">{lineAmt.toFixed(2)}</td>
                         <td className="text-end">{lineAmt.toFixed(2)}</td>
@@ -211,20 +221,17 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                       </tr>
                     );
                   })}
-                  {/* Filler rows */}
                   {Array(Math.max(0, 5 - items.length)).fill(null).map((_, i) => (
                     <tr key={`ef-${i}`} style={{ height: '22px' }}>
                       {Array(11).fill(null).map((__, j) => <td key={j}></td>)}
                     </tr>
                   ))}
-                  {/* Total row */}
                   <tr className="fw-bold" style={{ backgroundColor: '#f5f5f5' }}>
                     <td></td>
                     <td className="text-end">Total</td>
                     <td></td><td></td>
                     <td className="text-end">{items.reduce((s,i) => s+(Number(i.quantity)||0),0).toFixed(2)}</td>
-                    <td></td>
-                    <td></td>
+                    <td></td><td></td>
                     <td className="text-end">{totalAmt.toFixed(2)}</td>
                     <td className="text-end">{totalAmt.toFixed(2)}</td>
                     <td className="text-end">{totalTax.toFixed(2)}</td>
@@ -234,7 +241,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               </table>
             </div>
 
-            {/* ── HSN Summary + Totals ── */}
+            {/* HSN Summary + Totals */}
             <div className="row g-0 mx-0 border-top">
               <div className="col-7 border-end">
                 <table className="table table-bordered mb-0" style={{ fontSize: '11px' }}>
@@ -252,10 +259,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                       <td colSpan={5} className="text-center fw-bold">HSN/SAC & CESS SUMMARY</td>
                     </tr>
                     {items.map((item, idx) => {
-                      const qty    = Number(item.quantity)        || 0;
-                      const rate   = Number(item.price)           || 0;
-                      const disc   = Number(item.discountPercent) || 0;
-                      const taxPct = Number(item.taxPercent)      || 0;
+                      const qty     = Number(item.quantity)        || 0;
+                      const rate    = Number(item.price)           || 0;
+                      const disc    = Number(item.discountPercent) || 0;
+                      const taxPct  = Number(item.taxPercent)      || 0;
                       const lineAmt = qty * rate * (1 - disc / 100);
                       const taxAmt  = lineAmt * taxPct / 100;
                       return (
@@ -287,12 +294,12 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                 <table className="table table-bordered mb-0" style={{ fontSize: '11px' }}>
                   <tbody>
                     {[
-                      ['Total Amount',        totalAmt.toFixed(2),    false],
-                      ['Total Gross Amount',  totalAmt.toFixed(2),    false],
-                      ['CGST',               cgst.toFixed(2),         false],
-                      ['SGST',               sgst.toFixed(2),         false],
-                      ['Total Net Amount',    grandTotal.toFixed(2),  true ],
-                      ['Round-Off',           '0.00',                 false],
+                      ['Total Amount',        totalAmt.toFixed(2),   false],
+                      ['Total Gross Amount',  totalAmt.toFixed(2),   false],
+                      ['CGST',               cgst.toFixed(2),        false],
+                      ['SGST',               sgst.toFixed(2),        false],
+                      ['Total Net Amount',    grandTotal.toFixed(2), true ],
+                      ['Round-Off',           '0.00',                false],
                     ].map(([lbl, val, bold]) => (
                       <tr key={lbl} style={bold ? { backgroundColor: '#ebebeb' } : {}}>
                         <td className={bold ? 'fw-bold' : ''}>{lbl}</td>
@@ -304,7 +311,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               </div>
             </div>
 
-            {/* ── Amount in Words + Grand Total ── */}
+            {/* Amount in Words + Grand Total */}
             <div className="row g-0 mx-0 border-top">
               <div className="col-7 border-end p-2" style={{ fontSize: '11px' }}>
                 <strong>Total Amount in Words:</strong>{' '}
@@ -317,7 +324,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               </div>
             </div>
 
-            {/* ── Payment Terms + Signature ── */}
+            {/* Payment Terms + Signature */}
             <div className="row g-0 mx-0 border-top">
               <div className="col-6 border-end p-3" style={{ fontSize: '11px', minHeight: '65px' }}>
                 <strong>Payment Terms:</strong>{' '}{getPaymentText()}
@@ -341,7 +348,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
 
           </div>
 
-          {/* ── Modal Footer ── */}
+          {/* Modal Footer */}
           <div className="modal-footer py-2 bg-light">
             <button onClick={handleDownloadPDF} className="btn btn-warning btn-sm fw-bold">
               <i className="fa-solid fa-file-pdf me-1"></i> Download PDF
