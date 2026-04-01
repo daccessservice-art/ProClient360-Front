@@ -26,30 +26,28 @@ const formatCallDate = (dateString) => {
   } catch (error) { return dateString; }
 };
 
-// ─────────────────────────────────────────────
-// ✅ FIXED: Smart Helper to handle Object, Name, or ID
-// ─────────────────────────────────────────────
+// ── Smart helper to handle Object, Name, or ID ──
 const resolveName = (field) => {
   if (!field) return 'None';
-  
-  // 1. If backend sent a populated object (Correct scenario)
   if (typeof field === 'object') {
     return field.name || field.empName || field.fullName || 'None';
   }
-  
-  // 2. If backend sent a string
   if (typeof field === 'string') {
-    // Regex to detect MongoDB ObjectId (24 hex characters)
-    if (/^[a-fA-F0-9]{24}$/.test(field)) {
-      // It's an ID! Backend forgot to populate.
-      // Returning 'None' is better than showing the ugly ID.
-      return 'None'; 
-    }
-    // It's a normal string (a name)
+    if (/^[a-fA-F0-9]{24}$/.test(field)) return 'None';
     return field;
   }
-  
   return 'None';
+};
+
+// ── Format assigned time in IST ──
+const formatAssignedTime = (dateString) => {
+  if (!dateString) return '-';
+  try {
+    return new Date(dateString).toLocaleString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true,
+    });
+  } catch { return '-'; }
 };
 
 // ─────────────────────────────────────────────
@@ -403,7 +401,6 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
     const loadInitialData = async () => {
       const savedBrands = localStorage.getItem('productBrands');
       let brandsFromStorage = [];
-      
       if (savedBrands) {
         brandsFromStorage = JSON.parse(savedBrands);
         setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
@@ -411,13 +408,11 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
         brandsFromStorage = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
         setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
       }
-      
       setLoadingProducts(true);
       let allProducts = [];
       let currentPage = 1;
       const pageSize = 100;
       let hasMore = true;
-      
       try {
         while (hasMore) {
           const data = await getProducts(currentPage, pageSize, "");
@@ -425,11 +420,8 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
             allProducts = [...allProducts, ...data.products];
             if (data.products.length < pageSize) hasMore = false;
             else currentPage++;
-          } else {
-            hasMore = false;
-          }
+          } else { hasMore = false; }
         }
-        
         setProducts(allProducts);
         const newBrandModelsMap = new Map();
         allProducts.forEach(product => {
@@ -438,32 +430,24 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
             newBrandModelsMap.get(product.brandName).add(product.model);
           }
         });
-        
         brandsFromStorage.forEach(brand => {
           if (!newBrandModelsMap.has(brand)) newBrandModelsMap.set(brand, new Set());
         });
-        
         setBrandModelsMap(newBrandModelsMap);
-        
         const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
         const mergedBrands = [...new Set([...brandsFromStorage, ...productBrands])];
         setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));
-        
         const uniqueModels = [...new Set(allProducts.map(p => p.model).filter(Boolean))];
         setAllModels(uniqueModels.map(model => ({ value: model, label: model })));
-        
       } catch (error) {
         console.error("[InlinePO] Error loading products:", error);
         toast.error("Failed to load products");
-      } finally {
-        setLoadingProducts(false);
-      }
+      } finally { setLoadingProducts(false); }
     };
     loadInitialData();
   }, []);
 
   const calculateNetValue = (item) => { const base = item.quantity * item.price; const ad = base - base * (item.discountPercent / 100); return ad + ad * (item.taxPercent / 100); };
-  
   const handleItemChange = (index, field, value) => {
     const ni = [...items]; ni[index][field] = value;
     if (field === 'brandName') { ni[index].modelNo = ''; ni[index].baseUOM = ''; }
@@ -473,23 +457,19 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
     }
     ni[index].netValue = calculateNetValue(ni[index]); setItems(ni);
   };
-  
   const handleAddItem = () => setItems([...items, { brandName: '', modelNo: '', description: '', unit: '', baseUOM: '', quantity: 1, price: 0, discountPercent: 0, taxPercent: 0, netValue: 0 }]);
   const handleRemoveItem = (i) => { if (items.length > 1) setItems(items.filter((_, idx) => idx !== i)); };
-  
   const calculateTotals = () => {
     const totalAmount = items.reduce((s, i) => { const b = i.quantity * i.price; return s + b - b * (i.discountPercent / 100); }, 0);
     const totalTax = items.reduce((s, i) => { const b = i.quantity * i.price; const ad = b - b * (i.discountPercent / 100); return s + ad * (i.taxPercent / 100); }, 0);
     return { totalAmount, totalTax, grandTotal: totalAmount + totalTax };
   };
   const { totalAmount, totalTax, grandTotal } = calculateTotals();
-
   const handleToggleDefaultAddress = () => {
     const next = !useDefaultAddress; setUseDefaultAddress(next);
     if (next) { setDeliveryAddress(DEFAULT_DELIVERY_ADDRESS); setLocation(DEFAULT_LOCATION); toast.success('Default address applied'); }
     else { setDeliveryAddress(''); setLocation(''); }
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     for (const item of items) { if (item.quantity < 1 || item.price < 0) return toast.error('Please fill all item details correctly'); }
@@ -505,7 +485,6 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
       materialFollowupDate: materialFollowupDate ? new Date(materialFollowupDate) : undefined,
       sourceLeadId: selectedLead?._id, sourceLeadCompany: selectedLead?.SENDER_COMPANY,
     };
-    
     if (termsDocument) {
       const fd = new FormData(); fd.append('file', termsDocument); fd.append('poData', JSON.stringify(poData));
       toast.loading('Creating Purchase Order...');
@@ -539,31 +518,25 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
               </div>
             </div>
           </div>
-
           <div className="col-md-6"><label className="form-label fw-bold">Order Date</label><input type="date" className="form-control" value={orderDate} max={today} onChange={(e) => { if (new Date(e.target.value) <= new Date()) setOrderDate(e.target.value); else toast.error('Future dates not allowed'); }} /></div>
           <div className="col-md-6"><label className="form-label fw-bold">Order Time</label><input type="time" className="form-control" value={orderTime} onChange={(e) => setOrderTime(e.target.value)} /></div>
           <div className="col-md-6"><label className="form-label fw-bold">Transaction Type</label><select className="form-select" value={transactionType} onChange={(e) => setTransactionType(e.target.value)}><option value="">Select Transaction Type</option><option value="B2B">B2B</option><option value="Import">Import</option><option value="Asset">Asset</option></select></div>
           <div className="col-md-6"><label className="form-label fw-bold">Purchase Type</label><select className="form-select" value={purchaseType} onChange={(e) => setPurchaseType(e.target.value)}><option value="">Select Type</option><option value="Project Purchase">Project Purchase</option><option value="Stock">Stock</option></select></div>
-          
           {purchaseType === 'Project Purchase' && (
             <div className="col-md-6">
               <label className="form-label fw-bold">Project Name</label>
-              <Select
-                value={selectedProject} onChange={setSelectedProject} options={projects}
+              <Select value={selectedProject} onChange={setSelectedProject} options={projects}
                 placeholder={loadingProjects ? 'Loading projects...' : projects.length === 0 ? 'No projects found' : 'Select Project...'}
                 isClearable isLoading={loadingProjects} isDisabled={loadingProjects}
-                menuPortalTarget={document.body} styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }}
-              />
+                menuPortalTarget={document.body} styles={{ menuPortal: (b) => ({ ...b, zIndex: 9999 }) }} />
             </div>
           )}
-          
           {purchaseType === 'Stock' && (<div className="col-md-6"><label className="form-label fw-bold">Warehouse Location</label><input type="text" className="form-control" value={warehouseLocation} onChange={(e) => setWarehouseLocation(e.target.value)} placeholder="Ex: Baner / Amazon / Mumbai" maxLength={200} /></div>)}
           <div className="col-12"><div className="form-check form-switch"><input className="form-check-input" type="checkbox" id="defaultAddressTogglePO" checked={useDefaultAddress} onChange={handleToggleDefaultAddress} style={{ cursor: 'pointer' }} /><label className="form-check-label" htmlFor="defaultAddressTogglePO" style={{ cursor: 'pointer' }}>Use Default Office Address</label></div></div>
           <div className="col-md-6"><label className="form-label fw-bold">Delivery Address</label><textarea className="form-control" rows="2" value={deliveryAddress} onChange={(e) => { setDeliveryAddress(e.target.value); if (useDefaultAddress && e.target.value !== DEFAULT_DELIVERY_ADDRESS) setUseDefaultAddress(false); }} placeholder="Enter delivery address" maxLength={500} /></div>
           <div className="col-md-6"><label className="form-label fw-bold">Location</label><input type="text" className="form-control" value={location} onChange={(e) => { setLocation(e.target.value); if (useDefaultAddress && e.target.value !== DEFAULT_LOCATION) setUseDefaultAddress(false); }} placeholder="Enter location" maxLength={200} /></div>
           <div className="col-md-6"><label className="form-label fw-bold">Terms & Conditions Document</label><input type="file" className="form-control" onChange={(e) => setTermsDocument(e.target.files[0])} accept=".pdf,.doc,.docx" /></div>
         </div>
-        
         <div className="mt-3">
           <div className="d-flex justify-content-between align-items-center mb-2"><h6 className="fw-bold mb-0">Item Details</h6><button type="button" className="btn btn-sm btn-primary" onClick={handleAddItem}><i className="fa fa-plus me-1"></i> Add Item</button></div>
           {loadingProducts && (<div className="text-center py-2"><div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Loading products...</div>)}
@@ -598,7 +571,6 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
             </table>
           </div>
         </div>
-        
         <div className="row g-3 mt-1">
           <div className="col-md-6"><label className="form-label fw-bold">Credit Period</label><div className="input-group"><input type="text" className="form-control" value={creditPeriod ? `${creditPeriod} days` : 'Click to set credit period'} onClick={() => setShowCreditPopup(true)} readOnly style={{ cursor: 'pointer' }} /><button className="btn btn-outline-secondary" type="button" onClick={() => setShowCreditPopup(true)}><i className="fa fa-calendar"></i></button></div></div>
           <div className="col-md-6"><label className="form-label fw-bold">Payment Terms</label><div className="input-group"><input type="text" className="form-control" value={`Advance: ${advancePay}%, Delivery: ${payAgainstDelivery}%, Completion: ${payAfterCompletion}%, Retention: ${retention}%`} onClick={() => setShowPaymentTermsPopup(true)} readOnly style={{ cursor: 'pointer' }} /><button className="btn btn-outline-secondary" type="button" onClick={() => setShowPaymentTermsPopup(true)}><i className="fa fa-percent"></i></button></div></div>
@@ -611,7 +583,6 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
           <button type="button" className="btn btn-secondary px-4" onClick={onCancel}>Cancel</button>
         </div>
       </form>
-      
       {showCreditPopup && (
         <div className="modal fade show" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#00000090', zIndex: 9999 }}>
           <div className="modal-dialog modal-dialog-centered"><div className="modal-content p-3">
@@ -624,7 +595,6 @@ const InlinePurchaseOrderForm = ({ selectedLead, onSuccess, onCancel }) => {
           </div></div>
         </div>
       )}
-      
       {showPaymentTermsPopup && (
         <div className="modal fade show" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#00000090', zIndex: 9999 }}>
           <div className="modal-dialog modal-dialog-centered"><div className="modal-content p-3">
@@ -656,7 +626,8 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
 
   if (!selectedLead) return null;
 
-  const isWonLead = selectedLead?.STATUS === 'Won';
+  const isWonLead  = selectedLead?.STATUS === 'Won';
+  const isLostLead = selectedLead?.STATUS === 'Lost';
 
   const canCreateCustomer =
     user?.permissions?.includes('createCustomer') ||
@@ -670,7 +641,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
     toast.success(`Purchase Order ${data.orderNumber || ''} created successfully!`);
   };
 
-  const handleCustomerSuccess = (data) => {
+  const handleCustomerSuccess = () => {
     setCustomerCreated(true);
     setShowCustomerForm(false);
   };
@@ -681,28 +652,34 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
         <div className="modal-dialog modal-xl modal-dialog-centered" style={{ maxHeight: '95vh', maxWidth: '1100px' }}>
           <div className="modal-content p-3" style={{ maxHeight: '95vh', overflowY: 'auto' }}>
             <div className="modal-header pt-0 border-0">
-              <h5 className="card-title fw-bold" id="exampleModalLongTitle">
+              <h5 className="card-title fw-bold">
                 <i className="fa-solid fa-eye me-2"></i>Sales Lead Details{' '}
-                {selectedLead?.SOURCE?.toLowerCase().includes('indiamart') && <img src="/static/assets/img/Indiamart.png" alt="Indiamart" style={{ height: '40px', marginLeft: '23px' }} />}
-                {selectedLead?.SOURCE?.toLowerCase().includes('tradeindia') && <img src="/static/assets/img/tradeindia.png" alt="TradeIndia" style={{ width: '60px', marginLeft: '23px' }} />}
-                {selectedLead?.SOURCE?.toLowerCase().includes('facebook') && <img src="/static/assets/img/facebook.png" alt="facebook" style={{ height: '40px', marginLeft: '23px' }} />}
-                {selectedLead?.SOURCE?.toLowerCase().includes('google') && <img src="/static/assets/img/google.png" alt="google" style={{ height: '40px', marginLeft: '23px' }} />}
-                {selectedLead?.SOURCE?.toLowerCase().includes('linkedin') && <img src="/static/assets/img/linkedin.png" alt="linkedin" style={{ height: '40px', marginLeft: '23px' }} />}
-                {selectedLead?.SOURCE?.toLowerCase().includes('direct') && <img src="/static/assets/img/nav/DACCESS.png" alt="direct" style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('indiamart')   && <img src="/static/assets/img/Indiamart.png"     alt="Indiamart"   style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('tradeindia')  && <img src="/static/assets/img/tradeindia.png"    alt="TradeIndia"  style={{ width:  '60px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('facebook')    && <img src="/static/assets/img/facebook.png"      alt="facebook"    style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('google')      && <img src="/static/assets/img/google.png"        alt="google"      style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('linkedin')    && <img src="/static/assets/img/linkedin.png"      alt="linkedin"    style={{ height: '40px', marginLeft: '23px' }} />}
+                {selectedLead?.SOURCE?.toLowerCase().includes('direct')      && <img src="/static/assets/img/nav/DACCESS.png"   alt="direct"      style={{ height: '40px', marginLeft: '23px' }} />}
               </h5>
               <button onClick={closePopUp} type="button" className="btn-close" aria-label="Close"></button>
             </div>
+
             <div className="modal-body pt-0">
               <div className="row">
+
+                {/* ── Sender Information ── */}
                 <div className="col-md-6 mb-3">
-                  <h6 className="text-muted border-bottom pb-2 mb-3"><i className="fa-solid fa-user me-2"></i>Sender Information</h6>
-                  <h6 className="mt-3 d-flex align-items-center gap-2"><span className="fw-bold">Source:</span>
-                    {selectedLead?.SOURCE?.toLowerCase() === 'indiamart' && <span>IndiaMart</span>}
+                  <h6 className="text-muted border-bottom pb-2 mb-3">
+                    <i className="fa-solid fa-user me-2"></i>Sender Information
+                  </h6>
+                  <h6 className="mt-3 d-flex align-items-center gap-2">
+                    <span className="fw-bold">Source:</span>
+                    {selectedLead?.SOURCE?.toLowerCase() === 'indiamart'  && <span>IndiaMart</span>}
                     {selectedLead?.SOURCE?.toLowerCase() === 'tradeindia' && <span>TradeIndia</span>}
-                    {selectedLead?.SOURCE?.toLowerCase() === 'facebook' && <span>Facebook</span>}
-                    {selectedLead?.SOURCE?.toLowerCase() === 'google' && <span>Google</span>}
-                    {selectedLead?.SOURCE?.toLowerCase() === 'linkedin' && <span>LinkedIn</span>}
-                    {selectedLead?.SOURCE?.toLowerCase() === 'direct' && <span>Direct</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'facebook'   && <span>Facebook</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'google'     && <span>Google</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'linkedin'   && <span>LinkedIn</span>}
+                    {selectedLead?.SOURCE?.toLowerCase() === 'direct'     && <span>Direct</span>}
                     {!['indiamart','tradeindia','facebook','google','linkedin','direct'].includes(selectedLead?.SOURCE?.toLowerCase()) && <span>{selectedLead?.SOURCE || '-'}</span>}
                   </h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Name: </p>{selectedLead?.SENDER_NAME || '-'}</h6>
@@ -711,73 +688,116 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   <h6 className="mt-3"><p className="fw-bold d-inline">Mobile: </p>{selectedLead?.SENDER_MOBILE || '-'}</h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Address: </p>{fullAddress || '-'}</h6>
                 </div>
+
+                {/* ── Query Information ── */}
                 <div className="col-md-6 mb-3">
-                  <h6 className="text-muted border-bottom pb-2 mb-3"><i className="fa-solid fa-clipboard-question me-2"></i>Query Information</h6>
+                  <h6 className="text-muted border-bottom pb-2 mb-3">
+                    <i className="fa-solid fa-clipboard-question me-2"></i>Query Information
+                  </h6>
                   <h6><p className="fw-bold d-inline">Product: </p>{selectedLead?.QUERY_PRODUCT_NAME || '-'}</h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Subject: </p>{selectedLead?.SUBJECT || '-'}</h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Query Time: </p>{formatDate(selectedLead?.createdAt) || '-'}</h6>
-                  
-                  {/* ✅ FINAL FIX: Uses smart helper to handle ID vs Object */}
                   <h6 className="mt-3"><p className="fw-bold d-inline">Assigned By: </p>{resolveName(selectedLead?.assignedBy)}</h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Assigned To: </p>{resolveName(selectedLead?.assignedTo)}</h6>
-                  
-                  <h6 className="mt-3"><p className="fw-bold d-inline">Status: </p>
-                    <span className={`badge ms-2 ${selectedLead?.STATUS === 'Won' ? 'bg-success' : selectedLead?.STATUS === 'Lost' ? 'bg-danger' : selectedLead?.STATUS === 'Ongoing' ? 'bg-primary' : 'bg-secondary'}`}>{selectedLead?.STATUS || '-'}</span>
+                  <h6 className="mt-3">
+                    <p className="fw-bold d-inline">Assigned Time: </p>
+                    <span className="text-muted">{formatAssignedTime(selectedLead?.assignedTime)}</span>
+                  </h6>
+                  <h6 className="mt-3">
+                    <p className="fw-bold d-inline">Status: </p>
+                    <span className={`badge ms-2 ${
+                      selectedLead?.STATUS === 'Won'     ? 'bg-success' :
+                      selectedLead?.STATUS === 'Lost'    ? 'bg-danger'  :
+                      selectedLead?.STATUS === 'Ongoing' ? 'bg-primary' : 'bg-secondary'
+                    }`}>{selectedLead?.STATUS || '-'}</span>
                   </h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Current Stage: </p>{selectedLead?.step || '-'}</h6>
                   <h6 className="mt-3"><p className="fw-bold d-inline">Completed: </p><span className="badge bg-info ms-2">{selectedLead?.complated || 0}%</span></h6>
-                  {isWonLead && (<h6 className="mt-3"><p className="fw-bold d-inline">Won Amount: </p><span className="badge bg-success ms-2">₹{selectedLead?.quotation || 0}</span></h6>)}
-                </div>
-                <div className="col-12 mt-2">
-                  <h6 className="text-muted border-bottom pb-2 mb-2"><i className="fa-solid fa-message me-2"></i>Message</h6>
-                  <p className="text-wrap" style={{ whiteSpace: 'pre-wrap' }}>{selectedLead?.QUERY_MESSAGE || 'No message provided.'}</p>
-                </div>
 
-                {/* ADD CUSTOMER SECTION */}
-                {isWonLead && <div className="col-12 mt-3">
-                  <div className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-2">
-                    <h6 className="text-muted mb-0">
-                      <i className="fa-solid fa-user-plus me-2 text-primary"></i>Add Customer
+                  {/* Won Amount */}
+                  {isWonLead && (
+                    <h6 className="mt-3">
+                      <p className="fw-bold d-inline">Won Amount: </p>
+                      <span className="badge bg-success ms-2">₹{selectedLead?.quotation || 0}</span>
                     </h6>
-                    {customerCreated && (
-                      <span className="badge bg-success px-3 py-2" style={{ fontSize: '0.85rem' }}>
-                        <i className="fa-solid fa-check-circle me-1"></i> Customer Added Successfully
-                      </span>
-                    )}
-                    {canCreateCustomer && !showCustomerForm && !customerCreated && (
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCustomerForm(true)}>
-                        <i className="fa-solid fa-plus me-1"></i> Create Customer
-                      </button>
-                    )}
-                    {canCreateCustomer && showCustomerForm && !customerCreated && (
-                      <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setShowCustomerForm(false)}>
-                        <i className="fa-solid fa-chevron-up me-1"></i> Hide Form
-                      </button>
-                    )}
-                  </div>
-
-                  {canCreateCustomer && !showCustomerForm && !customerCreated && (
-                    <p className="text-muted small">
-                      Click <em>Create Customer</em> to add <strong>{selectedLead?.SENDER_COMPANY || 'this lead'}</strong> as a customer. Lead details will be pre-filled automatically.
-                    </p>
                   )}
 
-                  {customerCreated && (
-                    <div className="alert alert-success d-flex align-items-center gap-2 mt-2">
-                      <i className="fa-solid fa-circle-check fs-5"></i>
-                      <div>
-                        <strong>Customer Added Successfully!</strong>
-                        <div className="small"><strong>{selectedLead?.SENDER_COMPANY || 'Customer'}</strong> has been added to Customer Master.</div>
+                  {/* ── Lost Remark — shown prominently when STATUS = Lost ── */}
+                  {isLostLead && (
+                    <div className="mt-3">
+                      <div className="alert alert-danger py-2 px-3 mb-0" style={{ borderLeft: '4px solid #dc3545' }}>
+                        <div className="d-flex align-items-center mb-1">
+                          <i className="fa-solid fa-circle-xmark me-2 text-danger"></i>
+                          <span className="fw-bold text-danger" style={{ fontSize: '0.85rem' }}>Lost Reason</span>
+                        </div>
+                        <p className="mb-0 text-dark" style={{ fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
+                          {selectedLead?.rem || <span className="text-muted fst-italic">No reason provided.</span>}
+                        </p>
                       </div>
                     </div>
                   )}
 
-                  {canCreateCustomer && showCustomerForm && !customerCreated && (
-                    <InlineAddCustomerForm selectedLead={selectedLead} onSuccess={handleCustomerSuccess} onCancel={() => setShowCustomerForm(false)} />
+                  {/* Regular Remark for non-Lost leads */}
+                  {!isLostLead && selectedLead?.rem && (
+                    <h6 className="mt-3">
+                      <p className="fw-bold d-inline">Remark: </p>
+                      <span className="text-muted">{selectedLead.rem}</span>
+                    </h6>
                   )}
-                </div>}
+                </div>
 
-                {/* PURCHASE ORDER SECTION */}
+                {/* ── Message ── */}
+                <div className="col-12 mt-2">
+                  <h6 className="text-muted border-bottom pb-2 mb-2">
+                    <i className="fa-solid fa-message me-2"></i>Message
+                  </h6>
+                  <p className="text-wrap" style={{ whiteSpace: 'pre-wrap' }}>{selectedLead?.QUERY_MESSAGE || 'No message provided.'}</p>
+                </div>
+
+                {/* ── Add Customer (Won only) ── */}
+                {isWonLead && (
+                  <div className="col-12 mt-3">
+                    <div className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-2">
+                      <h6 className="text-muted mb-0">
+                        <i className="fa-solid fa-user-plus me-2 text-primary"></i>Add Customer
+                      </h6>
+                      {customerCreated && (
+                        <span className="badge bg-success px-3 py-2" style={{ fontSize: '0.85rem' }}>
+                          <i className="fa-solid fa-check-circle me-1"></i> Customer Added Successfully
+                        </span>
+                      )}
+                      {canCreateCustomer && !showCustomerForm && !customerCreated && (
+                        <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowCustomerForm(true)}>
+                          <i className="fa-solid fa-plus me-1"></i> Create Customer
+                        </button>
+                      )}
+                      {canCreateCustomer && showCustomerForm && !customerCreated && (
+                        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setShowCustomerForm(false)}>
+                          <i className="fa-solid fa-chevron-up me-1"></i> Hide Form
+                        </button>
+                      )}
+                    </div>
+                    {canCreateCustomer && !showCustomerForm && !customerCreated && (
+                      <p className="text-muted small">
+                        Click <em>Create Customer</em> to add <strong>{selectedLead?.SENDER_COMPANY || 'this lead'}</strong> as a customer. Lead details will be pre-filled automatically.
+                      </p>
+                    )}
+                    {customerCreated && (
+                      <div className="alert alert-success d-flex align-items-center gap-2 mt-2">
+                        <i className="fa-solid fa-circle-check fs-5"></i>
+                        <div>
+                          <strong>Customer Added Successfully!</strong>
+                          <div className="small"><strong>{selectedLead?.SENDER_COMPANY || 'Customer'}</strong> has been added to Customer Master.</div>
+                        </div>
+                      </div>
+                    )}
+                    {canCreateCustomer && showCustomerForm && !customerCreated && (
+                      <InlineAddCustomerForm selectedLead={selectedLead} onSuccess={handleCustomerSuccess} onCancel={() => setShowCustomerForm(false)} />
+                    )}
+                  </div>
+                )}
+
+                {/* ── Purchase Order ── */}
                 {(selectedLead?.STATUS === 'Won' || selectedLead?.STATUS === 'Ongoing') && (
                   <div className="col-12 mt-3">
                     <div className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-2">
@@ -791,10 +811,13 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   </div>
                 )}
 
-                {/* CALL HISTORY */}
+                {/* ── Call History ── */}
                 {selectedLead?.callHistory && selectedLead.callHistory.length > 0 && (
                   <div className="col-12 mt-4">
-                    <h6 className="text-muted border-bottom pb-2 mb-3"><i className="fa-solid fa-phone-volume me-2"></i>Call History<span className="badge bg-primary ms-2">{selectedLead.callHistory.length} Total Calls</span></h6>
+                    <h6 className="text-muted border-bottom pb-2 mb-3">
+                      <i className="fa-solid fa-phone-volume me-2"></i>Call History
+                      <span className="badge bg-primary ms-2">{selectedLead.callHistory.length} Total Calls</span>
+                    </h6>
                     <div className="row mb-3">
                       <div className="col-md-4"><div className="card border-info"><div className="card-body py-2"><div className="d-flex justify-content-between align-items-center"><span className="text-muted small">Days with Calls</span><span className="fw-bold text-info">{[...new Set(selectedLead.callHistory.map((c) => c.day))].length}</span></div></div></div></div>
                       <div className="col-md-4"><div className="card border-warning"><div className="card-body py-2"><div className="d-flex justify-content-between align-items-center"><span className="text-muted small">Total Attempts</span><span className="fw-bold text-warning">{selectedLead.callHistory.length}</span></div></div></div></div>
@@ -805,7 +828,10 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                       selectedLead.callHistory.forEach((call) => { if (!cbd[call.day]) cbd[call.day] = []; cbd[call.day].push(call); });
                       return Object.keys(cbd).sort((a, b) => a - b).map((day) => (
                         <div key={day} className="mb-4">
-                          <div className="d-flex align-items-center mb-2"><span className="badge bg-primary me-2" style={{ fontSize: '0.9rem' }}><i className="fa-solid fa-calendar-day me-1"></i>Day {day}</span><span className="text-muted small">{cbd[day].length} attempt{cbd[day].length > 1 ? 's' : ''}</span></div>
+                          <div className="d-flex align-items-center mb-2">
+                            <span className="badge bg-primary me-2" style={{ fontSize: '0.9rem' }}><i className="fa-solid fa-calendar-day me-1"></i>Day {day}</span>
+                            <span className="text-muted small">{cbd[day].length} attempt{cbd[day].length > 1 ? 's' : ''}</span>
+                          </div>
                           <div className="table-responsive">
                             <table className="table table-sm table-bordered table-hover">
                               <thead className="table-light"><tr><th style={{ width: '100px' }}>Attempt #</th><th>Date & Time</th><th style={{ width: '120px' }}>Status</th><th>Remarks</th></tr></thead>
@@ -833,8 +859,13 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                   </div>
                 )}
                 {(!selectedLead?.callHistory || selectedLead.callHistory.length === 0) && (
-                  <div className="col-12 mt-3"><div className="alert alert-secondary"><i className="fa-solid fa-info-circle me-2"></i>No call attempts have been recorded for this lead yet.</div></div>
+                  <div className="col-12 mt-3">
+                    <div className="alert alert-secondary">
+                      <i className="fa-solid fa-info-circle me-2"></i>No call attempts have been recorded for this lead yet.
+                    </div>
+                  </div>
                 )}
+
               </div>
             </div>
           </div>

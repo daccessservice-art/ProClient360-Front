@@ -1,15 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { Header } from "../../MainDashboard/Header/Header";
 import { Sidebar } from "../../MainDashboard/Sidebar/Sidebar";
 import toast from 'react-hot-toast';
-import DeletePopUP from "../../CommonPopUp/DeletePopUp";
+import DeletePopUp from "../../CommonPopUp/DeletePopUp";
 import SubmitServiceWorkPopUp from "./PopUp/SubmitServiceWorkPopUp";
 import ViewServicePopUp from "../../CommonPopUp/ViewServicePopUp";
 import useMyServices from "../../../../hooks/service/useMyService";
 import useDeleteService from "../../../../hooks/service/useDeleteService";
+import useCreateLead from "../../../../hooks/leads/useCreateLead";
 import { formatDate, formatDateTimeForDisplay } from "../../../../utils/formatDate";
+import ServiceLeadPopup from "./PopUp/ServiceSalesLeadPopUp";
+import { UserContext } from "../../../../context/UserContext";
 
 export const EmployeeMyServiceMasterGrid = () => {
+  const { user } = useContext(UserContext);
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => {
     setIsOpen(!isopen);
@@ -19,6 +23,10 @@ export const EmployeeMyServiceMasterGrid = () => {
   const [deletePopUpShow, setDeletePopUpShow] = useState(false);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
   const [detailsServicePopUp, setDetailsServicePopUp] = useState(false);
+  const [addpop, setIsAddModalVisible] = useState(false);
+
+  // Hook
+  const { createLead } = useCreateLead();
 
   // Filter State
   const [filters, setFilters] = useState({
@@ -85,9 +93,9 @@ export const EmployeeMyServiceMasterGrid = () => {
   const handleDeleteClick = async () => {
     if (selectedId) {
       try {
-        toast.loading("Deleting Service...")
+        toast.loading("Deleting Service...");
         const result = await deleteService(selectedId);
-        toast.dismiss()
+        toast.dismiss();
         if (result) {
           toast.success("Service deleted successfully.");
           setDeletePopUpShow(false);
@@ -105,8 +113,22 @@ export const EmployeeMyServiceMasterGrid = () => {
     setPagination((prev) => ({ ...prev, currentPage: 1 }));
   };
 
-  // Pagination Buttons
-  const maxPageButtons = 5;
+  /* ── Add Sales Lead Handlers (same as SalesMasterGrid) ── */
+  const handleOpenAddModal = () => setIsAddModalVisible(true);
+  const handleCloseAddModal = () => setIsAddModalVisible(false);
+
+  const handleAddLeadSubmit = async (leadData) => {
+    toast.loading("Adding lead...");
+    const res = await createLead(leadData);
+    toast.dismiss();
+    if (res?.success) {
+      toast.success(res?.message || "Lead added successfully!");
+      handleCloseAddModal();
+      setPagination((prev) => ({ ...prev, currentPage: 1 }));
+    } else {
+      toast.error(res?.error || "Failed to add lead");
+    }
+  };
 
   return (
     <>
@@ -136,6 +158,7 @@ export const EmployeeMyServiceMasterGrid = () => {
 
                   <div className="col-12 col-lg-8">
                     <div className="row g-2 justify-content-end align-items-center">
+                      {/* ── Filters ── */}
                       <div className="col-md-3 col-lg-3">
                         <select
                           className="form-select bg_edit"
@@ -176,6 +199,18 @@ export const EmployeeMyServiceMasterGrid = () => {
                           <option value="Low">Low Priority</option>
                         </select>
                       </div>
+
+                    {(user?.permissions?.includes("createLead") || user?.user === "company") && (
+  <div className="col-auto text-end">
+    <button
+      onClick={handleOpenAddModal}
+      type="button"
+      className="btn btn-primary btn-sm"
+    >
+      <i className="fa-solid fa-plus me-1"></i> Add Lead
+    </button>
+  </div>
+)}
                     </div>
                   </div>
                 </div>
@@ -260,7 +295,7 @@ export const EmployeeMyServiceMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* Pagination Button */}
+                {/* Pagination */}
                 {!loading && pagination.totalPages > 1 && (
                   <div className="pagination-container text-center my-3">
                     <button
@@ -268,65 +303,42 @@ export const EmployeeMyServiceMasterGrid = () => {
                       disabled={!pagination.hasPrevPage}
                       className="btn btn-dark btn-sm me-1"
                       style={{ borderRadius: "4px" }}
-                      aria-label="First Page"
                     >
                       First
                     </button>
-
                     <button
                       onClick={() => handlePageChange(pagination.currentPage - 1)}
                       disabled={!pagination.hasPrevPage}
                       className="btn btn-dark btn-sm me-1"
                       style={{ borderRadius: "4px" }}
-                      aria-label="Previous Page"
                     >
                       Previous
                     </button>
-
                     {(() => {
                       const pageNumbers = [];
                       const maxPagesToShow = 5;
-
                       if (pagination.totalPages <= maxPagesToShow) {
-                        for (let i = 1; i <= pagination.totalPages; i++) {
-                          pageNumbers.push(i);
-                        }
+                        for (let i = 1; i <= pagination.totalPages; i++) pageNumbers.push(i);
                       } else {
                         let startPage, endPage;
-                        if (pagination.currentPage <= 3) {
-                          startPage = 1;
-                          endPage = maxPagesToShow;
-                        } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                          startPage = pagination.totalPages - maxPagesToShow + 1;
-                          endPage = pagination.totalPages;
-                        } else {
-                          startPage = pagination.currentPage - 2;
-                          endPage = pagination.currentPage + 2;
-                        }
+                        if (pagination.currentPage <= 3) { startPage = 1; endPage = maxPagesToShow; }
+                        else if (pagination.currentPage >= pagination.totalPages - 2) { startPage = pagination.totalPages - maxPagesToShow + 1; endPage = pagination.totalPages; }
+                        else { startPage = pagination.currentPage - 2; endPage = pagination.currentPage + 2; }
                         startPage = Math.max(1, startPage);
                         endPage = Math.min(pagination.totalPages, endPage);
-
-                        for (let i = startPage; i <= endPage; i++) {
-                          pageNumbers.push(i);
-                        }
+                        for (let i = startPage; i <= endPage; i++) pageNumbers.push(i);
                       }
-
                       return pageNumbers.map((number) => (
                         <button
                           key={number}
                           onClick={() => handlePageChange(number)}
-                          className={`btn btn-sm me-1 ${
-                            pagination.currentPage === number ? "btn-primary" : "btn-dark"
-                          }`}
+                          className={`btn btn-sm me-1 ${pagination.currentPage === number ? "btn-primary" : "btn-dark"}`}
                           style={{ minWidth: "35px", borderRadius: "4px" }}
-                          aria-label={`Go to page ${number}`}
-                          aria-current={pagination.currentPage === number ? "page" : undefined}
                         >
                           {number}
                         </button>
                       ));
                     })()}
-
                     <button
                       disabled={!pagination.hasNextPage}
                       onClick={() => handlePageChange(pagination.currentPage + 1)}
@@ -334,13 +346,11 @@ export const EmployeeMyServiceMasterGrid = () => {
                     >
                       Next
                     </button>
-
                     <button
                       onClick={() => handlePageChange(pagination.totalPages)}
                       disabled={!pagination.hasNextPage}
                       className="btn btn-dark btn-sm"
                       style={{ borderRadius: "4px" }}
-                      aria-label="Last Page"
                     >
                       Last
                     </button>
@@ -352,14 +362,17 @@ export const EmployeeMyServiceMasterGrid = () => {
         </div>
       </div>
 
+      {/* ── Delete Popup ── */}
       {deletePopUpShow && (
-        <DeletePopUP
+        <DeletePopUp
           message={"Are you sure! Do you want to Delete this Service?"}
           cancelBtnCallBack={() => handleDeleteClosePopUpClick()}
           confirmBtnCallBack={handleDeleteClick}
           heading="Service Deletion"
         />
       )}
+
+      {/* ── Update Popup ── */}
       {updatePopUpShow && selectedService && (
         <SubmitServiceWorkPopUp
           selectedService={selectedService}
@@ -367,10 +380,20 @@ export const EmployeeMyServiceMasterGrid = () => {
           onSuccess={() => setPagination((prev) => ({ ...prev, currentPage: 1 }))}
         />
       )}
+
+      {/* ── View Details Popup ── */}
       {detailsServicePopUp && selectedService && (
         <ViewServicePopUp
           selectedService={selectedService}
           closePopUp={() => handleDetailsPopUpClick(null)}
+        />
+      )}
+
+      {/* ── Add Sales Lead Popup ── */}
+      {addpop && (
+        <ServiceLeadPopup
+          onAddLead={handleAddLeadSubmit}
+          onClose={handleCloseAddModal}
         />
       )}
     </>

@@ -90,6 +90,15 @@ const LeadInfoView = ({ selectedLead, actionData }) => {
         <h6 className="mt-3"><p className="fw-bold d-inline">Query Time: </p>{formatDate(selectedLead?.createdAt) || "-"}</h6>
         <h6 className="mt-3"><p className="fw-bold d-inline">Assigned By: </p>{selectedLead?.assignedBy?.name || "Unknown"}</h6> 
         <h6 className="mt-3"><p className="fw-bold d-inline">Assigned To: </p>{selectedLead?.assignedTo?.name || "Unknown"}</h6>
+        <h6 className="mt-3">
+          <p className="fw-bold d-inline">Assigned Time: </p>
+          {selectedLead?.assignedTime
+            ? new Date(selectedLead.assignedTime).toLocaleString('en-IN', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: true,
+              })
+            : '-'}
+        </h6>
         <h6 className="mt-3"><p className="fw-bold d-inline">Status: </p>{selectedLead?.STATUS || "-"}</h6>
         <h6 className="mt-3"><p className="fw-bold d-inline">Completion: </p>{selectedLead?.complated || "0"}%</h6>
         <h6 className="mt-3"><p className="fw-bold d-inline">Quotation Amount: </p>₹{selectedLead?.quotation || " "}</h6>
@@ -478,34 +487,51 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
                         <div className="col-md-6">
                           <label htmlFor="date" className="form-label fw-bold">Next Follow-up Date<RequiredStar /></label>
                           <input 
-  id="date" 
-  type="datetime-local" 
-  className="form-control bg_edit" 
-  name="date" 
-  value={actionData.date || ''} 
-  onChange={handleActionChange}
-  min={new Date().toISOString().slice(0, 16)}
-  required
-/>
+                            id="date" 
+                            type="datetime-local" 
+                            className="form-control bg_edit" 
+                            name="date" 
+                            value={actionData.date || ''} 
+                            onChange={handleActionChange}
+                            min={new Date().toISOString().slice(0, 16)}
+                            required
+                          />
                         </div>
                       )}
 
+                      {/* ── REMARK FIELD ── shown for ALL statuses; required for Won & Lost */}
                       <div className="col-12">
-                        <label htmlFor="remark" className="form-label fw-bold">
+                        <label htmlFor="rem" className="form-label fw-bold">
                           Remark
                           {(actionData.status === 'Won' || actionData.status === 'Lost') && <RequiredStar />}
                         </label>
+
+                        {/* Red alert banner — only for Lost */}
+                        {actionData.status === 'Lost' && (
+                          <div className="alert alert-danger py-1 px-2 mb-1" style={{ fontSize: '0.78rem' }}>
+                            <i className="fa-solid fa-circle-exclamation me-1"></i>
+                            Lost reason is <strong>required</strong> — explain why the deal was lost.
+                          </div>
+                        )}
+
                         <textarea 
                           id="rem" 
                           name="rem"
-                          className="form-control" 
-                          placeholder="Enter your remarks here..."
+                          className={`form-control ${actionData.status === 'Lost' ? 'border-danger' : ''}`}
+                          placeholder={
+                            actionData.status === 'Lost'
+                              ? 'Required: Why was this deal lost? (competitor, price, no budget, etc.)'
+                              : actionData.status === 'Won'
+                              ? 'Required: Describe how the deal was won.'
+                              : 'Enter your remarks here...'
+                          }
                           rows="3"
                           value={actionData.rem} 
                           onChange={handleActionChange}
                           required={actionData.status === 'Won' || actionData.status === 'Lost'}
                         />
                       </div>
+
                     </div>
                   </div>
                 </>
