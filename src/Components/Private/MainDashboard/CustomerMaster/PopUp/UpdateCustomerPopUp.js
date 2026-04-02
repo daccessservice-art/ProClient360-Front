@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
-import validator, { isMobilePhone } from "validator";
+import validator from "validator";
 import { updateCustomer, getEmployees } from "../../../../../hooks/useCustomer";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getAddress } from "../../../../../hooks/usePincode";
 import { toast } from "react-hot-toast";
-import { useUser } from "../../../../../context/UserContext"; // Use useUser instead of useContext
+import { useUser } from "../../../../../context/UserContext";
 
 const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
-  const { user } = useUser(); // Use useUser hook
+  const { user } = useUser();
   const [customer, setCustomer] = useState(selectedCust);
   const [employees, setEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
 
   const [billingAddress, setBillingAddress] = useState({
     add: "",
@@ -19,22 +20,55 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     pincode: "",
   });
 
-  // Helper function to check if a value is empty or just whitespace
+  // Industry type options
+  const industryOptions = [
+    "IT & Software",
+    "Manufacturing",
+    "Construction & Infrastructure",
+    "Healthcare",
+    "Education",
+    "Retail",
+    "Banking & Finance",
+    "Logistics & Supply Chain",
+    "Hospitality",
+    "Real Estate",
+    "Government & Public Sector",
+    "Energy & Utilities",
+    "Telecom",
+    "Pharmaceuticals",
+    "Automotive",
+    "Other"
+  ];
+
   const isEmptyOrWhitespace = (value) => {
     return value === undefined || value === null || value.toString().trim() === '';
   };
 
-  // Helper function to validate pincode
   const isValidPincode = (pincode) => {
     return pincode && pincode.toString().trim() !== '' && !isNaN(pincode) && parseInt(pincode) > 0;
   };
 
-  // Fetch employees for dropdown (kept for potential future use)
+  // ✅ FIXED: Fetch employees for dropdown with better error handling
   useEffect(() => {
     const fetchEmployees = async () => {
-      const data = await getEmployees();
-      if (data.success) {
-        setEmployees(data.employees || []);
+      setEmployeesLoading(true);
+      try {
+        console.log('Fetching employees for update dropdown...');
+        const data = await getEmployees();
+        console.log('Employees API response:', data);
+        
+        if (data.success && data.employees) {
+          console.log('Employees loaded for update:', data.employees.length);
+          setEmployees(data.employees);
+        } else {
+          console.log('No employees found or API returned non-success');
+          setEmployees([]);
+        }
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+        setEmployees([]);
+      } finally {
+        setEmployeesLoading(false);
       }
     };
     
@@ -43,7 +77,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Only fetch if pincode is valid
       if (isValidPincode(billingAddress.pincode)) {
         const data = await getAddress(billingAddress.pincode);
 
@@ -75,7 +108,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     }
   }, [customer]);
 
-  // Function to handle changes in billing address fields
   const handleBillingChange = (e) => {
     const { name, value } = e.target;
     setBillingAddress({ 
@@ -92,7 +124,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     }))
   };
 
-  // New handler for ownedBy text input
   const handleOwnedByChange = (e) => {
     setCustomer((prevCustomer) => ({
       ...prevCustomer,
@@ -100,41 +131,61 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     }));
   };
 
+  const handleIndustryTypeOtherChange = (e) => {
+    const value = e.target.value;
+    if (/^[a-zA-Z0-9\s&\-]*$/.test(value)) {
+      setCustomer((prevCustomer) => ({
+        ...prevCustomer,
+        industryTypeOther: value,
+      }));
+    }
+  };
+
   const handleCustUpdate = async (e) => {
     e.preventDefault();
     
-    // Create a copy of the customer with updated billing address
     const updatedCustomer = {
       ...customer,
       billingAddress,
     };
 
-    // Validate all required fields
+    // Validate required fields (Contact Person 2 and Phone 2 are NOT required)
     if(
       isEmptyOrWhitespace(updatedCustomer.custName) || 
       isEmptyOrWhitespace(updatedCustomer.phoneNumber1) || 
       isEmptyOrWhitespace(updatedCustomer.email) || 
-      isEmptyOrWhitespace(updatedCustomer.customerContactPersonName2) || 
-      isEmptyOrWhitespace(updatedCustomer.phoneNumber2) || 
+      isEmptyOrWhitespace(updatedCustomer.customerContactPersonName1) || 
       !isValidPincode(updatedCustomer.billingAddress.pincode) || 
       isEmptyOrWhitespace(updatedCustomer.billingAddress.state) || 
       isEmptyOrWhitespace(updatedCustomer.billingAddress.city) || 
       isEmptyOrWhitespace(updatedCustomer.billingAddress.add) || 
-      isEmptyOrWhitespace(updatedCustomer.GSTNo)
+      isEmptyOrWhitespace(updatedCustomer.GSTNo) ||
+      isEmptyOrWhitespace(updatedCustomer.industryType) ||
+      isEmptyOrWhitespace(updatedCustomer.ownedBy)
     ){
-      toast.error("All fields are required");
+      toast.error("All required fields are mandatory");
       return;
     }
 
-    // Validate email format
+    // Validate industry type if "Other" is selected
+    if (updatedCustomer.industryType === 'Other' && isEmptyOrWhitespace(updatedCustomer.industryTypeOther)) {
+      toast.error("Please specify the industry type when selecting 'Other'");
+      return;
+    }
+
     if (!validator.isEmail(updatedCustomer.email)) {
       toast.error("Enter valid Email");
       return;
     }
 
-    // Validate phone numbers
-    if (!validator.isMobilePhone(updatedCustomer.phoneNumber1) || !validator.isMobilePhone(updatedCustomer.phoneNumber2)) {
-      toast.error("Enter a valid phone number");
+    if (!validator.isMobilePhone(updatedCustomer.phoneNumber1)) {
+      toast.error("Enter a valid phone number for Contact Person 1");
+      return;
+    }
+
+    // Phone 2 is optional, but if provided, validate it
+    if (updatedCustomer.phoneNumber2 && !validator.isMobilePhone(updatedCustomer.phoneNumber2)) {
+      toast.error("Enter a valid phone number for Contact Person 2");
       return;
     }
 
@@ -165,7 +216,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
           backgroundColor: "#00000090",
         }}
       >
-        <div className="modal-dialog modal-lg">
+        <div className="modal-dialog modal-lg modal-dialog-scrollable">
           <div className="modal-content p-3">
             <form onSubmit={handleCustUpdate}>
               <div className="modal-header pt-0">
@@ -183,9 +234,9 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
               </div>
               <div className="modal-body">
                 <div className="row modal_body_height">
-                  <div className="col-12">
+                  <div className="col-12 col-lg-6">
                     <div className="">
-                      <label for="FullName" className="form-label label_text">
+                      <label htmlFor="FullName" className="form-label label_text">
                         Full Name <RequiredStar />
                       </label>
                       <input
@@ -203,9 +254,9 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                     </div>
                   </div>
 
-                  <div className="col-12 mt-3">
+                  <div className="col-12 col-lg-6">
                     <div className="mb-3">
-                      <label for="Email" className="form-label label_text">
+                      <label htmlFor="Email" className="form-label label_text">
                         Email <RequiredStar />
                       </label>
                       <input
@@ -223,24 +274,97 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                     </div>
                   </div>
 
-                  <div className="col-12 mt-3">
+                  <div className="col-12 col-lg-6">
                     <div className="mb-3">
-                      <label for="ownedBy" className="form-label label_text">
-                        Owned By
+                      <label htmlFor="ownedBy" className="form-label label_text">
+                        Owned By <RequiredStar />
                       </label>
-                      <input
-                        type="text"
-                        className="form-control rounded-0"
+                      <select
+                        className="form-select rounded-0"
                         id="ownedBy"
                         name="ownedBy"
                         value={customer.ownedBy?.name || customer.ownedBy || ""}
                         onChange={handleOwnedByChange}
-                        placeholder="Enter owner name"
-                      />
+                        required
+                        disabled={employeesLoading}
+                      >
+                        <option value="">
+                          {employeesLoading ? 'Loading employees...' : 'Select Employee'}
+                        </option>
+                        {employees.length > 0 ? (
+                          employees.map((emp) => (
+                            <option key={emp._id} value={emp.name}>
+                              {emp.name}
+                            </option>
+                          ))
+                        ) : (
+                          !employeesLoading && (
+                            <option value={customer.ownedBy?.name || customer.ownedBy || ''}>
+                              {customer.ownedBy?.name || customer.ownedBy || 'No employees found'}
+                            </option>
+                          )
+                        )}
+                      </select>
+                      {employees.length === 0 && !employeesLoading && (
+                        <small className="text-warning">
+                          <i className="fa fa-exclamation-triangle me-1"></i>
+                          Employees not loaded.
+                        </small>
+                      )}
                     </div>
                   </div>
 
-                  <div className="col-12  mt-2">
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label htmlFor="industryType" className="form-label label_text">
+                        Industry Type <RequiredStar />
+                      </label>
+                      <select
+                        className="form-select rounded-0"
+                        id="industryType"
+                        name="industryType"
+                        value={customer.industryType || ""}
+                        onChange={(e) => {
+                          setCustomer((prevCustomer) => ({
+                            ...prevCustomer,
+                            industryType: e.target.value,
+                            industryTypeOther: e.target.value !== 'Other' ? '' : prevCustomer.industryTypeOther
+                          }));
+                        }}
+                        required
+                      >
+                        <option value="">Select Industry Type</option>
+                        {industryOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {customer.industryType === 'Other' && (
+                    <div className="col-12 col-lg-6">
+                      <div className="mb-3">
+                        <label htmlFor="industryTypeOther" className="form-label label_text">
+                          Specify Industry Type <RequiredStar />
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control rounded-0"
+                          id="industryTypeOther"
+                          name="industryTypeOther"
+                          maxLength={100}
+                          value={customer.industryTypeOther || ""}
+                          onChange={handleIndustryTypeOtherChange}
+                          placeholder="Enter industry type..."
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="col-12 mt-2">
                     <div className="row border bg-gray mx-auto">
                       <div className="col-10 mb-3">
                         <span className="SecondaryInfo">Secondary Info</span>
@@ -249,7 +373,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <label
-                            for="ContactPerson1"
+                            htmlFor="ContactPerson1"
                             className="form-label label_text"
                           >
                             Contact Person 1 <RequiredStar />
@@ -271,16 +395,16 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <label
-                            for="phoneNumber1"
+                            htmlFor="phoneNumber1"
                             className="form-label label_text"
                           >
                             Contact Number 1 <RequiredStar />
                           </label>
                           <input
-                             type="tel"
-                             pattern="[0-9]{10}"
-                             max={9999999999}
-                             maxLength={10}
+                            type="tel"
+                            pattern="[0-9]{10}"
+                            max={9999999999}
+                            maxLength={10}
                             className="form-control rounded-0"
                             id="phoneNumber1"
                             name="phoneNumber1"
@@ -295,10 +419,10 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <label
-                            for="ContactPerson2"
+                            htmlFor="ContactPerson2"
                             className="form-label label_text"
                           >
-                            Contact Person 2 <RequiredStar />
+                            Contact Person 2
                           </label>
                           <input
                             type="text"
@@ -309,7 +433,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             onChange={handleChange}
                             value={customer.customerContactPersonName2 || ""}
                             aria-describedby="mobileNoHelp"
-                            required
                           />
                         </div>
                       </div>
@@ -317,10 +440,10 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <label
-                            for="phoneNumber2"
+                            htmlFor="phoneNumber2"
                             className="form-label label_text"
                           >
-                            Contact Number 2 <RequiredStar />
+                            Contact Number 2
                           </label>
                           <input
                             type="tel"
@@ -333,14 +456,13 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             name="phoneNumber2"
                             value={customer.phoneNumber2 || ""}
                             aria-describedby="secemailHelp"
-                            required
                           />
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="col-12  mt-2">
+                  <div className="col-12 mt-2">
                     <div className="row border mt-4 bg-gray mx-auto">
                       <div className="col-12 mb-3">
                         <span className="AddressInfo">Address <RequiredStar /></span>
@@ -432,7 +554,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
 
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="">
-                      <label for="GSTNo" className="form-label label_text">
+                      <label htmlFor="GSTNo" className="form-label label_text">
                         GST Number <RequiredStar />
                       </label>
                       <input
@@ -454,14 +576,14 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                     <div className="col-12 pt-3 mt-2">
                       <button
                         type="submit"
-                        className="w-80 btn addbtn rounded-0 add_button   m-2 px-4"
+                        className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
                       >
                         Update
                       </button>
                       <button
                         type="button"
                         onClick={handleUpdate}
-                        className="w-80  btn addbtn rounded-0 Cancel_button m-2 px-4"
+                        className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
                       >
                         Cancel
                       </button>

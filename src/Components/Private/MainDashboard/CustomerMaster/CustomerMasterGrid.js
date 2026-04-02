@@ -66,7 +66,6 @@ export const CustomerMasterGrid = () => {
     setCurrentPage(1);
   };
 
-  // Export handlers - Updated with better error handling
   const handleExportPDF = async () => {
     try {
       const result = await exportCustomersPDF();
@@ -124,13 +123,11 @@ export const CustomerMasterGrid = () => {
     fetchData();
   }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search]);
 
-  // Pagination button rendering logic
-  const maxPageButtons = 5; // Maximum number of page buttons to display
+  const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
   let startPage = Math.max(1, currentPage - halfMaxButtons);
   let endPage = Math.min(pagination.totalPages, startPage + maxPageButtons - 1);
 
-  // Adjust startPage if endPage is at the totalPages
   if (endPage - startPage + 1 < maxPageButtons) {
     startPage = Math.max(1, endPage - maxPageButtons + 1);
   }
@@ -145,6 +142,14 @@ export const CustomerMasterGrid = () => {
   for (let i = startPage; i <= endPage; i++) {
     pageButtons.push(i);
   }
+
+  // Helper function to display industry type
+  const getIndustryDisplay = (customer) => {
+    if (customer.industryType === 'Other') {
+      return customer.industryTypeOther || 'Other';
+    }
+    return customer.industryType || 'N/A';
+  };
 
   return (
     <>
@@ -234,6 +239,7 @@ export const CustomerMasterGrid = () => {
                             <th className="align_left_td td_width">Email</th>
                             <th>Phone</th>
                             <th>GST No</th>
+                            <th>Industry Type</th>
                             <th>Created By</th>
                             <th>Owned By</th>
                             <th>Action</th>
@@ -248,6 +254,11 @@ export const CustomerMasterGrid = () => {
                                 <td className="align_left_td td_width wrap-text-of-col">{customer.email}</td>
                                 <td>{customer.phoneNumber1}</td>
                                 <td>{customer.GSTNo}</td>
+                                <td>
+                                  <span className="badge bg-info text-dark">
+                                    {getIndustryDisplay(customer)}
+                                  </span>
+                                </td>
                                 <td>{customer.createdBy?.name || 'N/A'}</td>
                                 <td>{customer.ownedBy || 'N/A'}</td>
                                 <td>
@@ -285,7 +296,7 @@ export const CustomerMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="8" className="text-center">
+                              <td colSpan="9" className="text-center">
                                 No data found
                               </td>
                             </tr>
@@ -317,7 +328,7 @@ export const CustomerMasterGrid = () => {
                     <button
                       key={page}
                       onClick={() => handlePageChange(page)}
-                      className={`btn btn-sm me-1 ${ 
+                      className={`btn btn-sm me-1 ${
                         pagination.currentPage === page ? "btn-primary" : "btn-dark"
                       }`}
                     >

@@ -19,7 +19,6 @@ const getCustomers = async (page = 1, limit = 20, search = null) => {
   }
 };
 
-// Add Function - Get customer by ID
 const getCustomerById = async (customerId) => {
   try {
     const response = await axios.get(`${url}/${customerId}`, {
@@ -81,27 +80,41 @@ const deleteCustomer = async (Id) => {
   }
 };
 
-// Get employees for dropdown
+// ✅ FIXED: Get employees for dropdown - Updated endpoint and response handling
 const getEmployees = async () => {
   try {
-    const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/employee/all`, {
+    console.log('Fetching employees...');
+    const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/employee`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     });
-    return response.data;
+    console.log('Employees response:', response.data);
+    
+    // Handle different response formats
+    if (response.data.success && response.data.employees) {
+      return { success: true, employees: response.data.employees };
+    } else if (response.data.success && response.data.data) {
+      return { success: true, employees: response.data.data };
+    } else if (Array.isArray(response.data)) {
+      return { success: true, employees: response.data };
+    } else if (response.data.employees) {
+      return { success: true, employees: response.data.employees };
+    } else if (response.data.data) {
+      return { success: true, employees: response.data.data };
+    } else {
+      console.log('Unexpected response format:', response.data);
+      return { success: false, employees: [] };
+    }
   } catch (error) {
-    console.error(error?.response?.data);
-    return error?.response?.data;
+    console.error('Error fetching employees:', error?.response?.data || error.message);
+    return { success: false, employees: [] };
   }
 };
 
-// Helper function to trigger download with production compatibility
 const triggerDownload = (blob, filename) => {
   try {
-    // For iOS/Mac Safari compatibility
     if (navigator.userAgent.match(/(iPod|iPhone|iPad|Safari)/) && !navigator.userAgent.match(/Chrome/)) {
-      // Use window.open for Safari
       const fileURL = URL.createObjectURL(blob);
       const newWindow = window.open(fileURL, '_blank');
       if (!newWindow) {
@@ -112,7 +125,6 @@ const triggerDownload = (blob, filename) => {
         URL.revokeObjectURL(fileURL);
       }, 100);
     } else {
-      // Standard download for other browsers
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -132,7 +144,6 @@ const triggerDownload = (blob, filename) => {
   }
 };
 
-// PDF Export Function - Updated for production compatibility
 const exportCustomersPDF = async () => {
   try {
     const response = await axios.get(`${url}/export/pdf`, {
@@ -142,7 +153,6 @@ const exportCustomersPDF = async () => {
       responseType: 'blob'
     });
     
-    // Get filename from headers or use default
     const contentDisposition = response.headers['content-disposition'];
     let filename = `customers_export_${new Date().toISOString().split('T')[0]}.pdf`;
     
@@ -153,7 +163,6 @@ const exportCustomersPDF = async () => {
       }
     }
     
-    // Create blob and trigger download
     const blob = new Blob([response.data], { type: 'application/pdf' });
     const downloadSuccess = triggerDownload(blob, filename);
     
@@ -165,7 +174,6 @@ const exportCustomersPDF = async () => {
   } catch (error) {
     console.error('PDF export error:', error);
     
-    // Try to extract error message if it's a JSON response
     if (error.response && error.response.data instanceof Blob) {
       try {
         const errorText = await error.response.data.text();
@@ -180,7 +188,6 @@ const exportCustomersPDF = async () => {
   }
 };
 
-// Excel Export Function - Updated for production compatibility
 const exportCustomersExcel = async () => {
   try {
     const response = await axios.get(`${url}/export/excel`, {
@@ -190,7 +197,6 @@ const exportCustomersExcel = async () => {
       responseType: 'blob'
     });
     
-    // Get filename from headers or use default
     const contentDisposition = response.headers['content-disposition'];
     let filename = `customers_export_${new Date().toISOString().split('T')[0]}.xlsx`;
     
@@ -201,7 +207,6 @@ const exportCustomersExcel = async () => {
       }
     }
     
-    // Create blob and trigger download
     const blob = new Blob([response.data], { 
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
     });
@@ -215,7 +220,6 @@ const exportCustomersExcel = async () => {
   } catch (error) {
     console.error('Excel export error:', error);
     
-    // Try to extract error message if it's a JSON response
     if (error.response && error.response.data instanceof Blob) {
       try {
         const errorText = await error.response.data.text();
@@ -230,7 +234,6 @@ const exportCustomersExcel = async () => {
   }
 };
 
-// UPDATE EXPORTS TO INCLUDE getCustomerById
 export { 
   getCustomers, 
   getCustomerById, 

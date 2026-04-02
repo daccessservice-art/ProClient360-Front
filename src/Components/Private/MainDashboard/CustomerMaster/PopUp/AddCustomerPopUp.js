@@ -4,10 +4,10 @@ import toast from "react-hot-toast";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getAddress } from "../../../../../hooks/usePincode";
 import { createCustomer, getEmployees } from "../../../../../hooks/useCustomer";
-import { useUser } from "../../../../../context/UserContext"; // Use useUser instead of useContext
+import { useUser } from "../../../../../context/UserContext";
 
 const AddCustomerPopUp = ({ handleAdd }) => {
-  const { user } = useUser(); // Use useUser hook
+  const { user } = useUser();
   const [custName, setCustName] = useState("");
   const [phoneNumber1, setPhoneNumber1] = useState("");
   const [email, setEmail] = useState("");
@@ -18,7 +18,12 @@ const AddCustomerPopUp = ({ handleAdd }) => {
   const [zone, setZone] = useState("");
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [employees, setEmployees] = useState([]);
-  const [ownedBy, setOwnedBy] = useState(user?.name || ""); // Default to current user name
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [ownedBy, setOwnedBy] = useState(user?.name || "");
+  
+  // Industry Type states
+  const [industryType, setIndustryType] = useState("");
+  const [industryTypeOther, setIndustryTypeOther] = useState("");
   
   const [billingAddress, setBillingAddress] = useState({
     pincode: "",
@@ -28,12 +33,47 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     country: "",
   });
 
-  // Fetch employees for dropdown (kept for potential future use)
+  // Industry type options
+  const industryOptions = [
+    "IT & Software",
+    "Manufacturing",
+    "Construction & Infrastructure",
+    "Healthcare",
+    "Education",
+    "Retail",
+    "Banking & Finance",
+    "Logistics & Supply Chain",
+    "Hospitality",
+    "Real Estate",
+    "Government & Public Sector",
+    "Energy & Utilities",
+    "Telecom",
+    "Pharmaceuticals",
+    "Automotive",
+    "Other"
+  ];
+
+  // ✅ FIXED: Fetch employees for dropdown with better error handling
   useEffect(() => {
     const fetchEmployees = async () => {
-      const data = await getEmployees();
-      if (data.success) {
-        setEmployees(data.employees || []);
+      setEmployeesLoading(true);
+      try {
+        console.log('Fetching employees for dropdown...');
+        const data = await getEmployees();
+        console.log('Employees API response:', data);
+        
+        if (data.success && data.employees) {
+          console.log('Employees loaded:', data.employees.length);
+          setEmployees(data.employees);
+        } else {
+          console.log('No employees found or API returned non-success');
+          setEmployees([]);
+        }
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+        setEmployees([]);
+      } finally {
+        setEmployeesLoading(false);
       }
     };
     
@@ -55,7 +95,6 @@ const AddCustomerPopUp = ({ handleAdd }) => {
               country: data.country
             }));
           } else {
-            // Clear other fields if pincode is invalid
             setBillingAddress(prevAddress => ({
               ...prevAddress,
               state: "",
@@ -75,7 +114,6 @@ const AddCustomerPopUp = ({ handleAdd }) => {
           setIsLoadingAddress(false);
         }
       } else if (billingAddress.pincode.length < 6) {
-        // Clear fields when pincode is incomplete
         setBillingAddress(prevAddress => ({
           ...prevAddress,
           state: "",
@@ -85,7 +123,6 @@ const AddCustomerPopUp = ({ handleAdd }) => {
       }
     };
     
-    // Add debounce to avoid too many API calls
     const timeoutId = setTimeout(() => {
       fetchData();
     }, 500);
@@ -106,7 +143,9 @@ const AddCustomerPopUp = ({ handleAdd }) => {
       billingAddress,
       zone,
       GSTNo,
-      ownedBy, // Include ownedBy in the data
+      ownedBy,
+      industryType,
+      industryTypeOther: industryType === 'Other' ? industryTypeOther : undefined,
     };
 
     if (
@@ -118,10 +157,17 @@ const AddCustomerPopUp = ({ handleAdd }) => {
       !billingAddress.city ||
       !billingAddress.add ||
       !zone ||
-      !GSTNo
+      !GSTNo ||
+      !industryType ||
+      !ownedBy
     ) {
       return toast.error("Please fill all required fields");
     }
+    
+    if (industryType === 'Other' && (!industryTypeOther || industryTypeOther.trim() === '')) {
+      return toast.error("Please specify the industry type");
+    }
+    
     if (!validator.isEmail(email)) {
       return toast.error("Enter valid Email");
     }
@@ -147,7 +193,6 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     }
   };
 
-  // Validation functions
   const handleCustNameChange = (e) => {
     const value = e.target.value;
     if (/^[a-zA-Z0-9\s]*$/.test(value)) {
@@ -214,9 +259,11 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     setGSTNo(value);
   };
 
-  // New handler for ownedBy text input
-  const handleOwnedByChange = (e) => {
-    setOwnedBy(e.target.value);
+  const handleIndustryTypeOtherChange = (e) => {
+    const value = e.target.value;
+    if (/^[a-zA-Z0-9\s&\-]*$/.test(value)) {
+      setIndustryTypeOther(value);
+    }
   };
 
   return (
@@ -229,7 +276,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
           backgroundColor: "#00000090",
         }}
       >
-        <div className="modal-dialog modal-lg">
+        <div className="modal-dialog modal-lg modal-dialog-scrollable">
           <div className="modal-content p-3">
             <form onSubmit={handleCustomerAdd}>
               <div className="modal-header pt-0">
@@ -247,7 +294,6 @@ const AddCustomerPopUp = ({ handleAdd }) => {
               </div>
               <div className="modal-body">
                 <div className="row modal_body_height">
-                  {/* Add this info section */}
                   <div className="col-12 mb-2">
                     <div className="alert alert-info py-2">
                       <small>
@@ -257,7 +303,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                     </div>
                   </div>
 
-                  <div className="col-12">
+                  <div className="col-12 col-lg-6">
                     <div className="">
                       <label htmlFor="FullName" className="form-label label_text">
                         Full Name <RequiredStar />
@@ -276,7 +322,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                     </div>
                   </div>
 
-                  <div className="col-12 mt-3">
+                  <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="email" className="form-label label_text">
                         Email <RequiredStar />
@@ -295,21 +341,89 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                     </div>
                   </div>
 
-                  <div className="col-12 mt-3">
+                  <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="ownedBy" className="form-label label_text">
-                        Owned By
+                        Owned By <RequiredStar />
                       </label>
-                      <input
-                        type="text"
-                        className="form-control rounded-0"
+                      <select
+                        className="form-select rounded-0"
                         id="ownedBy"
                         value={ownedBy}
-                        onChange={handleOwnedByChange}
-                        placeholder="Enter owner name"
-                      />
+                        onChange={(e) => setOwnedBy(e.target.value)}
+                        required
+                        disabled={employeesLoading}
+                      >
+                        <option value="">
+                          {employeesLoading ? 'Loading employees...' : 'Select Employee'}
+                        </option>
+                        {employees.length > 0 ? (
+                          employees.map((emp) => (
+                            <option key={emp._id} value={emp.name}>
+                              {emp.name}
+                            </option>
+                          ))
+                        ) : (
+                          !employeesLoading && (
+                            <option value={user?.name || ''}>{user?.name || 'No employees found'}</option>
+                          )
+                        )}
+                      </select>
+                      {employees.length === 0 && !employeesLoading && (
+                        <small className="text-warning">
+                          <i className="fa fa-exclamation-triangle me-1"></i>
+                          Employees not loaded. Current user will be set as owner.
+                        </small>
+                      )}
                     </div>
                   </div>
+
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label htmlFor="industryType" className="form-label label_text">
+                        Industry Type <RequiredStar />
+                      </label>
+                      <select
+                        className="form-select rounded-0"
+                        id="industryType"
+                        value={industryType}
+                        onChange={(e) => {
+                          setIndustryType(e.target.value);
+                          if (e.target.value !== 'Other') {
+                            setIndustryTypeOther('');
+                          }
+                        }}
+                        required
+                      >
+                        <option value="">Select Industry Type</option>
+                        {industryOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {industryType === 'Other' && (
+                    <div className="col-12 col-lg-6">
+                      <div className="mb-3">
+                        <label htmlFor="industryTypeOther" className="form-label label_text">
+                          Specify Industry Type <RequiredStar />
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control rounded-0"
+                          id="industryTypeOther"
+                          maxLength={100}
+                          value={industryTypeOther}
+                          onChange={handleIndustryTypeOtherChange}
+                          placeholder="Enter industry type..."
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="col-12 mt-2">
                     <div className="row border bg-gray mx-auto">

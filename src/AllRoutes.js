@@ -41,6 +41,7 @@ import { QCMasterGrid } from "./Components/Private/MainDashboard/QCMaster/QCMast
 import { DCMasterGrid } from "./Components/Private/MainDashboard/DeliveryChallanMaster/DCMasterGrid";
 import { MRFMasterGrid } from "./Components/Private/MainDashboard/MRFMaster/MRFMasterGrid";
 import { SalesManagerMasterGrid } from './Components/Private/MainDashboard/SalesManagerMaster/SalesManagerMasterGrid';
+import { HRReviewMasterGrid } from "./Components/Private/MainDashboard/HRReviewMaster/HRReviewMasterGrid";
 
 import { EmployeeMyServiceMasterGrid } from "./Components/Private/EmployeeDashboard/EmployeeMyServiceMasterGrid/EmployeeMyServiceMasterGrid";
 import { EmployeeFeedbackMasterGrid } from "./Components/Private/EmployeeDashboard/EmployeesFeedbackMasterGrid/EmployeeFeedbackMasterGrid";
@@ -194,6 +195,8 @@ const AllRoutes = () => {
                 
                 {/* Sales Manager Master Route with special permission check */}
                 <Route exact path="/SalesManagerMasterGrid" element={<ProtectRoute Component={SalesManagerRoute} />} />
+
+                <Route exact path="/HRReviewMasterGrid" element={<ProtectRoute Component={HRReviewMasterGrid} />} />
                 
                 {/* Inventory Management Routes */}
                 <Route exact path="/AMCMasterGrid" element={<ProtectRoute Component={AMCMasterGrid} />} />
