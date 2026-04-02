@@ -109,9 +109,8 @@ export const CustomerMasterGrid = () => {
             hasNextPage: false,
             hasPrevPage: false,
           });
-        }
-        else {
-          toast(data.error)
+        } else {
+          toast(data.error);
         }
       } catch (error) {
         console.error("Error fetching customers:", error);
@@ -134,7 +133,6 @@ export const CustomerMasterGrid = () => {
 
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
-    console.log("Search text:", searchText);
     setSearch(searchText);
   };
 
@@ -143,12 +141,22 @@ export const CustomerMasterGrid = () => {
     pageButtons.push(i);
   }
 
-  // Helper function to display industry type
+  // Helper: display industry type
   const getIndustryDisplay = (customer) => {
     if (customer.industryType === 'Other') {
       return customer.industryTypeOther || 'Other';
     }
     return customer.industryType || 'N/A';
+  };
+
+  // ✅ Helper: priority badge color
+  const getPriorityBadgeClass = (priority) => {
+    switch (priority) {
+      case 'P1': return 'badge bg-danger';
+      case 'P2': return 'badge bg-warning text-dark';
+      case 'P3': return 'badge bg-success';
+      default:   return 'badge bg-secondary';
+    }
   };
 
   return (
@@ -212,7 +220,7 @@ export const CustomerMasterGrid = () => {
                           >
                             <i className="fa-solid fa-file-excel"></i> Excel
                           </button>
-                          {user?.permissions && user?.permissions?.includes("createCustomer") || user.user === 'company' ? (
+                          {user?.permissions?.includes("createCustomer") || user.user === 'company' ? (
                             <button
                               onClick={handleAdd}
                               type="button"
@@ -240,6 +248,8 @@ export const CustomerMasterGrid = () => {
                             <th>Phone</th>
                             <th>GST No</th>
                             <th>Industry Type</th>
+                            {/* ✅ NEW COLUMN */}
+                            <th>Priority</th>
                             <th>Created By</th>
                             <th>Owned By</th>
                             <th>Action</th>
@@ -259,44 +269,32 @@ export const CustomerMasterGrid = () => {
                                     {getIndustryDisplay(customer)}
                                   </span>
                                 </td>
+                                {/* ✅ PRIORITY BADGE */}
+                                <td>
+                                  <span className={getPriorityBadgeClass(customer.customerPriority)}>
+                                    {customer.customerPriority || 'N/A'}
+                                  </span>
+                                </td>
                                 <td>{customer.createdBy?.name || 'N/A'}</td>
                                 <td>{customer.ownedBy || 'N/A'}</td>
                                 <td>
-                                  {user?.permissions?.includes(
-                                    "updateCustomer"
-                                  ) || user?.user === 'company' ? (
-                                    <span
-                                      onClick={() => handleUpdate(customer)}
-                                      className="update"
-                                    >
+                                  {user?.permissions?.includes("updateCustomer") || user?.user === 'company' ? (
+                                    <span onClick={() => handleUpdate(customer)} className="update">
                                       <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
                                     </span>
-                                  ) : (
-                                    ""
-                                  )}
+                                  ) : ""}
 
-                                  {user?.permissions?.includes(
-                                    "deleteCustomer"
-                                  ) || user?.user === 'company' ? (
-                                    <span
-                                      onClick={() =>
-                                        handelDeleteClosePopUpClick(
-                                          customer._id
-                                        )
-                                      }
-                                      className="delete"
-                                    >
+                                  {user?.permissions?.includes("deleteCustomer") || user?.user === 'company' ? (
+                                    <span onClick={() => handelDeleteClosePopUpClick(customer._id)} className="delete">
                                       <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
                                     </span>
-                                  ) : (
-                                    ""
-                                  )}
+                                  ) : ""}
                                 </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="9" className="text-center">
+                              <td colSpan="10" className="text-center">
                                 No data found
                               </td>
                             </tr>

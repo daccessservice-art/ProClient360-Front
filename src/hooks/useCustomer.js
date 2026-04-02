@@ -80,34 +80,34 @@ const deleteCustomer = async (Id) => {
   }
 };
 
-// ✅ FIXED: Get employees for dropdown - Updated endpoint and response handling
+// ✅ FIXED: Get employees for dropdown - using new /dropdown endpoint
 const getEmployees = async () => {
   try {
-    console.log('Fetching employees...');
-    const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/employee`, {
+    console.log('Fetching employees from /api/employee/dropdown...');
+    
+    const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/employee/dropdown`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     });
-    console.log('Employees response:', response.data);
     
-    // Handle different response formats
-    if (response.data.success && response.data.employees) {
+    console.log('Employee dropdown response:', response.data);
+    
+    if (response.data && response.data.success && response.data.employees) {
+      console.log('✅ Employees loaded successfully:', response.data.employees.length);
       return { success: true, employees: response.data.employees };
-    } else if (response.data.success && response.data.data) {
-      return { success: true, employees: response.data.data };
-    } else if (Array.isArray(response.data)) {
-      return { success: true, employees: response.data };
-    } else if (response.data.employees) {
-      return { success: true, employees: response.data.employees };
-    } else if (response.data.data) {
-      return { success: true, employees: response.data.data };
-    } else {
-      console.log('Unexpected response format:', response.data);
-      return { success: false, employees: [] };
     }
+    
+    // Fallback: if response is array
+    if (Array.isArray(response.data)) {
+      console.log('✅ Employees loaded (array format):', response.data.length);
+      return { success: true, employees: response.data };
+    }
+    
+    console.log('❌ Unexpected response format:', response.data);
+    return { success: false, employees: [] };
   } catch (error) {
-    console.error('Error fetching employees:', error?.response?.data || error.message);
+    console.error('❌ Error fetching employees:', error?.response?.data || error.message);
     return { success: false, employees: [] };
   }
 };

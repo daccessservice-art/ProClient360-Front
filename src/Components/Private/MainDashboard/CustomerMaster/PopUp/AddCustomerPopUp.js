@@ -19,12 +19,16 @@ const AddCustomerPopUp = ({ handleAdd }) => {
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeeError, setEmployeeError] = useState(null);
   const [ownedBy, setOwnedBy] = useState(user?.name || "");
-  
+
   // Industry Type states
   const [industryType, setIndustryType] = useState("");
   const [industryTypeOther, setIndustryTypeOther] = useState("");
-  
+
+  // Customer Priority state
+  const [customerPriority, setCustomerPriority] = useState("P2");
+
   const [billingAddress, setBillingAddress] = useState({
     pincode: "",
     state: "",
@@ -53,25 +57,39 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     "Other"
   ];
 
-  // ✅ FIXED: Fetch employees for dropdown with better error handling
+  // ✅ Fetch ALL employees for dropdown
   useEffect(() => {
     const fetchEmployees = async () => {
       setEmployeesLoading(true);
+      setEmployeeError(null);
+      
       try {
-        console.log('Fetching employees for dropdown...');
+        console.log('🔄 Fetching employees for Owned By dropdown...');
         const data = await getEmployees();
-        console.log('Employees API response:', data);
         
-        if (data.success && data.employees) {
-          console.log('Employees loaded:', data.employees.length);
+        console.log('📡 Employee API response:', data);
+        
+        if (data.success && data.employees && data.employees.length > 0) {
           setEmployees(data.employees);
-        } else {
-          console.log('No employees found or API returned non-success');
+          console.log('✅ Loaded', data.employees.length, 'employees');
+          
+          // Auto-select first employee if ownedBy is not set
+          if (!ownedBy || ownedBy === '') {
+            setOwnedBy(data.employees[0].name);
+          }
+        } else if (data.success && data.employees && data.employees.length === 0) {
+          console.log('⚠️ No employees found in database');
           setEmployees([]);
+          setEmployeeError('No employees found. Please add employees first.');
+        } else {
+          console.log('❌ Failed to load employees:', data);
+          setEmployees([]);
+          setEmployeeError('Failed to load employees.');
         }
       } catch (error) {
-        console.error('Error fetching employees:', error);
+        console.error('❌ Error fetching employees:', error);
         setEmployees([]);
+        setEmployeeError('Error loading employees. Using current user.');
       } finally {
         setEmployeesLoading(false);
       }
@@ -80,13 +98,13 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     fetchEmployees();
   }, []);
 
+  // Auto-fill address from pincode
   useEffect(() => {
     const fetchData = async () => {
       if (billingAddress.pincode && billingAddress.pincode.length === 6) {
         setIsLoadingAddress(true);
         try {
           const data = await getAddress(billingAddress.pincode);
-
           if (data) {
             setBillingAddress(prevAddress => ({
               ...prevAddress,
@@ -122,7 +140,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
         }));
       }
     };
-    
+
     const timeoutId = setTimeout(() => {
       fetchData();
     }, 500);
@@ -146,6 +164,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
       ownedBy,
       industryType,
       industryTypeOther: industryType === 'Other' ? industryTypeOther : undefined,
+      customerPriority,
     };
 
     if (
@@ -159,15 +178,16 @@ const AddCustomerPopUp = ({ handleAdd }) => {
       !zone ||
       !GSTNo ||
       !industryType ||
-      !ownedBy
+      !ownedBy ||
+      !customerPriority
     ) {
       return toast.error("Please fill all required fields");
     }
-    
+
     if (industryType === 'Other' && (!industryTypeOther || industryTypeOther.trim() === '')) {
       return toast.error("Please specify the industry type");
     }
-    
+
     if (!validator.isEmail(email)) {
       return toast.error("Enter valid Email");
     }
@@ -180,12 +200,12 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     if (phoneNumber2 && !validator.isMobilePhone(phoneNumber2, 'any', { strictMode: false })) {
       return toast.error("Please enter valid 10-digit phone number for Contact Person 2.");
     }
-    
+
     toast.loading("Creating Customer...");
     const data = await createCustomer(customerData);
     toast.dismiss();
-    
-    if(data.success){
+
+    if (data.success) {
       toast.success(data.message);
       handleAdd();
     } else {
@@ -195,86 +215,53 @@ const AddCustomerPopUp = ({ handleAdd }) => {
 
   const handleCustNameChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z0-9\s]*$/.test(value)) {
-      setCustName(value);
-    }
+    if (/^[a-zA-Z0-9\s]*$/.test(value)) setCustName(value);
   };
 
   const handleContactPersonName1Change = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setCustomerContactPersonName1(value);
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setCustomerContactPersonName1(value);
   };
 
   const handleContactPersonName2Change = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setCustomerContactPersonName2(value);
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setCustomerContactPersonName2(value);
   };
 
   const handleStateChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setBillingAddress(prevAddress => ({ 
-        ...prevAddress, 
-        state: value 
-      }));
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, state: value }));
   };
 
   const handleCityChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setBillingAddress(prevAddress => ({ 
-        ...prevAddress, 
-        city: value 
-      }));
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, city: value }));
   };
 
   const handleCountryChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setBillingAddress(prevAddress => ({ 
-        ...prevAddress, 
-        country: value 
-      }));
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, country: value }));
   };
 
   const handlePincodeChange = (e) => {
     const value = e.target.value;
-    if (/^\d{0,6}$/.test(value)) {
-      setBillingAddress(prevAddress => ({
-        ...prevAddress,
-        pincode: value,
-      }));
-    }
+    if (/^\d{0,6}$/.test(value)) setBillingAddress(prev => ({ ...prev, pincode: value }));
   };
 
   const handleGSTChange = (e) => {
-    const value = e.target.value.toUpperCase();
-    setGSTNo(value);
+    setGSTNo(e.target.value.toUpperCase());
   };
 
   const handleIndustryTypeOtherChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z0-9\s&\-]*$/.test(value)) {
-      setIndustryTypeOther(value);
-    }
+    if (/^[a-zA-Z0-9\s&\-]*$/.test(value)) setIndustryTypeOther(value);
   };
 
   return (
     <>
       <div
         className="modal fade show"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          backgroundColor: "#00000090",
-        }}
+        style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}
       >
         <div className="modal-dialog modal-lg modal-dialog-scrollable">
           <div className="modal-content p-3">
@@ -292,8 +279,11 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                   <span aria-hidden="true">&times;</span>
                 </button>
               </div>
+
               <div className="modal-body">
                 <div className="row modal_body_height">
+
+                  {/* Info banner */}
                   <div className="col-12 mb-2">
                     <div className="alert alert-info py-2">
                       <small>
@@ -303,6 +293,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                     </div>
                   </div>
 
+                  {/* Full Name */}
                   <div className="col-12 col-lg-6">
                     <div className="">
                       <label htmlFor="FullName" className="form-label label_text">
@@ -315,13 +306,13 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                         maxLength={300}
                         value={custName}
                         onChange={handleCustNameChange}
-                        aria-describedby="nameHelp"
                         placeholder="Enter a Full Name...."
                         required
                       />
                     </div>
                   </div>
 
+                  {/* Email */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="email" className="form-label label_text">
@@ -334,13 +325,13 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                         id="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        aria-describedby="emailHelp"
                         placeholder="Enter a Email...."
                         required
                       />
                     </div>
                   </div>
 
+                  {/* ✅ Owned By - Load All Employees */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="ownedBy" className="form-label label_text">
@@ -355,29 +346,49 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                         disabled={employeesLoading}
                       >
                         <option value="">
-                          {employeesLoading ? 'Loading employees...' : 'Select Employee'}
+                          {employeesLoading ? '⏳ Loading employees...' : '-- Select Employee --'}
                         </option>
-                        {employees.length > 0 ? (
-                          employees.map((emp) => (
+                        
+                        {/* Always show current user as fallback */}
+                        <option value={user?.name}>
+                          {user?.name} (Current User)
+                        </option>
+                        
+                        {/* Show all loaded employees */}
+                        {employees.length > 0 && employees.map((emp) => (
+                          emp.name !== user?.name && (
                             <option key={emp._id} value={emp.name}>
                               {emp.name}
                             </option>
-                          ))
-                        ) : (
-                          !employeesLoading && (
-                            <option value={user?.name || ''}>{user?.name || 'No employees found'}</option>
                           )
-                        )}
+                        ))}
                       </select>
-                      {employees.length === 0 && !employeesLoading && (
+                      
+                      {/* Status messages */}
+                      {employeesLoading && (
+                        <small className="text-info">
+                          <i className="fa fa-spinner fa-spin me-1"></i>
+                          Loading employees...
+                        </small>
+                      )}
+                      
+                      {!employeesLoading && employees.length > 0 && (
+                        <small className="text-success">
+                          <i className="fa fa-check-circle me-1"></i>
+                          {employees.length} employees available
+                        </small>
+                      )}
+                      
+                      {!employeesLoading && employeeError && (
                         <small className="text-warning">
                           <i className="fa fa-exclamation-triangle me-1"></i>
-                          Employees not loaded. Current user will be set as owner.
+                          {employeeError}
                         </small>
                       )}
                     </div>
                   </div>
 
+                  {/* Industry Type */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="industryType" className="form-label label_text">
@@ -389,22 +400,19 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                         value={industryType}
                         onChange={(e) => {
                           setIndustryType(e.target.value);
-                          if (e.target.value !== 'Other') {
-                            setIndustryTypeOther('');
-                          }
+                          if (e.target.value !== 'Other') setIndustryTypeOther('');
                         }}
                         required
                       >
                         <option value="">Select Industry Type</option>
                         {industryOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
+                          <option key={option} value={option}>{option}</option>
                         ))}
                       </select>
                     </div>
                   </div>
 
+                  {/* Specify Industry (Other) */}
                   {industryType === 'Other' && (
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
@@ -425,6 +433,31 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                     </div>
                   )}
 
+                  {/* Customer Priority */}
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label htmlFor="customerPriority" className="form-label label_text">
+                        Customer Priority <RequiredStar />
+                      </label>
+                      <select
+                        className="form-select rounded-0"
+                        id="customerPriority"
+                        value={customerPriority}
+                        onChange={(e) => setCustomerPriority(e.target.value)}
+                        required
+                      >
+                        <option value="">Select Priority</option>
+                        <option value="P1">🔴 P1 — Priority</option>
+                        <option value="P2">🟡 P2 — Priority</option>
+                        <option value="P3">🟢 P3 — Priority</option>
+                      </select>
+                      <small className="text-muted">
+                        P1 = High &nbsp;|&nbsp; P2 = Medium &nbsp;|&nbsp; P3 = Low
+                      </small>
+                    </div>
+                  </div>
+
+                  {/* Contact Information */}
                   <div className="col-12 mt-2">
                     <div className="row border bg-gray mx-auto">
                       <div className="col-10 mb-3">
@@ -433,10 +466,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="SecondaryPersonName"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="SecondaryPersonName" className="form-label label_text">
                             Contact Person Name 1 <RequiredStar />
                           </label>
                           <input
@@ -446,7 +476,6 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                             id="SecondaryPersonName"
                             value={customerContactPersonName1}
                             onChange={handleContactPersonName1Change}
-                            aria-describedby="emailHelp"
                             required
                           />
                         </div>
@@ -464,17 +493,13 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                             maxLength={50}
                             value={customerContactPersonName2}
                             onChange={handleContactPersonName2Change}
-                            aria-describedby="emailHelp"
                           />
                         </div>
                       </div>
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="MobileNumber"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="MobileNumber" className="form-label label_text">
                             Contact Person No 1 <RequiredStar />
                           </label>
                           <input
@@ -485,11 +510,8 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                             value={phoneNumber1}
                             onChange={(e) => {
                               const value = e.target.value.replace(/[^0-9]/g, '');
-                              if (value.length <= 10) {
-                                setPhoneNumber1(value);
-                              }
+                              if (value.length <= 10) setPhoneNumber1(value);
                             }}
-                            aria-describedby="mobileNoHelp"
                             maxLength={10}
                             required
                           />
@@ -498,10 +520,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="mobileNo"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="mobileNo" className="form-label label_text">
                             Contact Person No. 2
                           </label>
                           <input
@@ -513,17 +532,15 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                             value={phoneNumber2}
                             onChange={(e) => {
                               const value = e.target.value.replace(/[^0-9]/g, '');
-                              if (value.length <= 10) {
-                                setPhoneNumber2(value);
-                              }
+                              if (value.length <= 10) setPhoneNumber2(value);
                             }}
-                            aria-describedby="MobileNoHelp"
                           />
                         </div>
                       </div>
                     </div>
                   </div>
 
+                  {/* Address */}
                   <div className="col-12 mt-2">
                     <div className="row border mt-4 bg-gray mx-auto">
                       <div className="col-12 mb-3">
@@ -558,9 +575,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                             maxLength={50}
                             onChange={handleStateChange}
                             value={billingAddress.state}
-                            style={{ 
-                              backgroundColor: billingAddress.state && !isLoadingAddress ? '#f8f9fa' : 'white' 
-                            }}
+                            style={{ backgroundColor: billingAddress.state && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                           />
                         </div>
                       </div>
@@ -574,9 +589,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                             maxLength={50}
                             value={billingAddress.city}
                             onChange={handleCityChange}
-                            style={{ 
-                              backgroundColor: billingAddress.city && !isLoadingAddress ? '#f8f9fa' : 'white' 
-                            }}
+                            style={{ backgroundColor: billingAddress.city && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                           />
                         </div>
                       </div>
@@ -590,9 +603,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                             maxLength={50}
                             onChange={handleCountryChange}
                             value={billingAddress.country}
-                            style={{ 
-                              backgroundColor: billingAddress.country && !isLoadingAddress ? '#f8f9fa' : 'white' 
-                            }}
+                            style={{ backgroundColor: billingAddress.country && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                           />
                         </div>
                       </div>
@@ -603,10 +614,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                             className="textarea_edit col-12"
                             maxLength={500}
                             placeholder="House NO., Building Name, Road Name, Area, Colony"
-                            onChange={(e) => setBillingAddress(prevAddress => ({ 
-                              ...prevAddress, 
-                              add: e.target.value 
-                            }))}
+                            onChange={(e) => setBillingAddress(prev => ({ ...prev, add: e.target.value }))}
                             value={billingAddress.add}
                             rows="2"
                           ></textarea>
@@ -615,6 +623,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                     </div>
                   </div>
 
+                  {/* GST + Zone */}
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="">
                       <label htmlFor="GSTNumber" className="form-label label_text">
@@ -627,7 +636,6 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                         maxLength={15}
                         onChange={handleGSTChange}
                         value={GSTNo}
-                        aria-describedby="emailHelp"
                         required
                         placeholder="Enter GST Number"
                         minLength={2}
@@ -637,10 +645,7 @@ const AddCustomerPopUp = ({ handleAdd }) => {
 
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="mb-3">
-                      <label
-                        htmlFor="zone"
-                        className="form-label label_text"
-                      >
+                      <label htmlFor="zone" className="form-label label_text">
                         Zone <RequiredStar />
                       </label>
                       <select
@@ -660,23 +665,18 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                     </div>
                   </div>
 
+                  {/* Buttons */}
                   <div className="row">
                     <div className="col-12 pt-3 mt-2">
-                      <button
-                        type="submit"
-                        className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
-                      >
+                      <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
                         Add
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleAdd}
-                        className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
-                      >
+                      <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
                         Cancel
                       </button>
                     </div>
                   </div>
+
                 </div>
               </div>
             </form>

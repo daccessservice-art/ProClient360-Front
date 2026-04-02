@@ -11,6 +11,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
   const [customer, setCustomer] = useState(selectedCust);
   const [employees, setEmployees] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeeError, setEmployeeError] = useState(null);
 
   const [billingAddress, setBillingAddress] = useState({
     add: "",
@@ -40,33 +41,40 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     "Other"
   ];
 
-  const isEmptyOrWhitespace = (value) => {
-    return value === undefined || value === null || value.toString().trim() === '';
-  };
+  const isEmptyOrWhitespace = (value) =>
+    value === undefined || value === null || value.toString().trim() === '';
 
-  const isValidPincode = (pincode) => {
-    return pincode && pincode.toString().trim() !== '' && !isNaN(pincode) && parseInt(pincode) > 0;
-  };
+  const isValidPincode = (pincode) =>
+    pincode && pincode.toString().trim() !== '' && !isNaN(pincode) && parseInt(pincode) > 0;
 
-  // ✅ FIXED: Fetch employees for dropdown with better error handling
+  // ✅ Fetch ALL employees for dropdown
   useEffect(() => {
     const fetchEmployees = async () => {
       setEmployeesLoading(true);
+      setEmployeeError(null);
+      
       try {
-        console.log('Fetching employees for update dropdown...');
+        console.log('🔄 Fetching employees for Update Owned By dropdown...');
         const data = await getEmployees();
-        console.log('Employees API response:', data);
         
-        if (data.success && data.employees) {
-          console.log('Employees loaded for update:', data.employees.length);
+        console.log('📡 Employee API response:', data);
+        
+        if (data.success && data.employees && data.employees.length > 0) {
           setEmployees(data.employees);
-        } else {
-          console.log('No employees found or API returned non-success');
+          console.log('✅ Loaded', data.employees.length, 'employees');
+        } else if (data.success && data.employees && data.employees.length === 0) {
+          console.log('⚠️ No employees found in database');
           setEmployees([]);
+          setEmployeeError('No employees found.');
+        } else {
+          console.log('❌ Failed to load employees:', data);
+          setEmployees([]);
+          setEmployeeError('Failed to load employees.');
         }
       } catch (error) {
-        console.error('Error fetching employees:', error);
+        console.error('❌ Error fetching employees:', error);
         setEmployees([]);
+        setEmployeeError('Error loading employees.');
       } finally {
         setEmployeesLoading(false);
       }
@@ -75,27 +83,25 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     fetchEmployees();
   }, []);
 
+  // Auto-fill address from pincode change
   useEffect(() => {
     const fetchData = async () => {
       if (isValidPincode(billingAddress.pincode)) {
         const data = await getAddress(billingAddress.pincode);
-
         if (data !== "Error") {
-          console.log(data);
           setBillingAddress(prevAddress => ({
-            ...prevAddress, 
-            state: data.State, 
-            city: data.District,   
-            country: data.Country 
+            ...prevAddress,
+            state: data.State,
+            city: data.District,
+            country: data.Country
           }));
         }
       }
     };
-    
     fetchData();
   }, [billingAddress.pincode]);
 
-  // Load existing customer data on component mount
+  // Load existing customer billing address
   useEffect(() => {
     if (customer) {
       setBillingAddress(customer.billingAddress || {
@@ -110,9 +116,9 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
 
   const handleBillingChange = (e) => {
     const { name, value } = e.target;
-    setBillingAddress({ 
-      ...billingAddress, 
-      [name]: name === 'pincode' ? value : value.trim() 
+    setBillingAddress({
+      ...billingAddress,
+      [name]: name === 'pincode' ? value : value.trim()
     });
   };
 
@@ -121,7 +127,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     setCustomer((prevCustomer) => ({
       ...prevCustomer,
       [name]: value.trim(),
-    }))
+    }));
   };
 
   const handleOwnedByChange = (e) => {
@@ -141,33 +147,41 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     }
   };
 
+  const handlePriorityChange = (e) => {
+    setCustomer((prevCustomer) => ({
+      ...prevCustomer,
+      customerPriority: e.target.value,
+    }));
+  };
+
   const handleCustUpdate = async (e) => {
     e.preventDefault();
-    
+
     const updatedCustomer = {
       ...customer,
       billingAddress,
     };
 
-    // Validate required fields (Contact Person 2 and Phone 2 are NOT required)
-    if(
-      isEmptyOrWhitespace(updatedCustomer.custName) || 
-      isEmptyOrWhitespace(updatedCustomer.phoneNumber1) || 
-      isEmptyOrWhitespace(updatedCustomer.email) || 
-      isEmptyOrWhitespace(updatedCustomer.customerContactPersonName1) || 
-      !isValidPincode(updatedCustomer.billingAddress.pincode) || 
-      isEmptyOrWhitespace(updatedCustomer.billingAddress.state) || 
-      isEmptyOrWhitespace(updatedCustomer.billingAddress.city) || 
-      isEmptyOrWhitespace(updatedCustomer.billingAddress.add) || 
+    // Validate required fields
+    if (
+      isEmptyOrWhitespace(updatedCustomer.custName) ||
+      isEmptyOrWhitespace(updatedCustomer.phoneNumber1) ||
+      isEmptyOrWhitespace(updatedCustomer.email) ||
+      isEmptyOrWhitespace(updatedCustomer.customerContactPersonName1) ||
+      !isValidPincode(updatedCustomer.billingAddress.pincode) ||
+      isEmptyOrWhitespace(updatedCustomer.billingAddress.state) ||
+      isEmptyOrWhitespace(updatedCustomer.billingAddress.city) ||
+      isEmptyOrWhitespace(updatedCustomer.billingAddress.add) ||
       isEmptyOrWhitespace(updatedCustomer.GSTNo) ||
       isEmptyOrWhitespace(updatedCustomer.industryType) ||
-      isEmptyOrWhitespace(updatedCustomer.ownedBy)
-    ){
+      isEmptyOrWhitespace(updatedCustomer.ownedBy) ||
+      isEmptyOrWhitespace(updatedCustomer.customerPriority)
+    ) {
       toast.error("All required fields are mandatory");
       return;
     }
 
-    // Validate industry type if "Other" is selected
+    // Validate industry type "Other"
     if (updatedCustomer.industryType === 'Other' && isEmptyOrWhitespace(updatedCustomer.industryTypeOther)) {
       toast.error("Please specify the industry type when selecting 'Other'");
       return;
@@ -183,7 +197,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
       return;
     }
 
-    // Phone 2 is optional, but if provided, validate it
     if (updatedCustomer.phoneNumber2 && !validator.isMobilePhone(updatedCustomer.phoneNumber2)) {
       toast.error("Enter a valid phone number for Contact Person 2");
       return;
@@ -193,14 +206,14 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
       toast.loading("Updating Customer.....");
       const data = await updateCustomer(updatedCustomer);
       toast.dismiss();
-      
-      if(data.success) {
+
+      if (data.success) {
         toast.success(data.message);
         handleUpdate();
       } else {
         toast.error(data.error || "Failed to update customer");
       }
-    } catch(error) {
+    } catch (error) {
       toast.error("Error updating customer");
       console.error("Update error:", error);
     }
@@ -210,11 +223,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     <>
       <div
         className="modal fade show"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          backgroundColor: "#00000090",
-        }}
+        style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}
       >
         <div className="modal-dialog modal-lg modal-dialog-scrollable">
           <div className="modal-content p-3">
@@ -232,8 +241,11 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                   <span aria-hidden="true">&times;</span>
                 </button>
               </div>
+
               <div className="modal-body">
                 <div className="row modal_body_height">
+
+                  {/* Full Name */}
                   <div className="col-12 col-lg-6">
                     <div className="">
                       <label htmlFor="FullName" className="form-label label_text">
@@ -244,16 +256,16 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         className="form-control rounded-0"
                         id="FullName"
                         maxLength={300}
-                        placeholder="Update a Full Name.... "
+                        placeholder="Update a Full Name...."
                         name="custName"
                         value={customer.custName || ""}
                         onChange={handleChange}
-                        aria-describedby="nameHelp"
                         required
                       />
                     </div>
                   </div>
 
+                  {/* Email */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="Email" className="form-label label_text">
@@ -268,12 +280,12 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         id="Email"
                         value={customer.email || ""}
                         onChange={handleChange}
-                        aria-describedby="emailHelp"
                         required
                       />
                     </div>
                   </div>
 
+                  {/* ✅ Owned By - Load All Employees */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="ownedBy" className="form-label label_text">
@@ -289,8 +301,10 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         disabled={employeesLoading}
                       >
                         <option value="">
-                          {employeesLoading ? 'Loading employees...' : 'Select Employee'}
+                          {employeesLoading ? '⏳ Loading employees...' : '-- Select Employee --'}
                         </option>
+                        
+                        {/* Show all loaded employees */}
                         {employees.length > 0 ? (
                           employees.map((emp) => (
                             <option key={emp._id} value={emp.name}>
@@ -298,22 +312,38 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             </option>
                           ))
                         ) : (
-                          !employeesLoading && (
-                            <option value={customer.ownedBy?.name || customer.ownedBy || ''}>
-                              {customer.ownedBy?.name || customer.ownedBy || 'No employees found'}
-                            </option>
-                          )
+                          /* Fallback if employees not loaded */
+                          <option value={customer.ownedBy?.name || customer.ownedBy || ''}>
+                            {customer.ownedBy?.name || customer.ownedBy || 'No employees found'}
+                          </option>
                         )}
                       </select>
-                      {employees.length === 0 && !employeesLoading && (
+                      
+                      {/* Status messages */}
+                      {employeesLoading && (
+                        <small className="text-info">
+                          <i className="fa fa-spinner fa-spin me-1"></i>
+                          Loading employees...
+                        </small>
+                      )}
+                      
+                      {!employeesLoading && employees.length > 0 && (
+                        <small className="text-success">
+                          <i className="fa fa-check-circle me-1"></i>
+                          {employees.length} employees available
+                        </small>
+                      )}
+                      
+                      {!employeesLoading && employeeError && (
                         <small className="text-warning">
                           <i className="fa fa-exclamation-triangle me-1"></i>
-                          Employees not loaded.
+                          {employeeError}
                         </small>
                       )}
                     </div>
                   </div>
 
+                  {/* Industry Type */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="industryType" className="form-label label_text">
@@ -335,14 +365,13 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                       >
                         <option value="">Select Industry Type</option>
                         {industryOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
+                          <option key={option} value={option}>{option}</option>
                         ))}
                       </select>
                     </div>
                   </div>
 
+                  {/* Specify Industry (Other) */}
                   {customer.industryType === 'Other' && (
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
@@ -364,6 +393,32 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                     </div>
                   )}
 
+                  {/* Customer Priority */}
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label htmlFor="customerPriority" className="form-label label_text">
+                        Customer Priority <RequiredStar />
+                      </label>
+                      <select
+                        className="form-select rounded-0"
+                        id="customerPriority"
+                        name="customerPriority"
+                        value={customer.customerPriority || "P2"}
+                        onChange={handlePriorityChange}
+                        required
+                      >
+                        <option value="">Select Priority</option>
+                        <option value="P1">🔴 P1 — Priority</option>
+                        <option value="P2">🟡 P2 — Priority</option>
+                        <option value="P3">🟢 P3 — Priority</option>
+                      </select>
+                      <small className="text-muted">
+                        P1 = High &nbsp;|&nbsp; P2 = Medium &nbsp;|&nbsp; P3 = Low
+                      </small>
+                    </div>
+                  </div>
+
+                  {/* Secondary Info */}
                   <div className="col-12 mt-2">
                     <div className="row border bg-gray mx-auto">
                       <div className="col-10 mb-3">
@@ -372,10 +427,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="ContactPerson1"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="ContactPerson1" className="form-label label_text">
                             Contact Person 1 <RequiredStar />
                           </label>
                           <input
@@ -386,7 +438,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             name="customerContactPersonName1"
                             onChange={handleChange}
                             value={customer.customerContactPersonName1 || ""}
-                            aria-describedby="mobileNoHelp"
                             required
                           />
                         </div>
@@ -394,10 +445,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="phoneNumber1"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="phoneNumber1" className="form-label label_text">
                             Contact Number 1 <RequiredStar />
                           </label>
                           <input
@@ -410,7 +458,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             name="phoneNumber1"
                             onChange={handleChange}
                             value={customer.phoneNumber1 || ""}
-                            aria-describedby="secemailHelp"
                             required
                           />
                         </div>
@@ -418,10 +465,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="ContactPerson2"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="ContactPerson2" className="form-label label_text">
                             Contact Person 2
                           </label>
                           <input
@@ -432,17 +476,13 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             name="customerContactPersonName2"
                             onChange={handleChange}
                             value={customer.customerContactPersonName2 || ""}
-                            aria-describedby="mobileNoHelp"
                           />
                         </div>
                       </div>
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="phoneNumber2"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="phoneNumber2" className="form-label label_text">
                             Contact Number 2
                           </label>
                           <input
@@ -455,13 +495,13 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             onChange={handleChange}
                             name="phoneNumber2"
                             value={customer.phoneNumber2 || ""}
-                            aria-describedby="secemailHelp"
                           />
                         </div>
                       </div>
                     </div>
                   </div>
 
+                  {/* Billing Address */}
                   <div className="col-12 mt-2">
                     <div className="row border mt-4 bg-gray mx-auto">
                       <div className="col-12 mb-3">
@@ -478,7 +518,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             name="pincode"
                             onChange={handleBillingChange}
                             value={billingAddress.pincode || ""}
-                            aria-describedby="emailHelp"
                             required
                           />
                         </div>
@@ -495,7 +534,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             name="state"
                             maxLength={50}
                             value={billingAddress.state || ""}
-                            aria-describedby="emailHelp"
                             required
                           />
                         </div>
@@ -512,7 +550,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             name="city"
                             maxLength={50}
                             value={billingAddress.city || ""}
-                            aria-describedby="emailHelp"
                             required
                           />
                         </div>
@@ -529,7 +566,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             maxLength={50}
                             onChange={handleBillingChange}
                             value={billingAddress.country || ""}
-                            aria-describedby="emailHelp"
                           />
                         </div>
                       </div>
@@ -545,13 +581,13 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             onChange={handleBillingChange}
                             value={billingAddress.add || ""}
                             rows="2"
-                            required
                           ></textarea>
                         </div>
                       </div>
                     </div>
                   </div>
 
+                  {/* GST Number */}
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="">
                       <label htmlFor="GSTNo" className="form-label label_text">
@@ -566,29 +602,23 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         name="GSTNo"
                         onChange={handleChange}
                         value={customer.GSTNo || ""}
-                        aria-describedby="emailHelp"
                         required
                       />
                     </div>
                   </div>
 
+                  {/* Buttons */}
                   <div className="row">
                     <div className="col-12 pt-3 mt-2">
-                      <button
-                        type="submit"
-                        className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
-                      >
+                      <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
                         Update
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleUpdate}
-                        className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
-                      >
+                      <button type="button" onClick={handleUpdate} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
                         Cancel
                       </button>
                     </div>
                   </div>
+
                 </div>
               </div>
             </form>
