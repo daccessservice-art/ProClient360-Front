@@ -1,9 +1,48 @@
+// Components/Private/MainDashboard/ExhibitionMaster/PopUp/AddExhibitionVisitPopUp.jsx
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import validator from "validator";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { createExhibitionVisit, getExhibitionsDropdown } from "../../../../../hooks/useExhibition";
 
+// ─── Full product list ────────────────────────────────────────────────────────
+const PRODUCT_OPTIONS = [
+  "CCTV System",
+  "TA System",
+  "Hajeri",
+  "SmartFace",
+  "ZKBioSecurity",
+  "Surveillance System",
+  "Access Control System",
+  "Turnkey Project",
+  "Alleviz",
+  "CafeLive",
+  "WorksJoy",
+  "WorksJoy Blu",
+  "Fire Alarm System",
+  "Fire Hydrant System",
+  "IDS",
+  "AI Face Machines",
+  "Entrance Automation",
+  "Guard Tour System",
+  "Home Automation",
+  "IP PA and Communication System",
+  "CRM",
+  "KMS",
+  "VMS",
+  "PMS",
+  "Boom Barrier System",
+  "Tripod System",
+  "Flap Barrier System",
+  "EPBX System",
+  "CMS",
+  "Lift Eliviter System",
+  "AV6",
+  "Walky Talky System",
+  "Device Management System",
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
   const [exhibitions, setExhibitions] = useState([]);
   const [exhibitionsLoading, setExhibitionsLoading] = useState(false);
@@ -18,12 +57,18 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
   const [followUpDate, setFollowUpDate] = useState("");
   const [remark, setRemark] = useState("");
 
-  // ✅ NEW FIELDS
   const [visitorDesignation, setVisitorDesignation] = useState("");
   const [leadsType, setLeadsType] = useState("");
-  const [product, setProduct] = useState("");
 
-  // Fetch exhibitions for dropdown
+  // ✅ Product: supports "Other" with custom text
+  const [product, setProduct] = useState("");
+  const [isOtherProduct, setIsOtherProduct] = useState(false);
+  const [otherProductText, setOtherProductText] = useState("");
+
+  // ✅ Min date for follow-up = today
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // Fetch exhibitions dropdown — only current/future (handled by backend now)
   useEffect(() => {
     const fetchExhibitions = async () => {
       setExhibitionsLoading(true);
@@ -38,6 +83,33 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
     return () => clearTimeout(timeout);
   }, [searchExhibition]);
 
+  // ✅ Handle product dropdown change
+  const handleProductChange = (e) => {
+    const val = e.target.value;
+    if (val === "__other__") {
+      setIsOtherProduct(true);
+      setProduct("");
+    } else {
+      setIsOtherProduct(false);
+      setOtherProductText("");
+      setProduct(val);
+    }
+  };
+
+  // ✅ Validate selected exhibition is not past
+  const validateExhibitionDate = () => {
+    if (!selectedExhibition) return true; // handled by required check
+    const ex = exhibitions.find((e) => e._id === selectedExhibition);
+    if (!ex) return true;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (ex.dateTo && new Date(ex.dateTo) < today) {
+      toast.error("Selected exhibition has already ended. Please choose a current or upcoming exhibition.");
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -45,12 +117,23 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
       return toast.error("Please fill all required fields");
     }
 
+    if (!validateExhibitionDate()) return;
+
     if (email && !validator.isEmail(email)) {
       return toast.error("Please enter a valid email address");
     }
 
     if (!/^\d{10,15}$/.test(mobile)) {
       return toast.error("Please enter a valid mobile number (10–15 digits)");
+    }
+
+    // ✅ Resolve final product value
+    const finalProduct = isOtherProduct
+      ? otherProductText.trim()
+      : product;
+
+    if (isOtherProduct && !otherProductText.trim()) {
+      return toast.error("Please enter the product name");
     }
 
     const payload = {
@@ -64,7 +147,7 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
       remark,
       visitorDesignation,
       leadsType,
-      product,
+      product: finalProduct,
     };
 
     toast.loading("Recording visit...");
@@ -73,6 +156,9 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
 
     if (data.success) {
       toast.success(data.message);
+      if (email) {
+        toast.success("Thank-you email sent to customer 📧", { duration: 3000 });
+      }
       handleAdd();
     } else {
       toast.error(data.error || "Failed to record visit");
@@ -80,8 +166,8 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
   };
 
   const formatExhibitionLabel = (ex) => {
-    const from = ex.dateFrom ? new Date(ex.dateFrom).toLocaleDateString('en-IN') : '';
-    const to = ex.dateTo ? new Date(ex.dateTo).toLocaleDateString('en-IN') : '';
+    const from = ex.dateFrom ? new Date(ex.dateFrom).toLocaleDateString("en-IN") : "";
+    const to   = ex.dateTo   ? new Date(ex.dateTo).toLocaleDateString("en-IN")   : "";
     return `${ex.exhibitionName} — ${ex.city} (${from} to ${to})`;
   };
 
@@ -108,11 +194,12 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
             <div className="modal-body">
               <div className="row modal_body_height">
 
-                {/* Select Exhibition */}
+                {/* ── Select Exhibition ── */}
                 <div className="col-12">
                   <div className="mb-3">
                     <label className="form-label label_text">
                       Select Exhibition <RequiredStar />
+                      <small className="text-muted ms-2">(Current & upcoming only)</small>
                     </label>
                     <select
                       className="form-select rounded-0"
@@ -122,7 +209,9 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                       disabled={exhibitionsLoading || !!preSelectedExhibition}
                     >
                       <option value="">
-                        {exhibitionsLoading ? "⏳ Loading exhibitions..." : "-- Select Exhibition --"}
+                        {exhibitionsLoading
+                          ? "⏳ Loading exhibitions..."
+                          : "-- Select Exhibition --"}
                       </option>
                       {exhibitions.map((ex) => (
                         <option key={ex._id} value={ex._id}>
@@ -131,7 +220,6 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                       ))}
                     </select>
 
-                    {/* Search */}
                     {!preSelectedExhibition && (
                       <div className="mt-1">
                         <input
@@ -146,13 +234,13 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
 
                     {!exhibitionsLoading && exhibitions.length === 0 && (
                       <small className="text-warning">
-                        No exhibitions found. Please create an exhibition first.
+                        No current or upcoming exhibitions found. Please create an exhibition first.
                       </small>
                     )}
                   </div>
                 </div>
 
-                {/* Customer Name */}
+                {/* ── Customer Name ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">
@@ -164,7 +252,8 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                       maxLength={200}
                       value={customerName}
                       onChange={(e) => {
-                        if (/^[a-zA-Z\s]*$/.test(e.target.value)) setCustomerName(e.target.value);
+                        if (/^[a-zA-Z\s]*$/.test(e.target.value))
+                          setCustomerName(e.target.value);
                       }}
                       placeholder="Enter customer name..."
                       required
@@ -172,7 +261,7 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                   </div>
                 </div>
 
-                {/* Company Name */}
+                {/* ── Company Name ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">
@@ -190,7 +279,7 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                   </div>
                 </div>
 
-                {/* ✅ Visitor Designation */}
+                {/* ── Visitor Designation ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Visitor Designation</label>
@@ -205,7 +294,7 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                   </div>
                 </div>
 
-                {/* ✅ Leads Type */}
+                {/* ── Leads Type ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Leads Type</label>
@@ -222,54 +311,41 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                   </div>
                 </div>
 
-                {/* ✅ Product */}
+                {/* ── Product ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Product</label>
                     <select
                       className="form-select rounded-0"
-                      value={product}
-                      onChange={(e) => setProduct(e.target.value)}
+                      value={isOtherProduct ? "__other__" : product}
+                      onChange={handleProductChange}
                     >
                       <option value="">-- Select Product --</option>
-                      <option value="CCTV System">CCTV System</option>
-                      <option value="TA System">TA System</option>
-                      <option value="Hajeri">Hajeri</option>
-                      <option value="SmartFace">SmartFace</option>
-                      <option value="ZKBioSecurity">ZKBioSecurity</option>
-                      <option value="Surveillance System">Surveillance System</option>
-                      <option value="Access Control System">Access Control System</option>
-                      <option value="Turnkey Project">Turnkey Project</option>
-                      <option value="Alleviz">Alleviz</option>
-                      <option value="CafeLive">CafeLive</option>
-                      <option value="WorksJoy">WorksJoy</option>
-                      <option value="WorksJoy Blu">WorksJoy Blu</option>
-                      <option value="Fire Alarm System">Fire Alarm System</option>
-                      <option value="Fire Hydrant System">Fire Hydrant System</option>
-                      <option value="IDS">IDS</option>
-                      <option value="AI Face Machines">AI Face Machines</option>
-                      <option value="Entrance Automation">Entrance Automation</option>
-                      <option value="Guard Tour System">Guard Tour System</option>
-                      <option value="Home Automation">Home Automation</option>
-                      <option value="IP PA and Communication System">IP PA and Communication System</option>
-                      <option value="CRM">CRM</option>
-                      <option value="KMS">KMS</option>
-                      <option value="VMS">VMS</option>
-                      <option value="PMS">PMS</option>
-                      <option value="Boom Barrier System">Boom Barrier System</option>
-                      <option value="Tripod System">Tripod System</option>
-                      <option value="Flap Barrier System">Flap Barrier System</option>
-                      <option value="EPBX System">EPBX System</option>
-                      <option value="CMS">CMS</option>
-                      <option value="Lift Eliviter System">Lift Eliviter System</option>
-                      <option value="AV6">AV6</option>
-                      <option value="Walky Talky System">Walky Talky System</option>
-                      <option value="Device Management System">Device Management System</option>
+                      {PRODUCT_OPTIONS.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                      {/* ✅ Other option */}
+                      <option value="__other__">✏️ Other (Type manually)</option>
                     </select>
+
+                    {/* ✅ Show text input when "Other" is selected */}
+                    {isOtherProduct && (
+                      <input
+                        type="text"
+                        className="form-control rounded-0 mt-2"
+                        maxLength={200}
+                        value={otherProductText}
+                        onChange={(e) => setOtherProductText(e.target.value)}
+                        placeholder="Type product name..."
+                        autoFocus
+                      />
+                    )}
                   </div>
                 </div>
 
-                {/* Mobile */}
+                {/* ── Mobile ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">
@@ -281,7 +357,7 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                       maxLength={15}
                       value={mobile}
                       onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        const val = e.target.value.replace(/[^0-9]/g, "");
                         if (val.length <= 15) setMobile(val);
                       }}
                       placeholder="Enter mobile number..."
@@ -290,10 +366,15 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                   </div>
                 </div>
 
-                {/* Email */}
+                {/* ── Email ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
-                    <label className="form-label label_text">Email</label>
+                    <label className="form-label label_text">
+                      Email
+                      <small className="text-success ms-2">
+                        📧 Thank-you email will be sent
+                      </small>
+                    </label>
                     <input
                       type="email"
                       className="form-control rounded-0"
@@ -305,7 +386,7 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                   </div>
                 </div>
 
-                {/* Location */}
+                {/* ── Location ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Location</label>
@@ -320,7 +401,7 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                   </div>
                 </div>
 
-                {/* Follow-Up Date */}
+                {/* ── Follow-Up Date ── */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Follow-Up Call Date</label>
@@ -328,12 +409,14 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                       type="date"
                       className="form-control rounded-0"
                       value={followUpDate}
+                      min={todayStr}  // ✅ Cannot select past dates
                       onChange={(e) => setFollowUpDate(e.target.value)}
                     />
+                    <small className="text-muted">Follow-up date must be today or later</small>
                   </div>
                 </div>
 
-                {/* Remark */}
+                {/* ── Remark ── */}
                 <div className="col-12">
                   <div className="mb-3">
                     <label className="form-label label_text">Remark</label>
@@ -348,13 +431,20 @@ const AddExhibitionVisitPopUp = ({ handleAdd, preSelectedExhibition }) => {
                   </div>
                 </div>
 
-                {/* Buttons */}
+                {/* ── Buttons ── */}
                 <div className="row">
                   <div className="col-12 pt-2 mt-2">
-                    <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
+                    <button
+                      type="submit"
+                      className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
+                    >
                       Add Visit
                     </button>
-                    <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
+                    <button
+                      type="button"
+                      onClick={handleAdd}
+                      className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
+                    >
                       Cancel
                     </button>
                   </div>
