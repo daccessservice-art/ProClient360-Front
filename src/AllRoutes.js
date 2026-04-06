@@ -66,6 +66,9 @@ import { NotFeasibleLeadsPage } from './Components/Private/MainDashboard/Marketi
 // ✅ Match exact filename case on disk
 import { FeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/Feasibleleadspage';
 
+import { ExhibitionMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionMasterGrid";
+import { ExhibitionVisitMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionVisitMasterGrid";
+
 // Custom component to check if user has required permissions
 const SalesManagerRoute = () => {
     const { user } = useContext(UserContext);
@@ -215,7 +218,10 @@ const AllRoutes = () => {
                 <Route exact path="/ActivityLogReport" element={<ProtectRoute Component={ActivityLogReportRoute} />} />
                 <Route exact path="/AnnualReport" element={<ProtectRoute Component={AnnualReportRoute} />} />
                 <Route path="/not-feasible-leads" element={<ProtectRoute Component={NotFeasibleLeadsPage} />} />
-                <Route path="/feasible-leads" element={<ProtectRoute Component={FeasibleLeadsPage} />} />   
+                <Route path="/feasible-leads" element={<ProtectRoute Component={FeasibleLeadsPage} />} />
+                
+                <Route exact path="/ExhibitionMasterGrid" element={<ProtectRoute Component={ExhibitionMasterGrid} />} />
+                <Route exact path="/ExhibitionVisitMasterGrid" element={<ProtectRoute Component={ExhibitionVisitMasterGrid} />} />
                             
                 {/* Company Routes */}
                 {user && user?.user === 'company' && (

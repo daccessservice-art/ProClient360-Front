@@ -130,6 +130,32 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
+                    {/* ✅ Exhibition Master - NEW */}
+                    {user?.permissions?.includes("viewExhibition") || user?.user === 'company' ? (
+                        <li title="Exhibition Master"
+                            className={active === "ExhibitionMasterGrid" ? "nav-item active" : "nav-item sidebar_item"}>
+                            <Link to='/ExhibitionMasterGrid' className="nav-link ">
+                                <i className="fa-solid ps-3 fa-building-columns side_icon_fs"></i>
+                                <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                                    Exhibition Master
+                                </span>
+                            </Link>
+                        </li>
+                    ) : null}
+
+                    {/* ✅ Exhibition Visit - NEW */}
+                    {user?.permissions?.includes("viewExhibitionVisit") || user?.user === 'company' ? (
+                        <li title="Exhibition Visit"
+                            className={active === "ExhibitionVisitMasterGrid" ? "nav-item active" : "nav-item sidebar_item"}>
+                            <Link to='/ExhibitionVisitMasterGrid' className="nav-link ">
+                                <i className="fa-solid ps-3 fa-person-walking side_icon_fs"></i>
+                                <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                                    Exhibition Visit
+                                </span>
+                            </Link>
+                        </li>
+                    ) : null}
+
                     {/* REPORTS SECTION */}
                     
                     {/* Activity Log Report */}
@@ -408,4 +434,4 @@ export const Sidebar = ({ isopen, active }) => {
             </nav>
         </div>
     );
-} 
+}
