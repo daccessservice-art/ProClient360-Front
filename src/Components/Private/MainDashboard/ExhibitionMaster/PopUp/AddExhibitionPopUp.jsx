@@ -1,5 +1,7 @@
-import { useState } from "react";
+// Components/Private/MainDashboard/ExhibitionMaster/PopUp/AddExhibitionPopUp.jsx
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import axios from "axios";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { createExhibition } from "../../../../../hooks/useExhibition";
 
@@ -15,10 +17,43 @@ const AddExhibitionPopUp = ({ handleAdd }) => {
   const [stallDesignationFees, setStallDesignationFees] = useState("");
   const [status, setStatus] = useState("Upcoming");
 
+  // Exhibition Owner
+  const [exhibitionOwner, setExhibitionOwner] = useState("");
+  const [employees, setEmployees] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+
+  // Fetch employees for owner dropdown
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      setEmployeesLoading(true);
+      try {
+        const baseUrl = process.env.REACT_APP_API_URL;
+        const res = await axios.get(
+          `${baseUrl}/api/employee?q=${employeeSearch}&page=1&limit=50`,
+          { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+        );
+        if (res.data?.success) {
+          setEmployees(res.data.employees || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch employees:", err.message);
+      } finally {
+        setEmployeesLoading(false);
+      }
+    };
+
+    const timeout = setTimeout(fetchEmployees, 300);
+    return () => clearTimeout(timeout);
+  }, [employeeSearch]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!exhibitionName || !targetAddress || !dateFrom || !dateTo || !venue || !city || !country || !exhibitionFees || !stallDesignationFees) {
+    if (
+      !exhibitionName || !targetAddress || !dateFrom || !dateTo ||
+      !venue || !city || !country || !exhibitionFees || !stallDesignationFees
+    ) {
       return toast.error("Please fill all required fields");
     }
 
@@ -37,6 +72,7 @@ const AddExhibitionPopUp = ({ handleAdd }) => {
       exhibitionFees: parseFloat(exhibitionFees),
       stallDesignationFees: parseFloat(stallDesignationFees),
       status,
+      exhibitionOwner: exhibitionOwner || undefined,
     };
 
     toast.loading("Creating Exhibition...");
@@ -50,6 +86,16 @@ const AddExhibitionPopUp = ({ handleAdd }) => {
       toast.error(data.error || "Failed to create exhibition");
     }
   };
+
+  // ✅ FIX: resolve designation — it may be a populated object {_id, name} or a plain string
+  const resolveDesignation = (designation) => {
+    if (!designation) return "";
+    if (typeof designation === "object" && designation.name) return designation.name;
+    return String(designation);
+  };
+
+  // Find the selected employee object to show their details
+  const selectedEmployee = employees.find((emp) => emp._id === exhibitionOwner);
 
   return (
     <div
@@ -137,7 +183,10 @@ const AddExhibitionPopUp = ({ handleAdd }) => {
                       type="date"
                       className="form-control rounded-0"
                       value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
+                      onChange={(e) => {
+                        setDateFrom(e.target.value);
+                        if (dateTo && e.target.value > dateTo) setDateTo("");
+                      }}
                       required
                     />
                   </div>
@@ -218,6 +267,74 @@ const AddExhibitionPopUp = ({ handleAdd }) => {
                   </div>
                 </div>
 
+                {/* Exhibition Owner — full width */}
+                <div className="col-12">
+                  <div className="mb-3">
+                    <label className="form-label label_text">
+                      Exhibition Owner
+                      <small className="text-muted ms-2">(Responsible employee — contact shown in customer emails)</small>
+                    </label>
+
+                    {/* Search box */}
+                    <input
+                      type="text"
+                      className="form-control rounded-0 form-control-sm mb-1"
+                      placeholder="🔍 Search employee by name..."
+                      value={employeeSearch}
+                      onChange={(e) => setEmployeeSearch(e.target.value)}
+                    />
+
+                    <select
+                      className="form-select rounded-0"
+                      value={exhibitionOwner}
+                      onChange={(e) => setExhibitionOwner(e.target.value)}
+                      disabled={employeesLoading}
+                    >
+                      <option value="">
+                        {employeesLoading ? "⏳ Loading employees..." : "-- Select Exhibition Owner --"}
+                      </option>
+                      {employees.map((emp) => {
+                        // ✅ FIX: designation is a populated object {_id, name}, not a plain string
+                        const designationLabel = resolveDesignation(emp.designation);
+                        // ✅ FIX: employee model uses `mobileNo`, not `mobile`
+                        const mobileLabel = emp.mobileNo || "";
+
+                        return (
+                          <option key={emp._id} value={emp._id}>
+                            {emp.name}
+                            {designationLabel ? ` — ${designationLabel}` : ""}
+                            {mobileLabel ? ` (${mobileLabel})` : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {/* Show selected employee's details as confirmation */}
+                    {selectedEmployee && (
+                      <div className="alert alert-success py-2 mt-2 mb-0">
+                        <small>
+                          <i className="fa-solid fa-user-tie me-1"></i>
+                          <strong>{selectedEmployee.name}</strong>
+                          {/* ✅ FIX: resolve designation object safely */}
+                          {resolveDesignation(selectedEmployee.designation) && (
+                            <span className="text-muted ms-2">
+                              ({resolveDesignation(selectedEmployee.designation)})
+                            </span>
+                          )}
+                          {/* ✅ FIX: use mobileNo instead of mobile */}
+                          {selectedEmployee.mobileNo && (
+                            <span className="ms-3">
+                              <i className="fa-solid fa-phone me-1 text-success"></i>
+                              <strong>{selectedEmployee.mobileNo}</strong>
+                              <small className="text-muted ms-2">— this number will appear in customer emails</small>
+                            </span>
+                          )}
+                        </small>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Fees Section */}
                 <div className="col-12 mt-2">
                   <div className="row border bg-gray mx-auto p-2">
@@ -267,7 +384,10 @@ const AddExhibitionPopUp = ({ handleAdd }) => {
                         <div className="alert alert-info py-2 mb-0">
                           <small>
                             <strong>Total Estimated Cost: ₹</strong>{" "}
-                            {(parseFloat(exhibitionFees || 0) + parseFloat(stallDesignationFees || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            {(
+                              parseFloat(exhibitionFees || 0) +
+                              parseFloat(stallDesignationFees || 0)
+                            ).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           </small>
                         </div>
                       </div>
@@ -278,10 +398,17 @@ const AddExhibitionPopUp = ({ handleAdd }) => {
                 {/* Buttons */}
                 <div className="row mt-3">
                   <div className="col-12 pt-2">
-                    <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
+                    <button
+                      type="submit"
+                      className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
+                    >
                       Add
                     </button>
-                    <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
+                    <button
+                      type="button"
+                      onClick={handleAdd}
+                      className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
+                    >
                       Cancel
                     </button>
                   </div>
