@@ -12,8 +12,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
   const [employees, setEmployees] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [employeeError, setEmployeeError] = useState(null);
-
-  // ✅ FIX: Added isLoadingAddress state
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
 
   const [billingAddress, setBillingAddress] = useState({
@@ -24,7 +22,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     pincode: "",
   });
 
-  // Industry type options
   const industryOptions = [
     "IT & Software",
     "Manufacturing",
@@ -50,43 +47,34 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
   const isValidPincode = (pincode) =>
     pincode && pincode.toString().trim() !== '' && !isNaN(pincode) && parseInt(pincode) > 0;
 
-  // ✅ Fetch ALL employees for dropdown
+  // Fetch employees for dropdown
   useEffect(() => {
     const fetchEmployees = async () => {
       setEmployeesLoading(true);
       setEmployeeError(null);
-
       try {
-        console.log('🔄 Fetching employees for Update Owned By dropdown...');
         const data = await getEmployees();
-
-        console.log('📡 Employee API response:', data);
-
         if (data.success && data.employees && data.employees.length > 0) {
           setEmployees(data.employees);
-          console.log('✅ Loaded', data.employees.length, 'employees');
         } else if (data.success && data.employees && data.employees.length === 0) {
-          console.log('⚠️ No employees found in database');
           setEmployees([]);
           setEmployeeError('No employees found.');
         } else {
-          console.log('❌ Failed to load employees:', data);
           setEmployees([]);
           setEmployeeError('Failed to load employees.');
         }
       } catch (error) {
-        console.error('❌ Error fetching employees:', error);
+        console.error('Error fetching employees:', error);
         setEmployees([]);
         setEmployeeError('Error loading employees.');
       } finally {
         setEmployeesLoading(false);
       }
     };
-
     fetchEmployees();
   }, []);
 
-  // ✅ FIX: Corrected field names + debounce + loading state (mirrors AddCustomerPopUp)
+  // ✅ FIX: Pincode auto-fill with debounce + correct lowercase field names
   useEffect(() => {
     const fetchData = async () => {
       if (billingAddress.pincode && billingAddress.pincode.toString().length === 6) {
@@ -94,73 +82,58 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
         try {
           const data = await getAddress(billingAddress.pincode);
           if (data) {
-            // ✅ FIXED: was data.State, data.District, data.Country (wrong capitalization)
-            setBillingAddress(prevAddress => ({
-              ...prevAddress,
+            setBillingAddress(prev => ({
+              ...prev,
               state: data.state,
               city: data.city,
               country: data.country,
             }));
           } else {
-            setBillingAddress(prevAddress => ({
-              ...prevAddress,
-              state: "",
-              city: "",
-              country: "",
-            }));
+            setBillingAddress(prev => ({ ...prev, state: "", city: "", country: "" }));
           }
         } catch (error) {
           console.error("Error fetching address:", error);
-          setBillingAddress(prevAddress => ({
-            ...prevAddress,
-            state: "",
-            city: "",
-            country: "",
-          }));
+          setBillingAddress(prev => ({ ...prev, state: "", city: "", country: "" }));
         } finally {
           setIsLoadingAddress(false);
         }
       } else if (billingAddress.pincode.toString().length < 6) {
-        // ✅ Clear auto-filled fields if pincode is incomplete
-        setBillingAddress(prevAddress => ({
-          ...prevAddress,
-          state: "",
-          city: "",
-          country: "",
-        }));
+        setBillingAddress(prev => ({ ...prev, state: "", city: "", country: "" }));
       }
     };
 
-    // ✅ FIX: Added 500ms debounce (same as AddCustomerPopUp)
-    const timeoutId = setTimeout(() => {
-      fetchData();
-    }, 500);
-
+    const timeoutId = setTimeout(fetchData, 500);
     return () => clearTimeout(timeoutId);
   }, [billingAddress.pincode]);
 
-  // Load existing customer billing address
+  // Load existing customer billing address on mount
   useEffect(() => {
     if (customer) {
       setBillingAddress(customer.billingAddress || {
-        add: "",
-        city: "",
-        state: "",
-        country: "",
-        pincode: "",
+        add: "", city: "", state: "", country: "", pincode: "",
       });
     }
   }, [customer]);
 
-  const handleBillingChange = (e) => {
-    const { name, value } = e.target;
-    setBillingAddress({
-      ...billingAddress,
-      [name]: name === 'pincode' ? value : value.trim()
-    });
+  // ✅ FIX: Removed .trim() — trimming on keystroke breaks space input
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setCustomer((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
-  // ✅ FIX: Pincode-specific handler to allow only digits, max 6
+  // ✅ FIX: Removed .trim() from non-pincode fields — trimming on keystroke breaks space/2-word input
+  const handleBillingChange = (e) => {
+    const { name, value } = e.target;
+    setBillingAddress((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  // Pincode: digits only, max 6
   const handlePincodeChange = (e) => {
     const value = e.target.value;
     if (/^\d{0,6}$/.test(value)) {
@@ -168,47 +141,43 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     }
   };
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-    setCustomer((prevCustomer) => ({
-      ...prevCustomer,
-      [name]: value.trim(),
-    }));
-  };
-
   const handleOwnedByChange = (e) => {
-    setCustomer((prevCustomer) => ({
-      ...prevCustomer,
-      ownedBy: e.target.value,
-    }));
+    setCustomer((prev) => ({ ...prev, ownedBy: e.target.value }));
   };
 
   const handleIndustryTypeOtherChange = (e) => {
     const value = e.target.value;
     if (/^[a-zA-Z0-9\s&\-]*$/.test(value)) {
-      setCustomer((prevCustomer) => ({
-        ...prevCustomer,
-        industryTypeOther: value,
-      }));
+      setCustomer((prev) => ({ ...prev, industryTypeOther: value }));
     }
   };
 
   const handlePriorityChange = (e) => {
-    setCustomer((prevCustomer) => ({
-      ...prevCustomer,
-      customerPriority: e.target.value,
-    }));
+    setCustomer((prev) => ({ ...prev, customerPriority: e.target.value }));
   };
 
   const handleCustUpdate = async (e) => {
     e.preventDefault();
 
+    // Trim values only at submit time, not during typing
     const updatedCustomer = {
       ...customer,
-      billingAddress,
+      custName: customer.custName?.trim(),
+      email: customer.email?.trim(),
+      GSTNo: customer.GSTNo?.trim(),
+      customerContactPersonName1: customer.customerContactPersonName1?.trim(),
+      customerContactPersonName2: customer.customerContactPersonName2?.trim(),
+      phoneNumber1: customer.phoneNumber1?.trim(),
+      phoneNumber2: customer.phoneNumber2?.trim(),
+      billingAddress: {
+        ...billingAddress,
+        add: billingAddress.add?.trim(),
+        city: billingAddress.city?.trim(),
+        state: billingAddress.state?.trim(),
+        country: billingAddress.country?.trim(),
+      },
     };
 
-    // Validate required fields
     if (
       isEmptyOrWhitespace(updatedCustomer.custName) ||
       isEmptyOrWhitespace(updatedCustomer.phoneNumber1) ||
@@ -227,7 +196,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
       return;
     }
 
-    // Validate industry type "Other"
     if (updatedCustomer.industryType === 'Other' && isEmptyOrWhitespace(updatedCustomer.industryTypeOther)) {
       toast.error("Please specify the industry type when selecting 'Other'");
       return;
@@ -349,7 +317,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         <option value="">
                           {employeesLoading ? '⏳ Loading employees...' : '-- Select Employee --'}
                         </option>
-
                         {employees.length > 0 ? (
                           employees.map((emp) => (
                             <option key={emp._id} value={emp.name}>
@@ -362,25 +329,19 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                           </option>
                         )}
                       </select>
-
                       {employeesLoading && (
                         <small className="text-info">
-                          <i className="fa fa-spinner fa-spin me-1"></i>
-                          Loading employees...
+                          <i className="fa fa-spinner fa-spin me-1"></i> Loading employees...
                         </small>
                       )}
-
                       {!employeesLoading && employees.length > 0 && (
                         <small className="text-success">
-                          <i className="fa fa-check-circle me-1"></i>
-                          {employees.length} employees available
+                          <i className="fa fa-check-circle me-1"></i> {employees.length} employees available
                         </small>
                       )}
-
                       {!employeesLoading && employeeError && (
                         <small className="text-warning">
-                          <i className="fa fa-exclamation-triangle me-1"></i>
-                          {employeeError}
+                          <i className="fa fa-exclamation-triangle me-1"></i> {employeeError}
                         </small>
                       )}
                     </div>
@@ -398,10 +359,10 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         name="industryType"
                         value={customer.industryType || ""}
                         onChange={(e) => {
-                          setCustomer((prevCustomer) => ({
-                            ...prevCustomer,
+                          setCustomer((prev) => ({
+                            ...prev,
                             industryType: e.target.value,
-                            industryTypeOther: e.target.value !== 'Other' ? '' : prevCustomer.industryTypeOther
+                            industryTypeOther: e.target.value !== 'Other' ? '' : prev.industryTypeOther
                           }));
                         }}
                         required
@@ -455,9 +416,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         <option value="P2">🟡 P2 — Priority</option>
                         <option value="P3">🟢 P3 — Priority</option>
                       </select>
-                      <small className="text-muted">
-                        P1 = High &nbsp;|&nbsp; P2 = Medium &nbsp;|&nbsp; P3 = Low
-                      </small>
+                      <small className="text-muted">P1 = High &nbsp;|&nbsp; P2 = Medium &nbsp;|&nbsp; P3 = Low</small>
                     </div>
                   </div>
 
@@ -494,7 +453,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                           <input
                             type="tel"
                             pattern="[0-9]{10}"
-                            max={9999999999}
                             maxLength={10}
                             className="form-control rounded-0"
                             id="phoneNumber1"
@@ -531,7 +489,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                           <input
                             type="tel"
                             pattern="[0-9]{10}"
-                            max={9999999999}
                             maxLength={10}
                             className="form-control rounded-0"
                             id="phoneNumber2"
@@ -551,7 +508,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         <span className="AddressInfo">Address <RequiredStar /></span>
                       </div>
 
-                      {/* ✅ FIX: type="text" instead of "number", uses handlePincodeChange */}
+                      {/* Pincode */}
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <input
@@ -565,11 +522,9 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             maxLength={6}
                             required
                           />
-                          {/* ✅ FIX: Loading & error indicators like AddCustomerPopUp */}
                           {isLoadingAddress && (
                             <small className="text-info">
-                              <i className="fa fa-spinner fa-spin me-1"></i>
-                              Loading address details...
+                              <i className="fa fa-spinner fa-spin me-1"></i> Loading address details...
                             </small>
                           )}
                           {billingAddress.pincode?.toString().length === 6 && !isLoadingAddress && !billingAddress.state && (
@@ -578,7 +533,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         </div>
                       </div>
 
-                      {/* ✅ FIX: bg highlight when auto-filled, same as AddCustomerPopUp */}
+                      {/* State */}
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <input
@@ -596,6 +551,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         </div>
                       </div>
 
+                      {/* City */}
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <input
@@ -613,6 +569,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         </div>
                       </div>
 
+                      {/* Country */}
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <input
@@ -629,6 +586,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         </div>
                       </div>
 
+                      {/* Address line */}
                       <div className="col-12 col-lg-12 mt-2">
                         <div className="mb-3">
                           <textarea
