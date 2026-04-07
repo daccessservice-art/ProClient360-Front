@@ -3,17 +3,30 @@ import axios from 'axios';
 const baseUrl = process.env.REACT_APP_API_URL;
 const url = baseUrl + "/api/customer";
 
-const getCustomers = async (page = 1, limit = 20, search = null) => {
+// ✅ UPDATED: Added createdBy and ownedBy filter params
+const getCustomers = async (page = 1, limit = 20, search = null, createdBy = null, ownedBy = null) => {
   try {
-    const response = await axios.get(`${url}?q=${search}&page=${page}&limit=${limit}`, {
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('limit', limit);
+
+    if (search && search.trim() !== '' && search.toLowerCase() !== 'null') {
+      params.append('q', search);
+    }
+    if (createdBy && createdBy.trim() !== '') {
+      params.append('createdBy', createdBy);
+    }
+    if (ownedBy && ownedBy.trim() !== '') {
+      params.append('ownedBy', ownedBy);
+    }
+
+    const response = await axios.get(`${url}?${params.toString()}`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     });
-    const data = response.data;
-    return data;
-  }
-  catch (error) {
+    return response.data;
+  } catch (error) {
     console.error(error?.response?.data);
     return error?.response?.data;
   }
@@ -26,8 +39,7 @@ const getCustomerById = async (customerId) => {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     });
-    const data = response.data;
-    return data;
+    return response.data;
   } catch (error) {
     console.error(error?.response?.data);
     return error?.response?.data;
@@ -41,8 +53,7 @@ const createCustomer = async (customerData) => {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     });
-    const data = response.data;
-    return data;
+    return response.data;
   } catch (error) {
     console.error(error.response.data);
     return error.response.data;
@@ -56,8 +67,7 @@ const updateCustomer = async (updatedData) => {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     });
-    const data = response.data;
-    return data;
+    return response.data;
   } catch (error) {
     console.error(error.response.data);
     return error.response.data;
@@ -71,40 +81,29 @@ const deleteCustomer = async (Id) => {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     });
-    const data = response.data;
-
-    return data;
+    return response.data;
   } catch (error) {
     console.log(error.response.data);
     return error.response.data.error;
   }
 };
 
-// ✅ FIXED: Get employees for dropdown - using new /dropdown endpoint
+// Get employees for dropdown
 const getEmployees = async () => {
   try {
     console.log('Fetching employees from /api/employee/dropdown...');
-    
     const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/employee/dropdown`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
     });
-    
-    console.log('Employee dropdown response:', response.data);
-    
+
     if (response.data && response.data.success && response.data.employees) {
-      console.log('✅ Employees loaded successfully:', response.data.employees.length);
       return { success: true, employees: response.data.employees };
     }
-    
-    // Fallback: if response is array
     if (Array.isArray(response.data)) {
-      console.log('✅ Employees loaded (array format):', response.data.length);
       return { success: true, employees: response.data };
     }
-    
-    console.log('❌ Unexpected response format:', response.data);
     return { success: false, employees: [] };
   } catch (error) {
     console.error('❌ Error fetching employees:', error?.response?.data || error.message);
@@ -117,9 +116,7 @@ const triggerDownload = (blob, filename) => {
     if (navigator.userAgent.match(/(iPod|iPhone|iPad|Safari)/) && !navigator.userAgent.match(/Chrome/)) {
       const fileURL = URL.createObjectURL(blob);
       const newWindow = window.open(fileURL, '_blank');
-      if (!newWindow) {
-        throw new Error('Popup blocked');
-      }
+      if (!newWindow) throw new Error('Popup blocked');
       setTimeout(() => {
         newWindow.document.title = filename;
         URL.revokeObjectURL(fileURL);
@@ -147,43 +144,31 @@ const triggerDownload = (blob, filename) => {
 const exportCustomersPDF = async () => {
   try {
     const response = await axios.get(`${url}/export/pdf`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      },
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       responseType: 'blob'
     });
-    
+
     const contentDisposition = response.headers['content-disposition'];
     let filename = `customers_export_${new Date().toISOString().split('T')[0]}.pdf`;
-    
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-      if (filenameMatch && filenameMatch[1]) {
-        filename = filenameMatch[1];
-      }
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match?.[1]) filename = match[1];
     }
-    
+
     const blob = new Blob([response.data], { type: 'application/pdf' });
-    const downloadSuccess = triggerDownload(blob, filename);
-    
-    if (downloadSuccess) {
-      return { success: true, message: 'PDF exported successfully' };
-    } else {
-      return { success: false, error: 'Failed to download PDF' };
-    }
+    const ok = triggerDownload(blob, filename);
+    return ok
+      ? { success: true, message: 'PDF exported successfully' }
+      : { success: false, error: 'Failed to download PDF' };
   } catch (error) {
     console.error('PDF export error:', error);
-    
-    if (error.response && error.response.data instanceof Blob) {
+    if (error.response?.data instanceof Blob) {
       try {
-        const errorText = await error.response.data.text();
-        const errorObj = JSON.parse(errorText);
-        return { success: false, error: errorObj.error || 'Failed to export PDF' };
-      } catch (e) {
-        return { success: false, error: 'Failed to export PDF' };
-      }
+        const text = await error.response.data.text();
+        const obj = JSON.parse(text);
+        return { success: false, error: obj.error || 'Failed to export PDF' };
+      } catch { /* ignore */ }
     }
-    
     return { success: false, error: error.message || 'Failed to export PDF' };
   }
 };
@@ -191,56 +176,44 @@ const exportCustomersPDF = async () => {
 const exportCustomersExcel = async () => {
   try {
     const response = await axios.get(`${url}/export/excel`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      },
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       responseType: 'blob'
     });
-    
+
     const contentDisposition = response.headers['content-disposition'];
     let filename = `customers_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-    
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-      if (filenameMatch && filenameMatch[1]) {
-        filename = filenameMatch[1];
-      }
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match?.[1]) filename = match[1];
     }
-    
-    const blob = new Blob([response.data], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });
-    const downloadSuccess = triggerDownload(blob, filename);
-    
-    if (downloadSuccess) {
-      return { success: true, message: 'Excel exported successfully' };
-    } else {
-      return { success: false, error: 'Failed to download Excel' };
-    }
+    const ok = triggerDownload(blob, filename);
+    return ok
+      ? { success: true, message: 'Excel exported successfully' }
+      : { success: false, error: 'Failed to download Excel' };
   } catch (error) {
     console.error('Excel export error:', error);
-    
-    if (error.response && error.response.data instanceof Blob) {
+    if (error.response?.data instanceof Blob) {
       try {
-        const errorText = await error.response.data.text();
-        const errorObj = JSON.parse(errorText);
-        return { success: false, error: errorObj.error || 'Failed to export Excel' };
-      } catch (e) {
-        return { success: false, error: 'Failed to export Excel' };
-      }
+        const text = await error.response.data.text();
+        const obj = JSON.parse(text);
+        return { success: false, error: obj.error || 'Failed to export Excel' };
+      } catch { /* ignore */ }
     }
-    
     return { success: false, error: error.message || 'Failed to export Excel' };
   }
 };
 
-export { 
-  getCustomers, 
-  getCustomerById, 
-  createCustomer, 
-  updateCustomer, 
+export {
+  getCustomers,
+  getCustomerById,
+  createCustomer,
+  updateCustomer,
   deleteCustomer,
   getEmployees,
   exportCustomersPDF,
-  exportCustomersExcel 
+  exportCustomersExcel
 };

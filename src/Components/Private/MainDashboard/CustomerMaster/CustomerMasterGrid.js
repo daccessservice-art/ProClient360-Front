@@ -4,7 +4,7 @@ import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddCustomerPopUp from "./PopUp/AddCustomerPopUp";
 import UpdateCustomerPopUp from "./PopUp/UpdateCustomerPopUp";
-import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel } from "../../../../hooks/useCustomer";
+import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel, getEmployees } from "../../../../hooks/useCustomer";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
 
@@ -35,7 +35,27 @@ export const CustomerMasterGrid = () => {
     hasPrevPage: false,
   });
 
+  // ✅ NEW: Filter states
+  const [createdByFilter, setCreatedByFilter] = useState("");
+  const [ownedByFilter, setOwnedByFilter] = useState("");
+  const [filterEmployees, setFilterEmployees] = useState([]);
+
   const itemsPerPage = 20;
+
+  // ✅ NEW: Fetch employees for filter dropdowns
+  useEffect(() => {
+    const fetchFilterEmployees = async () => {
+      try {
+        const data = await getEmployees();
+        if (data.success && data.employees) {
+          setFilterEmployees(data.employees);
+        }
+      } catch (error) {
+        console.error("Error fetching employees for filters:", error);
+      }
+    };
+    fetchFilterEmployees();
+  }, []);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -72,11 +92,11 @@ export const CustomerMasterGrid = () => {
       if (result.success) {
         toast.success(result.message);
       } else {
-        toast.error(result.error || 'Failed to export PDF');
+        toast.error(result.error || "Failed to export PDF");
       }
     } catch (error) {
-      console.error('Export error:', error);
-      toast.error('An unexpected error occurred while exporting PDF');
+      console.error("Export error:", error);
+      toast.error("An unexpected error occurred while exporting PDF");
     }
   };
 
@@ -86,19 +106,29 @@ export const CustomerMasterGrid = () => {
       if (result.success) {
         toast.success(result.message);
       } else {
-        toast.error(result.error || 'Failed to export Excel');
+        toast.error(result.error || "Failed to export Excel");
       }
     } catch (error) {
-      console.error('Export error:', error);
-      toast.error('An unexpected error occurred while exporting Excel');
+      console.error("Export error:", error);
+      toast.error("An unexpected error occurred while exporting Excel");
     }
+  };
+
+  // ✅ NEW: Reset filters handler
+  const handleResetFilters = () => {
+    setCreatedByFilter("");
+    setOwnedByFilter("");
+    setSearchText("");
+    setSearch("");
+    setCurrentPage(1);
   };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await getCustomers(currentPage, itemsPerPage, search);
+        // ✅ NEW: Pass createdByFilter and ownedByFilter to API
+        const data = await getCustomers(currentPage, itemsPerPage, search, createdByFilter, ownedByFilter);
         if (data?.success) {
           setCustomers(data.customers || []);
           setPagination(data.pagination || {
@@ -120,7 +150,18 @@ export const CustomerMasterGrid = () => {
     };
 
     fetchData();
-  }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search]);
+  }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search, createdByFilter, ownedByFilter]);
+
+  // ✅ NEW: Reset to page 1 when filters change
+  const handleCreatedByFilter = (e) => {
+    setCreatedByFilter(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleOwnedByFilter = (e) => {
+    setOwnedByFilter(e.target.value);
+    setCurrentPage(1);
+  };
 
   const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
@@ -134,6 +175,7 @@ export const CustomerMasterGrid = () => {
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
     setSearch(searchText);
+    setCurrentPage(1);
   };
 
   const pageButtons = [];
@@ -141,23 +183,24 @@ export const CustomerMasterGrid = () => {
     pageButtons.push(i);
   }
 
-  // Helper: display industry type
   const getIndustryDisplay = (customer) => {
-    if (customer.industryType === 'Other') {
-      return customer.industryTypeOther || 'Other';
+    if (customer.industryType === "Other") {
+      return customer.industryTypeOther || "Other";
     }
-    return customer.industryType || 'N/A';
+    return customer.industryType || "N/A";
   };
 
-  // ✅ Helper: priority badge color
   const getPriorityBadgeClass = (priority) => {
     switch (priority) {
-      case 'P1': return 'badge bg-danger';
-      case 'P2': return 'badge bg-warning text-dark';
-      case 'P3': return 'badge bg-success';
-      default:   return 'badge bg-secondary';
+      case "P1": return "badge bg-danger";
+      case "P2": return "badge bg-warning text-dark";
+      case "P3": return "badge bg-success";
+      default:   return "badge bg-secondary";
     }
   };
+
+  // ✅ Check if any filter is active
+  const isFilterActive = createdByFilter || ownedByFilter || search;
 
   return (
     <>
@@ -180,13 +223,21 @@ export const CustomerMasterGrid = () => {
               }}
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
-                <div className="row px-2 py-1">
-                  <div className="col-12 col-lg-6">
-                    <h5 className="text-white py-2">Customer Master</h5>
+
+                {/* ── Top bar ── */}
+                <div className="row px-2 py-1 align-items-center">
+
+                  {/* Page title */}
+                  <div className="col-12 col-lg-2">
+                    <h5 className="text-white py-2 mb-0">Customer Master</h5>
                   </div>
-                  <div className="col-12 col-lg-6 ms-auto">
-                    <div className="row">
-                      <div className="col-12 col-lg-6 ms-auto text-end">
+
+                  {/* Search + Filters + Buttons */}
+                  <div className="col-12 col-lg-10">
+                    <div className="row g-2 align-items-center justify-content-end">
+
+                      {/* Search */}
+                      <div className="col-12 col-sm-6 col-lg-3">
                         <div className="form">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
@@ -200,8 +251,57 @@ export const CustomerMasterGrid = () => {
                           </form>
                         </div>
                       </div>
-                      <div className="col-12 col-lg-6 text-end mt-2 mt-lg-0">
-                        <div className="btn-group" role="group">
+
+                      {/* ✅ NEW: Created By filter */}
+                      <div className="col-12 col-sm-6 col-lg-3">
+                        <select
+                          className="form-select form-select-sm"
+                          value={createdByFilter}
+                          onChange={handleCreatedByFilter}
+                          title="Filter by Created By"
+                        >
+                          <option value="">All Created By</option>
+                          {filterEmployees.map((emp) => (
+                            <option key={emp._id} value={emp.name}>
+                              {emp.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* ✅ NEW: Owned By filter */}
+                      <div className="col-12 col-sm-6 col-lg-3">
+                        <select
+                          className="form-select form-select-sm"
+                          value={ownedByFilter}
+                          onChange={handleOwnedByFilter}
+                          title="Filter by Owned By"
+                        >
+                          <option value="">All Owned By</option>
+                          {filterEmployees.map((emp) => (
+                            <option key={emp._id} value={emp.name}>
+                              {emp.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="col-12 col-sm-6 col-lg-3 text-end">
+                        <div className="btn-group flex-wrap" role="group">
+
+                          {/* ✅ NEW: Reset filters button — only visible when a filter is active */}
+                          {isFilterActive && (
+                            <button
+                              onClick={handleResetFilters}
+                              type="button"
+                              className="btn btn-sm btn-outline-light me-1"
+                              title="Clear all filters"
+                            >
+                              <i className="fa-solid fa-xmark"></i> Reset
+                            </button>
+                          )}
+
                           <button
                             onClick={handleExportPDF}
                             type="button"
@@ -220,7 +320,7 @@ export const CustomerMasterGrid = () => {
                           >
                             <i className="fa-solid fa-file-excel"></i> Excel
                           </button>
-                          {user?.permissions?.includes("createCustomer") || user.user === 'company' ? (
+                          {user?.permissions?.includes("createCustomer") || user.user === "company" ? (
                             <button
                               onClick={handleAdd}
                               type="button"
@@ -232,10 +332,48 @@ export const CustomerMasterGrid = () => {
                           ) : null}
                         </div>
                       </div>
+
                     </div>
                   </div>
                 </div>
 
+                {/* ✅ NEW: Active filter badges */}
+                {isFilterActive && (
+                  <div className="row px-2 pb-1">
+                    <div className="col-12">
+                      <small className="text-white-50 me-2">Active filters:</small>
+                      {search && (
+                        <span className="badge bg-info text-dark me-1">
+                          Search: {search}
+                          <i
+                            className="fa fa-times ms-1 cursor-pointer"
+                            onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}
+                          ></i>
+                        </span>
+                      )}
+                      {createdByFilter && (
+                        <span className="badge bg-primary me-1">
+                          Created By: {createdByFilter}
+                          <i
+                            className="fa fa-times ms-1 cursor-pointer"
+                            onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}
+                          ></i>
+                        </span>
+                      )}
+                      {ownedByFilter && (
+                        <span className="badge bg-secondary me-1">
+                          Owned By: {ownedByFilter}
+                          <i
+                            className="fa fa-times ms-1 cursor-pointer"
+                            onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}
+                          ></i>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Table */}
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
                     <div className="table-responsive">
@@ -248,7 +386,6 @@ export const CustomerMasterGrid = () => {
                             <th>Phone</th>
                             <th>GST No</th>
                             <th>Industry Type</th>
-                            {/* ✅ NEW COLUMN */}
                             <th>Priority</th>
                             <th>Created By</th>
                             <th>Owned By</th>
@@ -269,22 +406,20 @@ export const CustomerMasterGrid = () => {
                                     {getIndustryDisplay(customer)}
                                   </span>
                                 </td>
-                                {/* ✅ PRIORITY BADGE */}
                                 <td>
                                   <span className={getPriorityBadgeClass(customer.customerPriority)}>
-                                    {customer.customerPriority || 'N/A'}
+                                    {customer.customerPriority || "N/A"}
                                   </span>
                                 </td>
-                                <td>{customer.createdBy?.name || 'N/A'}</td>
-                                <td>{customer.ownedBy || 'N/A'}</td>
+                                <td>{customer.createdBy?.name || "N/A"}</td>
+                                <td>{customer.ownedBy || "N/A"}</td>
                                 <td>
-                                  {user?.permissions?.includes("updateCustomer") || user?.user === 'company' ? (
+                                  {user?.permissions?.includes("updateCustomer") || user?.user === "company" ? (
                                     <span onClick={() => handleUpdate(customer)} className="update">
                                       <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
                                     </span>
                                   ) : ""}
-
-                                  {user?.permissions?.includes("deleteCustomer") || user?.user === 'company' ? (
+                                  {user?.permissions?.includes("deleteCustomer") || user?.user === "company" ? (
                                     <span onClick={() => handelDeleteClosePopUpClick(customer._id)} className="delete">
                                       <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
                                     </span>
@@ -305,6 +440,7 @@ export const CustomerMasterGrid = () => {
                   </div>
                 </div>
 
+                {/* Pagination */}
                 <div className="pagination-container text-center my-3 sm">
                   <button
                     disabled={!pagination.hasPrevPage}
@@ -350,6 +486,7 @@ export const CustomerMasterGrid = () => {
                     Last
                   </button>
                 </div>
+
               </div>
             </div>
           </div>
