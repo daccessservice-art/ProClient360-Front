@@ -13,6 +13,9 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [employeeError, setEmployeeError] = useState(null);
 
+  // ✅ FIX: Added isLoadingAddress state
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+
   const [billingAddress, setBillingAddress] = useState({
     add: "",
     city: "",
@@ -52,13 +55,13 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
     const fetchEmployees = async () => {
       setEmployeesLoading(true);
       setEmployeeError(null);
-      
+
       try {
         console.log('🔄 Fetching employees for Update Owned By dropdown...');
         const data = await getEmployees();
-        
+
         console.log('📡 Employee API response:', data);
-        
+
         if (data.success && data.employees && data.employees.length > 0) {
           setEmployees(data.employees);
           console.log('✅ Loaded', data.employees.length, 'employees');
@@ -79,26 +82,61 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
         setEmployeesLoading(false);
       }
     };
-    
+
     fetchEmployees();
   }, []);
 
-  // Auto-fill address from pincode change
+  // ✅ FIX: Corrected field names + debounce + loading state (mirrors AddCustomerPopUp)
   useEffect(() => {
     const fetchData = async () => {
-      if (isValidPincode(billingAddress.pincode)) {
-        const data = await getAddress(billingAddress.pincode);
-        if (data !== "Error") {
+      if (billingAddress.pincode && billingAddress.pincode.toString().length === 6) {
+        setIsLoadingAddress(true);
+        try {
+          const data = await getAddress(billingAddress.pincode);
+          if (data) {
+            // ✅ FIXED: was data.State, data.District, data.Country (wrong capitalization)
+            setBillingAddress(prevAddress => ({
+              ...prevAddress,
+              state: data.state,
+              city: data.city,
+              country: data.country,
+            }));
+          } else {
+            setBillingAddress(prevAddress => ({
+              ...prevAddress,
+              state: "",
+              city: "",
+              country: "",
+            }));
+          }
+        } catch (error) {
+          console.error("Error fetching address:", error);
           setBillingAddress(prevAddress => ({
             ...prevAddress,
-            state: data.State,
-            city: data.District,
-            country: data.Country
+            state: "",
+            city: "",
+            country: "",
           }));
+        } finally {
+          setIsLoadingAddress(false);
         }
+      } else if (billingAddress.pincode.toString().length < 6) {
+        // ✅ Clear auto-filled fields if pincode is incomplete
+        setBillingAddress(prevAddress => ({
+          ...prevAddress,
+          state: "",
+          city: "",
+          country: "",
+        }));
       }
     };
-    fetchData();
+
+    // ✅ FIX: Added 500ms debounce (same as AddCustomerPopUp)
+    const timeoutId = setTimeout(() => {
+      fetchData();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
   }, [billingAddress.pincode]);
 
   // Load existing customer billing address
@@ -120,6 +158,14 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
       ...billingAddress,
       [name]: name === 'pincode' ? value : value.trim()
     });
+  };
+
+  // ✅ FIX: Pincode-specific handler to allow only digits, max 6
+  const handlePincodeChange = (e) => {
+    const value = e.target.value;
+    if (/^\d{0,6}$/.test(value)) {
+      setBillingAddress(prev => ({ ...prev, pincode: value }));
+    }
   };
 
   const handleChange = (event) => {
@@ -285,7 +331,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                     </div>
                   </div>
 
-                  {/* ✅ Owned By - Load All Employees */}
+                  {/* Owned By */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label htmlFor="ownedBy" className="form-label label_text">
@@ -303,8 +349,7 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         <option value="">
                           {employeesLoading ? '⏳ Loading employees...' : '-- Select Employee --'}
                         </option>
-                        
-                        {/* Show all loaded employees */}
+
                         {employees.length > 0 ? (
                           employees.map((emp) => (
                             <option key={emp._id} value={emp.name}>
@@ -312,28 +357,26 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                             </option>
                           ))
                         ) : (
-                          /* Fallback if employees not loaded */
                           <option value={customer.ownedBy?.name || customer.ownedBy || ''}>
                             {customer.ownedBy?.name || customer.ownedBy || 'No employees found'}
                           </option>
                         )}
                       </select>
-                      
-                      {/* Status messages */}
+
                       {employeesLoading && (
                         <small className="text-info">
                           <i className="fa fa-spinner fa-spin me-1"></i>
                           Loading employees...
                         </small>
                       )}
-                      
+
                       {!employeesLoading && employees.length > 0 && (
                         <small className="text-success">
                           <i className="fa fa-check-circle me-1"></i>
                           {employees.length} employees available
                         </small>
                       )}
-                      
+
                       {!employeesLoading && employeeError && (
                         <small className="text-warning">
                           <i className="fa fa-exclamation-triangle me-1"></i>
@@ -508,32 +551,46 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                         <span className="AddressInfo">Address <RequiredStar /></span>
                       </div>
 
-                      <div className="col-12 col-lg-6 mt-2">
-                        <div className="mb-3">
-                          <input
-                            type="number"
-                            className="form-control rounded-0"
-                            placeholder="Pincode"
-                            id="Pincode"
-                            name="pincode"
-                            onChange={handleBillingChange}
-                            value={billingAddress.pincode || ""}
-                            required
-                          />
-                        </div>
-                      </div>
-
+                      {/* ✅ FIX: type="text" instead of "number", uses handlePincodeChange */}
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
                           <input
                             type="text"
                             className="form-control rounded-0"
-                            placeholder="State"
+                            placeholder="Enter 6-digit Pincode"
+                            id="Pincode"
+                            name="pincode"
+                            onChange={handlePincodeChange}
+                            value={billingAddress.pincode || ""}
+                            maxLength={6}
+                            required
+                          />
+                          {/* ✅ FIX: Loading & error indicators like AddCustomerPopUp */}
+                          {isLoadingAddress && (
+                            <small className="text-info">
+                              <i className="fa fa-spinner fa-spin me-1"></i>
+                              Loading address details...
+                            </small>
+                          )}
+                          {billingAddress.pincode?.toString().length === 6 && !isLoadingAddress && !billingAddress.state && (
+                            <small className="text-danger">Invalid pincode or no data found</small>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ✅ FIX: bg highlight when auto-filled, same as AddCustomerPopUp */}
+                      <div className="col-12 col-lg-6 mt-2">
+                        <div className="mb-3">
+                          <input
+                            type="text"
+                            className="form-control rounded-0"
+                            placeholder="State (Auto-filled)"
                             id="State"
                             onChange={handleBillingChange}
                             name="state"
                             maxLength={50}
                             value={billingAddress.state || ""}
+                            style={{ backgroundColor: billingAddress.state && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                             required
                           />
                         </div>
@@ -544,12 +601,13 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                           <input
                             type="text"
                             className="form-control rounded-0"
-                            placeholder="City"
+                            placeholder="City (Auto-filled)"
                             id="city"
                             onChange={handleBillingChange}
                             name="city"
                             maxLength={50}
                             value={billingAddress.city || ""}
+                            style={{ backgroundColor: billingAddress.city && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                             required
                           />
                         </div>
@@ -560,12 +618,13 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                           <input
                             type="text"
                             className="form-control rounded-0"
-                            placeholder="Country"
+                            placeholder="Country (Auto-filled)"
                             id="country"
                             name="country"
                             maxLength={50}
                             onChange={handleBillingChange}
                             value={billingAddress.country || ""}
+                            style={{ backgroundColor: billingAddress.country && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                           />
                         </div>
                       </div>
