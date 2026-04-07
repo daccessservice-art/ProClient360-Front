@@ -30,7 +30,6 @@ export const TaskSheetMaster = () => {
     setIsOpen(!isopen);
   };
 
-  // Loading states
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -62,14 +61,15 @@ export const TaskSheetMaster = () => {
   const [forTask, setForTask] = useState();
   const [showAction, setShowAction] = useState(false);
   
-  // New states for remark popup
   const [showRemarkPopup, setShowRemarkPopup] = useState(false);
   const [selectedRemark, setSelectedRemark] = useState("");
   const [selectedTaskName, setSelectedTaskName] = useState("");
   
   const [employeeTaskAssignments, setEmployeeTaskAssignments] = useState([]);
+  
+  // New state to track selected row for highlighting
+  const [selectedRowId, setSelectedRowId] = useState(null);
 
-  // Get today's date in YYYY-MM-DD format for min attribute
   const today = new Date().toISOString().split('T')[0];
 
   const loadEmployees = useCallback(async (page = 1, search = "") => {
@@ -119,10 +119,11 @@ export const TaskSheetMaster = () => {
     setTaskAddPopUpShow(!taskAddPopUpShow);
   };
 
-  const forActionShow = async (id) => {
+  const forActionShow = async (taskId, rowId) => {
     try {
       setActionLoading(true);
-      const data = await getAllActions(id);
+      setSelectedRowId(rowId); // Set selected row for highlighting
+      const data = await getAllActions(taskId);
       setForTask(data?.actions);
       setShowAction(true);
     } catch (error) {
@@ -132,7 +133,11 @@ export const TaskSheetMaster = () => {
     }
   }
 
-  // New function to handle viewing remark
+  const handleCloseAction = () => {
+    setShowAction(false);
+    setSelectedRowId(null); // Clear row highlight when closing
+  }
+
   const handleViewRemark = (remark, taskName) => {
     setSelectedRemark(remark || "No remark provided");
     setSelectedTaskName(taskName);
@@ -183,7 +188,6 @@ export const TaskSheetMaster = () => {
   };
 
   const handleSelect = (task, isSelected) => {
-    // console.log(task.name + " has " + (isSelected ? "selected" : "unselected"));
   };
 
   const handleExpanderClick = (task) => {
@@ -238,7 +242,7 @@ export const TaskSheetMaster = () => {
                       priority: task.priority || 'medium',
                       assignedBy: task.assignedBy?.name || 'Not Assigned',
                       assignedById: task.assignedBy?._id || null,
-                      remark: task.remark || '' // Add remark to assignments
+                      remark: task.remark || ''
                     });
                   }
                 });
@@ -262,7 +266,7 @@ export const TaskSheetMaster = () => {
                 priority: assignment.priority,
                 assignedBy: assignment.assignedBy,
                 assignedById: assignment.assignedById,
-                remark: assignment.remark // Add remark to tasks
+                remark: assignment.remark
               });
             });
             
@@ -334,7 +338,6 @@ export const TaskSheetMaster = () => {
   };
 
   const handleTaskAdd = async () => {
-    // Prevent multiple submissions
     if (submitting) return;
     
     const employeeIds = selectedEmployees.map(emp => emp.value);
@@ -352,12 +355,10 @@ export const TaskSheetMaster = () => {
       return toast.error("Please fill all required fields");
     }
 
-    // Check remark length
     if (remark.length > 2000) {
       return toast.error("Remark cannot exceed 2000 characters");
     }
 
-    // Check if dates are before today
     if (new Date(startDate) < new Date(today)) {
       return toast.error("Start date cannot be before today");
     }
@@ -366,7 +367,6 @@ export const TaskSheetMaster = () => {
       return toast.error("End date cannot be before today");
     }
 
-    // Check if end date is before start date
     if (new Date(endDate) < new Date(startDate)) {
       return toast.error("End date cannot be before start date");
     }
@@ -400,7 +400,6 @@ export const TaskSheetMaster = () => {
     setPriority("medium");
   };
 
-  // Reset end date when start date changes if end date is before new start date
   useEffect(() => {
     if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
       setEndDate("");
@@ -461,53 +460,89 @@ export const TaskSheetMaster = () => {
                                   <th>Priority</th>
                                   <th>Start Date</th>
                                   <th>End Date</th>
-                                  <th>Actions</th>
+                                  <th className="text-center">Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {employeeTaskAssignments.flatMap((assignment) =>
-                                  assignment.tasks.map((task, index) => (
-                                    <tr key={`${assignment.employeeId}-${task.taskId}-${index}`}>
-                                     <td className="align-middle"><span className="fw-bold">{task.assignedBy}</span></td>
-                                      <td className="align-middle">
-                                        <strong>{assignment.employeeName}</strong>
-                                      </td>
-                                      <td className="align-middle text-start">
-                                        {task.taskName}
-                                        {task.remark && (
+                                  assignment.tasks.map((task, index) => {
+                                    const rowId = `${assignment.employeeId}-${task.taskId}-${index}`;
+                                    const isSelected = selectedRowId === rowId;
+                                    return (
+                                      <tr 
+                                        key={rowId}
+                                        style={{
+                                          backgroundColor: isSelected ? "#e7f1ff" : "transparent",
+                                          borderLeft: isSelected ? "4px solid #0d6efd" : "none",
+                                          transition: "all 0.3s ease",
+                                        }}
+                                      >
+                                        <td className="align-middle"><span className="fw-bold">{task.assignedBy}</span></td>
+                                        <td className="align-middle">
+                                          <strong>{assignment.employeeName}</strong>
+                                        </td>
+                                        <td className="align-middle text-start">
+                                          {task.taskName}
+                                          {task.remark && (
+                                            <button
+                                              type="button"
+                                              className="btn btn-sm btn-link p-0 ms-2"
+                                              onClick={() => handleViewRemark(task.remark, task.taskName)}
+                                              title="View Remark"
+                                            >
+                                              <i className="fa-solid fa-eye text-primary"></i>
+                                            </button>
+                                          )}
+                                        </td>
+                                        <td className="align-middle text-center">
+                                          <span className={`badge ${
+                                            task.priority === 'high' ? 'bg-danger' : 
+                                            task.priority === 'medium' ? 'bg-warning' : 
+                                            'bg-info'
+                                          }`}>
+                                            {task.priority?.charAt(0).toUpperCase() + task.priority?.slice(1)}
+                                          </span>
+                                        </td>
+                                        <td className="align-middle">{new Date(task.startDate).toLocaleDateString()}</td>
+                                        <td className="align-middle">{new Date(task.endDate).toLocaleDateString()}</td>
+                                        <td className="align-middle text-center">
                                           <button
                                             type="button"
-                                            className="btn btn-sm btn-link p-0 ms-2"
-                                            onClick={() => handleViewRemark(task.remark, task.taskName)}
-                                            title="View Remark"
+                                            className="btn btn-sm px-3 py-1 d-inline-flex align-items-center justify-content-center"
+                                            onClick={() => forActionShow(task.taskId, rowId)}
+                                            title="View Actions"
+                                            style={{
+                                              backgroundColor: isSelected ? "#0d6efd" : "#e7f1ff",
+                                              border: "2px solid #0d6efd",
+                                              borderRadius: "6px",
+                                              color: isSelected ? "#ffffff" : "#0d6efd",
+                                              fontWeight: "600",
+                                              fontSize: "13px",
+                                              transition: "all 0.3s ease",
+                                              cursor: "pointer",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              if (!isSelected) {
+                                                e.currentTarget.style.backgroundColor = "#0d6efd";
+                                                e.currentTarget.style.color = "#ffffff";
+                                                e.currentTarget.style.transform = "scale(1.05)";
+                                              }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              if (!isSelected) {
+                                                e.currentTarget.style.backgroundColor = "#e7f1ff";
+                                                e.currentTarget.style.color = "#0d6efd";
+                                                e.currentTarget.style.transform = "scale(1)";
+                                              }
+                                            }}
                                           >
-                                            <i className="fa-solid fa-eye text-primary"></i>
+                                            <i className="fa-solid fa-list-check me-1"></i>
+                                            View
                                           </button>
-                                        )}
-                                      </td>
-                                      <td className="align-middle text-center">
-                                        <span className={`badge ${
-                                          task.priority === 'high' ? 'bg-danger' : 
-                                          task.priority === 'medium' ? 'bg-warning' : 
-                                          'bg-info'
-                                        }`}>
-                                          {task.priority?.charAt(0).toUpperCase() + task.priority?.slice(1)}
-                                        </span>
-                                      </td>
-                                      <td className="align-middle">{new Date(task.startDate).toLocaleDateString()}</td>
-                                      <td className="align-middle">{new Date(task.endDate).toLocaleDateString()}</td>
-                                      <td className="align-middle text-center">
-                                        <button
-                                          type="button"
-                                          className="btn btn-sm btn-link p-0"
-                                          onClick={() => forActionShow(task.taskId)}
-                                          title="View Actions"
-                                        >
-                                          <i className="fa-solid fa-list-check text-info"></i>
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
                                 )}
                               </tbody>
                             </table>
@@ -757,9 +792,10 @@ export const TaskSheetMaster = () => {
                           </div>
                           <div className="col-12 col-lg-6 text-end">
                             <span
-                              onClick={() => setShowAction(false)}
+                              onClick={handleCloseAction}
                               type="button"
                               className="close  px-3"
+                              style={{ cursor: "pointer" }}
                             >
                               <span aria-hidden="true">&times;</span>
                             </span>
@@ -826,7 +862,6 @@ export const TaskSheetMaster = () => {
                       </div>
                     )}
 
-                    {/* New Remark Popup */}
                     {showRemarkPopup && (
                       <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
                         <div className="modal-dialog modal-lg">
