@@ -16,7 +16,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
   const [allCategories, setAllCategories] = useState([]);
 
   // Base UOM options
-  const uomOptions = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton"];
+  const uomOptions = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton", "nos"];
   
   // Category options - these must match the enum values in the schema
   const categoryOptions = [

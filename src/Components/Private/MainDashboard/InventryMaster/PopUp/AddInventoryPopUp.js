@@ -46,7 +46,7 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
   const [allCategories, setAllCategories] = useState([]);
 
   const categories = ['Raw Material', 'Finished Goods', 'Repairing Material', 'Scrap', 'Asset']; // Added 'Asset'
-  const uomOptions = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton"];
+  const uomOptions = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton", "nos"];
   
   // Category options - added "Asset"
   const categoryOptions = [
