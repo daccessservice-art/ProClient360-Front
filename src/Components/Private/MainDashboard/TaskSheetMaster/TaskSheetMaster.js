@@ -19,6 +19,7 @@ import { getAllActions } from "../../../../hooks/useAction";
 import { formatDateforEditAction, formatDateTimeForDisplay } from "../../../../utils/formatDate";
 import { RequiredStar } from "../../RequiredStar/RequiredStar";
 import { getProject } from "../../../../hooks/useProjects";
+import { formatDate } from "../../../../utils/formatDate";
 
 const PAGE_SIZE = 10;
 
@@ -503,8 +504,8 @@ export const TaskSheetMaster = () => {
                                             {task.priority?.charAt(0).toUpperCase() + task.priority?.slice(1)}
                                           </span>
                                         </td>
-                                        <td className="align-middle">{new Date(task.startDate).toLocaleDateString()}</td>
-                                        <td className="align-middle">{new Date(task.endDate).toLocaleDateString()}</td>
+                                        <td className="align-middle">{formatDate(task.startDate)}</td>
+                                        <td className="align-middle">{formatDate(task.endDate)}</td>
                                         <td className="align-middle text-center">
                                           <button
                                             type="button"

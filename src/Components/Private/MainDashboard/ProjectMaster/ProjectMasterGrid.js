@@ -31,7 +31,6 @@ export const ProjectMasterGrid = () => {
   const [selectedId, setSelecteId] = useState(null);
   const [project, setProject] = useState([]);
 
-  // Add search state
   const [searchTerm, setSearchTerm] = useState("");
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({ status: null });
@@ -81,7 +80,6 @@ export const ProjectMasterGrid = () => {
     setPagination((prev) => ({ ...prev, currentPage: 1 }));
   };
 
-  // Add search handler for Enter key
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
   };
@@ -102,11 +100,9 @@ export const ProjectMasterGrid = () => {
     toast.error(data?.error);
   };
 
-  // Extract fetchData to a separate function
   const fetchData = async () => {
     try {
       setLoading(true);
-      // Pass search to getProjects (not searchTerm)
       const data = await getProjects(pagination.currentPage, itemsPerPage, filters, search);
       if (data?.success) {
         setProject(data.projects || []);
@@ -132,18 +128,26 @@ export const ProjectMasterGrid = () => {
     fetchData();
   }, [pagination.currentPage, AddPopUpShow, UpdatePopUpShow, deletePopUpShow, filters, search]);
 
-  // Helper function to get status badge styles
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case "Upcoming":
-        return "bg-primary";           // Blue
+        return "bg-primary";
       case "Inprocess":
-        return "bg-warning text-dark"; // Orange
+        return "bg-warning text-dark";
       case "Completed":
-        return "bg-success";           // Green
+        return "bg-success";
       default:
         return "bg-secondary";
     }
+  };
+
+  // Arrow color based on actual task count from backend
+  const getAssignIconColor = (taskCount) => {
+    return taskCount > 0 ? "#198754" : "#adb5bd"; // green if tasks exist, grey if not
+  };
+
+  const getAssignIconTitle = (taskCount) => {
+    return taskCount > 0 ? `${taskCount} Task(s) Assigned` : "No Tasks Assigned Yet";
   };
 
   return (
@@ -174,7 +178,6 @@ export const ProjectMasterGrid = () => {
 
                   <div className="col-12 col-lg-6 ms-auto text-end">
                     <div className="row">
-                      {/* Add search input field without button */}
                       <div className="col-8 col-lg-6">
                         <div className="input-group">
                           <input
@@ -186,8 +189,8 @@ export const ProjectMasterGrid = () => {
                             onKeyDown={handleSearchKeyDown}
                           />
                           {searchTerm && (
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               className="btn btn-light border-start-0"
                               onClick={() => {
                                 setSearchTerm("");
@@ -199,13 +202,13 @@ export const ProjectMasterGrid = () => {
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="col-4 col-lg-3">
                         <select
                           className="form-select bg_edit"
                           aria-label="Default select example"
                           name="projectStatus"
-                          onChange={(e) => handleChange('status',e.target.value)}
+                          onChange={(e) => handleChange('status', e.target.value)}
                         >
                           <option value=""> Project Status</option>
                           <option value="Upcoming">Upcoming</option>
@@ -215,7 +218,7 @@ export const ProjectMasterGrid = () => {
                       </div>
 
                       {user?.permissions?.includes("createProject") ? (
-                      <div className="col-4 col-lg-3 ms-auto">
+                        <div className="col-4 col-lg-3 ms-auto">
                           <button
                             onClick={handleAdd}
                             type="button"
@@ -223,8 +226,8 @@ export const ProjectMasterGrid = () => {
                           >
                             <i className="fa-solid fa-plus"></i> Add
                           </button>
-                      </div>
-                      ) : null }
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -238,6 +241,7 @@ export const ProjectMasterGrid = () => {
                             <th>Sr. No</th>
                             <th className="align_left_td td_width">Customer Name</th>
                             <th className="align_left_td td_width">Product Name</th>
+                            <th>PO Number</th>
                             <th>Created By</th>
                             <th>Created Date</th>
                             <th>Start Date</th>
@@ -251,10 +255,21 @@ export const ProjectMasterGrid = () => {
                           {project.length > 0 ? (
                             project.map((project, index) => (
                               <tr className="border my-4" key={project._id}>
-                                <td className="w-10">{index + 1 + (pagination.currentPage - 1) * itemsPerPage}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">{project.custId?.custName || "N/A"}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">{project.name}</td>
-                                <td className="w-30">{project.createdBy?.name || "Unknown"}</td>
+                                <td className="w-10">
+                                  {index + 1 + (pagination.currentPage - 1) * itemsPerPage}
+                                </td>
+                                <td className="align_left_td td_width wrap-text-of-col">
+                                  {project.custId?.custName || "N/A"}
+                                </td>
+                                <td className="align_left_td td_width wrap-text-of-col">
+                                  {project.name}
+                                </td>
+                                <td className="w-20">
+                                  {project.purchaseOrderNo || "N/A"}
+                                </td>
+                                <td className="w-30">
+                                  {project.createdBy?.name || "Unknown"}
+                                </td>
                                 <td className="w-20">{formatDate(project.createdAt)}</td>
                                 <td className="w-20">{formatDate(project.startDate)}</td>
                                 <td className="w-20">{formatDate(project.endDate)}</td>
@@ -264,32 +279,39 @@ export const ProjectMasterGrid = () => {
                                   </span>
                                 </td>
                                 <td className="w-20">
-                                  {user?.permissions?.includes("viewTaskSheet") || user?.user==='company'?(
-                                  <i
-                                    onClick={() => {
-                                      navigate(`/project/${project._id}`);
-                                    }}
-                                    className="fa-solid fa-share cursor-pointer"
-                                  ></i>
-                                  ):null}
+                                  {user?.permissions?.includes("viewTaskSheet") || user?.user === 'company' ? (
+                                    <i
+                                      onClick={() => navigate(`/project/${project._id}`)}
+                                      className="fa-solid fa-share cursor-pointer"
+                                      title={getAssignIconTitle(project.taskCount || 0)}
+                                      style={{
+                                        color: getAssignIconColor(project.taskCount || 0),
+                                        fontSize: '18px',
+                                        cursor: 'pointer',
+                                        transition: 'transform 0.2s',
+                                      }}
+                                      onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.3)'}
+                                      onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                    ></i>
+                                  ) : null}
                                 </td>
                                 <td className="w-20">
-                                {user?.permissions?.includes("updateProject") || user?.user==='company'?(
-                                  <span onClick={() => handleUpdate(project)} className="update">
-                                    <i className="mx-1 fa-solid fa-pen text-success cursor-pointer"></i>
-                                  </span>
-                                  ):null}
-                                  {user?.permissions?.includes("deleteProject") || user?.user==='company'?(
-                                  <span onClick={() => handelDeleteClosePopUpClick(project._id)} className="delete">
-                                    <i className="mx-1 fa-solid fa-trash text-danger cursor-pointer"></i>
-                                  </span>
-                                  ):null}
+                                  {user?.permissions?.includes("updateProject") || user?.user === 'company' ? (
+                                    <span onClick={() => handleUpdate(project)} className="update">
+                                      <i className="mx-1 fa-solid fa-pen text-success cursor-pointer"></i>
+                                    </span>
+                                  ) : null}
+                                  {user?.permissions?.includes("deleteProject") || user?.user === 'company' ? (
+                                    <span onClick={() => handelDeleteClosePopUpClick(project._id)} className="delete">
+                                      <i className="mx-1 fa-solid fa-trash text-danger cursor-pointer"></i>
+                                    </span>
+                                  ) : null}
                                 </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="10" className="text-center">
+                              <td colSpan="11" className="text-center">
                                 No data found
                               </td>
                             </tr>
