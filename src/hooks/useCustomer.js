@@ -1,3 +1,6 @@
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 📄 FILE: hooks/useCustomer.js
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import axios from 'axios';
 
 const baseUrl = process.env.REACT_APP_API_URL;
@@ -28,6 +31,28 @@ const getCustomers = async (page = 1, limit = 20, search = null, createdBy = nul
     return response.data;
   } catch (error) {
     console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
+// ✅ NEW: Get customer count by ownedBy (for employee dashboard)
+const getCustomerCountByOwner = async (ownerName) => {
+  try {
+    const params = new URLSearchParams();
+    params.append('page', 1);
+    params.append('limit', 1); // We only need count, not actual data
+    if (ownerName && ownerName.trim() !== '') {
+      params.append('ownedBy', ownerName.trim());
+    }
+
+    const response = await axios.get(`${url}?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching customer count by owner:', error?.response?.data);
     return error?.response?.data;
   }
 };
@@ -209,6 +234,7 @@ const exportCustomersExcel = async () => {
 
 export {
   getCustomers,
+  getCustomerCountByOwner,  // ✅ NEW EXPORT
   getCustomerById,
   createCustomer,
   updateCustomer,

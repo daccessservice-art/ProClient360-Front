@@ -1,14 +1,26 @@
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 📄 FILE: EmployeeMainDashboard.js
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Sidebar } from "../MainDashboard/Sidebar/Sidebar";
 import { EmployeeDasboardCards } from "./EmployeeDasboardCards";
-import { AssignInproccessSection } from "./AssignInproccessSection";
+import { EmployeeSalesOverviewCards } from "./EmployeeSalesOverviewCards";
 import { PerFormanceChart } from "./PerFormanceChart";
 import { getEmployeeDashboard } from "../../../hooks/useEmployees";
+import { getCustomerCountByOwner } from "../../../hooks/useCustomer";
 import { Header } from "../MainDashboard/Header/Header";
 import { EmployeeLeadFollowUpSection } from "./EmployeeLeadFollowUpSection";
 
 const MY_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/my-leads`;
+
+const formatAmountCompact = (amount) => {
+    if (!amount || amount <= 0) return "₹0";
+    if (amount >= 10000000) return `₹.${(amount / 10000000).toFixed(1)} Cr`;
+    if (amount >= 100000) return `₹.${(amount / 100000).toFixed(1)} L`;
+    if (amount >= 1000) return `₹.${(amount / 1000).toFixed(0)}K`;
+    return `₹${amount.toLocaleString('en-IN')}`;
+};
 
 function EmployeeMainDashboard() {
     const [isopen, setIsOpen] = useState(false);
@@ -20,9 +32,15 @@ function EmployeeMainDashboard() {
     const [inprocessTasks, setInproccessTasks] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // ── Fetch ALL leads with no limit for accurate today/overdue counts ──
     const [allMyLeads, setAllMyLeads] = useState([]);
     const [leadsLoading, setLeadsLoading] = useState(true);
+
+    // ✅ State names now match card prop names exactly
+    const [totalCustomers, setTotalCustomers] = useState(0);
+    const [activeQuotationFunnel, setActiveQuotationFunnel] = useState("₹0");
+    const [wonLeads, setWonLeads] = useState(0);
+    const [lostLeads, setLostLeads] = useState(0);
+    const [salesDataLoading, setSalesDataLoading] = useState(false);
 
     useEffect(() => {
         const fetchAllLeads = async () => {
@@ -65,11 +83,55 @@ function EmployeeMainDashboard() {
         fetchData();
     }, []);
 
+    // ✅ Fetch sales overview data
+    useEffect(() => {
+        const fetchSalesOverviewData = async () => {
+            try {
+                const userData = JSON.parse(localStorage.getItem("user") || "{}");
+                const designation = userData?.designation?.toLowerCase() || "";
+                const isSales = designation.includes("sales") || designation.includes("marketing");
+
+                if (!isSales) return;
+
+                setSalesDataLoading(true);
+
+                // 1. Customer count
+                const employeeName = userData?.name;
+                if (employeeName) {
+                    const custRes = await getCustomerCountByOwner(employeeName);
+                    if (custRes?.success && custRes?.pagination) {
+                        setTotalCustomers(custRes.pagination.totalCustomers || 0);
+                    }
+                }
+
+                // 2. Leads counts + quotation funnel
+                const leadsRes = await axios.get(MY_LEADS_URL, {
+                    params: { page: 1, limit: 1 },
+                    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+                });
+
+                if (leadsRes.data?.success) {
+                    const counts = leadsRes.data.leadCounts || {};
+                    const funnel = leadsRes.data.quotationFunnel || {};
+
+                    setWonLeads(counts.winCount || 0);
+                    setLostLeads(counts.lostCount || 0);
+                    setActiveQuotationFunnel(formatAmountCompact(funnel.totalActiveQuotationAmount || 0));
+                }
+            } catch (error) {
+                console.error("Error fetching sales overview data:", error);
+            } finally {
+                setSalesDataLoading(false);
+            }
+        };
+        fetchSalesOverviewData();
+    }, []);
+
     const toggle = () => setIsOpen(!isopen);
 
     return (
         <>
-            {(loading || leadsLoading) && (
+            {(loading || leadsLoading || salesDataLoading) && (
                 <div className="overlay">
                     <span className="loader"></span>
                 </div>
@@ -102,13 +164,20 @@ function EmployeeMainDashboard() {
                                     inproccessProjectCount={inproccessProjectCount}
                                 />
 
-                                <AssignInproccessSection
+                                {/* ✅ Prop names match exactly what cards expect */}
+                                <EmployeeSalesOverviewCards
+                                    targetAmount="0"
+                                    totalCustomers={totalCustomers}
+                                    activeQuotationFunnel={activeQuotationFunnel}
+                                    wonLeads={wonLeads}
+                                    lostLeads={lostLeads}
+                                />
+
+                                <EmployeeLeadFollowUpSection
+                                    leads={allMyLeads}
                                     assignedTasks={assignedTasks}
                                     inprocessTasks={inprocessTasks}
                                 />
-
-                                {/* ── Today Follow-up & Overdue Leads ── */}
-                                <EmployeeLeadFollowUpSection leads={allMyLeads} />
 
                                 <PerFormanceChart />
 

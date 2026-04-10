@@ -1,20 +1,31 @@
-import { useNavigate } from "react-router-dom"
-import { CompanyInfEmployeeDashboardPieChartoPieChart } from "./EmployeeDashboardPieChart"
-// import { CompanyInfoPieChart } from "./CompanyInfoPieChart"
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 📄 FILE: EmployeeDasboardCards.js
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+import { useEffect, useState } from "react";
+import { CompanyInfEmployeeDashboardPieChartoPieChart } from "./EmployeeDashboardPieChart";
 
+export const EmployeeDasboardCards = ({ totalProjectCount, completedProjectCount, inproccessProjectCount }) => {
+    const [isSalesEmployee, setIsSalesEmployee] = useState(false);
 
-export const EmployeeDasboardCards = ({totalProjectCount,completedProjectCount,inproccessProjectCount}) => {
+    useEffect(() => {
+        try {
+            const userData = JSON.parse(localStorage.getItem("user") || "{}");
+            const d = userData?.designation?.toLowerCase() || "";
+            setIsSalesEmployee(d.includes("sales") || d.includes("marketing"));
+        } catch {
+            setIsSalesEmployee(false);
+        }
+    }, []);
 
-    const navigate = useNavigate()
+    // ── HIDE for Sales & Marketing (they see the 5-card overview instead) ──
+    if (isSalesEmployee) return null;
 
     return (
         <div className="row  bg-white p-2 m-1 border rounded" >
             <div className="col-12 col-lg-8 py-1 " >
                 <div className="row pt-3">
 
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer"
-                        // onClick={() => navigate('/')}
-                    >
+                    <div className="col-12 col-md-4 pb-3 cursor-pointer">
                         <div className="p-4 background_style bg_sky" >
                             <div className="row">
                                 <div className="col-9">
@@ -22,7 +33,6 @@ export const EmployeeDasboardCards = ({totalProjectCount,completedProjectCount,i
                                         Total Projects
                                     </h6>
                                     <h2 className="pt-2 fw-bold card_count demo_bottom">
-                                        {/* {categorywise.finished} */}
                                         {totalProjectCount }
                                     </h2>
                                 </div>
@@ -33,9 +43,7 @@ export const EmployeeDasboardCards = ({totalProjectCount,completedProjectCount,i
                         </div>
                     </div>
 
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer"
-                        // onClick={() => navigate('/')}
-                    >
+                    <div className="col-12 col-md-4 pb-3 cursor-pointer">
                         <div className="p-4 background_style PurpleColor ">
                             <div className="row">
                                 <div className="col-9">
@@ -43,7 +51,6 @@ export const EmployeeDasboardCards = ({totalProjectCount,completedProjectCount,i
                                         Completed Projects
                                     </h6>
                                     <h2 className="pt-2 fw-bold card_count">
-                                        {/* {categorywise.inprocess} */}
                                         {completedProjectCount}
                                     </h2>
                                 </div>
@@ -54,10 +61,7 @@ export const EmployeeDasboardCards = ({totalProjectCount,completedProjectCount,i
                         </div>
                     </div>
 
-
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer"
-                        // onClick={() => navigate('/')}
-                    >
+                    <div className="col-12 col-md-4 pb-3 cursor-pointer">
                         <div className="p-4 background_style pinkcolor ">
                             <div className="row">
                                 <div className="col-9">
@@ -65,7 +69,6 @@ export const EmployeeDasboardCards = ({totalProjectCount,completedProjectCount,i
                                         Inprocess Projects
                                     </h6>
                                     <h2 className="pt-2 fw-bold card_count">
-                                        {/* {categorywise.upcoming} */}
                                         {inproccessProjectCount}
                                     </h2>
                                 </div>
@@ -74,11 +77,7 @@ export const EmployeeDasboardCards = ({totalProjectCount,completedProjectCount,i
                                 </div>
                             </div>
                         </div>
-
                     </div>
-
-
-
 
                 </div>
             </div>
@@ -87,9 +86,6 @@ export const EmployeeDasboardCards = ({totalProjectCount,completedProjectCount,i
                     totalProjectCount={totalProjectCount} 
                     completedProjectCount={completedProjectCount} 
                     inproccessProjectCount={inproccessProjectCount} />
-
-
-            {/* <CompanyInfoPieChart categorywise={categorywise}/> */}
         </div>
     )
 }
