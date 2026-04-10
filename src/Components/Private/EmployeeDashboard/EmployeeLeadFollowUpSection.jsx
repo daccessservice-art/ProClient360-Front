@@ -7,7 +7,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   const [activeTab, setActiveTab] = useState("today");
   const [userDesignation, setUserDesignation] = useState("");
 
-  // ── Get designation from localStorage "user" key ──
   useEffect(() => {
     try {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
@@ -17,7 +16,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     }
   }, []);
 
-  // ── Fetch ALL leads ──
   useEffect(() => {
     const fetchAll = async () => {
       try {
@@ -38,16 +36,15 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
 
   const sourceLeads = allLeads.length > 0 ? allLeads : leads;
 
-  // ── Check if Sales or Marketing designation ──
   const isSalesOrMarketing = useMemo(() => {
     const d = userDesignation?.toLowerCase() || "";
-    return d.includes("sales") || d.includes("marketing");
+    const salesKeywords = ["sales", "marketing", "bde", "amc", "tender"];
+    return salesKeywords.some(kw => d.includes(kw));
   }, [userDesignation]);
 
   const { todayLeads, overdueLeads, pendingLeads } = useMemo(() => {
     const today = [], overdue = [], pending = [];
 
-    // ── Only process leads for Sales / Marketing employees ──
     if (!isSalesOrMarketing) {
       return { todayLeads: today, overdueLeads: overdue, pendingLeads: pending };
     }
@@ -90,7 +87,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     day: "2-digit", month: "short", year: "numeric",
   });
 
-  // ── Hide lead tabs completely for non Sales/Marketing ──
   const allTabs = [
     { key: "today",    label: "Today Follow-up",  count: todayLeads.length,            color: "#0d6efd", pulse: "pulseBlue",   leadTab: true  },
     { key: "pending",  label: "Pending Enquiries", count: pendingLeads.length,           color: "#f97316", pulse: "pulseOrange", leadTab: true  },
@@ -99,13 +95,11 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     { key: "active",   label: "Inprocess Tasks",   count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
   ];
 
-  // ── Filter tabs based on designation ──
   const tabs = allTabs.filter(tab => {
     if (tab.leadTab) return isSalesOrMarketing;
     return true;
   });
 
-  // ── Set default tab based on designation ──
   useEffect(() => {
     if (!isSalesOrMarketing) {
       setActiveTab("assigned");
@@ -149,7 +143,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
         width: "100%",
       }}>
 
-        {/* ── Header ── */}
         <div style={{
           background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
           borderBottom: "1px solid rgba(0,0,0,0.07)",
@@ -189,7 +182,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
           )}
         </div>
 
-        {/* ── Pill Tabs ── */}
         <div style={{ padding: "16px 20px 0", display: "flex", flexWrap: "wrap", gap: "10px" }}>
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -234,7 +226,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
           })}
         </div>
 
-        {/* ── Table ── */}
         <div style={{ padding: "16px 20px 20px", width: "100%" }}>
           <div
             className="table-responsive"
@@ -314,7 +305,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                 ) : (
                   currentData.map((item, idx) =>
                     isTaskTab ? (
-                      /* ── Task Rows ── */
                       <tr
                         key={item._id}
                         style={{
@@ -350,7 +340,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                         </td>
                       </tr>
                     ) : (
-                      /* ── Lead Rows — Sales & Marketing only ── */
                       <tr
                         key={item._id}
                         style={{

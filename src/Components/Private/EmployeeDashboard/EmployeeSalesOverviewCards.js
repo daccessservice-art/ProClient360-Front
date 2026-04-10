@@ -16,7 +16,8 @@ export const EmployeeSalesOverviewCards = ({
         try {
             const userData = JSON.parse(localStorage.getItem("user") || "{}");
             const d = userData?.designation?.toLowerCase() || "";
-            setIsSalesEmployee(d.includes("sales") || d.includes("marketing"));
+            const salesKeywords = ["sales", "marketing", "bde", "amc", "tender"];
+            setIsSalesEmployee(salesKeywords.some(kw => d.includes(kw)));
         } catch {
             setIsSalesEmployee(false);
         }
