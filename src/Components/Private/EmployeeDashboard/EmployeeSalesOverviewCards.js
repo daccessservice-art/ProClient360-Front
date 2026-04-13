@@ -35,7 +35,7 @@ export const EmployeeSalesOverviewCards = ({
         <div className="row bg-white p-2 m-1 border rounded">
 
             <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style" style={{ background: "#FFC7C6" }}>
+                <div className="p-4 background_style" style={{ background: "#F6FCFD" }}>
                     <div className="row">
                         <div className="col-9">
                             <h6 className="text-dark card_heading">Target</h6>
@@ -49,7 +49,7 @@ export const EmployeeSalesOverviewCards = ({
             </div>
 
             <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style PurpleColor">
+                <div className="p-4 background_style" style={{ background: "#FDF8DA" }}>
                     <div className="row">
                         <div className="col-9">
                             <h6 className="text-dark card_heading">Total Customers</h6>
@@ -63,7 +63,7 @@ export const EmployeeSalesOverviewCards = ({
             </div>
 
             <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style pinkcolor">
+                <div className="p-4 background_style" style={{ background: "#FEFAF6" }}>
                     <div className="row">
                         <div className="col-9">
                             <h6 className="text-dark card_heading">Active Quotation Funnel</h6>
@@ -77,7 +77,7 @@ export const EmployeeSalesOverviewCards = ({
             </div>
 
             <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style bg_sky">
+                <div className="p-4 background_style" style={{ background: "#F6F8FE" }}>
                     <div className="row">
                         <div className="col-9">
                             <h6 className="text-dark card_heading">Won Leads</h6>
@@ -91,7 +91,7 @@ export const EmployeeSalesOverviewCards = ({
             </div>
 
             <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style" style={{ background: "#E0E0E0" }}>
+                <div className="p-4 background_style" style={{ background: "#FBFDF2" }}>
                     <div className="row">
                         <div className="col-9">
                             <h6 className="text-dark card_heading">Lost Leads</h6>

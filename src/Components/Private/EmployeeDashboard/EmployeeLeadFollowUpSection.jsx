@@ -36,7 +36,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
 
   const sourceLeads = allLeads.length > 0 ? allLeads : leads;
 
-  // ✅ Updated — now includes AMC, BDE, Sr.BDE, Tender
   const isSalesOrMarketing = useMemo(() => {
     const d = userDesignation?.toLowerCase() || "";
     return (
@@ -98,7 +97,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     { key: "pending",  label: "Pending Enquiries", count: pendingLeads.length,           color: "#f97316", pulse: "pulseOrange", leadTab: true  },
     { key: "overdue",  label: "Overdue Follow-up", count: overdueLeads.length,           color: "#dc2626", pulse: "pulseRed",    leadTab: true  },
     { key: "assigned", label: "Assigned Tasks",    count: (assignedTasks || []).length,  color: "#8b5cf6", pulse: "pulsePurple", leadTab: false },
-    { key: "active",   label: "Inprocess Tasks",   count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
+    { key: "active",   label: "Active Tasks",      count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
   ];
 
   const tabs = allTabs.filter(tab => {
@@ -107,11 +106,8 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   });
 
   useEffect(() => {
-    if (!isSalesOrMarketing) {
-      setActiveTab("assigned");
-    } else {
-      setActiveTab("today");
-    }
+    if (!isSalesOrMarketing) setActiveTab("assigned");
+    else setActiveTab("today");
   }, [isSalesOrMarketing]);
 
   const currentData = useMemo(() => {
@@ -153,7 +149,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
         <div style={{
           background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
           borderBottom: "1px solid rgba(0,0,0,0.07)",
-          padding: "16px 20px",
+          padding: "14px 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -189,8 +185,15 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
           )}
         </div>
 
-        {/* ── Pill Tabs ── */}
-        <div style={{ padding: "16px 20px 0", display: "flex", flexWrap: "wrap", gap: "10px" }}>
+        {/* ── Pill Tabs — full width, each button stretches equally ── */}
+        <div style={{
+          padding: "14px 20px 12px",
+          display: "flex",
+          flexWrap: "nowrap",
+          gap: "8px",
+          width: "100%",
+          boxSizing: "border-box",
+        }}>
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
             return (
@@ -198,34 +201,39 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 style={{
-                  display: "flex",
+                  flex: 1,
+                  display: "inline-flex",
                   alignItems: "center",
-                  gap: "8px",
-                  padding: "7px 16px",
+                  justifyContent: "center",
+                  gap: "6px",
+                  padding: "7px 8px",
                   borderRadius: "50px",
                   border: `1.5px solid ${isActive ? tab.color : "rgba(0,0,0,0.12)"}`,
                   background: isActive ? `${tab.color}12` : "#fff",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                   fontWeight: 600,
-                  fontSize: "0.8rem",
+                  fontSize: "0.75rem",
                   color: isActive ? tab.color : "#64748b",
                   boxShadow: isActive ? `0 2px 12px ${tab.color}30` : "none",
+                  whiteSpace: "nowrap",
+                  minWidth: 0,
                 }}
               >
                 <span style={{
-                  width: 8, height: 8, borderRadius: "50%",
+                  width: 7, height: 7, borderRadius: "50%",
                   background: tab.color, flexShrink: 0,
                   animation: `${tab.pulse} 1.4s infinite`,
                 }} />
                 {tab.label}
                 <span style={{
-                  minWidth: "22px", height: "22px", borderRadius: "50px",
+                  minWidth: "20px", height: "20px", borderRadius: "50px",
                   background: tab.color, color: "#fff",
-                  fontSize: "0.7rem", fontWeight: 700,
+                  fontSize: "0.68rem", fontWeight: 700,
                   display: "inline-flex", alignItems: "center",
-                  justifyContent: "center", padding: "0 6px",
+                  justifyContent: "center", padding: "0 5px",
                   boxShadow: `0 2px 6px ${tab.color}44`,
+                  flexShrink: 0,
                 }}>
                   {String(tab.count).padStart(2, "0")}
                 </span>
@@ -235,7 +243,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
         </div>
 
         {/* ── Table ── */}
-        <div style={{ padding: "16px 20px 20px", width: "100%" }}>
+        <div style={{ padding: "0 20px 20px", width: "100%" }}>
           <div
             className="table-responsive"
             style={{
@@ -243,17 +251,17 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
               border: `1px solid ${activeTabInfo?.color}22`,
               maxHeight: "320px",
               overflowY: "auto",
+              overflowX: "auto",
               width: "100%",
             }}
           >
             <table
-              className="table mb-0 w-100"
+              className="table mb-0"
               style={{
                 fontSize: "0.82rem",
-                borderCollapse: "separate",
-                borderSpacing: 0,
-                tableLayout: "fixed",
+                borderCollapse: "collapse",
                 width: "100%",
+                minWidth: isTaskTab ? "620px" : "680px",
               }}
             >
               <thead>
@@ -263,24 +271,24 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                 }}>
                   {(isTaskTab
                     ? [
-                        { h: "SR NO.",     w: "7%"  },
-                        { h: "TASK NAME",  w: "33%" },
-                        { h: "START DATE", w: "18%" },
-                        { h: "END DATE",   w: "18%" },
-                        { h: "STATUS",     w: "14%" },
-                        { h: "COMPLETION", w: "10%" },
+                        { h: "SR NO.",     w: "60px"  },
+                        { h: "TASK NAME",  w: ""      },
+                        { h: "START DATE", w: "120px" },
+                        { h: "END DATE",   w: "120px" },
+                        { h: "STATUS",     w: "110px" },
+                        { h: "COMPLETION", w: "90px"  },
                       ]
                     : [
-                        { h: "SR NO.",       w: "7%"  },
-                        { h: "COMPANY NAME", w: "28%" },
-                        { h: "CONTACT",      w: "20%" },
-                        { h: "PRODUCTS",     w: "25%" },
-                        { h: activeTab === "overdue" ? "OVERDUE SINCE" : "FOLLOW-UP", w: "20%" },
+                        { h: "SR NO.",       w: "60px"  },
+                        { h: "COMPANY NAME", w: ""      },
+                        { h: "CONTACT",      w: "150px" },
+                        { h: "PRODUCTS",     w: "150px" },
+                        { h: activeTab === "overdue" ? "OVERDUE SINCE" : "FOLLOW-UP", w: "120px" },
+                        { h: "STATUS",       w: "90px"  },
                       ]
                   ).map((col, i) => (
                     <th
                       key={col.h}
-                      className={i === 0 || i >= 4 ? "text-center" : ""}
                       style={{
                         backgroundColor: "#f8fafc",
                         color: "#64748b",
@@ -294,7 +302,8 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                         position: "sticky",
                         top: 0,
                         zIndex: 2,
-                        width: col.w,
+                        width: col.w || undefined,
+                        textAlign: i === 0 ? "center" : "left",
                       }}
                     >
                       {col.h}
@@ -324,18 +333,18 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                         onMouseEnter={e => e.currentTarget.style.background = `${activeTabInfo?.color}08`}
                         onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fafbfc"}
                       >
-                        <td className="text-center align-middle" style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700 }}>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>
                           {String(idx + 1).padStart(2, "0")}.
                         </td>
-                        <td className="align-middle" style={{ border: "none", padding: "10px 14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <div className="d-flex align-items-center gap-2">
+                        <td style={{ border: "none", padding: "10px 14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: activeTabInfo?.color, flexShrink: 0 }} />
                             <span style={{ fontWeight: 600, color: "#1e293b" }}>{item.taskName?.name || "N/A"}</span>
                           </div>
                         </td>
-                        <td className="align-middle" style={{ border: "none", padding: "10px 14px", color: "#555" }}>{formatDate(item.startDate)}</td>
-                        <td className="align-middle" style={{ border: "none", padding: "10px 14px", color: "#555" }}>{formatDate(item.endDate)}</td>
-                        <td className="text-center align-middle" style={{ border: "none", padding: "10px 14px" }}>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>{formatDate(item.startDate)}</td>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>{formatDate(item.endDate)}</td>
+                        <td style={{ border: "none", padding: "10px 14px", textAlign: "center" }}>
                           <span style={{
                             ...statusBadge(item.taskStatus),
                             borderRadius: "6px", padding: "3px 10px",
@@ -344,7 +353,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                             {item.taskStatus || "N/A"}
                           </span>
                         </td>
-                        <td className="text-center align-middle" style={{ border: "none", padding: "10px 14px", fontWeight: 700, color: activeTabInfo?.color }}>
+                        <td style={{ border: "none", padding: "10px 14px", fontWeight: 700, color: activeTabInfo?.color, textAlign: "center" }}>
                           {item.taskLevel || 0}%
                         </td>
                       </tr>
@@ -360,18 +369,18 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                         onMouseEnter={e => e.currentTarget.style.background = `${activeTabInfo?.color}08`}
                         onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fafbfc"}
                       >
-                        <td className="text-center align-middle" style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700 }}>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>
                           {String(idx + 1).padStart(2, "0")}.
                         </td>
-                        <td className="align-middle" style={{ border: "none", padding: "10px 14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <div className="d-flex align-items-center gap-2">
+                        <td style={{ border: "none", padding: "10px 14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: getDotColor(), flexShrink: 0 }} />
                             <span style={{ fontWeight: 600, color: "#1e293b" }}>{item.SENDER_COMPANY || "N/A"}</span>
                           </div>
                         </td>
-                        <td className="align-middle" style={{ border: "none", padding: "10px 14px", color: "#555" }}>{item.SENDER_NAME || "N/A"}</td>
-                        <td className="align-middle" style={{ border: "none", padding: "10px 14px", color: "#555" }}>{item.QUERY_PRODUCT_NAME || "N/A"}</td>
-                        <td className="text-center align-middle" style={{ border: "none", padding: "10px 14px" }}>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>{item.SENDER_NAME || "N/A"}</td>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.QUERY_PRODUCT_NAME || "N/A"}</td>
+                        <td style={{ border: "none", padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
                           <span style={{
                             fontWeight: 700,
                             color: getDotColor(),
@@ -383,6 +392,16 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                             display: "inline-block",
                           }}>
                             {formatDate(item.nextFollowUpDate)}
+                          </span>
+                        </td>
+                        <td style={{ border: "none", padding: "10px 14px", textAlign: "center" }}>
+                          <span style={{
+                            ...statusBadge(item.STATUS),
+                            borderRadius: "6px", padding: "3px 10px",
+                            fontSize: "0.7rem", fontWeight: 600,
+                            whiteSpace: "nowrap",
+                          }}>
+                            {item.STATUS || "N/A"}
                           </span>
                         </td>
                       </tr>
