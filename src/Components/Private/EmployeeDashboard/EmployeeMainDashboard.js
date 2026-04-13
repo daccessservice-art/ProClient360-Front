@@ -1,6 +1,3 @@
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 📄 FILE: EmployeeMainDashboard.js
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { Sidebar } from "../MainDashboard/Sidebar/Sidebar";
@@ -13,6 +10,17 @@ import { Header } from "../MainDashboard/Header/Header";
 import { EmployeeLeadFollowUpSection } from "./EmployeeLeadFollowUpSection";
 
 const MY_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/my-leads`;
+
+const isSalesDesignation = (designation = "") => {
+    const d = designation.toLowerCase();
+    return (
+        d.includes("sales") ||
+        d.includes("marketing") ||
+        d.includes("amc") ||
+        d.includes("bde") ||
+        d.includes("tender")
+    );
+};
 
 const formatAmountCompact = (amount) => {
     if (!amount || amount <= 0) return "₹0";
@@ -35,7 +43,6 @@ function EmployeeMainDashboard() {
     const [allMyLeads, setAllMyLeads] = useState([]);
     const [leadsLoading, setLeadsLoading] = useState(true);
 
-    // ✅ State names now match card prop names exactly
     const [totalCustomers, setTotalCustomers] = useState(0);
     const [activeQuotationFunnel, setActiveQuotationFunnel] = useState("₹0");
     const [wonLeads, setWonLeads] = useState(0);
@@ -83,19 +90,15 @@ function EmployeeMainDashboard() {
         fetchData();
     }, []);
 
-    // ✅ Fetch sales overview data
     useEffect(() => {
         const fetchSalesOverviewData = async () => {
             try {
                 const userData = JSON.parse(localStorage.getItem("user") || "{}");
-                const designation = userData?.designation?.toLowerCase() || "";
-                const isSales = designation.includes("sales") || designation.includes("marketing");
 
-                if (!isSales) return;
+                if (!isSalesDesignation(userData?.designation)) return;
 
                 setSalesDataLoading(true);
 
-                // 1. Customer count
                 const employeeName = userData?.name;
                 if (employeeName) {
                     const custRes = await getCustomerCountByOwner(employeeName);
@@ -104,7 +107,6 @@ function EmployeeMainDashboard() {
                     }
                 }
 
-                // 2. Leads counts + quotation funnel
                 const leadsRes = await axios.get(MY_LEADS_URL, {
                     params: { page: 1, limit: 1 },
                     headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
@@ -164,7 +166,6 @@ function EmployeeMainDashboard() {
                                     inproccessProjectCount={inproccessProjectCount}
                                 />
 
-                                {/* ✅ Prop names match exactly what cards expect */}
                                 <EmployeeSalesOverviewCards
                                     targetAmount="0"
                                     totalCustomers={totalCustomers}

@@ -1,7 +1,15 @@
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 📄 FILE: EmployeeSalesOverviewCards.js
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import { useEffect, useState } from "react";
+
+const isSalesDesignation = (designation = "") => {
+    const d = designation.toLowerCase();
+    return (
+        d.includes("sales") ||
+        d.includes("marketing") ||
+        d.includes("amc") ||
+        d.includes("bde") ||
+        d.includes("tender")
+    );
+};
 
 export const EmployeeSalesOverviewCards = ({
     targetAmount = 0,
@@ -15,8 +23,7 @@ export const EmployeeSalesOverviewCards = ({
     useEffect(() => {
         try {
             const userData = JSON.parse(localStorage.getItem("user") || "{}");
-            const d = userData?.designation?.toLowerCase() || "";
-            setIsSalesEmployee(d.includes("sales") || d.includes("marketing"));
+            setIsSalesEmployee(isSalesDesignation(userData?.designation));
         } catch {
             setIsSalesEmployee(false);
         }
