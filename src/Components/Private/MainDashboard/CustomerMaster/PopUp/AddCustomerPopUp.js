@@ -11,8 +11,6 @@ const AddCustomerPopUp = ({ handleAdd }) => {
   const [custName, setCustName] = useState("");
   const [phoneNumber1, setPhoneNumber1] = useState("");
   const [email, setEmail] = useState("");
-  const [customerContactPersonName2, setCustomerContactPersonName2] = useState("");
-  const [phoneNumber2, setPhoneNumber2] = useState("");
   const [GSTNo, setGSTNo] = useState("");
   const [customerContactPersonName1, setCustomerContactPersonName1] = useState("");
   const [zone, setZone] = useState("");
@@ -22,12 +20,13 @@ const AddCustomerPopUp = ({ handleAdd }) => {
   const [employeeError, setEmployeeError] = useState(null);
   const [ownedBy, setOwnedBy] = useState(user?.name || "");
 
-  // Industry Type states
+  // Extra contact persons (up to 4 more = 5 total)
+  const [extraContacts, setExtraContacts] = useState([]);
+  // { name: "", phone: "" }
+
   const [industryType, setIndustryType] = useState("");
   const [industryTypeOther, setIndustryTypeOther] = useState("");
-
-  // Customer Priority state
-  const [customerPriority, setCustomerPriority] = useState("P2");
+  const [customerPriority, setCustomerPriority] = useState("");
 
   const [billingAddress, setBillingAddress] = useState({
     pincode: "",
@@ -37,68 +36,43 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     country: "",
   });
 
-  // Industry type options
   const industryOptions = [
-    "IT & Software",
-    "Manufacturing",
-    "Construction & Infrastructure",
-    "Healthcare",
-    "Education",
-    "Retail",
-    "Banking & Finance",
-    "Logistics & Supply Chain",
-    "Hospitality",
-    "Real Estate",
-    "Government & Public Sector",
-    "Energy & Utilities",
-    "Telecom",
-    "Pharmaceuticals",
-    "Automotive",
-    "Other"
+    "IT & Software", "Manufacturing", "Construction & Infrastructure",
+    "Healthcare", "Education", "Retail", "Banking & Finance",
+    "Logistics & Supply Chain", "Hospitality", "Real Estate",
+    "Government & Public Sector", "Energy & Utilities", "Telecom",
+    "Pharmaceuticals", "Automotive", "Other"
   ];
 
-  // ✅ Fetch ALL employees for dropdown
   useEffect(() => {
     const fetchEmployees = async () => {
       setEmployeesLoading(true);
       setEmployeeError(null);
-      
       try {
-        console.log('🔄 Fetching employees for Owned By dropdown...');
         const data = await getEmployees();
-        
-        console.log('📡 Employee API response:', data);
-        
         if (data.success && data.employees && data.employees.length > 0) {
           setEmployees(data.employees);
-          console.log('✅ Loaded', data.employees.length, 'employees');
-          
-          // Auto-select first employee if ownedBy is not set
           if (!ownedBy || ownedBy === '') {
             setOwnedBy(data.employees[0].name);
           }
         } else if (data.success && data.employees && data.employees.length === 0) {
-          console.log('⚠️ No employees found in database');
           setEmployees([]);
           setEmployeeError('No employees found. Please add employees first.');
         } else {
-          console.log('❌ Failed to load employees:', data);
           setEmployees([]);
           setEmployeeError('Failed to load employees.');
         }
       } catch (error) {
-        console.error('❌ Error fetching employees:', error);
+        console.error('Error fetching employees:', error);
         setEmployees([]);
         setEmployeeError('Error loading employees. Using current user.');
       } finally {
         setEmployeesLoading(false);
       }
     };
-    
     fetchEmployees();
   }, []);
 
-  // Auto-fill address from pincode
   useEffect(() => {
     const fetchData = async () => {
       if (billingAddress.pincode && billingAddress.pincode.length === 6) {
@@ -113,51 +87,57 @@ const AddCustomerPopUp = ({ handleAdd }) => {
               country: data.country
             }));
           } else {
-            setBillingAddress(prevAddress => ({
-              ...prevAddress,
-              state: "",
-              city: "",
-              country: ""
-            }));
+            setBillingAddress(prevAddress => ({ ...prevAddress, state: "", city: "", country: "" }));
           }
         } catch (error) {
-          console.error("Error fetching address:", error);
-          setBillingAddress(prevAddress => ({
-            ...prevAddress,
-            state: "",
-            city: "",
-            country: ""
-          }));
+          setBillingAddress(prevAddress => ({ ...prevAddress, state: "", city: "", country: "" }));
         } finally {
           setIsLoadingAddress(false);
         }
       } else if (billingAddress.pincode.length < 6) {
-        setBillingAddress(prevAddress => ({
-          ...prevAddress,
-          state: "",
-          city: "",
-          country: ""
-        }));
+        setBillingAddress(prevAddress => ({ ...prevAddress, state: "", city: "", country: "" }));
       }
     };
-
-    const timeoutId = setTimeout(() => {
-      fetchData();
-    }, 500);
-
+    const timeoutId = setTimeout(() => { fetchData(); }, 500);
     return () => clearTimeout(timeoutId);
   }, [billingAddress.pincode]);
 
+  const handleAddExtraContact = () => {
+    if (extraContacts.length < 4) {
+      setExtraContacts([...extraContacts, { name: "", phone: "" }]);
+    }
+  };
+
+  const handleExtraContactChange = (index, field, value) => {
+    const updated = [...extraContacts];
+    if (field === "phone") {
+      const cleaned = value.replace(/[^0-9]/g, '');
+      if (cleaned.length <= 10) updated[index][field] = cleaned;
+    } else {
+      if (/^[a-zA-Z\s]*$/.test(value)) updated[index][field] = value;
+    }
+    setExtraContacts(updated);
+  };
+
+  const handleRemoveExtraContact = (index) => {
+    setExtraContacts(extraContacts.filter((_, i) => i !== index));
+  };
+
   const handleCustomerAdd = async (event) => {
     event.preventDefault();
+
+    // Build extra contact fields
+    const extraContactData = {};
+    extraContacts.forEach((c, i) => {
+      extraContactData[`customerContactPersonName${i + 2}`] = c.name;
+      extraContactData[`phoneNumber${i + 2}`] = c.phone;
+    });
 
     const customerData = {
       custName,
       phoneNumber1,
       email,
-      customerContactPersonName2,
       customerContactPersonName1,
-      phoneNumber2,
       billingAddress,
       zone,
       GSTNo,
@@ -165,21 +145,13 @@ const AddCustomerPopUp = ({ handleAdd }) => {
       industryType,
       industryTypeOther: industryType === 'Other' ? industryTypeOther : undefined,
       customerPriority,
+      ...extraContactData,
     };
 
     if (
-      !custName ||
-      !phoneNumber1 ||
-      !email ||
-      !billingAddress.pincode ||
-      !billingAddress.state ||
-      !billingAddress.city ||
-      !billingAddress.add ||
-      !zone ||
-      !GSTNo ||
-      !industryType ||
-      !ownedBy ||
-      !customerPriority
+      !custName || !phoneNumber1 || !email ||
+      !billingAddress.pincode || !billingAddress.state || !billingAddress.city ||
+      !billingAddress.add || !zone || !GSTNo || !industryType || !ownedBy || !customerPriority
     ) {
       return toast.error("Please fill all required fields");
     }
@@ -187,18 +159,17 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     if (industryType === 'Other' && (!industryTypeOther || industryTypeOther.trim() === '')) {
       return toast.error("Please specify the industry type");
     }
-
-    if (!validator.isEmail(email)) {
-      return toast.error("Enter valid Email");
-    }
+    if (!validator.isEmail(email)) return toast.error("Enter valid Email");
     if (billingAddress.pincode.length !== 6 || !/^\d{6}$/.test(billingAddress.pincode)) {
       return toast.error("Enter valid 6-digit Pincode");
     }
     if (!validator.isMobilePhone(phoneNumber1, 'any', { strictMode: false })) {
       return toast.error("Please enter valid 10-digit phone number for Contact Person 1.");
     }
-    if (phoneNumber2 && !validator.isMobilePhone(phoneNumber2, 'any', { strictMode: false })) {
-      return toast.error("Please enter valid 10-digit phone number for Contact Person 2.");
+    for (let i = 0; i < extraContacts.length; i++) {
+      if (extraContacts[i].phone && !validator.isMobilePhone(extraContacts[i].phone, 'any', { strictMode: false })) {
+        return toast.error(`Please enter valid phone number for Contact Person ${i + 2}.`);
+      }
     }
 
     toast.loading("Creating Customer...");
@@ -213,49 +184,14 @@ const AddCustomerPopUp = ({ handleAdd }) => {
     }
   };
 
-  const handleCustNameChange = (e) => {
-    const value = e.target.value;
-    if (/^[a-zA-Z0-9\s]*$/.test(value)) setCustName(value);
-  };
-
-  const handleContactPersonName1Change = (e) => {
-    const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) setCustomerContactPersonName1(value);
-  };
-
-  const handleContactPersonName2Change = (e) => {
-    const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) setCustomerContactPersonName2(value);
-  };
-
-  const handleStateChange = (e) => {
-    const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, state: value }));
-  };
-
-  const handleCityChange = (e) => {
-    const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, city: value }));
-  };
-
-  const handleCountryChange = (e) => {
-    const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, country: value }));
-  };
-
-  const handlePincodeChange = (e) => {
-    const value = e.target.value;
-    if (/^\d{0,6}$/.test(value)) setBillingAddress(prev => ({ ...prev, pincode: value }));
-  };
-
-  const handleGSTChange = (e) => {
-    setGSTNo(e.target.value.toUpperCase());
-  };
-
-  const handleIndustryTypeOtherChange = (e) => {
-    const value = e.target.value;
-    if (/^[a-zA-Z0-9\s&\-]*$/.test(value)) setIndustryTypeOther(value);
-  };
+  const handleCustNameChange = (e) => { if (/^[a-zA-Z0-9\s]*$/.test(e.target.value)) setCustName(e.target.value); };
+  const handleContactPersonName1Change = (e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setCustomerContactPersonName1(e.target.value); };
+  const handleStateChange = (e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setBillingAddress(prev => ({ ...prev, state: e.target.value })); };
+  const handleCityChange = (e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setBillingAddress(prev => ({ ...prev, city: e.target.value })); };
+  const handleCountryChange = (e) => { if (/^[a-zA-Z\s]*$/.test(e.target.value)) setBillingAddress(prev => ({ ...prev, country: e.target.value })); };
+  const handlePincodeChange = (e) => { if (/^\d{0,6}$/.test(e.target.value)) setBillingAddress(prev => ({ ...prev, pincode: e.target.value })); };
+  const handleGSTChange = (e) => { setGSTNo(e.target.value.toUpperCase()); };
+  const handleIndustryTypeOtherChange = (e) => { if (/^[a-zA-Z0-9\s&\-]*$/.test(e.target.value)) setIndustryTypeOther(e.target.value); };
 
   return (
     <>
@@ -267,15 +203,8 @@ const AddCustomerPopUp = ({ handleAdd }) => {
           <div className="modal-content p-3">
             <form onSubmit={handleCustomerAdd}>
               <div className="modal-header pt-0">
-                <h5 className="card-title fw-bold" id="exampleModalLongTitle">
-                  Create New Customer
-                </h5>
-                <button
-                  onClick={() => handleAdd()}
-                  type="button"
-                  className="close px-3"
-                  style={{ marginLeft: "auto" }}
-                >
+                <h5 className="card-title fw-bold">Create New Customer</h5>
+                <button onClick={() => handleAdd()} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
                   <span aria-hidden="true">&times;</span>
                 </button>
               </div>
@@ -296,118 +225,49 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                   {/* Full Name */}
                   <div className="col-12 col-lg-6">
                     <div className="">
-                      <label htmlFor="FullName" className="form-label label_text">
-                        Full Name <RequiredStar />
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control rounded-0"
-                        id="FullName"
-                        maxLength={300}
-                        value={custName}
-                        onChange={handleCustNameChange}
-                        placeholder="Enter a Full Name...."
-                        required
-                      />
+                      <label htmlFor="FullName" className="form-label label_text">Full Name <RequiredStar /></label>
+                      <input type="text" className="form-control rounded-0" id="FullName" maxLength={300}
+                        value={custName} onChange={handleCustNameChange} placeholder="Enter a Full Name...." required />
                     </div>
                   </div>
 
                   {/* Email */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
-                      <label htmlFor="email" className="form-label label_text">
-                        Email <RequiredStar />
-                      </label>
-                      <input
-                        type="email"
-                        maxLength={50}
-                        className="form-control rounded-0"
-                        id="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Enter a Email...."
-                        required
-                      />
+                      <label htmlFor="email" className="form-label label_text">Email <RequiredStar /></label>
+                      <input type="email" maxLength={50} className="form-control rounded-0" id="email"
+                        value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter a Email...." required />
                     </div>
                   </div>
 
-                  {/* ✅ Owned By - Load All Employees */}
+                  {/* Owned By */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
-                      <label htmlFor="ownedBy" className="form-label label_text">
-                        Owned By <RequiredStar />
-                      </label>
-                      <select
-                        className="form-select rounded-0"
-                        id="ownedBy"
-                        value={ownedBy}
-                        onChange={(e) => setOwnedBy(e.target.value)}
-                        required
-                        disabled={employeesLoading}
-                      >
-                        <option value="">
-                          {employeesLoading ? '⏳ Loading employees...' : '-- Select Employee --'}
-                        </option>
-                        
-                        {/* Always show current user as fallback */}
-                        <option value={user?.name}>
-                          {user?.name} (Current User)
-                        </option>
-                        
-                        {/* Show all loaded employees */}
+                      <label htmlFor="ownedBy" className="form-label label_text">Owned By <RequiredStar /></label>
+                      <select className="form-select rounded-0" id="ownedBy" value={ownedBy}
+                        onChange={(e) => setOwnedBy(e.target.value)} required disabled={employeesLoading}>
+                        <option value="">{employeesLoading ? '⏳ Loading employees...' : '-- Select Employee --'}</option>
+                        <option value={user?.name}>{user?.name} (Current User)</option>
                         {employees.length > 0 && employees.map((emp) => (
                           emp.name !== user?.name && (
-                            <option key={emp._id} value={emp.name}>
-                              {emp.name}
-                            </option>
+                            <option key={emp._id} value={emp.name}>{emp.name}</option>
                           )
                         ))}
                       </select>
-                      
-                      {/* Status messages */}
-                      {employeesLoading && (
-                        <small className="text-info">
-                          <i className="fa fa-spinner fa-spin me-1"></i>
-                          Loading employees...
-                        </small>
-                      )}
-                      
-                      {!employeesLoading && employees.length > 0 && (
-                        <small className="text-success">
-                          <i className="fa fa-check-circle me-1"></i>
-                          {employees.length} employees available
-                        </small>
-                      )}
-                      
-                      {!employeesLoading && employeeError && (
-                        <small className="text-warning">
-                          <i className="fa fa-exclamation-triangle me-1"></i>
-                          {employeeError}
-                        </small>
-                      )}
+                      {employeesLoading && <small className="text-info"><i className="fa fa-spinner fa-spin me-1"></i>Loading employees...</small>}
+                      {!employeesLoading && employees.length > 0 && <small className="text-success"><i className="fa fa-check-circle me-1"></i>{employees.length} employees available</small>}
+                      {!employeesLoading && employeeError && <small className="text-warning"><i className="fa fa-exclamation-triangle me-1"></i>{employeeError}</small>}
                     </div>
                   </div>
 
                   {/* Industry Type */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
-                      <label htmlFor="industryType" className="form-label label_text">
-                        Industry Type <RequiredStar />
-                      </label>
-                      <select
-                        className="form-select rounded-0"
-                        id="industryType"
-                        value={industryType}
-                        onChange={(e) => {
-                          setIndustryType(e.target.value);
-                          if (e.target.value !== 'Other') setIndustryTypeOther('');
-                        }}
-                        required
-                      >
+                      <label htmlFor="industryType" className="form-label label_text">Industry Type <RequiredStar /></label>
+                      <select className="form-select rounded-0" id="industryType" value={industryType}
+                        onChange={(e) => { setIndustryType(e.target.value); if (e.target.value !== 'Other') setIndustryTypeOther(''); }} required>
                         <option value="">Select Industry Type</option>
-                        {industryOptions.map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
+                        {industryOptions.map((option) => (<option key={option} value={option}>{option}</option>))}
                       </select>
                     </div>
                   </div>
@@ -416,19 +276,9 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                   {industryType === 'Other' && (
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
-                        <label htmlFor="industryTypeOther" className="form-label label_text">
-                          Specify Industry Type <RequiredStar />
-                        </label>
-                        <input
-                          type="text"
-                          className="form-control rounded-0"
-                          id="industryTypeOther"
-                          maxLength={100}
-                          value={industryTypeOther}
-                          onChange={handleIndustryTypeOtherChange}
-                          placeholder="Enter industry type..."
-                          required
-                        />
+                        <label htmlFor="industryTypeOther" className="form-label label_text">Specify Industry Type <RequiredStar /></label>
+                        <input type="text" className="form-control rounded-0" id="industryTypeOther" maxLength={100}
+                          value={industryTypeOther} onChange={handleIndustryTypeOtherChange} placeholder="Enter industry type..." required />
                       </div>
                     </div>
                   )}
@@ -436,107 +286,77 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                   {/* Customer Priority */}
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
-                      <label htmlFor="customerPriority" className="form-label label_text">
-                        Customer Priority <RequiredStar />
-                      </label>
-                      <select
-                        className="form-select rounded-0"
-                        id="customerPriority"
-                        value={customerPriority}
-                        onChange={(e) => setCustomerPriority(e.target.value)}
-                        required
-                      >
-                        <option value="">Select Priority</option>
-                        <option value="P1">🔴 P1 — Priority</option>
-                        <option value="P2">🟡 P2 — Priority</option>
-                        <option value="P3">🟢 P3 — Priority</option>
+                      <label htmlFor="customerPriority" className="form-label label_text">Customer Priority <RequiredStar /></label>
+                      <select className="form-select rounded-0" id="customerPriority" value={customerPriority}
+                        onChange={(e) => setCustomerPriority(e.target.value)} required>
+                        <option value="" disabled>Select Priority</option>
+                        <option value="P1">🔴 P1 — High Priority</option>
+                        <option value="P2">🟡 P2 — Medium Priority</option>
+                        <option value="P3">🟢 P3 — Low Priority</option>
                       </select>
-                      <small className="text-muted">
-                        P1 = High &nbsp;|&nbsp; P2 = Medium &nbsp;|&nbsp; P3 = Low
-                      </small>
+                      <small className="text-muted">P1 = High &nbsp;|&nbsp; P2 = Medium &nbsp;|&nbsp; P3 = Low</small>
                     </div>
                   </div>
 
                   {/* Contact Information */}
                   <div className="col-12 mt-2">
                     <div className="row border bg-gray mx-auto">
-                      <div className="col-10 mb-3">
+                      <div className="col-12 mb-2 d-flex justify-content-between align-items-center">
                         <span className="SecondaryInfo">Contact Information</span>
+                        {extraContacts.length < 4 && (
+                          <button type="button" className="btn btn-sm btn-outline-primary" onClick={handleAddExtraContact}>
+                            <i className="fa-solid fa-plus me-1"></i> Add Contact
+                          </button>
+                        )}
                       </div>
 
+                      {/* Contact Person 1 — always visible */}
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label htmlFor="SecondaryPersonName" className="form-label label_text">
-                            Contact Person Name 1 <RequiredStar />
-                          </label>
-                          <input
-                            type="text"
-                            maxLength={50}
-                            className="form-control rounded-0"
-                            id="SecondaryPersonName"
-                            value={customerContactPersonName1}
-                            onChange={handleContactPersonName1Change}
-                            required
-                          />
+                          <label className="form-label label_text">Contact Person Name 1 <RequiredStar /></label>
+                          <input type="text" maxLength={50} className="form-control rounded-0"
+                            value={customerContactPersonName1} onChange={handleContactPersonName1Change} required />
                         </div>
                       </div>
-
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label htmlFor="SecondaryPersonName2" className="form-label label_text">
-                            Contact Person Name 2
-                          </label>
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
-                            id="SecondaryPersonName2"
-                            maxLength={50}
-                            value={customerContactPersonName2}
-                            onChange={handleContactPersonName2Change}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="col-12 col-lg-6 mt-2">
-                        <div className="mb-3">
-                          <label htmlFor="MobileNumber" className="form-label label_text">
-                            Contact Person No 1 <RequiredStar />
-                          </label>
-                          <input
-                            type="tel"
-                            pattern="[0-9]{10}"
-                            className="form-control rounded-0"
-                            id="MobileNumber"
+                          <label className="form-label label_text">Contact Person No 1 <RequiredStar /></label>
+                          <input type="tel" pattern="[0-9]{10}" className="form-control rounded-0"
                             value={phoneNumber1}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/[^0-9]/g, '');
-                              if (value.length <= 10) setPhoneNumber1(value);
-                            }}
-                            maxLength={10}
-                            required
-                          />
+                            onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); if (v.length <= 10) setPhoneNumber1(v); }}
+                            maxLength={10} required />
                         </div>
                       </div>
 
-                      <div className="col-12 col-lg-6 mt-2">
-                        <div className="mb-3">
-                          <label htmlFor="mobileNo" className="form-label label_text">
-                            Contact Person No. 2
-                          </label>
-                          <input
-                            type="tel"
-                            pattern="[0-9]{10}"
-                            maxLength={10}
-                            className="form-control rounded-0"
-                            id="mobileNo"
-                            value={phoneNumber2}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/[^0-9]/g, '');
-                              if (value.length <= 10) setPhoneNumber2(value);
-                            }}
-                          />
+                      {/* Extra contact persons */}
+                      {extraContacts.map((contact, index) => (
+                        <div key={index} className="col-12">
+                          <div className="row">
+                            <div className="col-12 col-lg-5 mt-2">
+                              <div className="mb-3">
+                                <label className="form-label label_text">Contact Person Name {index + 2}</label>
+                                <input type="text" maxLength={50} className="form-control rounded-0"
+                                  value={contact.name}
+                                  onChange={(e) => handleExtraContactChange(index, "name", e.target.value)} />
+                              </div>
+                            </div>
+                            <div className="col-12 col-lg-5 mt-2">
+                              <div className="mb-3">
+                                <label className="form-label label_text">Contact Person No. {index + 2}</label>
+                                <input type="tel" pattern="[0-9]{10}" maxLength={10} className="form-control rounded-0"
+                                  value={contact.phone}
+                                  onChange={(e) => handleExtraContactChange(index, "phone", e.target.value)} />
+                              </div>
+                            </div>
+                            <div className="col-12 col-lg-2 mt-2 d-flex align-items-center">
+                              <button type="button" className="btn btn-sm btn-outline-danger mt-3"
+                                onClick={() => handleRemoveExtraContact(index)}>
+                                <i className="fa-solid fa-xmark"></i>
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
@@ -546,78 +366,43 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                       <div className="col-12 mb-3">
                         <span className="AddressInfo">Address <RequiredStar /></span>
                       </div>
-
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
-                            placeholder="Enter 6-digit Pincode"
-                            maxLength={6}
-                            onChange={handlePincodeChange}
-                            value={billingAddress.pincode}
-                          />
-                          {isLoadingAddress && (
-                            <small className="text-info">Loading address details...</small>
-                          )}
+                          <input type="text" className="form-control rounded-0" placeholder="Enter 6-digit Pincode"
+                            maxLength={6} onChange={handlePincodeChange} value={billingAddress.pincode} />
+                          {isLoadingAddress && <small className="text-info">Loading address details...</small>}
                           {billingAddress.pincode.length === 6 && !isLoadingAddress && !billingAddress.state && (
                             <small className="text-danger">Invalid pincode or no data found</small>
                           )}
                         </div>
                       </div>
-
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
-                            placeholder="State (Auto-filled)"
-                            maxLength={50}
-                            onChange={handleStateChange}
-                            value={billingAddress.state}
-                            style={{ backgroundColor: billingAddress.state && !isLoadingAddress ? '#f8f9fa' : 'white' }}
-                          />
+                          <input type="text" className="form-control rounded-0" placeholder="State (Auto-filled)"
+                            maxLength={50} onChange={handleStateChange} value={billingAddress.state}
+                            style={{ backgroundColor: billingAddress.state && !isLoadingAddress ? '#f8f9fa' : 'white' }} />
                         </div>
                       </div>
-
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
-                            placeholder="City (Auto-filled)"
-                            maxLength={50}
-                            value={billingAddress.city}
-                            onChange={handleCityChange}
-                            style={{ backgroundColor: billingAddress.city && !isLoadingAddress ? '#f8f9fa' : 'white' }}
-                          />
+                          <input type="text" className="form-control rounded-0" placeholder="City (Auto-filled)"
+                            maxLength={50} value={billingAddress.city} onChange={handleCityChange}
+                            style={{ backgroundColor: billingAddress.city && !isLoadingAddress ? '#f8f9fa' : 'white' }} />
                         </div>
                       </div>
-
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
-                            placeholder="Country (Auto-filled)"
-                            maxLength={50}
-                            onChange={handleCountryChange}
-                            value={billingAddress.country}
-                            style={{ backgroundColor: billingAddress.country && !isLoadingAddress ? '#f8f9fa' : 'white' }}
-                          />
+                          <input type="text" className="form-control rounded-0" placeholder="Country (Auto-filled)"
+                            maxLength={50} onChange={handleCountryChange} value={billingAddress.country}
+                            style={{ backgroundColor: billingAddress.country && !isLoadingAddress ? '#f8f9fa' : 'white' }} />
                         </div>
                       </div>
-
                       <div className="col-12 col-lg-12 mt-2">
                         <div className="mb-3">
-                          <textarea
-                            className="textarea_edit col-12"
-                            maxLength={500}
+                          <textarea className="textarea_edit col-12" maxLength={500}
                             placeholder="House NO., Building Name, Road Name, Area, Colony"
                             onChange={(e) => setBillingAddress(prev => ({ ...prev, add: e.target.value }))}
-                            value={billingAddress.add}
-                            rows="2"
-                          ></textarea>
+                            value={billingAddress.add} rows="2"></textarea>
                         </div>
                       </div>
                     </div>
@@ -626,35 +411,16 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                   {/* GST + Zone */}
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="">
-                      <label htmlFor="GSTNumber" className="form-label label_text">
-                        GST Number <RequiredStar /> [If not available, put NA]
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control rounded-0 text-uppercase"
-                        id="GSTNumber"
-                        maxLength={15}
-                        onChange={handleGSTChange}
-                        value={GSTNo}
-                        required
-                        placeholder="Enter GST Number"
-                        minLength={2}
-                      />
+                      <label htmlFor="GSTNumber" className="form-label label_text">GST Number <RequiredStar /> [If not available, put NA]</label>
+                      <input type="text" className="form-control rounded-0 text-uppercase" id="GSTNumber"
+                        maxLength={15} onChange={handleGSTChange} value={GSTNo} required placeholder="Enter GST Number" minLength={2} />
                     </div>
                   </div>
-
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="mb-3">
-                      <label htmlFor="zone" className="form-label label_text">
-                        Zone <RequiredStar />
-                      </label>
-                      <select
-                        className="form-select rounded-0"
-                        id="zone"
-                        value={zone}
-                        onChange={(e) => setZone(e.target.value)}
-                        required
-                      >
+                      <label htmlFor="zone" className="form-label label_text">Zone <RequiredStar /></label>
+                      <select className="form-select rounded-0" id="zone" value={zone}
+                        onChange={(e) => setZone(e.target.value)} required>
                         <option value="">Select Zone</option>
                         <option value="South">South</option>
                         <option value="North">North</option>
@@ -668,12 +434,8 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                   {/* Buttons */}
                   <div className="row">
                     <div className="col-12 pt-3 mt-2">
-                      <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
-                        Add
-                      </button>
-                      <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
-                        Cancel
-                      </button>
+                      <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">Add</button>
+                      <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">Cancel</button>
                     </div>
                   </div>
 

@@ -54,17 +54,18 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const [brandModelsMap, setBrandModelsMap] = useState(new Map());
   
   const [items, setItems] = useState([{
-    brandName: "",
-    modelNo: "",
-    description: "",
-    unit: "",
-    baseUOM: "",
-    quantity: 1,
-    price: 0,
-    discountPercent: 0,
-    taxPercent: 0,
-    netValue: 0
-  }]);
+  brandName: "",
+  modelNo: "",
+  description: "",
+  unit: "",
+  baseUOM: "",
+  quantity: 1,
+  price: 0,
+  discountPercent: 0,
+  taxPercent: 0,
+  netValue: 0,
+  warranty: ""        // ← ADD
+}]);
 
   // Default address constants
   const DEFAULT_DELIVERY_ADDRESS = "Office No. - 05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India";
@@ -217,44 +218,46 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   };
 
   const handleAddBlankItem = () => {
-    setItems([...items, {
-      brandName: "",
-      modelNo: "",
-      description: "",
-      unit: "",
-      baseUOM: "",
-      quantity: 1,
-      price: 0,
-      discountPercent: 0,
-      taxPercent: 0,
-      netValue: 0
-    }]);
-    setModels([]);
-  };
+  setItems([...items, {
+    brandName: "",
+    modelNo: "",
+    description: "",
+    unit: "",
+    baseUOM: "",
+    quantity: 1,
+    price: 0,
+    discountPercent: 0,
+    taxPercent: 0,
+    netValue: 0,
+    warranty: ""        // ← ADD
+  }]);
+  setModels([]);
+};
+
 
   const handleAddItemFromInventory = () => {
     setShowAddProductPopup(true);
   };
 
   const handleAddProductFromInventory = (productData) => {
-    const newItem = {
-      brandName: productData.brandName || "",
-      modelNo: productData.model || "",
-      description: productData.description || productData.materialName || "",
-      unit: productData.baseUOM || "",
-      baseUOM: productData.baseUOM || "",
-      quantity: 1,
-      price: productData.purchasePrice || productData.unitPrice || 0,
-      discountPercent: 0,
-      taxPercent: productData.gstPercentage || productData.gstRate || 0,
-      netValue: 0
-    };
-    
-    newItem.netValue = calculateNetValue(newItem);
-    setItems([...items, newItem]);
-    setShowAddProductPopup(false);
-    toast.success("Product added to purchase order");
+  const newItem = {
+    brandName: productData.brandName || "",
+    modelNo: productData.model || "",
+    description: productData.description || productData.materialName || "",
+    unit: productData.baseUOM || "",
+    baseUOM: productData.baseUOM || "",
+    quantity: 1,
+    price: productData.purchasePrice || productData.unitPrice || 0,
+    discountPercent: 0,
+    taxPercent: productData.gstPercentage || productData.gstRate || 0,
+    netValue: 0,
+    warranty: ""        // ← ADD
   };
+  newItem.netValue = calculateNetValue(newItem);
+  setItems([...items, newItem]);
+  setShowAddProductPopup(false);
+  toast.success("Product added to purchase order");
+};
 
   const handleRemoveItem = (index) => {
     if (items.length > 1) {
@@ -717,168 +720,179 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                     </div>
                   )}
 
-                  <div className="table-responsive">
-                    <table className="table table-bordered">
-                      <thead>
-                        <tr>
-                          <th>Brand Name</th>
-                          <th>Model</th>
-                          <th>Description</th>
-                          <th>Base UOM</th>
-                          <th>Quantity</th>
-                          <th>Price (INR/USD)</th>
-                          <th>Discount %</th>
-                          <th>Tax %</th>
-                          <th>Net Value</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((item, index) => {
-                          const brandModels = brandModelsMap.get(item.brandName);
-                          const modelOptions = brandModels ? Array.from(brandModels).map(model => ({ value: model, label: model })) : [];
-                          
-                          return (
-                            <tr key={index}>
-                              <td>
-                                <Select
-                                  value={allBrands.find(b => b.value === item.brandName) || null}
-                                  onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
-                                  options={allBrands}
-                                  placeholder="Select Brand..."
-                                  isClearable
-                                  className="react-select-container"
-                                  classNamePrefix="react-select"
-                                  isLoading={loadingProducts}
-                                  isDisabled={loadingProducts}
-                                  menuPortalTarget={document.body}
-                                  styles={{
-                                    menuPortal: base => ({ ...base, zIndex: 9999 }),
-                                    container: base => ({ ...base, minWidth: '150px' })
-                                  }}
-                                />
-                              </td>
-                              <td>
-                                <Select
-                                  value={modelOptions.find(m => m.value === item.modelNo) || null}
-                                  onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
-                                  options={modelOptions}
-                                  placeholder="Select Model..."
-                                  isClearable
-                                  className="react-select-container"
-                                  classNamePrefix="react-select"
-                                  isDisabled={!item.brandName || loadingProducts}
-                                  menuPortalTarget={document.body}
-                                  styles={{
-                                    menuPortal: base => ({ ...base, zIndex: 9999 }),
-                                    container: base => ({ ...base, minWidth: '150px' })
-                                  }}
-                                />
-                              </td>
-                              <td>
-                                <textarea
-                                  className="form-control form-control-sm"
-                                  style={{ width: "185px" }} 
-                                  value={item.description}
-                                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                                  rows="1"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "100px" }}
-                                  value={item.baseUOM}
-                                  onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)}
-                                  placeholder="Base UOM"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "80px" }}
-                                  value={item.quantity}
-                                  onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                                  min="1"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "100px" }}
-                                  value={item.price}
-                                  onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
-                                  min="0"
-                                  step="0.01"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "80px" }}
-                                  value={item.discountPercent}
-                                  onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))}
-                                  min="0"
-                                  max="100"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "80px" }}
-                                  value={item.taxPercent}
-                                  onChange={(e) => handleItemChange(index, 'taxPercent', Number(e.target.value))}
-                                  min="0"
-                                  max="100"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "100px" }}
-                                  value={item.netValue.toFixed(2)}
-                                  readOnly
-                                />
-                              </td>
-                              <td>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() => handleRemoveItem(index)}
-                                  disabled={items.length === 1}
-                                >
-                                  <i className="fa fa-trash"></i>
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <td colSpan="8" className="text-end fw-bold">Total Amount</td>
-                          <td className="fw-bold">{totalAmount.toFixed(2)}</td>
-                          <td></td>
-                        </tr>
-                        <tr>
-                          <td colSpan="8" className="text-end fw-bold">Total Tax</td>
-                          <td className="fw-bold">{totalTax.toFixed(2)}</td>
-                          <td></td>
-                        </tr>
-                        <tr>
-                          <td colSpan="8" className="text-end fw-bold">Grand Total</td>
-                          <td className="fw-bold">{grandTotal.toFixed(2)}</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
+                <div className="table-responsive">
+  <table className="table table-bordered">
+    <thead>
+      <tr>
+        <th>Brand Name</th>
+        <th>Model</th>
+        <th>Description</th>
+        <th>Base UOM</th>
+        <th>Quantity</th>
+        <th>Price (INR/USD)</th>
+        <th>Discount %</th>
+        <th>Tax %</th>
+        <th>Warranty</th>
+        <th>Net Value</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {items.map((item, index) => {
+        const brandModels = brandModelsMap.get(item.brandName);
+        const modelOptions = brandModels ? Array.from(brandModels).map(model => ({ value: model, label: model })) : [];
+
+        return (
+          <tr key={index}>
+            <td>
+              <Select
+                value={allBrands.find(b => b.value === item.brandName) || null}
+                onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
+                options={allBrands}
+                placeholder="Select Brand..."
+                isClearable
+                className="react-select-container"
+                classNamePrefix="react-select"
+                isLoading={loadingProducts}
+                isDisabled={loadingProducts}
+                menuPortalTarget={document.body}
+                styles={{
+                  menuPortal: base => ({ ...base, zIndex: 9999 }),
+                  container: base => ({ ...base, minWidth: '150px' })
+                }}
+              />
+            </td>
+            <td>
+              <Select
+                value={modelOptions.find(m => m.value === item.modelNo) || null}
+                onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
+                options={modelOptions}
+                placeholder="Select Model..."
+                isClearable
+                className="react-select-container"
+                classNamePrefix="react-select"
+                isDisabled={!item.brandName || loadingProducts}
+                menuPortalTarget={document.body}
+                styles={{
+                  menuPortal: base => ({ ...base, zIndex: 9999 }),
+                  container: base => ({ ...base, minWidth: '150px' })
+                }}
+              />
+            </td>
+            <td>
+              <textarea
+                className="form-control form-control-sm"
+                style={{ width: "185px" }}
+                value={item.description}
+                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                rows="1"
+              />
+            </td>
+            <td>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ minWidth: "100px" }}
+                value={item.baseUOM}
+                onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)}
+                placeholder="Base UOM"
+              />
+            </td>
+            <td>
+              <input
+                type="number"
+                className="form-control form-control-sm"
+                style={{ minWidth: "80px" }}
+                value={item.quantity}
+                onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
+                min="1"
+              />
+            </td>
+            <td>
+              <input
+                type="number"
+                className="form-control form-control-sm"
+                style={{ minWidth: "100px" }}
+                value={item.price}
+                onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
+                min="0"
+                step="0.01"
+              />
+            </td>
+            <td>
+              <input
+                type="number"
+                className="form-control form-control-sm"
+                style={{ minWidth: "80px" }}
+                value={item.discountPercent}
+                onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))}
+                min="0"
+                max="100"
+              />
+            </td>
+            <td>
+              <input
+                type="number"
+                className="form-control form-control-sm"
+                style={{ minWidth: "80px" }}
+                value={item.taxPercent}
+                onChange={(e) => handleItemChange(index, 'taxPercent', Number(e.target.value))}
+                min="0"
+                max="100"
+              />
+            </td>
+            <td>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ minWidth: "120px" }}
+                value={item.warranty}
+                onChange={(e) => handleItemChange(index, 'warranty', e.target.value)}
+                placeholder="e.g. 1 Year"
+              />
+            </td>
+            <td>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ minWidth: "100px" }}
+                value={item.netValue.toFixed(2)}
+                readOnly
+              />
+            </td>
+            <td>
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                onClick={() => handleRemoveItem(index)}
+                disabled={items.length === 1}
+              >
+                <i className="fa fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        );
+      })}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colSpan="9" className="text-end fw-bold">Total Amount</td>
+        <td className="fw-bold">{totalAmount.toFixed(2)}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td colSpan="9" className="text-end fw-bold">Total Tax</td>
+        <td className="fw-bold">{totalTax.toFixed(2)}</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td colSpan="9" className="text-end fw-bold">Grand Total</td>
+        <td className="fw-bold">{grandTotal.toFixed(2)}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
                 </div>
 
                 <div className="col-12 mt-3">

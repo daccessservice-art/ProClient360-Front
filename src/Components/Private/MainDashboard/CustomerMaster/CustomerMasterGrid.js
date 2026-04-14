@@ -11,9 +11,7 @@ import toast from "react-hot-toast";
 export const CustomerMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const toggle = () => {
-    setIsOpen(!isopen);
-  };
+  const toggle = () => { setIsOpen(!isopen); };
 
   const { user } = useContext(UserContext);
   const [AddPopUpShow, setAddPopUpShow] = useState(false);
@@ -27,22 +25,27 @@ export const CustomerMasterGrid = () => {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 0,
-    totalCustomers: 0,
-    limit: 20,
-    hasNextPage: false,
-    hasPrevPage: false,
+    currentPage: 1, totalPages: 0, totalCustomers: 0,
+    limit: 20, hasNextPage: false, hasPrevPage: false,
   });
 
-  // ✅ NEW: Filter states
+  // Filter states
   const [createdByFilter, setCreatedByFilter] = useState("");
   const [ownedByFilter, setOwnedByFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [industryTypeFilter, setIndustryTypeFilter] = useState("");
   const [filterEmployees, setFilterEmployees] = useState([]);
 
   const itemsPerPage = 20;
 
-  // ✅ NEW: Fetch employees for filter dropdowns
+  const industryOptions = [
+    "IT & Software", "Manufacturing", "Construction & Infrastructure",
+    "Healthcare", "Education", "Retail", "Banking & Finance",
+    "Logistics & Supply Chain", "Hospitality", "Real Estate",
+    "Government & Public Sector", "Energy & Utilities", "Telecom",
+    "Pharmaceuticals", "Automotive", "Other"
+  ];
+
   useEffect(() => {
     const fetchFilterEmployees = async () => {
       try {
@@ -57,31 +60,14 @@ export const CustomerMasterGrid = () => {
     fetchFilterEmployees();
   }, []);
 
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
-
-  const handleAdd = () => {
-    setAddPopUpShow(!AddPopUpShow);
-  };
-
-  const handleUpdate = (customer) => {
-    setSelectedCust(customer);
-    setUpdatePopUpShow(!updatePopUpShow);
-  };
-
-  const handelDeleteClosePopUpClick = (id) => {
-    setSelecteId(id);
-    setdeletePopUpShow(!deletePopUpShow);
-  };
+  const handlePageChange = (page) => { setCurrentPage(page); };
+  const handleAdd = () => { setAddPopUpShow(!AddPopUpShow); };
+  const handleUpdate = (customer) => { setSelectedCust(customer); setUpdatePopUpShow(!updatePopUpShow); };
+  const handelDeleteClosePopUpClick = (id) => { setSelecteId(id); setdeletePopUpShow(!deletePopUpShow); };
 
   const handelDeleteClick = async () => {
     const data = await deleteCustomer(selectedId);
-    if (data?.success) {
-      toast.success(data?.message);
-    } else {
-      toast.error(data?.error);
-    }
+    if (data?.success) { toast.success(data?.message); } else { toast.error(data?.error); }
     setdeletePopUpShow(false);
     setCurrentPage(1);
   };
@@ -89,55 +75,44 @@ export const CustomerMasterGrid = () => {
   const handleExportPDF = async () => {
     try {
       const result = await exportCustomersPDF();
-      if (result.success) {
-        toast.success(result.message);
-      } else {
-        toast.error(result.error || "Failed to export PDF");
-      }
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("An unexpected error occurred while exporting PDF");
-    }
+      if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export PDF"); }
+    } catch (error) { toast.error("An unexpected error occurred while exporting PDF"); }
   };
 
   const handleExportExcel = async () => {
     try {
       const result = await exportCustomersExcel();
-      if (result.success) {
-        toast.success(result.message);
-      } else {
-        toast.error(result.error || "Failed to export Excel");
-      }
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("An unexpected error occurred while exporting Excel");
-    }
+      if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Excel"); }
+    } catch (error) { toast.error("An unexpected error occurred while exporting Excel"); }
   };
 
-  // ✅ NEW: Reset filters handler
   const handleResetFilters = () => {
-    setCreatedByFilter("");
-    setOwnedByFilter("");
-    setSearchText("");
-    setSearch("");
-    setCurrentPage(1);
+    setCreatedByFilter(""); setOwnedByFilter(""); setPriorityFilter("");
+    setIndustryTypeFilter(""); setSearchText(""); setSearch(""); setCurrentPage(1);
   };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // ✅ NEW: Pass createdByFilter and ownedByFilter to API
         const data = await getCustomers(currentPage, itemsPerPage, search, createdByFilter, ownedByFilter);
         if (data?.success) {
-          setCustomers(data.customers || []);
+          // Client-side filter for priority and industryType (if backend doesn't support them yet)
+          let filtered = data.customers || [];
+          if (priorityFilter === "NA") {
+            filtered = filtered.filter(c => !c.customerPriority || c.customerPriority === "");
+          } else if (priorityFilter) {
+            filtered = filtered.filter(c => c.customerPriority === priorityFilter);
+          }
+          if (industryTypeFilter === "NA") {
+            filtered = filtered.filter(c => !c.industryType || c.industryType === "");
+          } else if (industryTypeFilter) {
+            filtered = filtered.filter(c => c.industryType === industryTypeFilter);
+          }
+          setCustomers(filtered);
           setPagination(data.pagination || {
-            currentPage: 1,
-            totalPages: 0,
-            totalCustomers: 0,
-            limit: itemsPerPage,
-            hasNextPage: false,
-            hasPrevPage: false,
+            currentPage: 1, totalPages: 0, totalCustomers: 0,
+            limit: itemsPerPage, hasNextPage: false, hasPrevPage: false,
           });
         } else {
           toast(data.error);
@@ -148,29 +123,25 @@ export const CustomerMasterGrid = () => {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search, createdByFilter, ownedByFilter]);
+  }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search, createdByFilter, ownedByFilter, priorityFilter, industryTypeFilter]);
 
-  // ✅ NEW: Reset to page 1 when filters change
-  const handleCreatedByFilter = (e) => {
-    setCreatedByFilter(e.target.value);
-    setCurrentPage(1);
-  };
+  const handleCreatedByFilter = (e) => { setCreatedByFilter(e.target.value); setCurrentPage(1); };
 
+  // ownedBy: "NA" means show customers with no owner / NA
   const handleOwnedByFilter = (e) => {
     setOwnedByFilter(e.target.value);
     setCurrentPage(1);
   };
 
+  const handlePriorityFilter = (e) => { setPriorityFilter(e.target.value); setCurrentPage(1); };
+  const handleIndustryTypeFilter = (e) => { setIndustryTypeFilter(e.target.value); setCurrentPage(1); };
+
   const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
   let startPage = Math.max(1, currentPage - halfMaxButtons);
   let endPage = Math.min(pagination.totalPages, startPage + maxPageButtons - 1);
-
-  if (endPage - startPage + 1 < maxPageButtons) {
-    startPage = Math.max(1, endPage - maxPageButtons + 1);
-  }
+  if (endPage - startPage + 1 < maxPageButtons) { startPage = Math.max(1, endPage - maxPageButtons + 1); }
 
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
@@ -179,14 +150,10 @@ export const CustomerMasterGrid = () => {
   };
 
   const pageButtons = [];
-  for (let i = startPage; i <= endPage; i++) {
-    pageButtons.push(i);
-  }
+  for (let i = startPage; i <= endPage; i++) { pageButtons.push(i); }
 
   const getIndustryDisplay = (customer) => {
-    if (customer.industryType === "Other") {
-      return customer.industryTypeOther || "Other";
-    }
+    if (customer.industryType === "Other") { return customer.industryTypeOther || "Other"; }
     return customer.industryType || "N/A";
   };
 
@@ -195,19 +162,16 @@ export const CustomerMasterGrid = () => {
       case "P1": return "badge bg-danger";
       case "P2": return "badge bg-warning text-dark";
       case "P3": return "badge bg-success";
-      default:   return "badge bg-secondary";
+      default: return "badge bg-secondary";
     }
   };
 
-  // ✅ Check if any filter is active
-  const isFilterActive = createdByFilter || ownedByFilter || search;
+  const isFilterActive = createdByFilter || ownedByFilter || search || priorityFilter || industryTypeFilter;
 
   return (
     <>
       {loading && (
-        <div className="overlay">
-          <span className="loader"></span>
-        </div>
+        <div className="overlay"><span className="loader"></span></div>
       )}
 
       <div className="container-scroller">
@@ -215,118 +179,99 @@ export const CustomerMasterGrid = () => {
           <Header toggle={toggle} isopen={isopen} />
           <div className="container-fluid page-body-wrapper">
             <Sidebar isopen={isopen} active="CustomerMasterGrid" />
-            <div
-              className="main-panel"
-              style={{
-                width: isopen ? "" : "calc(100% - 120px)",
-                marginLeft: isopen ? "" : "125px",
-              }}
-            >
+            <div className="main-panel" style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}>
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
                 {/* ── Top bar ── */}
                 <div className="row px-2 py-1 align-items-center">
-
-                  {/* Page title */}
                   <div className="col-12 col-lg-2">
                     <h5 className="text-white py-2 mb-0">Customer Master</h5>
                   </div>
 
-                  {/* Search + Filters + Buttons */}
                   <div className="col-12 col-lg-10">
-                    <div className="row g-2 align-items-center justify-content-end">
+                    <div className="row g-2 align-items-end justify-content-end">
 
                       {/* Search */}
-                      <div className="col-12 col-sm-6 col-lg-3">
+                      <div className="col-12 col-sm-6 col-lg-2">
                         <div className="form">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
-                            <input
-                              type="text"
-                              value={searchText}
-                              onChange={(e) => setSearchText(e.target.value)}
-                              className="form-control form-input bg-transparant"
-                              placeholder="Search ..."
-                            />
+                            <input type="text" value={searchText} onChange={(e) => setSearchText(e.target.value)}
+                              className="form-control form-input bg-transparant" placeholder="Search ..." />
                           </form>
                         </div>
                       </div>
 
-                      {/* ✅ NEW: Created By filter */}
-                      <div className="col-12 col-sm-6 col-lg-3">
-                        <select
-                          className="form-select form-select-sm"
-                          value={createdByFilter}
-                          onChange={handleCreatedByFilter}
-                          title="Filter by Created By"
-                        >
+                      {/* Created By filter */}
+                      <div className="col-12 col-sm-6 col-lg-2">
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Created By</label>
+                        <select className="form-select form-select-sm" value={createdByFilter}
+                          onChange={handleCreatedByFilter} title="Filter by Created By">
                           <option value="">All Created By</option>
                           {filterEmployees.map((emp) => (
-                            <option key={emp._id} value={emp.name}>
-                              {emp.name}
-                            </option>
+                            <option key={emp._id} value={emp.name}>{emp.name}</option>
                           ))}
                         </select>
                       </div>
 
-                      {/* ✅ NEW: Owned By filter */}
-                      <div className="col-12 col-sm-6 col-lg-3">
-                        <select
-                          className="form-select form-select-sm"
-                          value={ownedByFilter}
-                          onChange={handleOwnedByFilter}
-                          title="Filter by Owned By"
-                        >
-                          <option value="">All Owned By</option>
+                      {/* Owned By filter */}
+                      <div className="col-12 col-sm-6 col-lg-2">
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Owned By</label>
+                        <select className="form-select form-select-sm" value={ownedByFilter}
+                          onChange={handleOwnedByFilter} title="Filter by Owned By">
+                          <option value="">Select Owned By</option>
+                          <option value="NA">NA / None</option>
                           {filterEmployees.map((emp) => (
-                            <option key={emp._id} value={emp.name}>
-                              {emp.name}
-                            </option>
+                            <option key={emp._id} value={emp.name}>{emp.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Priority filter */}
+                      <div className="col-12 col-sm-6 col-lg-2">
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Priority</label>
+                        <select className="form-select form-select-sm" value={priorityFilter}
+                          onChange={handlePriorityFilter} title="Filter by Priority">
+                          <option value="">All Priority</option>
+                          <option value="P1">🔴 P1 — High</option>
+                          <option value="P2">🟡 P2 — Medium</option>
+                          <option value="P3">🟢 P3 — Low</option>
+                          <option value="NA">NA / None</option>
+                        </select>
+                      </div>
+
+                      {/* Industry Type filter */}
+                      <div className="col-12 col-sm-6 col-lg-2">
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Industry Type</label>
+                        <select className="form-select form-select-sm" value={industryTypeFilter}
+                          onChange={handleIndustryTypeFilter} title="Filter by Industry Type">
+                          <option value="">All Industry</option>
+                          <option value="NA">NA / None</option>
+                          {industryOptions.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
                           ))}
                         </select>
                       </div>
 
                       {/* Action buttons */}
-                      <div className="col-12 col-sm-6 col-lg-3 text-end">
+                      <div className="col-12 col-sm-6 col-lg-2 text-end">
                         <div className="btn-group flex-wrap" role="group">
-
-                          {/* ✅ NEW: Reset filters button — only visible when a filter is active */}
                           {isFilterActive && (
-                            <button
-                              onClick={handleResetFilters}
-                              type="button"
-                              className="btn btn-sm btn-outline-light me-1"
-                              title="Clear all filters"
-                            >
+                            <button onClick={handleResetFilters} type="button"
+                              className="btn btn-sm btn-outline-light me-1" title="Clear all filters">
                               <i className="fa-solid fa-xmark"></i> Reset
                             </button>
                           )}
-
-                          <button
-                            onClick={handleExportPDF}
-                            type="button"
-                            className="btn btn-sm btn-danger me-1"
-                            title="Export to PDF"
-                            disabled={loading}
-                          >
+                          <button onClick={handleExportPDF} type="button" className="btn btn-sm btn-danger me-1"
+                            title="Export to PDF" disabled={loading}>
                             <i className="fa-solid fa-file-pdf"></i> PDF
                           </button>
-                          <button
-                            onClick={handleExportExcel}
-                            type="button"
-                            className="btn btn-sm btn-success me-1"
-                            title="Export to Excel"
-                            disabled={loading}
-                          >
+                          <button onClick={handleExportExcel} type="button" className="btn btn-sm btn-success me-1"
+                            title="Export to Excel" disabled={loading}>
                             <i className="fa-solid fa-file-excel"></i> Excel
                           </button>
                           {user?.permissions?.includes("createCustomer") || user.user === "company" ? (
-                            <button
-                              onClick={handleAdd}
-                              type="button"
-                              className="btn btn-sm btn-dark"
-                              disabled={loading}
-                            >
+                            <button onClick={handleAdd} type="button" className="btn btn-sm btn-dark" disabled={loading}>
                               <i className="fa-solid fa-plus"></i> Add
                             </button>
                           ) : null}
@@ -337,7 +282,7 @@ export const CustomerMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* ✅ NEW: Active filter badges */}
+                {/* Active filter badges */}
                 {isFilterActive && (
                   <div className="row px-2 pb-1">
                     <div className="col-12">
@@ -345,28 +290,36 @@ export const CustomerMasterGrid = () => {
                       {search && (
                         <span className="badge bg-info text-dark me-1">
                           Search: {search}
-                          <i
-                            className="fa fa-times ms-1 cursor-pointer"
-                            onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}
-                          ></i>
+                          <i className="fa fa-times ms-1 cursor-pointer"
+                            onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
                       {createdByFilter && (
                         <span className="badge bg-primary me-1">
                           Created By: {createdByFilter}
-                          <i
-                            className="fa fa-times ms-1 cursor-pointer"
-                            onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}
-                          ></i>
+                          <i className="fa fa-times ms-1 cursor-pointer"
+                            onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
                       {ownedByFilter && (
                         <span className="badge bg-secondary me-1">
                           Owned By: {ownedByFilter}
-                          <i
-                            className="fa fa-times ms-1 cursor-pointer"
-                            onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}
-                          ></i>
+                          <i className="fa fa-times ms-1 cursor-pointer"
+                            onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}></i>
+                        </span>
+                      )}
+                      {priorityFilter && (
+                        <span className="badge bg-warning text-dark me-1">
+                          Priority: {priorityFilter}
+                          <i className="fa fa-times ms-1 cursor-pointer"
+                            onClick={() => { setPriorityFilter(""); setCurrentPage(1); }}></i>
+                        </span>
+                      )}
+                      {industryTypeFilter && (
+                        <span className="badge bg-dark me-1">
+                          Industry: {industryTypeFilter}
+                          <i className="fa fa-times ms-1 cursor-pointer"
+                            onClick={() => { setIndustryTypeFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
                     </div>
@@ -402,7 +355,8 @@ export const CustomerMasterGrid = () => {
                                 <td>{customer.phoneNumber1}</td>
                                 <td>{customer.GSTNo}</td>
                                 <td>
-                                  <span className="badge bg-info text-dark">
+                                  {/* ✅ Industry type badge — gray (secondary) */}
+                                  <span className="badge bg-secondary">
                                     {getIndustryDisplay(customer)}
                                   </span>
                                 </td>
@@ -429,9 +383,7 @@ export const CustomerMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="10" className="text-center">
-                                No data found
-                              </td>
+                              <td colSpan="10" className="text-center">No data found</td>
                             </tr>
                           )}
                         </tbody>
@@ -442,49 +394,18 @@ export const CustomerMasterGrid = () => {
 
                 {/* Pagination */}
                 <div className="pagination-container text-center my-3 sm">
-                  <button
-                    disabled={!pagination.hasPrevPage}
-                    onClick={() => handlePageChange(1)}
-                    className="btn btn-dark btn-sm me-2"
-                  >
-                    First
-                  </button>
-                  <button
-                    disabled={!pagination.hasPrevPage}
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    className="btn btn-dark btn-sm me-2"
-                  >
-                    Previous
-                  </button>
+                  <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">First</button>
+                  <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">Previous</button>
                   {startPage > 1 && <span className="mx-2">...</span>}
-
                   {pageButtons.map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(page)}
-                      className={`btn btn-sm me-1 ${
-                        pagination.currentPage === page ? "btn-primary" : "btn-dark"
-                      }`}
-                    >
+                    <button key={page} onClick={() => handlePageChange(page)}
+                      className={`btn btn-sm me-1 ${pagination.currentPage === page ? "btn-primary" : "btn-dark"}`}>
                       {page}
                     </button>
                   ))}
-
                   {endPage < pagination.totalPages && <span className="mx-2">...</span>}
-                  <button
-                    disabled={!pagination.hasNextPage}
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    className="btn btn-dark btn-sm me-2"
-                  >
-                    Next
-                  </button>
-                  <button
-                    disabled={!pagination.hasNextPage}
-                    onClick={() => handlePageChange(pagination.totalPages)}
-                    className="btn btn-dark btn-sm"
-                  >
-                    Last
-                  </button>
+                  <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">Next</button>
+                  <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">Last</button>
                 </div>
 
               </div>
@@ -494,21 +415,13 @@ export const CustomerMasterGrid = () => {
       </div>
 
       {deletePopUpShow && (
-        <DeletePopUP
-          message={"Are you sure! Do you want to Delete ?"}
+        <DeletePopUP message={"Are you sure! Do you want to Delete ?"}
           cancelBtnCallBack={handelDeleteClosePopUpClick}
-          confirmBtnCallBack={handelDeleteClick}
-          heading="Delete"
-        />
+          confirmBtnCallBack={handelDeleteClick} heading="Delete" />
       )}
-
       {AddPopUpShow && <AddCustomerPopUp handleAdd={handleAdd} />}
-
       {updatePopUpShow && (
-        <UpdateCustomerPopUp
-          selectedCust={selectedCust}
-          handleUpdate={handleUpdate}
-        />
+        <UpdateCustomerPopUp selectedCust={selectedCust} handleUpdate={handleUpdate} />
       )}
     </>
   );

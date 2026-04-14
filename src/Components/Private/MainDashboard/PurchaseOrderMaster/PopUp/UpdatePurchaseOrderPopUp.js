@@ -181,20 +181,22 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
     return amountAfterDiscount + taxAmount;
   };
 
-  const handleAddItem = () => {
-    setItems([...items, {
-      brandName: "",
-      modelNo: "",
-      description: "",
-      unit: "",
-      baseUOM: "",
-      quantity: 1,
-      price: 0,
-      discountPercent: 0,
-      taxPercent: 0,
-      netValue: 0
-    }]);
-  };
+  // 1. Update handleAddItem — add warranty: ""
+const handleAddItem = () => {
+  setItems([...items, {
+    brandName: "",
+    modelNo: "",
+    description: "",
+    unit: "",
+    baseUOM: "",
+    quantity: 1,
+    price: 0,
+    discountPercent: 0,
+    taxPercent: 0,
+    netValue: 0,
+    warranty: ""        // ← ADD
+  }]);
+};
 
   const handleRemoveItem = (index) => {
     if (items.length > 1) {
@@ -573,170 +575,7 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                     </button>
                   </div>
 
-                  <div className="table-responsive">
-                    <table className="table table-bordered">
-                      <thead>
-                        <tr>
-                          <th>Brand Name</th>
-                          <th>Model No</th>
-                          <th>Description</th>
-                          <th>Unit</th>
-                          <th>Base UOM</th>
-                          <th>Quantity</th>
-                          <th>Price (INR/USD)</th>
-                          <th>Discount %</th>
-                          <th>Tax %</th>
-                          <th>Net Value</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((item, index) => {
-                          const brandProducts = products.filter(p => p.brandName === item.brandName);
-                          const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
-                          const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
-                          
-                          return (
-                            <tr key={index}>
-                              <td>
-                                <Select
-                                  value={allBrands.find(b => b.value === item.brandName) || null}
-                                  onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
-                                  options={allBrands}
-                                  placeholder="Select Brand..."
-                                  isClearable
-                                  className="react-select-container"
-                                  classNamePrefix="react-select"
-                                  menuPortalTarget={document.body}
-                                  styles={{
-                                    menuPortal: base => ({ ...base, zIndex: 9999 }),
-                                    container: base => ({ ...base, minWidth: '150px' })
-                                  }}
-                                />
-                              </td>
-                              <td>
-                                <Select
-                                  value={modelOptions.find(m => m.value === item.modelNo) || null}
-                                  onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
-                                  options={modelOptions}
-                                  placeholder="Select Model..."
-                                  isClearable
-                                  className="react-select-container"
-                                  classNamePrefix="react-select"
-                                  isDisabled={!item.brandName}
-                                  menuPortalTarget={document.body}
-                                  styles={{
-                                    menuPortal: base => ({ ...base, zIndex: 9999 }),
-                                    container: base => ({ ...base, minWidth: '150px' })
-                                  }}
-                                />
-                              </td>
-                              <td>
-                                <textarea
-                                  className="form-control form-control-sm"
-                                  value={item.description}
-                                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                                  rows="1"
-                                  placeholder="Item description"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  value={item.unit}
-                                  onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  value={item.baseUOM}
-                                  onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)}
-                                  placeholder="Base UOM"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.quantity}
-                                  onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
-                                  min="1"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.price}
-                                  onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
-                                  min="0"
-                                  step="0.01"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.discountPercent}
-                                  onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))}
-                                  min="0"
-                                  max="100"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.taxPercent}
-                                  onChange={(e) => handleItemChange(index, 'taxPercent', Number(e.target.value))}
-                                  min="0"
-                                  max="100"
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  value={item.netValue.toFixed(2)}
-                                  readOnly
-                                />
-                              </td>
-                              <td>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() => handleRemoveItem(index)}
-                                  disabled={items.length === 1}
-                                >
-                                  <i className="fa fa-trash"></i>
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <td colSpan="8" className="text-end fw-bold">Total</td>
-                          <td className="fw-bold">{totalAmount.toFixed(2)}</td>
-                          <td></td>
-                        </tr>
-                        <tr>
-                          <td colSpan="8" className="text-end fw-bold">Tax Amount</td>
-                          <td className="fw-bold">{totalTax.toFixed(2)}</td>
-                          <td></td>
-                        </tr>
-                        <tr>
-                          <td colSpan="8" className="text-end fw-bold">Grand Total</td>
-                          <td className="fw-bold">{grandTotal.toFixed(2)}</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
+                className="table-responsive
                 </div>
 
                 <div className="col-12 mt-3">
