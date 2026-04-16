@@ -8,6 +8,12 @@ import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel,
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
 
+const ALLOWED_EXPORT_DESIGNATIONS = [
+  "Director Digi Solution",
+  "CEO & Founder",
+  "Junior Software Developer",
+];
+
 export const CustomerMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -43,8 +49,13 @@ export const CustomerMasterGrid = () => {
     "Healthcare", "Education", "Retail", "Banking & Finance",
     "Logistics & Supply Chain", "Hospitality", "Real Estate",
     "Government & Public Sector", "Energy & Utilities", "Telecom",
-    "Pharmaceuticals", "Automotive", "Other"
+    "Pharmaceuticals", "Automotive", "Dealer", "Other"
   ];
+
+  // ─── Export permission check ─────────────────────────────────────────────
+  const canExport =
+    user?.user === "company" ||
+    ALLOWED_EXPORT_DESIGNATIONS.includes(user?.designation || "");
 
   useEffect(() => {
     const fetchFilterEmployees = async () => {
@@ -73,6 +84,10 @@ export const CustomerMasterGrid = () => {
   };
 
   const handleExportPDF = async () => {
+    if (!canExport) {
+      toast.error("Your designation does not have permission to export customer data.");
+      return;
+    }
     try {
       const result = await exportCustomersPDF();
       if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export PDF"); }
@@ -80,6 +95,10 @@ export const CustomerMasterGrid = () => {
   };
 
   const handleExportExcel = async () => {
+    if (!canExport) {
+      toast.error("Your designation does not have permission to export customer data.");
+      return;
+    }
     try {
       const result = await exportCustomersExcel();
       if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Excel"); }
@@ -97,7 +116,6 @@ export const CustomerMasterGrid = () => {
         setLoading(true);
         const data = await getCustomers(currentPage, itemsPerPage, search, createdByFilter, ownedByFilter);
         if (data?.success) {
-          // Client-side filter for priority and industryType (if backend doesn't support them yet)
           let filtered = data.customers || [];
           if (priorityFilter === "NA") {
             filtered = filtered.filter(c => !c.customerPriority || c.customerPriority === "");
@@ -127,21 +145,18 @@ export const CustomerMasterGrid = () => {
   }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search, createdByFilter, ownedByFilter, priorityFilter, industryTypeFilter]);
 
   const handleCreatedByFilter = (e) => { setCreatedByFilter(e.target.value); setCurrentPage(1); };
-
-  // ownedBy: "NA" means show customers with no owner / NA
-  const handleOwnedByFilter = (e) => {
-    setOwnedByFilter(e.target.value);
-    setCurrentPage(1);
-  };
-
+  const handleOwnedByFilter = (e) => { setOwnedByFilter(e.target.value); setCurrentPage(1); };
   const handlePriorityFilter = (e) => { setPriorityFilter(e.target.value); setCurrentPage(1); };
   const handleIndustryTypeFilter = (e) => { setIndustryTypeFilter(e.target.value); setCurrentPage(1); };
 
+  // ─── Pagination calculation ───────────────────────────────────────────────
   const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
   let startPage = Math.max(1, currentPage - halfMaxButtons);
   let endPage = Math.min(pagination.totalPages, startPage + maxPageButtons - 1);
-  if (endPage - startPage + 1 < maxPageButtons) { startPage = Math.max(1, endPage - maxPageButtons + 1); }
+  if (endPage - startPage + 1 < maxPageButtons) {
+    startPage = Math.max(1, endPage - maxPageButtons + 1);
+  }
 
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
@@ -168,6 +183,12 @@ export const CustomerMasterGrid = () => {
 
   const isFilterActive = createdByFilter || ownedByFilter || search || priorityFilter || industryTypeFilter;
 
+  // ─── Count for filter badges ──────────────────────────────────────────────
+  // When client-side filters (priority / industryType) are active, use customers.length
+  // Otherwise use server total
+  const isClientFiltered = !!(priorityFilter || industryTypeFilter);
+  const displayCount = isClientFiltered ? customers.length : pagination.totalCustomers;
+
   return (
     <>
       {loading && (
@@ -179,7 +200,10 @@ export const CustomerMasterGrid = () => {
           <Header toggle={toggle} isopen={isopen} />
           <div className="container-fluid page-body-wrapper">
             <Sidebar isopen={isopen} active="CustomerMasterGrid" />
-            <div className="main-panel" style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}>
+            <div
+              className="main-panel"
+              style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}
+            >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
                 {/* ── Top bar ── */}
@@ -196,8 +220,13 @@ export const CustomerMasterGrid = () => {
                         <div className="form">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
-                            <input type="text" value={searchText} onChange={(e) => setSearchText(e.target.value)}
-                              className="form-control form-input bg-transparant" placeholder="Search ..." />
+                            <input
+                              type="text"
+                              value={searchText}
+                              onChange={(e) => setSearchText(e.target.value)}
+                              className="form-control form-input bg-transparant"
+                              placeholder="Search ..."
+                            />
                           </form>
                         </div>
                       </div>
@@ -205,9 +234,13 @@ export const CustomerMasterGrid = () => {
                       {/* Created By filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Created By</label>
-                        <select className="form-select form-select-sm" value={createdByFilter}
-                          onChange={handleCreatedByFilter} title="Filter by Created By">
-                          <option value="">All Created By</option>
+                        <select
+                          className="form-select form-select-sm"
+                          value={createdByFilter}
+                          onChange={handleCreatedByFilter}
+                          title="Filter by Created By"
+                        >
+                          <option value="">Select Created By</option>
                           {filterEmployees.map((emp) => (
                             <option key={emp._id} value={emp.name}>{emp.name}</option>
                           ))}
@@ -217,8 +250,12 @@ export const CustomerMasterGrid = () => {
                       {/* Owned By filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Owned By</label>
-                        <select className="form-select form-select-sm" value={ownedByFilter}
-                          onChange={handleOwnedByFilter} title="Filter by Owned By">
+                        <select
+                          className="form-select form-select-sm"
+                          value={ownedByFilter}
+                          onChange={handleOwnedByFilter}
+                          title="Filter by Owned By"
+                        >
                           <option value="">Select Owned By</option>
                           <option value="NA">NA / None</option>
                           {filterEmployees.map((emp) => (
@@ -229,10 +266,14 @@ export const CustomerMasterGrid = () => {
 
                       {/* Priority filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
-                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Priority</label>
-                        <select className="form-select form-select-sm" value={priorityFilter}
-                          onChange={handlePriorityFilter} title="Filter by Priority">
-                          <option value="">All Priority</option>
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Priority</label>
+                        <select
+                          className="form-select form-select-sm"
+                          value={priorityFilter}
+                          onChange={handlePriorityFilter}
+                          title="Filter by Priority"
+                        >
+                          <option value="">Select Priority</option>
                           <option value="P1">🔴 P1 — High</option>
                           <option value="P2">🟡 P2 — Medium</option>
                           <option value="P3">🟢 P3 — Low</option>
@@ -242,10 +283,14 @@ export const CustomerMasterGrid = () => {
 
                       {/* Industry Type filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
-                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Industry Type</label>
-                        <select className="form-select form-select-sm" value={industryTypeFilter}
-                          onChange={handleIndustryTypeFilter} title="Filter by Industry Type">
-                          <option value="">All Industry</option>
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Industry Type</label>
+                        <select
+                          className="form-select form-select-sm"
+                          value={industryTypeFilter}
+                          onChange={handleIndustryTypeFilter}
+                          title="Filter by Industry Type"
+                        >
+                          <option value="">Select Industry</option>
                           <option value="NA">NA / None</option>
                           {industryOptions.map((opt) => (
                             <option key={opt} value={opt}>{opt}</option>
@@ -257,19 +302,39 @@ export const CustomerMasterGrid = () => {
                       <div className="col-12 col-sm-6 col-lg-2 text-end">
                         <div className="btn-group flex-wrap" role="group">
                           {isFilterActive && (
-                            <button onClick={handleResetFilters} type="button"
-                              className="btn btn-sm btn-outline-light me-1" title="Clear all filters">
+                            <button
+                              onClick={handleResetFilters}
+                              type="button"
+                              className="btn btn-sm btn-outline-light me-1"
+                              title="Clear all filters"
+                            >
                               <i className="fa-solid fa-xmark"></i> Reset
                             </button>
                           )}
-                          <button onClick={handleExportPDF} type="button" className="btn btn-sm btn-danger me-1"
-                            title="Export to PDF" disabled={loading}>
-                            <i className="fa-solid fa-file-pdf"></i> PDF
-                          </button>
-                          <button onClick={handleExportExcel} type="button" className="btn btn-sm btn-success me-1"
-                            title="Export to Excel" disabled={loading}>
-                            <i className="fa-solid fa-file-excel"></i> Excel
-                          </button>
+
+                          {canExport && (
+                            <>
+                              <button
+                                onClick={handleExportPDF}
+                                type="button"
+                                className="btn btn-sm btn-danger me-1"
+                                title="Export to PDF"
+                                disabled={loading}
+                              >
+                                <i className="fa-solid fa-file-pdf"></i> PDF
+                              </button>
+                              <button
+                                onClick={handleExportExcel}
+                                type="button"
+                                className="btn btn-sm btn-success me-1"
+                                title="Export to Excel"
+                                disabled={loading}
+                              >
+                                <i className="fa-solid fa-file-excel"></i> Excel
+                              </button>
+                            </>
+                          )}
+
                           {user?.permissions?.includes("createCustomer") || user.user === "company" ? (
                             <button onClick={handleAdd} type="button" className="btn btn-sm btn-dark" disabled={loading}>
                               <i className="fa-solid fa-plus"></i> Add
@@ -282,51 +347,103 @@ export const CustomerMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* Active filter badges */}
+                {/* ── Active filter badges with COUNT ── */}
                 {isFilterActive && (
                   <div className="row px-2 pb-1">
-                    <div className="col-12">
-                      <small className="text-white-50 me-2">Active filters:</small>
+                    <div className="col-12 d-flex align-items-center flex-wrap gap-1">
+                      <small className="text-white-50 me-1">Active filters:</small>
+
                       {search && (
                         <span className="badge bg-info text-dark me-1">
                           Search: {search}
-                          <i className="fa fa-times ms-1 cursor-pointer"
-                            onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}></i>
+                          <i
+                            className="fa fa-times ms-1 cursor-pointer"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}
+                          ></i>
                         </span>
                       )}
+
                       {createdByFilter && (
                         <span className="badge bg-primary me-1">
                           Created By: {createdByFilter}
-                          <i className="fa fa-times ms-1 cursor-pointer"
-                            onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}></i>
+                          {!isClientFiltered && (
+                            <span className="ms-1 badge bg-light text-primary" style={{ fontSize: "10px" }}>
+                              {pagination.totalCustomers}
+                            </span>
+                          )}
+                          <i
+                            className="fa fa-times ms-1"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}
+                          ></i>
                         </span>
                       )}
+
                       {ownedByFilter && (
                         <span className="badge bg-secondary me-1">
                           Owned By: {ownedByFilter}
-                          <i className="fa fa-times ms-1 cursor-pointer"
-                            onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}></i>
+                          {!isClientFiltered && (
+                            <span className="ms-1 badge bg-light text-secondary" style={{ fontSize: "10px" }}>
+                              {pagination.totalCustomers}
+                            </span>
+                          )}
+                          <i
+                            className="fa fa-times ms-1"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}
+                          ></i>
                         </span>
                       )}
+
                       {priorityFilter && (
                         <span className="badge bg-warning text-dark me-1">
                           Priority: {priorityFilter}
-                          <i className="fa fa-times ms-1 cursor-pointer"
-                            onClick={() => { setPriorityFilter(""); setCurrentPage(1); }}></i>
+                          <span
+                            className="ms-1 badge bg-dark text-white"
+                            style={{ fontSize: "10px" }}
+                            title={`${displayCount} customers with this priority`}
+                          >
+                            {loading ? "..." : displayCount}
+                          </span>
+                          <i
+                            className="fa fa-times ms-1"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => { setPriorityFilter(""); setCurrentPage(1); }}
+                          ></i>
                         </span>
                       )}
+
                       {industryTypeFilter && (
                         <span className="badge bg-dark me-1">
                           Industry: {industryTypeFilter}
-                          <i className="fa fa-times ms-1 cursor-pointer"
-                            onClick={() => { setIndustryTypeFilter(""); setCurrentPage(1); }}></i>
+                          <span
+                            className="ms-1 badge bg-light text-dark"
+                            style={{ fontSize: "10px" }}
+                            title={`${displayCount} customers in this industry`}
+                          >
+                            {loading ? "..." : displayCount}
+                          </span>
+                          <i
+                            className="fa fa-times ms-1"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => { setIndustryTypeFilter(""); setCurrentPage(1); }}
+                          ></i>
                         </span>
+                      )}
+
+                      {/* Total count info */}
+                      {!loading && (
+                        <small className="text-white-50 ms-2">
+                          Showing {customers.length}
+                          {!isClientFiltered && pagination.totalCustomers > 0 && ` of ${pagination.totalCustomers}`} customers
+                        </small>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* Table */}
+                {/* ── Table ── */}
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
                     <div className="table-responsive">
@@ -355,7 +472,6 @@ export const CustomerMasterGrid = () => {
                                 <td>{customer.phoneNumber1}</td>
                                 <td>{customer.GSTNo}</td>
                                 <td>
-                                  {/* ✅ Industry type badge — gray (secondary) */}
                                   <span className="badge bg-secondary">
                                     {getIndustryDisplay(customer)}
                                   </span>
@@ -392,21 +508,62 @@ export const CustomerMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* Pagination */}
-                <div className="pagination-container text-center my-3 sm">
-                  <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">First</button>
-                  <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">Previous</button>
-                  {startPage > 1 && <span className="mx-2">...</span>}
-                  {pageButtons.map((page) => (
-                    <button key={page} onClick={() => handlePageChange(page)}
-                      className={`btn btn-sm me-1 ${pagination.currentPage === page ? "btn-primary" : "btn-dark"}`}>
-                      {page}
+                {/* ── Pagination ── */}
+                {pagination.totalPages > 0 && (
+                  <div className="pagination-container text-center my-3 sm">
+                    <button
+                      disabled={!pagination.hasPrevPage || loading}
+                      onClick={() => handlePageChange(1)}
+                      className="btn btn-dark btn-sm me-2"
+                    >
+                      First
                     </button>
-                  ))}
-                  {endPage < pagination.totalPages && <span className="mx-2">...</span>}
-                  <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">Next</button>
-                  <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">Last</button>
-                </div>
+                    <button
+                      disabled={!pagination.hasPrevPage || loading}
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      className="btn btn-dark btn-sm me-2"
+                    >
+                      Previous
+                    </button>
+
+                    {startPage > 1 && <span className="mx-2 text-white">...</span>}
+
+                    {pageButtons.map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        disabled={loading}
+                        className={`btn btn-sm me-1 ${currentPage === page ? "btn-primary" : "btn-dark"}`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    {endPage < pagination.totalPages && <span className="mx-2 text-white">...</span>}
+
+                    <button
+                      disabled={!pagination.hasNextPage || loading}
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      className="btn btn-dark btn-sm me-2"
+                    >
+                      Next
+                    </button>
+                    <button
+                      disabled={!pagination.hasNextPage || loading}
+                      onClick={() => handlePageChange(pagination.totalPages)}
+                      className="btn btn-dark btn-sm"
+                    >
+                      Last
+                    </button>
+
+                    <div className="mt-1">
+                      <small className="text-white-50">
+                        Page {pagination.currentPage} of {pagination.totalPages}
+                        &nbsp;({pagination.totalCustomers} total customers)
+                      </small>
+                    </div>
+                  </div>
+                )}
 
               </div>
             </div>
@@ -415,9 +572,12 @@ export const CustomerMasterGrid = () => {
       </div>
 
       {deletePopUpShow && (
-        <DeletePopUP message={"Are you sure! Do you want to Delete ?"}
+        <DeletePopUP
+          message={"Are you sure! Do you want to Delete ?"}
           cancelBtnCallBack={handelDeleteClosePopUpClick}
-          confirmBtnCallBack={handelDeleteClick} heading="Delete" />
+          confirmBtnCallBack={handelDeleteClick}
+          heading="Delete"
+        />
       )}
       {AddPopUpShow && <AddCustomerPopUp handleAdd={handleAdd} />}
       {updatePopUpShow && (
