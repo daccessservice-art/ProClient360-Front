@@ -1,13 +1,19 @@
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 📄 FILE: hooks/useCustomer.js
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import axios from 'axios';
 
 const baseUrl = process.env.REACT_APP_API_URL;
 const url = baseUrl + "/api/customer";
 
-// ✅ UPDATED: Added createdBy and ownedBy filter params
-const getCustomers = async (page = 1, limit = 20, search = null, createdBy = null, ownedBy = null) => {
+// ── All filters are now sent as server-side query params ──
+const getCustomers = async (
+  page = 1,
+  limit = 20,
+  search = null,
+  createdBy = null,
+  ownedBy = null,
+  priority = null,
+  industryType = null,
+  customerType = null
+) => {
   try {
     const params = new URLSearchParams();
     params.append('page', page);
@@ -22,6 +28,15 @@ const getCustomers = async (page = 1, limit = 20, search = null, createdBy = nul
     if (ownedBy && ownedBy.trim() !== '') {
       params.append('ownedBy', ownedBy);
     }
+    if (priority && priority.trim() !== '') {
+      params.append('priority', priority);
+    }
+    if (industryType && industryType.trim() !== '') {
+      params.append('industryType', industryType);
+    }
+    if (customerType && customerType.trim() !== '') {
+      params.append('customerType', customerType);
+    }
 
     const response = await axios.get(`${url}?${params.toString()}`, {
       headers: {
@@ -35,12 +50,11 @@ const getCustomers = async (page = 1, limit = 20, search = null, createdBy = nul
   }
 };
 
-// ✅ NEW: Get customer count by ownedBy (for employee dashboard)
 const getCustomerCountByOwner = async (ownerName) => {
   try {
     const params = new URLSearchParams();
     params.append('page', 1);
-    params.append('limit', 1); // We only need count, not actual data
+    params.append('limit', 1);
     if (ownerName && ownerName.trim() !== '') {
       params.append('ownedBy', ownerName.trim());
     }
@@ -113,10 +127,8 @@ const deleteCustomer = async (Id) => {
   }
 };
 
-// Get employees for dropdown
 const getEmployees = async () => {
   try {
-    console.log('Fetching employees from /api/employee/dropdown...');
     const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/employee/dropdown`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -133,6 +145,25 @@ const getEmployees = async () => {
   } catch (error) {
     console.error('❌ Error fetching employees:', error?.response?.data || error.message);
     return { success: false, employees: [] };
+  }
+};
+
+const getCustomersForBranch = async (searchText = "") => {
+  try {
+    const params = new URLSearchParams();
+    if (searchText && searchText.trim() !== "") {
+      params.append('search', searchText.trim());
+    }
+
+    const response = await axios.get(`${url}/branch-customers?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching customers for branch:', error?.response?.data || error.message);
+    return { success: false, customers: [] };
   }
 };
 
@@ -234,12 +265,13 @@ const exportCustomersExcel = async () => {
 
 export {
   getCustomers,
-  getCustomerCountByOwner,  // ✅ NEW EXPORT
+  getCustomerCountByOwner,
   getCustomerById,
   createCustomer,
   updateCustomer,
   deleteCustomer,
   getEmployees,
+  getCustomersForBranch,
   exportCustomersPDF,
   exportCustomersExcel
 };

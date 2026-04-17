@@ -40,6 +40,7 @@ export const CustomerMasterGrid = () => {
   const [ownedByFilter, setOwnedByFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [industryTypeFilter, setIndustryTypeFilter] = useState("");
+  const [customerTypeFilter, setCustomerTypeFilter] = useState("");
   const [filterEmployees, setFilterEmployees] = useState([]);
 
   const itemsPerPage = 20;
@@ -52,7 +53,6 @@ export const CustomerMasterGrid = () => {
     "Pharmaceuticals", "Automotive", "Dealer", "Other"
   ];
 
-  // ─── Export permission check ─────────────────────────────────────────────
   const canExport =
     user?.user === "company" ||
     ALLOWED_EXPORT_DESIGNATIONS.includes(user?.designation || "");
@@ -78,7 +78,7 @@ export const CustomerMasterGrid = () => {
 
   const handelDeleteClick = async () => {
     const data = await deleteCustomer(selectedId);
-    if (data?.success) { toast.success(data?.message); } else { toast.error(data?.error); }
+    if (data?.success) { toast.success(data?.message); } else { toast.error(data?.error || "Failed to delete"); }
     setdeletePopUpShow(false);
     setCurrentPage(1);
   };
@@ -107,33 +107,32 @@ export const CustomerMasterGrid = () => {
 
   const handleResetFilters = () => {
     setCreatedByFilter(""); setOwnedByFilter(""); setPriorityFilter("");
-    setIndustryTypeFilter(""); setSearchText(""); setSearch(""); setCurrentPage(1);
+    setIndustryTypeFilter(""); setCustomerTypeFilter(""); setSearchText(""); setSearch(""); setCurrentPage(1);
   };
 
+  // ── Fetch: ALL filters are now server-side ──
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await getCustomers(currentPage, itemsPerPage, search, createdByFilter, ownedByFilter);
+        const data = await getCustomers(
+          currentPage,
+          itemsPerPage,
+          search,
+          createdByFilter,
+          ownedByFilter,
+          priorityFilter,
+          industryTypeFilter,
+          customerTypeFilter
+        );
         if (data?.success) {
-          let filtered = data.customers || [];
-          if (priorityFilter === "NA") {
-            filtered = filtered.filter(c => !c.customerPriority || c.customerPriority === "");
-          } else if (priorityFilter) {
-            filtered = filtered.filter(c => c.customerPriority === priorityFilter);
-          }
-          if (industryTypeFilter === "NA") {
-            filtered = filtered.filter(c => !c.industryType || c.industryType === "");
-          } else if (industryTypeFilter) {
-            filtered = filtered.filter(c => c.industryType === industryTypeFilter);
-          }
-          setCustomers(filtered);
+          setCustomers(data.customers || []);
           setPagination(data.pagination || {
             currentPage: 1, totalPages: 0, totalCustomers: 0,
             limit: itemsPerPage, hasNextPage: false, hasPrevPage: false,
           });
         } else {
-          toast(data.error);
+          toast(data?.error || "Failed to fetch customers");
         }
       } catch (error) {
         console.error("Error fetching customers:", error);
@@ -142,14 +141,25 @@ export const CustomerMasterGrid = () => {
       }
     };
     fetchData();
-  }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search, createdByFilter, ownedByFilter, priorityFilter, industryTypeFilter]);
+  }, [
+    currentPage,
+    deletePopUpShow,
+    AddPopUpShow,
+    updatePopUpShow,
+    search,
+    createdByFilter,
+    ownedByFilter,
+    priorityFilter,
+    industryTypeFilter,
+    customerTypeFilter,
+  ]);
 
   const handleCreatedByFilter = (e) => { setCreatedByFilter(e.target.value); setCurrentPage(1); };
   const handleOwnedByFilter = (e) => { setOwnedByFilter(e.target.value); setCurrentPage(1); };
   const handlePriorityFilter = (e) => { setPriorityFilter(e.target.value); setCurrentPage(1); };
   const handleIndustryTypeFilter = (e) => { setIndustryTypeFilter(e.target.value); setCurrentPage(1); };
+  const handleCustomerTypeFilter = (e) => { setCustomerTypeFilter(e.target.value); setCurrentPage(1); };
 
-  // ─── Pagination calculation ───────────────────────────────────────────────
   const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
   let startPage = Math.max(1, currentPage - halfMaxButtons);
@@ -181,13 +191,14 @@ export const CustomerMasterGrid = () => {
     }
   };
 
-  const isFilterActive = createdByFilter || ownedByFilter || search || priorityFilter || industryTypeFilter;
+  const getCustomerTypeBadge = (type) => {
+    if (type === "branch") {
+      return <span className="badge bg-info"><i className="fa-solid fa-code-branch me-1"></i>Branch</span>;
+    }
+    return <span className="badge bg-primary"><i className="fa-solid fa-building me-1"></i>Main</span>;
+  };
 
-  // ─── Count for filter badges ──────────────────────────────────────────────
-  // When client-side filters (priority / industryType) are active, use customers.length
-  // Otherwise use server total
-  const isClientFiltered = !!(priorityFilter || industryTypeFilter);
-  const displayCount = isClientFiltered ? customers.length : pagination.totalCustomers;
+  const isFilterActive = createdByFilter || ownedByFilter || search || priorityFilter || industryTypeFilter || customerTypeFilter;
 
   return (
     <>
@@ -231,6 +242,21 @@ export const CustomerMasterGrid = () => {
                         </div>
                       </div>
 
+                      {/* Customer Type filter */}
+                      <div className="col-12 col-sm-6 col-lg-1">
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Type</label>
+                        <select
+                          className="form-select form-select-sm"
+                          value={customerTypeFilter}
+                          onChange={handleCustomerTypeFilter}
+                          title="Filter by Type"
+                        >
+                          <option value="">All</option>
+                          <option value="main">Main</option>
+                          <option value="branch">Branch</option>
+                        </select>
+                      </div>
+
                       {/* Created By filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Created By</label>
@@ -265,7 +291,7 @@ export const CustomerMasterGrid = () => {
                       </div>
 
                       {/* Priority filter */}
-                      <div className="col-12 col-sm-6 col-lg-2">
+                      <div className="col-12 col-sm-6 col-lg-1">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Priority</label>
                         <select
                           className="form-select form-select-sm"
@@ -274,24 +300,24 @@ export const CustomerMasterGrid = () => {
                           title="Filter by Priority"
                         >
                           <option value="">Select Priority</option>
-                          <option value="P1">🔴 P1 — High</option>
-                          <option value="P2">🟡 P2 — Medium</option>
-                          <option value="P3">🟢 P3 — Low</option>
+                          <option value="P1">P1 - High</option>
+                          <option value="P2">P2 - Medium</option>
+                          <option value="P3">P3 - Low</option>
                           <option value="NA">NA / None</option>
                         </select>
                       </div>
 
                       {/* Industry Type filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
-                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Industry Type</label>
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Select Industry Type</label>
                         <select
                           className="form-select form-select-sm"
                           value={industryTypeFilter}
                           onChange={handleIndustryTypeFilter}
                           title="Filter by Industry Type"
                         >
-                          <option value="">Select Industry</option>
-                          <option value="NA">NA / None</option>
+                          <option value="">Select Industry Type</option>
+                          <option value="NA">NA</option>
                           {industryOptions.map((opt) => (
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
@@ -308,7 +334,7 @@ export const CustomerMasterGrid = () => {
                               className="btn btn-sm btn-outline-light me-1"
                               title="Clear all filters"
                             >
-                              <i className="fa-solid fa-xmark"></i> Reset
+                              <i className="fa-solid fa-xmark"></i>
                             </button>
                           )}
 
@@ -321,7 +347,7 @@ export const CustomerMasterGrid = () => {
                                 title="Export to PDF"
                                 disabled={loading}
                               >
-                                <i className="fa-solid fa-file-pdf"></i> PDF
+                                <i className="fa-solid fa-file-pdf"></i>
                               </button>
                               <button
                                 onClick={handleExportExcel}
@@ -330,7 +356,7 @@ export const CustomerMasterGrid = () => {
                                 title="Export to Excel"
                                 disabled={loading}
                               >
-                                <i className="fa-solid fa-file-excel"></i> Excel
+                                <i className="fa-solid fa-file-excel"></i>
                               </button>
                             </>
                           )}
@@ -347,96 +373,64 @@ export const CustomerMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* ── Active filter badges with COUNT ── */}
+                {/* ── Active filter badges ── */}
                 {isFilterActive && (
                   <div className="row px-2 pb-1">
                     <div className="col-12 d-flex align-items-center flex-wrap gap-1">
-                      <small className="text-white-50 me-1">Active filters:</small>
+                      <small className="text-white-50 me-1">Filters:</small>
 
                       {search && (
                         <span className="badge bg-info text-dark me-1">
                           Search: {search}
-                          <i
-                            className="fa fa-times ms-1 cursor-pointer"
-                            style={{ cursor: "pointer" }}
-                            onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}
-                          ></i>
+                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
+                            onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}></i>
+                        </span>
+                      )}
+
+                      {customerTypeFilter && (
+                        <span className="badge bg-primary me-1">
+                          Type: {customerTypeFilter === "main" ? "Main" : "Branch"}
+                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
+                            onClick={() => { setCustomerTypeFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
 
                       {createdByFilter && (
-                        <span className="badge bg-primary me-1">
-                          Created By: {createdByFilter}
-                          {!isClientFiltered && (
-                            <span className="ms-1 badge bg-light text-primary" style={{ fontSize: "10px" }}>
-                              {pagination.totalCustomers}
-                            </span>
-                          )}
-                          <i
-                            className="fa fa-times ms-1"
-                            style={{ cursor: "pointer" }}
-                            onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}
-                          ></i>
+                        <span className="badge bg-secondary me-1">
+                          Created: {createdByFilter}
+                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
+                            onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
 
                       {ownedByFilter && (
                         <span className="badge bg-secondary me-1">
-                          Owned By: {ownedByFilter}
-                          {!isClientFiltered && (
-                            <span className="ms-1 badge bg-light text-secondary" style={{ fontSize: "10px" }}>
-                              {pagination.totalCustomers}
-                            </span>
-                          )}
-                          <i
-                            className="fa fa-times ms-1"
-                            style={{ cursor: "pointer" }}
-                            onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}
-                          ></i>
+                          Owned: {ownedByFilter}
+                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
+                            onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
 
                       {priorityFilter && (
                         <span className="badge bg-warning text-dark me-1">
                           Priority: {priorityFilter}
-                          <span
-                            className="ms-1 badge bg-dark text-white"
-                            style={{ fontSize: "10px" }}
-                            title={`${displayCount} customers with this priority`}
-                          >
-                            {loading ? "..." : displayCount}
-                          </span>
-                          <i
-                            className="fa fa-times ms-1"
-                            style={{ cursor: "pointer" }}
-                            onClick={() => { setPriorityFilter(""); setCurrentPage(1); }}
-                          ></i>
+                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
+                            onClick={() => { setPriorityFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
 
                       {industryTypeFilter && (
                         <span className="badge bg-dark me-1">
                           Industry: {industryTypeFilter}
-                          <span
-                            className="ms-1 badge bg-light text-dark"
-                            style={{ fontSize: "10px" }}
-                            title={`${displayCount} customers in this industry`}
-                          >
-                            {loading ? "..." : displayCount}
-                          </span>
-                          <i
-                            className="fa fa-times ms-1"
-                            style={{ cursor: "pointer" }}
-                            onClick={() => { setIndustryTypeFilter(""); setCurrentPage(1); }}
-                          ></i>
+                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
+                            onClick={() => { setIndustryTypeFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
 
-                      {/* Total count info */}
                       {!loading && (
                         <small className="text-white-50 ms-2">
                           Showing {customers.length}
-                          {!isClientFiltered && pagination.totalCustomers > 0 && ` of ${pagination.totalCustomers}`} customers
+                          {pagination.totalCustomers > 0 && ` of ${pagination.totalCustomers}`}
                         </small>
                       )}
                     </div>
@@ -452,10 +446,10 @@ export const CustomerMasterGrid = () => {
                           <tr className="th_border">
                             <th>Sr. No</th>
                             <th className="align_left_td td_width">Customer Name</th>
-                            <th className="align_left_td td_width">Email</th>
-                            <th>Phone</th>
+                            <th>Type</th>
+                            <th className="align_left_td">Branch Of</th>
                             <th>GST No</th>
-                            <th>Industry Type</th>
+                            <th>Industry</th>
                             <th>Priority</th>
                             <th>Created By</th>
                             <th>Owned By</th>
@@ -467,9 +461,19 @@ export const CustomerMasterGrid = () => {
                             customers.map((customer, index) => (
                               <tr className="border my-4" key={customer._id}>
                                 <td className="w-10">{index + 1 + (currentPage - 1) * itemsPerPage}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">{customer.custName}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">{customer.email}</td>
-                                <td>{customer.phoneNumber1}</td>
+                                <td className="align_left_td td_width wrap-text-of-col">
+                                  {customer.custName}
+                                </td>
+                                <td>{getCustomerTypeBadge(customer.customerType)}</td>
+                                <td className="align_left_td">
+                                  {customer.customerType === "branch" && customer.branchOf ? (
+                                    <small className="text-muted">
+                                      {customer.branchOf.custName || "N/A"}
+                                    </small>
+                                  ) : (
+                                    <span className="text-muted">—</span>
+                                  )}
+                                </td>
                                 <td>{customer.GSTNo}</td>
                                 <td>
                                   <span className="badge bg-secondary">
