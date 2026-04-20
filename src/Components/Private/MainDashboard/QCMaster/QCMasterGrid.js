@@ -1,3 +1,4 @@
+// Components/Private/MainDashboard/QCMaster/QCMasterGrid.jsx
 import { useState, useContext, useEffect } from "react";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
@@ -5,6 +6,8 @@ import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddQCPopUp from "./PopUp/AddQCPopUp";
 import UpdateQCPopUp from "./PopUp/UpdateQCPopUp";
 import ViewQCPopUp from "../../CommonPopUp/ViewQCPopUp";
+import AssetListPopUp from "./PopUp/AssetListPopUp";
+import AssetScannerPopUp from "./PopUp/AssetScannerPopUp";
 import { getQualityInspections, deleteQualityInspection } from "../../../../hooks/useQC";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
@@ -21,7 +24,10 @@ export const QCMasterGrid = () => {
   const [deletePopUpShow, setdeletePopUpShow] = useState(false);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
   const [viewPopUpShow, setViewPopUpShow] = useState(false);
+  const [assetListPopUpShow, setAssetListPopUpShow] = useState(false);
+  const [assetScannerPopUpShow, setAssetScannerPopUpShow] = useState(false);
   const [selectedQC, setSelectedQC] = useState(null);
+  const [selectedQCIdForAssets, setSelectedQCIdForAssets] = useState(null);
 
   const [selectedId, setSelecteId] = useState(null);
   const [qualityInspections, setQualityInspections] = useState([]);
@@ -53,6 +59,14 @@ export const QCMasterGrid = () => {
 
   const handleView = () => {
     setViewPopUpShow(!viewPopUpShow);
+  };
+
+  const handleAssetList = () => {
+    setAssetListPopUpShow(!assetListPopUpShow);
+  };
+
+  const handleAssetScanner = () => {
+    setAssetScannerPopUpShow(!assetScannerPopUpShow);
   };
 
   const handelDeleteClosePopUpClick = (id) => {
@@ -161,7 +175,15 @@ export const QCMasterGrid = () => {
                       </div>
                       {user?.permissions || user?.permissions?.includes("createQC") || user.user==='company' ? ( 
                         <div className="col- col-lg-2 ms-auto text-end me-4">
-                          <div className="col-12 col-lg-12 ms-auto text-end">
+                          <div className="col-12 col-lg-12 ms-auto text-end d-flex gap-1">
+                            <button
+                              onClick={handleAssetScanner}
+                              type="button"
+                              className="btn adbtn btn-info btn-sm"
+                              title="Scan QR Code"
+                            >
+                              <i className="fa fa-qrcode"></i>
+                            </button>
                             <button
                               onClick={handleAdd}
                               type="button"
@@ -186,9 +208,10 @@ export const QCMasterGrid = () => {
                             <th>QC Number</th>
                             <th>QC Date</th>
                             <th>GRN Number</th>
-                            <th>Total   s</th>
+                            <th>Total Items</th>
                             <th>QC OK Qty</th>
                             <th>Faulty Qty</th>
+                            <th>Total Assets</th>
                             <th>Status</th>
                             <th>Action</th>
                           </tr>
@@ -198,6 +221,7 @@ export const QCMasterGrid = () => {
                             qualityInspections.map((qc, index) => {
                               const totalQcOk = qc.items?.reduce((sum, item) => sum + item.qcOkQuantity, 0) || 0;
                               const totalFaulty = qc.items?.reduce((sum, item) => sum + item.faultyQuantity, 0) || 0;
+                              const totalAssets = qc.totalAssets || qc.items?.reduce((sum, item) => sum + (item.assets?.length || 0), 0) || 0;
                               
                               return (
                                 <tr className="border my-4" key={qc._id}>
@@ -217,6 +241,11 @@ export const QCMasterGrid = () => {
                                     </span>
                                   </td>
                                   <td>
+                                    <span className="badge bg-primary">
+                                      {totalAssets}
+                                    </span>
+                                  </td>
+                                  <td>
                                     <span className={`badge ${
                                       qc.status === 'Pending' ? 'bg-warning' : 
                                       qc.status === 'Completed' ? 'bg-success' : 'bg-danger'
@@ -231,9 +260,23 @@ export const QCMasterGrid = () => {
                                         setSelectedQC(qc);
                                         setViewPopUpShow(true);
                                       }}
+                                      title="View Details"
                                     >
                                       <i className="fa-solid fa-eye text-primary me-3 cursor-pointer"></i>
                                     </span>
+
+                                    {totalAssets > 0 && (
+                                      <span 
+                                        className="assets" 
+                                        onClick={() => {
+                                          setSelectedQCIdForAssets(qc._id);
+                                          setAssetListPopUpShow(true);
+                                        }}
+                                        title="View Assets & QR Codes"
+                                      >
+                                        <i className="fa-solid fa-qrcode text-info me-3 cursor-pointer"></i>
+                                      </span>
+                                    )}
 
                                     {user?.permissions?.includes("updateQC") || user?.user==='company' ? (
                                       <span 
@@ -242,6 +285,7 @@ export const QCMasterGrid = () => {
                                           setSelectedQC(qc);
                                           setUpdatePopUpShow(true);
                                         }}
+                                        title="Update"
                                       >
                                         <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
                                       </span>
@@ -251,6 +295,7 @@ export const QCMasterGrid = () => {
                                       <span
                                         onClick={() => handelDeleteClosePopUpClick(qc._id)}
                                         className="delete"
+                                        title="Delete"
                                       >
                                         <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
                                       </span>
@@ -261,7 +306,7 @@ export const QCMasterGrid = () => {
                             })
                           ) : (
                             <tr>
-                              <td colSpan="9" className="text-center">
+                              <td colSpan="10" className="text-center">
                                 No data found
                               </td>
                             </tr>
@@ -345,6 +390,19 @@ export const QCMasterGrid = () => {
         <ViewQCPopUp 
           closePopUp={handleView} 
           selectedQC={selectedQC} 
+        />
+      )}
+
+      {assetListPopUpShow && (
+        <AssetListPopUp 
+          handleClose={handleAssetList} 
+          qcId={selectedQCIdForAssets} 
+        />
+      )}
+
+      {assetScannerPopUpShow && (
+        <AssetScannerPopUp 
+          handleClose={handleAssetScanner} 
         />
       )}
     </>

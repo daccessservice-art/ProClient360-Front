@@ -69,6 +69,8 @@ import { FeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingM
 import { ExhibitionMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionMasterGrid";
 import { ExhibitionVisitMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionVisitMasterGrid";
 
+import AssetView from "./Components/Public/AssetView";
+
 // Custom component to check if user has required permissions
 const SalesManagerRoute = () => {
     const { user } = useContext(UserContext);
@@ -176,6 +178,8 @@ const AllRoutes = () => {
                 {/* New Public Routes for Vendor Registration */}
                 <Route exact path="/vendor-registration/:linkId" element={<VendorRegistrationForm />} />
                 <Route exact path="/vendor-registration-success" element={<VendorRegistrationSuccess />} />
+                
+                <Route exact path="/asset/:assetId" element={<AssetView />} />
 
                 {/* Protected Routes */}
                 <Route exact path="/ChangePassword" element={<ProtectRoute Component={ChangePassword} />} />

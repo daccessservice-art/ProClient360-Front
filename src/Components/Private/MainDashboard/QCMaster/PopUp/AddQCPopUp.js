@@ -1,3 +1,4 @@
+// Components/Private/MainDashboard/QCMaster/PopUp/AddQCPopUp.jsx
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
@@ -27,7 +28,9 @@ const AddQCPopUp = ({ handleAdd }) => {
     baseUOM: "",
     qcOkQuantity: 0,
     faultyQuantity: 0,
-    remark: ""
+    remark: "",
+    itemsPerBox: 1,
+    serviceWarrantyMonths: 0,
   }]);
 
   // Load GRN numbers for dropdown
@@ -35,9 +38,7 @@ const AddQCPopUp = ({ handleAdd }) => {
     const loadGRNNumbers = async () => {
       setIsLoadingGRNs(true);
       try {
-        console.log("Fetching GRN numbers...");
         const data = await getGRNNumbers();
-        console.log("GRN numbers response:", data);
         
         if (data.success) {
           const options = data.grns.map(grn => ({
@@ -45,7 +46,6 @@ const AddQCPopUp = ({ handleAdd }) => {
             label: grn.grnNumber,
             id: grn._id
           }));
-          console.log("GRN options:", options);
           setGrnOptions(options);
           
           if (options.length === 0) {
@@ -53,11 +53,9 @@ const AddQCPopUp = ({ handleAdd }) => {
           }
         } else {
           toast.error(data.error || "Failed to load GRN numbers");
-          console.error("Error loading GRN numbers:", data.error);
         }
       } catch (error) {
         toast.error("Failed to load GRN numbers");
-        console.error("Error in loadGRNNumbers:", error);
       } finally {
         setIsLoadingGRNs(false);
       }
@@ -90,21 +88,20 @@ const AddQCPopUp = ({ handleAdd }) => {
         baseUOM: "",
         qcOkQuantity: 0,
         faultyQuantity: 0,
-        remark: ""
+        remark: "",
+        itemsPerBox: 1,
+        serviceWarrantyMonths: 0,
       }]);
       return;
     }
 
     setIsGRNLoading(true);
     try {
-      console.log("Fetching GRN details for:", selected.value);
       const data = await getGRNByNumber(selected.value);
-      console.log("GRN details response:", data);
       
       if (data.success) {
         setSelectedGRN(data.grn);
         
-        // Map GRN items to QC items
         const qcItems = data.grn.items.map(item => ({
           brandName: item.brandName,
           modelNo: item.modelNo,
@@ -113,7 +110,9 @@ const AddQCPopUp = ({ handleAdd }) => {
           baseUOM: item.baseUOM || "",
           qcOkQuantity: 0,
           faultyQuantity: 0,
-          remark: ""
+          remark: "",
+          itemsPerBox: 1,
+          serviceWarrantyMonths: 0,
         }));
         
         setItems(qcItems);
@@ -123,7 +122,6 @@ const AddQCPopUp = ({ handleAdd }) => {
       }
     } catch (error) {
       toast.error("Failed to fetch GRN details");
-      console.error("Error in handleGRNChange:", error);
     } finally {
       setIsGRNLoading(false);
     }
@@ -154,7 +152,9 @@ const AddQCPopUp = ({ handleAdd }) => {
       baseUOM: "",
       qcOkQuantity: 0,
       faultyQuantity: 0,
-      remark: ""
+      remark: "",
+      itemsPerBox: 1,
+      serviceWarrantyMonths: 0,
     }]);
   };
 
@@ -165,12 +165,10 @@ const AddQCPopUp = ({ handleAdd }) => {
     }
   };
 
-  // Updated handleItemChange function to automatically set baseUOM
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
     
-    // If brand is changed, clear model and baseUOM
     if (field === 'brandName') {
       if (value) {
         const brandProducts = products.filter(p => p.brandName === value);
@@ -183,26 +181,22 @@ const AddQCPopUp = ({ handleAdd }) => {
       newItems[index].baseUOM = "";
     }
     
-    // If model is changed, find the product and set baseUOM
     if (field === 'modelNo' && value && newItems[index].brandName) {
       const product = products.find(
         p => p.brandName === newItems[index].brandName && p.model === value
       );
       if (product) {
         newItems[index].baseUOM = product.baseUOM;
-        // You can also pre-fill other fields if needed
-        newItems[index].unit = product.baseUOM; // Set unit to baseUOM by default
+        newItems[index].unit = product.baseUOM;
       }
     }
     
-    // Auto-calculate faulty quantity
     if (field === 'qcOkQuantity') {
       const qcOk = Number(value) || 0;
       const received = newItems[index].receivedQuantity;
       newItems[index].faultyQuantity = Math.max(0, received - qcOk);
     }
     
-    // If faulty quantity changes, adjust OK quantity
     if (field === 'faultyQuantity') {
       const faulty = Number(value) || 0;
       const received = newItems[index].receivedQuantity;
@@ -212,6 +206,16 @@ const AddQCPopUp = ({ handleAdd }) => {
     setItems(newItems);
   };
 
+  // FIX: Added 'const' here to fix the no-undef error
+  const calculateAssetCount = (item) => {
+    const qcOk = item.qcOkQuantity || 0;
+    const itemsPerBox = item.itemsPerBox || 1;
+    return {
+      totalAssets: qcOk,
+      totalBoxes: Math.ceil(qcOk / itemsPerBox),
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -219,7 +223,6 @@ const AddQCPopUp = ({ handleAdd }) => {
       return toast.error("Please select a GRN");
     }
 
-    // Validate items
     for (let item of items) {
       if (!item.brandName || !item.modelNo || item.receivedQuantity <= 0) {
         return toast.error("Please fill all item details correctly");
@@ -229,6 +232,10 @@ const AddQCPopUp = ({ handleAdd }) => {
       if (total !== item.receivedQuantity) {
         return toast.error(`QC OK + Faulty must equal received quantity for ${item.brandName} ${item.modelNo}`);
       }
+
+      if (item.itemsPerBox < 1) {
+        return toast.error("Items per box must be at least 1");
+      }
     }
 
     const qcData = {
@@ -237,12 +244,13 @@ const AddQCPopUp = ({ handleAdd }) => {
       items,
     };
 
-    toast.loading("Creating Quality Inspection...");
+    toast.loading("Creating Quality Inspection & Generating Assets...");
     const data = await createQualityInspection(qcData);
     toast.dismiss();
 
     if (data.success) {
-      toast.success(data.message);
+      const totalAssets = data.qualityInspection?.totalAssets || items.reduce((sum, item) => sum + item.qcOkQuantity, 0);
+      toast.success(`QC created successfully! ${totalAssets} assets generated with QR codes.`);
       handleAdd();
     } else {
       toast.error(data.error || "Failed to create quality inspection");
@@ -251,13 +259,30 @@ const AddQCPopUp = ({ handleAdd }) => {
 
   const today = new Date().toISOString().split('T')[0];
 
+  // Warranty period options
+  const warrantyOptions = [
+    { value: 0, label: "No Warranty" },
+    { value: 1, label: "1 Month" },
+    { value: 3, label: "3 Months" },
+    { value: 6, label: "6 Months" },
+    { value: 12, label: "1 Year" },
+    { value: 18, label: "18 Months" },
+    { value: 24, label: "2 Years" },
+    { value: 36, label: "3 Years" },
+    { value: 48, label: "4 Years" },
+    { value: 60, label: "5 Years" },
+  ];
+
   return (
     <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
       <div className="modal-dialog modal-xl">
         <div className="modal-content p-3">
           <form onSubmit={handleSubmit}>
             <div className="modal-header pt-0">
-              <h5 className="card-title fw-bold">Quality Inspection Report</h5>
+              <h5 className="card-title fw-bold">
+                Quality Inspection Report
+                <span className="badge bg-info ms-2">Assets will be auto-generated</span>
+              </h5>
               <button onClick={handleAdd} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
                 <span aria-hidden="true">&times;</span>
               </button>
@@ -319,7 +344,6 @@ const AddQCPopUp = ({ handleAdd }) => {
                   </div>
                 </div>
 
-                {/* Display GRN information if available */}
                 {selectedGRN && (
                   <div className="col-12 mb-3">
                     <div className="card">
@@ -356,32 +380,36 @@ const AddQCPopUp = ({ handleAdd }) => {
 
                 <div className="col-12 mt-3">
                   <div className="d-flex justify-content-between align-items-center mb-2">
-                    <h6 className="fw-bold">Item Details</h6>
+                    <h6 className="fw-bold">Item Details & Asset Configuration</h6>
                     <button type="button" className="btn btn-sm btn-primary" onClick={handleAddItem}>
                       <i className="fa fa-plus"></i> Add Item
                     </button>
                   </div>
 
                   <div className="table-responsive">
-                    <table className="table table-bordered">
+                    <table className="table table-bordered table-sm">
                       <thead className="table-light">
                         <tr>
                           <th>Brand Name</th>
                           <th>Model no</th>
                           <th>GRN QTY</th>
-                          <th>unit</th> 
+                          <th>Unit</th>
                           <th>QC OK qty</th>
-                          <th>faulty qty</th>
-                          <th>remark</th>
+                          <th>Faulty qty</th>
+                          <th>Items/Box</th>
+                          <th>Warranty</th>
+                          <th>Assets</th>
+                          <th>Remark</th>
                           <th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {items.map((item, index) => {
-                          // Get models for current brand
                           const brandProducts = products.filter(p => p.brandName === item.brandName);
                           const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
                           const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
+                          
+                          const assetCount = calculateAssetCount(item);
 
                           return (
                             <tr key={index}>
@@ -436,11 +464,11 @@ const AddQCPopUp = ({ handleAdd }) => {
                                   onChange={(e) => handleItemChange(index, 'receivedQuantity', Number(e.target.value))}
                                   min="1"
                                   placeholder="0"
-                                  readOnly={!!selectedGRN} // Make it read-only if GRN is selected
+                                  readOnly={!!selectedGRN}
                                   required
                                 />
                               </td>
-                               <td>
+                              <td>
                                 <input
                                   type="text"
                                   className="form-control form-control-sm"
@@ -449,8 +477,7 @@ const AddQCPopUp = ({ handleAdd }) => {
                                   readOnly={!!selectedGRN}
                                   required
                                 />
-                              </td> 
-                              
+                              </td>
                               <td>
                                 <input
                                   type="number"
@@ -471,6 +498,39 @@ const AddQCPopUp = ({ handleAdd }) => {
                                   min="0"
                                   max={item.receivedQuantity}
                                 />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  value={item.itemsPerBox}
+                                  onChange={(e) => handleItemChange(index, 'itemsPerBox', Math.max(1, Number(e.target.value)))}
+                                  min="1"
+                                  title="Number of items per box/carton"
+                                />
+                              </td>
+                              <td>
+                                <select
+                                  className="form-select form-select-sm"
+                                  value={item.serviceWarrantyMonths}
+                                  onChange={(e) => handleItemChange(index, 'serviceWarrantyMonths', Number(e.target.value))}
+                                >
+                                  {warrantyOptions.map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="text-center">
+                                <div className="small">
+                                  <div className="badge bg-primary mb-1">
+                                    {assetCount.totalAssets} Assets
+                                  </div>
+                                  {assetCount.totalBoxes > 1 && (
+                                    <div className="badge bg-info">
+                                      {assetCount.totalBoxes} Boxes
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                               <td>
                                 <textarea
@@ -498,11 +558,38 @@ const AddQCPopUp = ({ handleAdd }) => {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Asset Summary */}
+                  <div className="row mt-3">
+                    <div className="col-12">
+                      <div className="alert alert-info mb-0">
+                        <h6 className="alert-heading">
+                          <i className="fa fa-qrcode me-2"></i>
+                          Asset Generation Summary
+                        </h6>
+                        <div className="row">
+                          <div className="col-md-4">
+                            <strong>Total QC OK Items:</strong> {items.reduce((sum, item) => sum + (item.qcOkQuantity || 0), 0)}
+                          </div>
+                          <div className="col-md-4">
+                            <strong>Total Assets (QR Codes):</strong> {items.reduce((sum, item) => sum + (item.qcOkQuantity || 0), 0)}
+                          </div>
+                          <div className="col-md-4">
+                            <strong>Total Boxes:</strong> {items.reduce((sum, item) => sum + Math.ceil((item.qcOkQuantity || 0) / (item.itemsPerBox || 1)), 0)}
+                          </div>
+                        </div>
+                        <hr className="my-2"/>
+                        <small className="mb-0">
+                          Each asset will have a unique QR code. QR code contains: Asset ID, Material Info, In-Date, Warranty Details, Box Number (if multiple per box).
+                        </small>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="col-12 pt-3 mt-2">
                   <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
-                    Add
+                    <i className="fa fa-check me-2"></i>Create QC & Generate Assets
                   </button>
                   <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
                     Cancel
