@@ -7,7 +7,6 @@ const AssetView = () => {
   const [assetData, setAssetData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const fetchAsset = async () => {
@@ -23,7 +22,6 @@ const AssetView = () => {
         setError("Failed to load asset information");
       } finally {
         setIsLoading(false);
-        setTimeout(() => setMounted(true), 50);
       }
     };
     if (assetId) fetchAsset();
@@ -36,338 +34,30 @@ const AssetView = () => {
 
   const getWarrantyDaysRemaining = () => {
     if (!assetData?.warrantyExpiryDate) return null;
-    const expiry = new Date(assetData.warrantyExpiryDate);
-    const diffTime = expiry - new Date();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diff = new Date(assetData.warrantyExpiryDate) - new Date();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
-  const getStatusConfig = (status) => {
-    const configs = {
-      'In Warehouse': { bg: '#1e3a5f', text: '#7eb8f7', icon: '▣' },
-      'Dispatched':   { bg: '#0e3d2f', text: '#4fd1a5', icon: '➤' },
-      'In Service':   { bg: '#2d3a0e', text: '#a3d45a', icon: '◉' },
-      'Warranty Expired': { bg: '#3d1a1a', text: '#f08080', icon: '✕' },
-      'Damaged':      { bg: '#2c2c2c', text: '#aaaaaa', icon: '⚠' },
-    };
-    return configs[status] || { bg: '#2c2c2c', text: '#aaaaaa', icon: '◌' };
+  const fmt = (d) =>
+    new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+
+  const statusColor = {
+    "In Warehouse":    { bg: "#e8f0fe", color: "#1a56db", dot: "#1a56db" },
+    "Dispatched":      { bg: "#e3f9f5", color: "#0d9488", dot: "#0d9488" },
+    "In Service":      { bg: "#f0fdf4", color: "#16a34a", dot: "#16a34a" },
+    "Warranty Expired":{ bg: "#fff1f2", color: "#e11d48", dot: "#e11d48" },
+    "Damaged":         { bg: "#f1f5f9", color: "#475569", dot: "#475569" },
   };
 
-  const fmt = (dateStr) =>
-    new Date(dateStr).toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric'
-    });
-
-  const styles = {
-    page: {
-      minHeight: '100vh',
-      background: '#f0f2f5',
-      fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    },
-    header: {
-      background: 'linear-gradient(160deg, #0d1b2a 0%, #1a3a5c 60%, #0d2d45 100%)',
-      padding: '48px 24px 80px',
-      position: 'relative',
-      overflow: 'hidden',
-    },
-    headerAccent: {
-      position: 'absolute',
-      top: -40,
-      right: -40,
-      width: 180,
-      height: 180,
-      borderRadius: '50%',
-      background: 'rgba(126, 184, 247, 0.06)',
-      border: '1px solid rgba(126,184,247,0.12)',
-    },
-    headerAccent2: {
-      position: 'absolute',
-      bottom: 10,
-      left: -30,
-      width: 120,
-      height: 120,
-      borderRadius: '50%',
-      background: 'rgba(79,209,165,0.05)',
-      border: '1px solid rgba(79,209,165,0.1)',
-    },
-    brandBadge: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 6,
-      background: 'rgba(126,184,247,0.12)',
-      border: '1px solid rgba(126,184,247,0.25)',
-      borderRadius: 20,
-      padding: '4px 12px',
-      fontSize: 11,
-      fontWeight: 600,
-      letterSpacing: '0.08em',
-      color: '#7eb8f7',
-      textTransform: 'uppercase',
-      marginBottom: 16,
-    },
-    assetIdBlock: {
-      fontFamily: "'Courier New', monospace",
-      fontSize: 15,
-      fontWeight: 700,
-      color: '#ffffff',
-      letterSpacing: '0.05em',
-      marginBottom: 6,
-      wordBreak: 'break-all',
-    },
-    headerSubtitle: {
-      fontSize: 13,
-      color: 'rgba(255,255,255,0.45)',
-      marginBottom: 18,
-    },
-    statusPill: (cfg) => ({
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 7,
-      background: cfg.bg,
-      borderRadius: 20,
-      padding: '6px 14px',
-      fontSize: 12,
-      fontWeight: 600,
-      color: cfg.text,
-      border: `1px solid ${cfg.text}30`,
-    }),
-    floatingCard: {
-      background: '#ffffff',
-      borderRadius: '24px 24px 0 0',
-      marginTop: -32,
-      minHeight: 'calc(100vh - 220px)',
-      position: 'relative',
-      padding: '28px 20px 48px',
-      boxShadow: '0 -4px 24px rgba(0,0,0,0.08)',
-      opacity: mounted ? 1 : 0,
-      transform: mounted ? 'translateY(0)' : 'translateY(16px)',
-      transition: 'opacity 0.4s ease, transform 0.4s ease',
-    },
-    handle: {
-      width: 40,
-      height: 4,
-      background: '#e0e0e0',
-      borderRadius: 2,
-      margin: '0 auto 28px',
-    },
-    sectionLabel: {
-      fontSize: 10,
-      fontWeight: 700,
-      letterSpacing: '0.12em',
-      color: '#94a3b8',
-      textTransform: 'uppercase',
-      marginBottom: 12,
-    },
-    productCard: {
-      background: '#f8fafc',
-      borderRadius: 16,
-      padding: '16px 18px',
-      border: '1px solid #e8eef4',
-      marginBottom: 20,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 16,
-    },
-    productIcon: {
-      width: 52,
-      height: 52,
-      borderRadius: 14,
-      background: 'linear-gradient(135deg, #1a3a5c, #0d2d45)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 22,
-      flexShrink: 0,
-    },
-    productName: {
-      fontSize: 17,
-      fontWeight: 700,
-      color: '#0d1b2a',
-      lineHeight: 1.2,
-      marginBottom: 3,
-    },
-    productModel: {
-      fontSize: 13,
-      color: '#64748b',
-    },
-    twoCol: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 12,
-      marginBottom: 20,
-    },
-    metricCard: (accent) => ({
-      background: '#f8fafc',
-      borderRadius: 14,
-      padding: '14px 16px',
-      border: `1px solid ${accent}25`,
-      borderLeft: `3px solid ${accent}`,
-    }),
-    metricLabel: {
-      fontSize: 10,
-      fontWeight: 700,
-      letterSpacing: '0.08em',
-      color: '#94a3b8',
-      textTransform: 'uppercase',
-      marginBottom: 6,
-    },
-    metricValue: (color) => ({
-      fontSize: 15,
-      fontWeight: 700,
-      color: color || '#0d1b2a',
-      lineHeight: 1.2,
-    }),
-    refSection: {
-      background: '#f8fafc',
-      borderRadius: 16,
-      border: '1px solid #e8eef4',
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    refRow: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '12px 16px',
-      borderBottom: '1px solid #f0f4f8',
-    },
-    refKey: {
-      fontSize: 12,
-      color: '#94a3b8',
-      fontWeight: 500,
-    },
-    refVal: {
-      fontSize: 13,
-      fontWeight: 600,
-      color: '#1e293b',
-      fontFamily: "'Courier New', monospace",
-    },
-    warrantyCard: (expired, hasWarranty) => ({
-      borderRadius: 16,
-      padding: '20px',
-      marginBottom: 20,
-      background: !hasWarranty
-        ? '#f8fafc'
-        : expired
-        ? 'linear-gradient(135deg, #fff5f5, #fff0f0)'
-        : 'linear-gradient(135deg, #f0fdf4, #ecfdf5)',
-      border: !hasWarranty
-        ? '1px solid #e8eef4'
-        : expired
-        ? '1px solid #fecaca'
-        : '1px solid #bbf7d0',
-      textAlign: 'center',
-    }),
-    warrantyIcon: (expired, hasWarranty) => ({
-      width: 56,
-      height: 56,
-      borderRadius: '50%',
-      background: !hasWarranty ? '#e2e8f0' : expired ? '#fee2e2' : '#dcfce7',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 24,
-      margin: '0 auto 12px',
-    }),
-    warrantyTitle: (expired, hasWarranty) => ({
-      fontSize: 16,
-      fontWeight: 700,
-      color: !hasWarranty ? '#64748b' : expired ? '#dc2626' : '#16a34a',
-      marginBottom: 6,
-    }),
-    warrantyMeta: {
-      fontSize: 13,
-      color: '#64748b',
-      marginBottom: 4,
-    },
-    daysRemaining: {
-      display: 'inline-block',
-      marginTop: 10,
-      background: '#dcfce7',
-      color: '#15803d',
-      borderRadius: 20,
-      padding: '4px 14px',
-      fontSize: 13,
-      fontWeight: 700,
-    },
-    historyCard: {
-      background: '#f8fafc',
-      borderRadius: 16,
-      border: '1px solid #e8eef4',
-      overflow: 'hidden',
-      marginBottom: 20,
-    },
-    historyItem: (isLast) => ({
-      padding: '14px 16px',
-      borderBottom: isLast ? 'none' : '1px solid #f0f4f8',
-      display: 'flex',
-      gap: 12,
-    }),
-    historyDot: {
-      width: 8,
-      height: 8,
-      borderRadius: '50%',
-      background: '#3b82f6',
-      marginTop: 5,
-      flexShrink: 0,
-    },
-    historyDesc: {
-      fontSize: 13,
-      fontWeight: 600,
-      color: '#1e293b',
-      marginBottom: 3,
-    },
-    historyMeta: {
-      fontSize: 11,
-      color: '#94a3b8',
-    },
-    footer: {
-      textAlign: 'center',
-      paddingTop: 8,
-    },
-    footerText: {
-      fontSize: 11,
-      color: '#cbd5e1',
-      letterSpacing: '0.04em',
-    },
-    loadingWrap: {
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#0d1b2a',
-      gap: 16,
-    },
-    spinner: {
-      width: 40,
-      height: 40,
-      border: '3px solid rgba(126,184,247,0.2)',
-      borderTop: '3px solid #7eb8f7',
-      borderRadius: '50%',
-      animation: 'spin 0.8s linear infinite',
-    },
-    errorWrap: {
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#0d1b2a',
-      padding: 24,
-      textAlign: 'center',
-      gap: 12,
-    },
-  };
+  const sc = statusColor[assetData?.status] || { bg: "#f1f5f9", color: "#475569", dot: "#475569" };
 
   if (isLoading) {
     return (
       <>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <div style={styles.loadingWrap}>
-          <div style={styles.spinner} />
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: 0 }}>
-            Fetching asset details...
-          </p>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fafc", gap: 16 }}>
+          <div style={{ width: 36, height: 36, border: "3px solid #e2e8f0", borderTop: "3px solid #3b82f6", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <p style={{ color: "#94a3b8", fontSize: 14, margin: 0 }}>Loading asset details...</p>
         </div>
       </>
     );
@@ -375,179 +65,151 @@ const AssetView = () => {
 
   if (error || !assetData) {
     return (
-      <div style={styles.errorWrap}>
-        <div style={{ fontSize: 48 }}>⊘</div>
-        <h4 style={{ color: '#f87171', fontSize: 18, fontWeight: 700, margin: 0 }}>
-          Asset Not Found
-        </h4>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: 0 }}>
-          {error || "This asset does not exist or has been removed."}
-        </p>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f8fafc", padding: 24, textAlign: "center", gap: 12 }}>
+        <div style={{ fontSize: 48, color: "#fca5a5" }}>✕</div>
+        <h4 style={{ color: "#ef4444", fontSize: 18, fontWeight: 700, margin: 0 }}>Asset Not Found</h4>
+        <p style={{ color: "#94a3b8", fontSize: 14, margin: 0 }}>{error || "This asset does not exist."}</p>
       </div>
     );
   }
 
-  const statusCfg = getStatusConfig(assetData.status);
   const expired = isWarrantyExpired();
   const hasWarranty = assetData.serviceWarrantyMonths > 0;
   const daysLeft = getWarrantyDaysRemaining();
-  const hasHistory = assetData.serviceHistory?.length > 0;
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        body { background: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .av-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid #f1f5f9; }
+        .av-row:last-child { border-bottom: none; }
+        .av-label { font-size: 12px; color: #94a3b8; font-weight: 500; }
+        .av-value { font-size: 13px; color: #1e293b; font-weight: 600; text-align: right; max-width: 60%; word-break: break-all; }
+        .av-section { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #e2e8f0; }
+        .av-section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; }
+        .av-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .av-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }
+        .av-card-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; }
+        .av-card-value { font-size: 14px; font-weight: 700; color: #1e293b; }
       `}</style>
 
-      <div style={styles.page}>
+      <div style={{ minHeight: "100vh", background: "#f1f5f9", paddingBottom: 32 }}>
 
-        {/* ── Header ── */}
-        <div style={styles.header}>
-          <div style={styles.headerAccent} />
-          <div style={styles.headerAccent2} />
-
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={styles.brandBadge}>
-              <span>◈</span> Asset Passport
-            </div>
-
-            <div style={styles.assetIdBlock}>{assetData.assetId}</div>
-            <div style={styles.headerSubtitle}>
-              {assetData.brandName} · {assetData.modelNo}
-            </div>
-
-            <div style={styles.statusPill(statusCfg)}>
-              <span>{statusCfg.icon}</span>
-              {assetData.status}
-            </div>
+        {/* Top bar */}
+        <div style={{ background: "#1e293b", padding: "16px 20px 20px" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#64748b", textTransform: "uppercase", marginBottom: 8 }}>
+            Asset Passport · ProClient360
+          </div>
+          <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#f1f5f9", letterSpacing: "0.04em", marginBottom: 6, wordBreak: "break-all" }}>
+            {assetData.assetId}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#ffffff", marginBottom: 10 }}>
+            {assetData.brandName} — {assetData.modelNo}
+          </div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: sc.bg, borderRadius: 20, padding: "4px 12px" }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: sc.dot }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: sc.color }}>{assetData.status}</span>
           </div>
         </div>
 
-        {/* ── Floating content card ── */}
-        <div style={styles.floatingCard}>
-          <div style={styles.handle} />
+        <div style={{ padding: "16px 16px 0" }}>
 
-          {/* Product Summary */}
-          <div style={styles.sectionLabel}>Product</div>
-          <div style={styles.productCard}>
-            <div style={styles.productIcon}>📦</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={styles.productName}>{assetData.brandName}</div>
-              <div style={styles.productModel}>{assetData.modelNo}</div>
-              {assetData.boxNumber && (
-                <div style={{
-                  marginTop: 6,
-                  display: 'inline-block',
-                  background: '#eff6ff',
-                  color: '#1d4ed8',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  borderRadius: 8,
-                  padding: '2px 8px',
-                }}>
-                  {assetData.boxNumber}
-                </div>
-              )}
+          {/* Movement dates */}
+          <div className="av-grid">
+            <div className="av-card" style={{ borderLeft: "3px solid #3b82f6" }}>
+              <div className="av-card-label">In Date</div>
+              <div className="av-card-value" style={{ color: "#1d4ed8", fontSize: 13 }}>{fmt(assetData.inDate)}</div>
             </div>
-          </div>
-
-          {/* Dates */}
-          <div style={styles.sectionLabel}>Movement</div>
-          <div style={styles.twoCol}>
-            <div style={styles.metricCard('#3b82f6')}>
-              <div style={styles.metricLabel}>In Date</div>
-              <div style={styles.metricValue('#1d4ed8')}>{fmt(assetData.inDate)}</div>
-            </div>
-            <div style={styles.metricCard('#ef4444')}>
-              <div style={styles.metricLabel}>Out Date</div>
-              <div style={styles.metricValue(assetData.outDate ? '#b91c1c' : '#94a3b8')}>
-                {assetData.outDate ? fmt(assetData.outDate) : 'Not dispatched'}
+            <div className="av-card" style={{ borderLeft: "3px solid #ef4444" }}>
+              <div className="av-card-label">Out Date</div>
+              <div className="av-card-value" style={{ color: assetData.outDate ? "#b91c1c" : "#94a3b8", fontSize: 13 }}>
+                {assetData.outDate ? fmt(assetData.outDate) : "Not dispatched"}
               </div>
             </div>
           </div>
 
-          {/* Reference Numbers */}
-          <div style={styles.sectionLabel}>Reference</div>
-          <div style={styles.refSection}>
-            <div style={styles.refRow}>
-              <span style={styles.refKey}>QC Number</span>
-              <span style={styles.refVal}>{assetData.qcNumber}</span>
+          {/* Reference info */}
+          <div className="av-section">
+            <div className="av-section-title">Reference</div>
+            <div className="av-row">
+              <span className="av-label">QC Number</span>
+              <span className="av-value" style={{ fontFamily: "monospace", fontSize: 12 }}>{assetData.qcNumber}</span>
             </div>
-            <div style={styles.refRow}>
-              <span style={styles.refKey}>GRN Number</span>
-              <span style={styles.refVal}>{assetData.grnNumber}</span>
+            <div className="av-row">
+              <span className="av-label">GRN Number</span>
+              <span className="av-value" style={{ fontFamily: "monospace", fontSize: 12 }}>{assetData.grnNumber}</span>
             </div>
-            <div style={{ ...styles.refRow, borderBottom: 'none' }}>
-              <span style={styles.refKey}>Unit</span>
-              <span style={{ ...styles.refVal, fontFamily: 'DM Sans, sans-serif' }}>
-                {assetData.unit}
-              </span>
+            <div className="av-row">
+              <span className="av-label">Unit</span>
+              <span className="av-value">{assetData.unit}</span>
             </div>
+            {assetData.boxNumber && (
+              <div className="av-row">
+                <span className="av-label">Box</span>
+                <span className="av-value">{assetData.boxNumber}</span>
+              </div>
+            )}
           </div>
 
           {/* Warranty */}
-          <div style={styles.sectionLabel}>Warranty</div>
-          <div style={styles.warrantyCard(expired, hasWarranty)}>
-            <div style={styles.warrantyIcon(expired, hasWarranty)}>
-              {!hasWarranty ? '−' : expired ? '✕' : '✓'}
+          <div className="av-section" style={{
+            background: !hasWarranty ? "#fff" : expired ? "#fff5f5" : "#f0fdf4",
+            borderColor: !hasWarranty ? "#e2e8f0" : expired ? "#fecaca" : "#bbf7d0",
+            textAlign: "center",
+            padding: "20px 16px",
+          }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: "50%",
+              background: !hasWarranty ? "#f1f5f9" : expired ? "#fee2e2" : "#dcfce7",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 22, margin: "0 auto 12px",
+              color: !hasWarranty ? "#94a3b8" : expired ? "#dc2626" : "#16a34a",
+            }}>
+              {!hasWarranty ? "—" : expired ? "✕" : "✓"}
             </div>
-            <div style={styles.warrantyTitle(expired, hasWarranty)}>
-              {!hasWarranty
-                ? 'No Warranty'
-                : expired
-                ? 'Warranty Expired'
-                : 'Under Warranty'}
+            <div style={{ fontSize: 15, fontWeight: 700, color: !hasWarranty ? "#64748b" : expired ? "#dc2626" : "#16a34a", marginBottom: 6 }}>
+              {!hasWarranty ? "No Warranty" : expired ? "Warranty Expired" : "Under Warranty"}
             </div>
-
             {hasWarranty && (
               <>
-                <div style={styles.warrantyMeta}>
+                <div style={{ fontSize: 13, color: "#64748b", marginBottom: 3 }}>
                   Duration: <strong>{assetData.serviceWarrantyMonths} months</strong>
                 </div>
-                <div style={styles.warrantyMeta}>
-                  Expires:{' '}
-                  <strong style={{ color: expired ? '#dc2626' : '#16a34a' }}>
-                    {fmt(assetData.warrantyExpiryDate)}
-                  </strong>
+                <div style={{ fontSize: 13, color: "#64748b" }}>
+                  Expires: <strong style={{ color: expired ? "#dc2626" : "#16a34a" }}>{fmt(assetData.warrantyExpiryDate)}</strong>
                 </div>
                 {!expired && daysLeft !== null && (
-                  <div style={styles.daysRemaining}>{daysLeft} days remaining</div>
+                  <div style={{ marginTop: 10, display: "inline-block", background: "#dcfce7", color: "#15803d", borderRadius: 20, padding: "4px 14px", fontSize: 13, fontWeight: 700 }}>
+                    {daysLeft} days remaining
+                  </div>
                 )}
               </>
             )}
           </div>
 
-          {/* Service History */}
-          {hasHistory && (
-            <>
-              <div style={styles.sectionLabel}>Service History</div>
-              <div style={styles.historyCard}>
-                {assetData.serviceHistory.map((h, i) => (
-                  <div key={i} style={styles.historyItem(i === assetData.serviceHistory.length - 1)}>
-                    <div style={styles.historyDot} />
-                    <div>
-                      <div style={styles.historyDesc}>{h.description}</div>
-                      <div style={styles.historyMeta}>
-                        {fmt(h.date)} · {h.servicedBy}
-                      </div>
-                    </div>
+          {/* Service history */}
+          {assetData.serviceHistory?.length > 0 && (
+            <div className="av-section">
+              <div className="av-section-title">Service History</div>
+              {assetData.serviceHistory.map((h, i) => (
+                <div key={i} style={{ display: "flex", gap: 12, paddingBottom: i < assetData.serviceHistory.length - 1 ? 12 : 0, marginBottom: i < assetData.serviceHistory.length - 1 ? 12 : 0, borderBottom: i < assetData.serviceHistory.length - 1 ? "1px solid #f1f5f9" : "none" }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#3b82f6", marginTop: 4, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", marginBottom: 2 }}>{h.description}</div>
+                    <div style={{ fontSize: 11, color: "#94a3b8" }}>{fmt(h.date)} · {h.servicedBy}</div>
                   </div>
-                ))}
-              </div>
-            </>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* Footer */}
-          <div style={styles.footer}>
-            <div style={styles.footerText}>
-              Scanned {new Date().toLocaleString('en-GB')}
-            </div>
-            <div style={{ ...styles.footerText, marginTop: 4 }}>
-              Powered by ProClient360
-            </div>
+          <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
+            <div style={{ fontSize: 11, color: "#cbd5e1" }}>Scanned {new Date().toLocaleString("en-GB")}</div>
+            <div style={{ fontSize: 11, color: "#cbd5e1", marginTop: 2 }}>Powered by ProClient360</div>
           </div>
+
         </div>
       </div>
     </>
