@@ -9,6 +9,7 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [expandedItem, setExpandedItem] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
+  const [selectedBox, setSelectedBox] = useState(null);
   const [qrImageUrls, setQrImageUrls] = useState({});
 
   useEffect(() => {
@@ -18,7 +19,6 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
         const data = await getQualityInspectionById(qcId);
         if (data.success) {
           setQcData(data.qc);
-          // Generate QR codes for all assets
           generateAllQRCodes(data.qc);
         } else {
           toast.error(data.error || "Failed to fetch QC data");
@@ -32,11 +32,27 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
     fetchQCData();
   }, [qcId]);
 
-  // Generate QR codes as data URLs
+  // Generate QR codes as data URLs (both asset and box QRs)
   const generateAllQRCodes = async (qc) => {
     const urls = {};
     if (qc?.items) {
       for (const item of qc.items) {
+        // Generate box QR codes
+        if (item.boxes) {
+          for (const box of item.boxes) {
+            try {
+              urls[`BOX-${box.boxNumber}`] = await QRCode.toDataURL(box.boxQrCodeData, {
+                width: 150,
+                margin: 1,
+                color: { dark: "#000000", light: "#ffffff" },
+                errorCorrectionLevel: "H",
+              });
+            } catch (err) {
+              console.error("Box QR generation error:", err);
+            }
+          }
+        }
+        // Generate asset QR codes
         if (item.assets) {
           for (const asset of item.assets) {
             try {
@@ -60,11 +76,12 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
     setExpandedItem(expandedItem === index ? null : index);
   };
 
-  const downloadQRCode = (assetId) => {
-    const url = qrImageUrls[assetId];
+  const downloadQRCode = (id, type = 'asset') => {
+    const key = type === 'box' ? `BOX-${id}` : id;
+    const url = qrImageUrls[key];
     if (url) {
       const link = document.createElement("a");
-      link.download = `${assetId}.png`;
+      link.download = `${type === 'box' ? `Box-${id}` : id}.png`;
       link.href = url;
       link.click();
       toast.success("QR Code downloaded!");
@@ -74,9 +91,42 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
   const printAllQRCodes = () => {
     if (!qcData) return;
 
-    const allAssets = getAllAssets();
     const printWindow = window.open('', '_blank');
     
+    let qrItems = '';
+    
+    qcData.items?.forEach(item => {
+      // Add box QR codes
+      item.boxes?.forEach(box => {
+        qrItems += `
+          <div class="qr-item" style="border: 3px solid #1a56db; background: #e8f0fe;">
+            <div class="asset-id" style="color: #1a56db;">📦 ${box.boxNumber}</div>
+            <img src="${qrImageUrls[`BOX-${box.boxNumber}`] || ''}" alt="Box QR Code" />
+            <div class="info"><strong>${box.brandName}</strong> - ${box.modelNo}</div>
+            <div class="box-info">${box.assetCount} Items in Box</div>
+          </div>
+        `;
+      });
+
+      // Add individual asset QR codes
+      item.assets?.forEach(asset => {
+        qrItems += `
+          <div class="qr-item">
+            <div class="asset-id">${asset.assetId}</div>
+            <img src="${qrImageUrls[asset.assetId] || ''}" alt="QR Code" />
+            <div class="info"><strong>${asset.brandName}</strong> - ${asset.modelNo}</div>
+            ${asset.boxNumber ? `<div class="box-info">📦 ${asset.boxNumber}</div>` : ''}
+            <div class="dates">In: ${new Date(asset.inDate).toLocaleDateString('en-GB')}</div>
+            ${asset.warrantyExpiryDate ? `
+              <div class="warranty">
+                ${new Date() > new Date(asset.warrantyExpiryDate) ? '⚠️ Warranty Expired' : `✅ Warranty: ${new Date(asset.warrantyExpiryDate).toLocaleDateString('en-GB')}`}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      });
+    });
+
     printWindow.document.write(`
       <html>
         <head>
@@ -100,7 +150,7 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
             .qr-item .info { font-size: 9px; color: #333; }
             .qr-item .box-info { font-size: 9px; color: #666; margin-top: 2px; }
             .qr-item .dates { font-size: 8px; color: #0066cc; margin-top: 2px; }
-            .qr-item .warranty { font-size: 8px; color: ${isAnyWarrantyExpired() ? '#cc0000' : '#009900'}; margin-top: 2px; }
+            .qr-item .warranty { font-size: 8px; color: #009900; margin-top: 2px; }
             @media print {
               body { padding: 10px; }
               .qr-grid { gap: 10px; }
@@ -111,23 +161,10 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
           <div class="header">
             <h2>${qcData?.company?.name || 'Company'}</h2>
             <p><strong>QC Number:</strong> ${qcData?.qcNumber} | <strong>GRN Number:</strong> ${qcData?.grnNumber}</p>
-            <p><strong>QC Date:</strong> ${new Date(qcData?.qcDate).toLocaleDateString('en-GB')} | <strong>Total Assets:</strong> ${allAssets.length}</p>
+            <p><strong>QC Date:</strong> ${new Date(qcData?.qcDate).toLocaleDateString('en-GB')} | <strong>Total Assets:</strong> ${qcData?.totalAssets || 0} | <strong>Total Boxes:</strong> ${qcData?.totalBoxes || 0}</p>
           </div>
           <div class="qr-grid">
-            ${allAssets.map(asset => `
-              <div class="qr-item">
-                <div class="asset-id">${asset.assetId}</div>
-                <img src="${qrImageUrls[asset.assetId] || ''}" alt="QR Code" />
-                <div class="info"><strong>${asset.brandName}</strong> - ${asset.modelNo}</div>
-                ${asset.boxNumber ? `<div class="box-info">📦 ${asset.boxNumber}</div>` : ''}
-                <div class="dates">In: ${new Date(asset.inDate).toLocaleDateString('en-GB')}</div>
-                ${asset.warrantyExpiryDate ? `
-                  <div class="warranty">
-                    ${new Date() > new Date(asset.warrantyExpiryDate) ? '⚠️ Warranty Expired' : `✅ Warranty: ${new Date(asset.warrantyExpiryDate).toLocaleDateString('en-GB')}`}
-                  </div>
-                ` : ''}
-              </div>
-            `).join('')}
+            ${qrItems}
           </div>
         </body>
       </html>
@@ -155,11 +192,6 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
       }
     });
     return allAssets;
-  };
-
-  const isAnyWarrantyExpired = () => {
-    const allAssets = getAllAssets();
-    return allAssets.some(asset => asset.warrantyExpiryDate && new Date() > new Date(asset.warrantyExpiryDate));
   };
 
   const getStatusBadgeClass = (status) => {
@@ -222,12 +254,16 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
                     <div className="col-md-3">
                       <strong>GRN Number:</strong> {qcData?.grnNumber}
                     </div>
-                    <div className="col-md-3">
+                    <div className="col-md-2">
                       <strong>QC Date:</strong> {new Date(qcData?.qcDate).toLocaleDateString('en-GB')}
                     </div>
-                    <div className="col-md-3">
+                    <div className="col-md-2">
                       <strong>Total Assets:</strong> 
-                      <span className="badge bg-primary ms-1">{getAllAssets().length}</span>
+                      <span className="badge bg-primary ms-1">{qcData?.totalAssets || getAllAssets().length}</span>
+                    </div>
+                    <div className="col-md-2">
+                      <strong>Total Boxes:</strong> 
+                      <span className="badge bg-info ms-1">{qcData?.totalBoxes || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -254,6 +290,10 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
                       </small>
                     </div>
                     <div>
+                      <span className="badge bg-info me-2">
+                        <i className="fa fa-box me-1"></i>
+                        {item.boxes?.length || 0} Boxes
+                      </span>
                       <span className="badge bg-primary me-2">
                         <i className="fa fa-qrcode me-1"></i>
                         {item.assets?.length || 0} Assets
@@ -262,8 +302,78 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
                   </div>
                 </div>
 
-                {expandedItem === itemIndex && item.assets && (
+                {expandedItem === itemIndex && (
                   <div className="card-body p-2 border">
+                    
+                    {/* BOX QR CODES SECTION - Only show if there are boxes */}
+                    {item.boxes && item.boxes.length > 0 && (
+                      <>
+                        <h6 className="mt-2 mb-3 text-primary">
+                          <i className="fa fa-box me-2"></i>
+                          Box QR Codes (Scan to view all items in box)
+                        </h6>
+                        <div className="row mb-3">
+                          {item.boxes.map((box, boxIndex) => (
+                            <div key={boxIndex} className="col-6 col-md-4 col-lg-3 mb-3">
+                              <div className="card text-center p-2 h-100 border-primary">
+                                {qrImageUrls[`BOX-${box.boxNumber}`] ? (
+                                  <img 
+                                    src={qrImageUrls[`BOX-${box.boxNumber}`]} 
+                                    alt="Box QR Code" 
+                                    className="mx-auto d-block mb-2"
+                                    style={{ width: '100px', height: '100px', border: '2px solid #1a56db', borderRadius: '8px' }}
+                                  />
+                                ) : (
+                                  <div 
+                                    className="bg-primary bg-opacity-10 text-primary p-3 mb-2 mx-auto d-flex align-items-center justify-content-center" 
+                                    style={{ width: '100px', height: '100px', borderRadius: '8px' }}
+                                  >
+                                    <i className="fa fa-spinner fa-spin"></i>
+                                  </div>
+                                )}
+                                <small className="d-block fw-bold text-primary" style={{ fontSize: '10px' }}>
+                                  📦 {box.boxNumber}
+                                </small>
+                                <small className="text-muted" style={{ fontSize: '9px' }}>
+                                  {box.assetCount} Items
+                                </small>
+                                <div className="mt-1">
+                                  <button 
+                                    className="btn btn-sm btn-outline-primary py-0 px-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedBox(box);
+                                    }}
+                                    title="View Box Details"
+                                  >
+                                    <i className="fa fa-eye" style={{ fontSize: '10px' }}></i>
+                                  </button>
+                                  <button 
+                                    className="btn btn-sm btn-outline-success py-0 px-2 ms-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      downloadQRCode(box.boxNumber, 'box');
+                                    }}
+                                    title="Download Box QR"
+                                  >
+                                    <i className="fa fa-download" style={{ fontSize: '10px' }}></i>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <hr className="my-3" />
+                      </>
+                    )}
+
+                    {/* INDIVIDUAL ASSET QR CODES SECTION */}
+                    <h6 className="mb-3">
+                      <i className="fa fa-qrcode me-2"></i>
+                      Individual Asset QR Codes
+                    </h6>
+                    
                     {/* Asset Table */}
                     <div className="table-responsive">
                       <table className="table table-sm table-bordered mb-3">
@@ -280,12 +390,16 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
                           </tr>
                         </thead>
                         <tbody>
-                          {item.assets.map((asset, assetIndex) => (
+                          {item.assets?.map((asset, assetIndex) => (
                             <tr key={assetIndex}>
                               <td>
                                 <small className="font-monospace">{asset.assetId}</small>
                               </td>
-                              <td>{asset.boxNumber || '-'}</td>
+                              <td>
+                                {asset.boxNumber ? (
+                                  <span className="badge bg-info">{asset.boxNumber}</span>
+                                ) : '-'}
+                              </td>
                               <td>{new Date(asset.inDate).toLocaleDateString('en-GB')}</td>
                               <td>{asset.outDate ? new Date(asset.outDate).toLocaleDateString('en-GB') : '-'}</td>
                               <td>{asset.serviceWarrantyMonths > 0 ? `${asset.serviceWarrantyMonths}M` : '-'}</td>
@@ -331,14 +445,14 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
                       </table>
                     </div>
 
-                    {/* QR Grid Preview */}
+                    {/* QR Grid Preview - Individual Assets */}
                     <div className="mt-2 p-3 bg-light rounded">
                       <h6 className="mb-3">
                         <i className="fa fa-th me-1"></i>
-                        QR Codes Preview
+                        Asset QR Codes Preview
                       </h6>
                       <div className="row">
-                        {item.assets.map((asset, assetIndex) => (
+                        {item.assets?.map((asset, assetIndex) => (
                           <div key={assetIndex} className="col-6 col-md-4 col-lg-3 mb-3">
                             <div className="card text-center p-2 h-100">
                               {qrImageUrls[asset.assetId] ? (
@@ -349,7 +463,6 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
                                   style={{ width: '100px', height: '100px' }}
                                 />
                               ) : (
-                                /* FIX: Combined the duplicate classNames into one here */
                                 <div 
                                   className="bg-secondary text-white p-3 mb-2 mx-auto d-flex align-items-center justify-content-center" 
                                   style={{ width: '100px', height: '100px' }}
@@ -361,7 +474,7 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
                                 {asset.assetId}
                               </small>
                               {asset.boxNumber && (
-                                <small className="text-muted" style={{ fontSize: '8px' }}>{asset.boxNumber}</small>
+                                <small className="text-muted" style={{ fontSize: '8px' }}>📦 {asset.boxNumber}</small>
                               )}
                               <div className="mt-1">
                                 <span className={`badge ${getStatusBadgeClass(asset.status)}`} style={{ fontSize: '8px' }}>
@@ -441,6 +554,104 @@ const AssetListPopUp = ({ handleClose, qcId }) => {
                         <i className="fa fa-download me-1"></i> Download QR Code
                       </button>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Selected Box Details Modal */}
+          {selectedBox && (
+            <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000080", zIndex: 9999 }}>
+              <div className="modal-dialog modal-lg">
+                <div className="modal-content">
+                  <div className="modal-header bg-primary text-white">
+                    <h5 className="modal-title">
+                      <i className="fa fa-box me-2"></i>
+                      {selectedBox.boxNumber} - Contains {selectedBox.assetCount} Items
+                    </h5>
+                    <button type="button" className="btn-close btn-close-white" onClick={() => setSelectedBox(null)}></button>
+                  </div>
+                  <div className="modal-body">
+                    <div className="text-center mb-3">
+                      {qrImageUrls[`BOX-${selectedBox.boxNumber}`] && (
+                        <>
+                          <img 
+                            src={qrImageUrls[`BOX-${selectedBox.boxNumber}`]} 
+                            alt="Box QR Code" 
+                            className="mx-auto d-block mb-2"
+                            style={{ width: '200px', height: '200px', border: '3px solid #1a56db', borderRadius: '12px' }}
+                          />
+                          <p className="text-muted small">Scan this QR code to view all items in this box</p>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="row mb-3">
+                      <div className="col-4">
+                        <strong>Brand:</strong> {selectedBox.brandName}
+                      </div>
+                      <div className="col-4">
+                        <strong>Model:</strong> {selectedBox.modelNo}
+                      </div>
+                      <div className="col-4">
+                        <strong>Items:</strong> {selectedBox.assetCount}
+                      </div>
+                    </div>
+
+                    <h6>Assets in this Box:</h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-secondary">
+                          <tr>
+                            <th>Asset ID</th>
+                            <th>In Date</th>
+                            <th>Warranty</th>
+                            <th>Status</th>
+                            <th>QR</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {qcData?.items?.flatMap(item => item.assets || [])
+                            .filter(asset => asset.boxNumber === selectedBox.boxNumber)
+                            .map((asset, idx) => (
+                              <tr key={idx}>
+                                <td><small className="font-monospace">{asset.assetId}</small></td>
+                                <td>{new Date(asset.inDate).toLocaleDateString('en-GB')}</td>
+                                <td>
+                                  {asset.warrantyExpiryDate ? (
+                                    <span className={isWarrantyExpired(asset.warrantyExpiryDate) ? 'text-danger' : 'text-success'}>
+                                      {new Date(asset.warrantyExpiryDate).toLocaleDateString('en-GB')}
+                                    </span>
+                                  ) : 'No Warranty'}
+                                </td>
+                                <td>
+                                  <span className={`badge ${getStatusBadgeClass(asset.status)}`}>
+                                    {asset.status}
+                                  </span>
+                                </td>
+                                <td>
+                                  <button 
+                                    className="btn btn-sm btn-outline-success"
+                                    onClick={() => downloadQRCode(asset.assetId)}
+                                  >
+                                    <i className="fa fa-download"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button 
+                      className="btn btn-primary"
+                      onClick={() => downloadQRCode(selectedBox.boxNumber, 'box')}
+                    >
+                      <i className="fa fa-download me-1"></i> Download Box QR
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => setSelectedBox(null)}>Close</button>
                   </div>
                 </div>
               </div>

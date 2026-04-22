@@ -74,7 +74,7 @@ const deleteQualityInspection = async (Id) => {
   }
 };
 
-// New: Get asset by QR code data
+// Get asset by QR code data (authenticated - returns role-based data)
 const getAssetByQR = async (qrData) => {
   try {
     const response = await axios.get(`${url}/asset/${encodeURIComponent(qrData)}`, {
@@ -89,7 +89,7 @@ const getAssetByQR = async (qrData) => {
   }
 };
 
-// New: Get all assets with filters
+// Get all assets with filters
 const getAllAssets = async (page = 1, limit = 20, search = null, status = null, warrantyStatus = null) => {
   try {
     let queryParams = `?page=${page}&limit=${limit}`;
@@ -109,7 +109,7 @@ const getAllAssets = async (page = 1, limit = 20, search = null, status = null, 
   }
 };
 
-// New: Update asset status
+// Update asset status (only Quality Engineer can do this)
 const updateAssetStatus = async (qcId, assetId, updateData) => {
   try {
     const response = await axios.put(`${url}/${qcId}/asset/${assetId}`, updateData, {

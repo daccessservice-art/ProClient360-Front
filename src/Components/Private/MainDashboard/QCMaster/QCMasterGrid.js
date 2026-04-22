@@ -132,6 +132,23 @@ export const QCMasterGrid = () => {
     pageButtons.push(i);
   }
 
+  // Get stock counts for a QC
+  const getStockCounts = (qc) => {
+    let inWarehouse = 0;
+    let dispatched = 0;
+    let totalAssets = 0;
+    
+    qc.items?.forEach(item => {
+      item.assets?.forEach(asset => {
+        totalAssets++;
+        if (asset.status === 'In Warehouse') inWarehouse++;
+        if (asset.status === 'Dispatched' || asset.status === 'In Service') dispatched++;
+      });
+    });
+    
+    return { inWarehouse, dispatched, totalAssets };
+  };
+
   return (
     <>
       {loading && (
@@ -180,7 +197,7 @@ export const QCMasterGrid = () => {
                               onClick={handleAssetScanner}
                               type="button"
                               className="btn adbtn btn-info btn-sm"
-                              title="Scan QR Code"
+                              title="Scan QR Code (Asset or Box)"
                             >
                               <i className="fa fa-qrcode"></i>
                             </button>
@@ -209,9 +226,11 @@ export const QCMasterGrid = () => {
                             <th>QC Date</th>
                             <th>GRN Number</th>
                             <th>Total Items</th>
-                            <th>QC OK Qty</th>
-                            <th>Faulty Qty</th>
-                            <th>Total Assets</th>
+                            <th>QC OK</th>
+                            <th>Faulty</th>
+                            <th>In Stock</th>
+                            <th>Dispatched</th>
+                            <th>Boxes</th>
                             <th>Status</th>
                             <th>Action</th>
                           </tr>
@@ -221,7 +240,8 @@ export const QCMasterGrid = () => {
                             qualityInspections.map((qc, index) => {
                               const totalQcOk = qc.items?.reduce((sum, item) => sum + item.qcOkQuantity, 0) || 0;
                               const totalFaulty = qc.items?.reduce((sum, item) => sum + item.faultyQuantity, 0) || 0;
-                              const totalAssets = qc.totalAssets || qc.items?.reduce((sum, item) => sum + (item.assets?.length || 0), 0) || 0;
+                              const stock = getStockCounts(qc);
+                              const totalBoxes = qc.totalBoxes || qc.items?.reduce((sum, item) => sum + (item.boxes?.length || 0), 0) || 0;
                               
                               return (
                                 <tr className="border my-4" key={qc._id}>
@@ -231,9 +251,7 @@ export const QCMasterGrid = () => {
                                   <td>{qc.grnNumber}</td>
                                   <td>{qc.items?.length || 0}</td>
                                   <td>
-                                    <span className="badge bg-success">
-                                      {totalQcOk}
-                                    </span>
+                                    <span className="badge bg-success">{totalQcOk}</span>
                                   </td>
                                   <td>
                                     <span className={`badge ${totalFaulty > 0 ? 'bg-danger' : 'bg-secondary'}`}>
@@ -241,9 +259,21 @@ export const QCMasterGrid = () => {
                                     </span>
                                   </td>
                                   <td>
-                                    <span className="badge bg-primary">
-                                      {totalAssets}
+                                    <span className="badge bg-primary" title="In Warehouse">
+                                      <i className="fa fa-box me-1"></i>{stock.inWarehouse}
                                     </span>
+                                  </td>
+                                  <td>
+                                    <span className="badge bg-info" title="Dispatched / In Service">
+                                      <i className="fa fa-truck me-1"></i>{stock.dispatched}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    {totalBoxes > 0 ? (
+                                      <span className="badge bg-secondary">📦 {totalBoxes}</span>
+                                    ) : (
+                                      <span className="badge bg-secondary">-</span>
+                                    )}
                                   </td>
                                   <td>
                                     <span className={`badge ${
@@ -265,14 +295,14 @@ export const QCMasterGrid = () => {
                                       <i className="fa-solid fa-eye text-primary me-3 cursor-pointer"></i>
                                     </span>
 
-                                    {totalAssets > 0 && (
+                                    {stock.totalAssets > 0 && (
                                       <span 
                                         className="assets" 
                                         onClick={() => {
                                           setSelectedQCIdForAssets(qc._id);
                                           setAssetListPopUpShow(true);
                                         }}
-                                        title="View Assets & QR Codes"
+                                        title="View Assets, Boxes & QR Codes"
                                       >
                                         <i className="fa-solid fa-qrcode text-info me-3 cursor-pointer"></i>
                                       </span>
@@ -306,7 +336,7 @@ export const QCMasterGrid = () => {
                             })
                           ) : (
                             <tr>
-                              <td colSpan="10" className="text-center">
+                              <td colSpan="12" className="text-center">
                                 No data found
                               </td>
                             </tr>

@@ -1,13 +1,16 @@
 // Components/Private/MainDashboard/QCMaster/PopUp/AssetScannerPopUp.jsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
 import toast from "react-hot-toast";
 import { getAssetByQR, updateAssetStatus } from "../../../../../hooks/useQC";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
+import { UserContext } from "../../../../../context/UserContext";
 import QRCode from "qrcode";
 
 const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
+  const { user } = useContext(UserContext);
   const [assetId, setAssetId] = useState(preselectedAssetId || "");
   const [assetData, setAssetData] = useState(null);
+  const [boxData, setBoxData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [updateData, setUpdateData] = useState({
@@ -17,6 +20,9 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
   });
   const canvasRef = useRef(null);
 
+  // Check if user is Quality Engineer
+  const isQualityEngineer = user?.user === 'company' || user?.permissions?.includes('updateQC');
+
   useEffect(() => {
     if (preselectedAssetId) {
       handleSearch(preselectedAssetId);
@@ -25,20 +31,17 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
 
   // Generate QR code on canvas when assetData changes
   useEffect(() => {
-    if (assetData?.qrCodeData && canvasRef.current) {
+    if (assetData?.qrCodeData && canvasRef.current && !boxData) {
       QRCode.toCanvas(canvasRef.current, assetData.qrCodeData, {
         width: 200,
         margin: 2,
-        color: {
-          dark: "#000000",
-          light: "#ffffff",
-        },
+        color: { dark: "#000000", light: "#ffffff" },
         errorCorrectionLevel: "H",
       }, (error) => {
         if (error) console.error("QR Code Error:", error);
       });
     }
-  }, [assetData]);
+  }, [assetData, boxData]);
 
   const handleSearch = async (searchId) => {
     if (!searchId) {
@@ -47,20 +50,33 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
     }
 
     setIsLoading(true);
+    setBoxData(null);
+    setAssetData(null);
+    
     try {
       const data = await getAssetByQR(searchId);
       
       if (data.success) {
-        setAssetData(data.asset);
-        setUpdateData({
-          status: data.asset.status || "",
-          outDate: data.asset.outDate ? new Date(data.asset.outDate).toISOString().split('T')[0] : "",
-          serviceNote: "",
-        });
-        setShowUpdateForm(false);
-        toast.success("Asset found!");
+        if (data.isBox) {
+          // Box QR scanned
+          setBoxData(data);
+          setAssetData(null);
+          toast.success(`Box found with ${data.box?.assetCount} assets!`);
+        } else {
+          // Individual asset QR scanned
+          setAssetData(data.asset);
+          setBoxData(null);
+          setUpdateData({
+            status: data.asset.status || "",
+            outDate: data.asset.outDate ? new Date(data.asset.outDate).toISOString().split('T')[0] : "",
+            serviceNote: "",
+          });
+          setShowUpdateForm(false);
+          toast.success("Asset found!");
+        }
       } else {
         setAssetData(null);
+        setBoxData(null);
         toast.error(data.error || "Asset not found");
       }
     } catch (error) {
@@ -97,7 +113,7 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
         toast.error(data.error || "Failed to update asset");
       }
     } catch (error) {
-      toast.error("Failed to update asset status");
+      toast.error(error?.response?.data?.error || "Failed to update asset status");
     } finally {
       setIsLoading(false);
     }
@@ -124,32 +140,39 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
     }
   };
 
-  const isWarrantyExpired = () => {
-    if (!assetData?.warrantyExpiryDate) return false;
-    return new Date() > new Date(assetData.warrantyExpiryDate);
+  const isWarrantyExpired = (expiryDate) => {
+    if (!expiryDate) return false;
+    return new Date() > new Date(expiryDate);
   };
 
-  const getWarrantyDaysRemaining = () => {
-    if (!assetData?.warrantyExpiryDate) return null;
-    const expiry = new Date(assetData.warrantyExpiryDate);
+  const getWarrantyDaysRemaining = (expiryDate) => {
+    if (!expiryDate) return null;
+    const expiry = new Date(expiryDate);
     const now = new Date();
     const diffTime = expiry - now;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
 
+  const fmt = (d) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
   return (
     <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
-      <div className="modal-dialog modal-lg">
+      <div className="modal-dialog modal-xl modal-dialog-scrollable">
         <div className="modal-content p-3">
           <div className="modal-header pt-0">
             <h5 className="card-title fw-bold">
               <i className="fa fa-qrcode me-2"></i>
-              Asset Scanner / Viewer
+              Asset / Box Scanner
             </h5>
-            <button onClick={handleClose} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
-              <span aria-hidden="true">&times;</span>
-            </button>
+            <div className="d-flex align-items-center gap-2" style={{ marginLeft: "auto" }}>
+              <span className={`badge ${isQualityEngineer ? 'bg-success' : 'bg-warning'}`}>
+                {isQualityEngineer ? 'Quality Engineer - Full Access' : 'View Only Mode'}
+              </span>
+              <button onClick={handleClose} type="button" className="close px-3">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
           </div>
 
           <div className="modal-body">
@@ -160,7 +183,7 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Enter Asset ID or paste QR data..."
+                    placeholder="Enter Asset ID, Box ID (BOX-...) or paste QR data..."
                     value={assetId}
                     onChange={(e) => setAssetId(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch(assetId)}
@@ -180,8 +203,98 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
               </div>
             </div>
 
-            {/* Asset Display */}
-            {assetData && (
+            {/* BOX VIEW */}
+            {boxData && (
+              <>
+                <div className="card mb-3 border-primary">
+                  <div className="card-header bg-primary text-white">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <h6 className="mb-0">
+                        <i className="fa fa-box me-2"></i>
+                        {boxData.box?.boxNumber}
+                      </h6>
+                      <span className="badge bg-light text-dark">
+                        {boxData.box?.assetCount} Assets
+                      </span>
+                    </div>
+                  </div>
+                  <div className="card-body">
+                    <div className="row mb-3">
+                      <div className="col-md-4">
+                        <small className="text-muted">Brand</small>
+                        <p className="fw-bold mb-1">{boxData.box?.brandName}</p>
+                      </div>
+                      <div className="col-md-4">
+                        <small className="text-muted">Model</small>
+                        <p className="fw-bold mb-1">{boxData.box?.modelNo}</p>
+                      </div>
+                      <div className="col-md-4">
+                        <small className="text-muted">QC Number</small>
+                        <p className="font-monospace mb-1">{boxData.qcNumber}</p>
+                      </div>
+                    </div>
+
+                    {/* Only show In Date for Quality Engineer */}
+                    {isQualityEngineer && boxData.showInDate && (
+                      <div className="row mb-3">
+                        <div className="col-md-4">
+                          <small className="text-muted">In Date (Warehouse)</small>
+                          <p className="text-primary fw-bold mb-1">
+                            <i className="fa fa-arrow-down me-1"></i>
+                            {fmt(boxData.qcDate)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Assets in Box Table */}
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered">
+                        <thead className="table-secondary">
+                          <tr>
+                            <th>Asset ID</th>
+                            {isQualityEngineer && <th>In Date</th>}
+                            <th>Out Date</th>
+                            <th>Warranty</th>
+                            <th>Warranty Expiry</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {boxData.assets?.map((asset, idx) => (
+                            <tr key={idx}>
+                              <td>
+                                <small className="font-monospace">{asset.assetId}</small>
+                              </td>
+                              {isQualityEngineer && boxData.showInDate && (
+                                <td>{fmt(asset.inDate)}</td>
+                              )}
+                              <td>{asset.outDate ? fmt(asset.outDate) : '-'}</td>
+                              <td>{asset.serviceWarrantyMonths > 0 ? `${asset.serviceWarrantyMonths}M` : 'No Warranty'}</td>
+                              <td>
+                                {asset.warrantyExpiryDate ? (
+                                  <span className={isWarrantyExpired(asset.warrantyExpiryDate) ? 'text-danger' : 'text-success'}>
+                                    {fmt(asset.warrantyExpiryDate)}
+                                  </span>
+                                ) : '-'}
+                              </td>
+                              <td>
+                                <span className={`badge ${getStatusBadgeClass(asset.status)}`}>
+                                  {asset.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* SINGLE ASSET VIEW */}
+            {assetData && !boxData && (
               <>
                 <div className="row">
                   {/* QR Code Section */}
@@ -243,32 +356,38 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
                         <hr />
 
                         <div className="row">
-                          <div className="col-4 mb-2">
-                            <small className="text-muted">In Date (Warehouse)</small>
-                            <p className="mb-1 text-primary fw-bold">
-                              <i className="fa fa-arrow-down me-1"></i>
-                              {new Date(assetData.inDate).toLocaleDateString('en-GB')}
-                            </p>
-                          </div>
-                          <div className="col-4 mb-2">
+                          {/* IN DATE - Only for Quality Engineer */}
+                          {isQualityEngineer && assetData.showInDate && (
+                            <div className="col-4 mb-2">
+                              <small className="text-muted">In Date (Warehouse)</small>
+                              <p className="mb-1 text-primary fw-bold">
+                                <i className="fa fa-arrow-down me-1"></i>
+                                {fmt(assetData.inDate)}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className={`mb-2 ${isQualityEngineer && assetData.showInDate ? 'col-4' : 'col-6'}`}>
                             <small className="text-muted">Out Date</small>
                             <p className="mb-1 text-danger fw-bold">
                               <i className="fa fa-arrow-up me-1"></i>
-                              {assetData.outDate ? new Date(assetData.outDate).toLocaleDateString('en-GB') : 'Not Dispatched'}
+                              {assetData.outDate ? fmt(assetData.outDate) : 'Not Dispatched'}
                             </p>
                           </div>
-                          <div className="col-4 mb-2">
+                          
+                          <div className={`mb-2 ${isQualityEngineer && assetData.showInDate ? 'col-4' : 'col-6'}`}>
                             <small className="text-muted">Warranty Period</small>
                             <p className="mb-1 fw-bold">
                               <i className="fa fa-shield me-1"></i>
                               {assetData.serviceWarrantyMonths > 0 ? `${assetData.serviceWarrantyMonths} Months` : 'No Warranty'}
                             </p>
                           </div>
+                          
                           <div className="col-6 mb-2">
                             <small className="text-muted">Warranty Expiry Date</small>
-                            <p className={`mb-1 fw-bold ${isWarrantyExpired() ? 'text-danger' : 'text-success'}`}>
+                            <p className={`mb-1 fw-bold ${isWarrantyExpired(assetData.warrantyExpiryDate) ? 'text-danger' : 'text-success'}`}>
                               {assetData.warrantyExpiryDate 
-                                ? new Date(assetData.warrantyExpiryDate).toLocaleDateString('en-GB')
+                                ? fmt(assetData.warrantyExpiryDate)
                                 : 'N/A'}
                             </p>
                           </div>
@@ -277,7 +396,7 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
                             <p className="mb-1">
                               {!assetData.warrantyExpiryDate ? (
                                 <span className="badge bg-secondary">No Warranty</span>
-                              ) : isWarrantyExpired() ? (
+                              ) : isWarrantyExpired(assetData.warrantyExpiryDate) ? (
                                 <span className="badge bg-danger">
                                   <i className="fa fa-exclamation-triangle me-1"></i>
                                   Expired
@@ -285,7 +404,7 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
                               ) : (
                                 <span className="badge bg-success">
                                   <i className="fa fa-check me-1"></i>
-                                  Active ({getWarrantyDaysRemaining()} days left)
+                                  Active ({getWarrantyDaysRemaining(assetData.warrantyExpiryDate)} days left)
                                 </span>
                               )}
                             </p>
@@ -312,7 +431,7 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
                                 <tbody>
                                   {assetData.serviceHistory.map((history, idx) => (
                                     <tr key={idx}>
-                                      <td>{new Date(history.date).toLocaleDateString('en-GB')}</td>
+                                      <td>{fmt(history.date)}</td>
                                       <td>{history.description}</td>
                                       <td>{history.servicedBy}</td>
                                     </tr>
@@ -323,30 +442,44 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
                           </>
                         )}
 
-                        {/* Update Button */}
-                        <div className="mt-3">
-                          <button 
-                            className="btn btn-primary btn-sm"
-                            onClick={() => setShowUpdateForm(!showUpdateForm)}
-                          >
-                            <i className="fa fa-edit me-1"></i>
-                            {showUpdateForm ? 'Hide Update Form' : 'Update Asset Status'}
-                          </button>
-                        </div>
+                        {/* Update Button - Only for Quality Engineer */}
+                        {isQualityEngineer && assetData.canUpdate && (
+                          <div className="mt-3">
+                            <button 
+                              className="btn btn-primary btn-sm"
+                              onClick={() => setShowUpdateForm(!showUpdateForm)}
+                            >
+                              <i className="fa fa-edit me-1"></i>
+                              {showUpdateForm ? 'Hide Update Form' : 'Update Asset Status'}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Show message for non-QE users */}
+                        {!isQualityEngineer && (
+                          <div className="mt-3">
+                            <div className="alert alert-warning mb-0 py-2">
+                              <small>
+                                <i className="fa fa-lock me-1"></i>
+                                View only mode. Only Quality Engineer can update asset status.
+                              </small>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Update Form */}
-                {showUpdateForm && (
+                {/* Update Form - Only for Quality Engineer */}
+                {showUpdateForm && isQualityEngineer && (
                   <div className="row mt-3">
                     <div className="col-12">
-                      <div className="card border-primary">
-                        <div className="card-header bg-primary text-white">
+                      <div className="card border-success">
+                        <div className="card-header bg-success text-white">
                           <h6 className="mb-0">
                             <i className="fa fa-edit me-1"></i>
-                            Update Asset Status
+                            Update Asset Status (Quality Engineer Only)
                           </h6>
                         </div>
                         <div className="card-body">
@@ -408,11 +541,19 @@ const AssetScannerPopUp = ({ handleClose, qcId, preselectedAssetId }) => {
               </>
             )}
 
-            {/* No Asset Found */}
-            {!assetData && !isLoading && (
+            {/* No Data Found */}
+            {!assetData && !boxData && !isLoading && (
               <div className="text-center py-5">
                 <i className="fa fa-qrcode fa-3x text-muted mb-3 d-block"></i>
-                <p className="text-muted">Enter Asset ID or scan QR code to view asset details</p>
+                <p className="text-muted">Enter Asset ID or Box ID (BOX-...) to view details</p>
+                <div className="mt-3">
+                  <small className="text-muted">
+                    <i className="fa fa-info-circle me-1"></i>
+                    {isQualityEngineer 
+                      ? "You have full access to view and update assets" 
+                      : "You can view assets but cannot update them"}
+                  </small>
+                </div>
               </div>
             )}
           </div>
