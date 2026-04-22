@@ -13,14 +13,21 @@ const AssetView = () => {
     const fetchAsset = async () => {
       try {
         const baseUrl = process.env.REACT_APP_API_URL;
+        console.log('Fetching asset:', assetId);
+        console.log('API URL:', `${baseUrl}/api/qc/public/asset/${assetId}`);
+        
         const response = await axios.get(`${baseUrl}/api/qc/public/asset/${assetId}`);
+        console.log('API Response:', response.data);
+        
         if (response.data.success) {
           setData(response.data);
         } else {
           setError(response.data.error || "Asset not found");
         }
       } catch (err) {
-        setError("Failed to load asset information");
+        console.error('Fetch Error:', err);
+        console.error('Error Response:', err.response?.data);
+        setError(err.response?.data?.error || "Failed to load asset information");
       } finally {
         setIsLoading(false);
       }
@@ -66,6 +73,7 @@ const AssetView = () => {
         <div style={{ fontSize: 56, color: "#fca5a5" }}>✕</div>
         <h4 style={{ color: "#ef4444", fontSize: 20, fontWeight: 700, margin: 0 }}>Asset Not Found</h4>
         <p style={{ color: "#94a3b8", fontSize: 14, margin: 0, maxWidth: 300 }}>{error || "This asset does not exist or the link is invalid."}</p>
+        <p style={{ color: "#cbd5e1", fontSize: 12, margin: 0, fontFamily: "monospace" }}>ID: {assetId}</p>
       </div>
     );
   }
@@ -90,7 +98,6 @@ const AssetView = () => {
         border: "1px solid #e2e8f0",
         boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
       }}>
-        {/* Asset ID */}
         {showHeader && (
           <div style={{ 
             fontFamily: "monospace", 
@@ -105,7 +112,6 @@ const AssetView = () => {
           </div>
         )}
 
-        {/* Brand & Model */}
         <div style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>
           {a.brandName}
         </div>
@@ -113,7 +119,6 @@ const AssetView = () => {
           {a.modelNo}
         </div>
 
-        {/* Status Badge */}
         <div style={{ 
           display: "inline-flex", 
           alignItems: "center", 
@@ -127,14 +132,12 @@ const AssetView = () => {
           <span style={{ fontSize: 13, fontWeight: 700, color: sc.color }}>{sc.label}</span>
         </div>
 
-        {/* Dates Section */}
         <div style={{
           display: "grid",
           gridTemplateColumns: a.outDate ? "1fr 1fr" : "1fr",
           gap: 12,
           marginBottom: 20,
         }}>
-          {/* Out Date */}
           <div style={{
             background: a.outDate ? "#fff7ed" : "#f8fafc",
             border: `1px solid ${a.outDate ? "#fed7aa" : "#e2e8f0"}`,
@@ -150,7 +153,6 @@ const AssetView = () => {
             </div>
           </div>
 
-          {/* Dispatched Status indicator */}
           {a.isDispatched && a.outDate && (
             <div style={{
               background: "#f0fdf4",
@@ -171,7 +173,6 @@ const AssetView = () => {
           )}
         </div>
 
-        {/* Warranty Section */}
         <div style={{
           background: !hasWarranty ? "#f8fafc" : expired ? "#fef2f2" : "#f0fdf4",
           borderRadius: 14,
@@ -246,14 +247,12 @@ const AssetView = () => {
         body { background: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
       `}</style>
 
-      {/* Header */}
       <div style={{ 
         background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)", 
         padding: "24px 20px 28px",
         position: "relative",
         overflow: "hidden",
       }}>
-        {/* Decorative circles */}
         <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(59,130,246,0.1)" }} />
         <div style={{ position: "absolute", bottom: -30, right: 40, width: 80, height: 80, borderRadius: "50%", background: "rgba(59,130,246,0.05)" }} />
 
@@ -327,7 +326,6 @@ const AssetView = () => {
       <div style={{ padding: "20px 16px 0" }}>
         {isBox ? (
           <>
-            {/* Box Info Banner */}
             <div style={{
               background: "#fff",
               borderRadius: 14,
@@ -357,14 +355,25 @@ const AssetView = () => {
               </div>
             </div>
 
-            {/* Box Assets */}
-            {boxAssets.map((a, i) => renderAssetCard(a, i))}
+            {boxAssets.length > 0 ? (
+              boxAssets.map((a, i) => renderAssetCard(a, i))
+            ) : (
+              <div style={{
+                background: "#fff",
+                borderRadius: 14,
+                padding: 40,
+                textAlign: "center",
+                border: "1px solid #e2e8f0",
+              }}>
+                <i className="fa fa-box-open" style={{ fontSize: 40, color: "#94a3b8", marginBottom: 12 }}></i>
+                <p style={{ color: "#64748b", margin: 0 }}>No assets found in this box</p>
+              </div>
+            )}
           </>
         ) : (
           renderAssetCard(asset, 0, true)
         )}
 
-        {/* Footer */}
         <div style={{ textAlign: "center", padding: "24px 0 8px" }}>
           <div style={{ 
             width: 40, 
