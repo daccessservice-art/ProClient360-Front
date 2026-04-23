@@ -34,8 +34,7 @@ const isValidMessage = (value) => !value.trim() || /[A-Za-z]/.test(value.trim())
 const isValidPincode = (value) => /^\d{6}$/.test(value.trim());
 
 /** State / City / Country: only letters and spaces */
-const isValidAddressText = (value) => !value.trim() || /^[A-Za-z\s]+$/.test(value.trim());
-
+const isValidAddressText = (value) => !value.trim() || /^[A-Za-z\s&]+$/.test(value.trim());
 const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const { user } = useContext(UserContext);
   const [customerType, setCustomerType] = useState('new');
