@@ -270,6 +270,34 @@ const UpdateEmployeePopUp = ({ handleUpdate, selectedEmp }) => {
                     </div>
                   </div>
 
+<div className="col-12 col-lg-6 mt-2">
+  <div className="mb-3">
+    <label htmlFor="target" className="form-label label_text">
+      Target (only sales employee)
+    </label>
+    <div className="input-group border mb-3">
+      <span
+        className="input-group-text rounded-0 bg-white border-0"
+        id="target-addon"
+      >
+        <i className="fa-solid fa-indian-rupee-sign"></i>
+      </span>
+      <input
+        type="number"
+        name="target"
+        value={employee.target || ''}
+        onChange={handleChange}
+        className="form-control rounded-0 border-0"
+        id="target"
+        placeholder="eg. 2000000"
+        min="0"
+        maxLength={15}
+        aria-label="Target"
+      />
+    </div>
+  </div>
+</div>
+
                   <div className="row">
                     <div className="col-12 pt-3 mt-2">
                       <button

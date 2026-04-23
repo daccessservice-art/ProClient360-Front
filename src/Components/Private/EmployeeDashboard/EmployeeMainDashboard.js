@@ -49,6 +49,8 @@ function EmployeeMainDashboard() {
     const [wonLeads, setWonLeads] = useState(0);
     const [lostLeads, setLostLeads] = useState(0);
     const [salesDataLoading, setSalesDataLoading] = useState(false);
+    const [targetAmount, setTargetAmount] = useState(0);
+
 
     useEffect(() => {
         const fetchAllLeads = async () => {
@@ -81,6 +83,7 @@ function EmployeeMainDashboard() {
                     setInproccessProjectCount(data.inprocessCount);
                     setAssignedTasks(data.assignedTasks);
                     setInproccessTasks(data.inprocessTasks);
+                    setTargetAmount(data.target || 0);
                 }
             } catch (error) {
                 console.error("Error fetching dashboard:", error);
@@ -168,7 +171,7 @@ function EmployeeMainDashboard() {
                                 />
 
                                 <EmployeeSalesOverviewCards
-                                    targetAmount="0"
+                                    targetAmount={formatAmountCompact(targetAmount)}
                                     totalCustomers={totalCustomers}
                                     activeQuotationFunnel={activeQuotationFunnel}
                                     wonLeads={wonLeads}

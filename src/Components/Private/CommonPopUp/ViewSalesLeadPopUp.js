@@ -806,7 +806,7 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                       {poCreated && (<span className="badge bg-success fs-6"><i className="fa-solid fa-check me-1"></i> Purchase Order Created</span>)}
                       {showPOForm && (<button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setShowPOForm(false)}><i className="fa-solid fa-chevron-up me-1"></i> Hide Form</button>)}
                     </div>
-                    {!showPOForm && !poCreated && (<p className="text-muted small">This lead is marked as <strong>Won</strong> with a quotation of <strong>₹{selectedLead?.quotation || 0}</strong>. Click <em>Create MRF</em> to raise a PO from this lead.</p>)}
+                    {/* {!showPOForm && !poCreated && (<p className="text-muted small">This lead is marked as <strong>Won</strong> with a quotation of <strong>₹{selectedLead?.quotation || 0}</strong>. Click <em>Create MRF</em> to raise a PO from this lead.</p>)} */}
                     {showPOForm && (<InlinePurchaseOrderForm selectedLead={selectedLead} onSuccess={handlePOSuccess} onCancel={() => setShowPOForm(false)} />)}
                   </div>
                 )}
