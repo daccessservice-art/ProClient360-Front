@@ -8,6 +8,7 @@ const isSalesDesignation = (designation = "") => {
         d.includes("marketing") ||
         d.includes("amc") ||
         d.includes("bde") ||
+        d.includes("bdm") ||
         d.includes("tender")
     );
 };
