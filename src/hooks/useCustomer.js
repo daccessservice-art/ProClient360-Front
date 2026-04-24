@@ -3,7 +3,6 @@ import axios from 'axios';
 const baseUrl = process.env.REACT_APP_API_URL;
 const url = baseUrl + "/api/customer";
 
-// ── All filters are now sent as server-side query params ──
 const getCustomers = async (
   page = 1,
   limit = 20,

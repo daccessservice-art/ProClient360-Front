@@ -3030,3 +3030,48 @@ width: 65% !important;
                 padding: 15px;
             }
         }
+
+        /* ── Customer Check Checkbox Styles ── */
+.form-check-input:checked {
+  background-color: #28a745 !important;
+  border-color: #28a745 !important;
+}
+
+.form-check-input:focus {
+  box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
+  border-color: #28a745 !important;
+}
+
+.table-success td {
+  --bs-table-bg-state: #d5f5e3;
+  --bs-table-border-color: #b7e4c7;
+}
+
+.table-success:hover td {
+  --bs-table-bg-state: #c3e6cb;
+}
+
+/* Verified row hover effect */
+tr.table-success:hover {
+  background-color: #c3e6cb !important;
+}
+
+/* Shield check icon animation */
+.fa-shield-check {
+  transition: all 0.2s ease;
+}
+
+tr:hover .fa-shield-check {
+  transform: scale(1.2);
+}
+
+/* Checkbox loading spinner */
+@keyframes checkSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.form-check-input:disabled {
+  opacity: 0.7;
+  cursor: not-allowed !important;
+}

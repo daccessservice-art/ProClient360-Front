@@ -35,7 +35,6 @@ export const CustomerMasterGrid = () => {
     limit: 20, hasNextPage: false, hasPrevPage: false,
   });
 
-  // Filter states
   const [createdByFilter, setCreatedByFilter] = useState("");
   const [ownedByFilter, setOwnedByFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
@@ -110,7 +109,6 @@ export const CustomerMasterGrid = () => {
     setIndustryTypeFilter(""); setCustomerTypeFilter(""); setSearchText(""); setSearch(""); setCurrentPage(1);
   };
 
-  // ── Fetch: ALL filters are now server-side ──
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -226,7 +224,6 @@ export const CustomerMasterGrid = () => {
                   <div className="col-12 col-lg-10">
                     <div className="row g-2 align-items-end justify-content-end">
 
-                      {/* Search */}
                       <div className="col-12 col-sm-6 col-lg-2">
                         <div className="form">
                           <i className="fa fa-search"></i>
@@ -242,30 +239,18 @@ export const CustomerMasterGrid = () => {
                         </div>
                       </div>
 
-                      {/* Customer Type filter */}
                       <div className="col-12 col-sm-6 col-lg-1">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Type</label>
-                        <select
-                          className="form-select form-select-sm"
-                          value={customerTypeFilter}
-                          onChange={handleCustomerTypeFilter}
-                          title="Filter by Type"
-                        >
+                        <select className="form-select form-select-sm" value={customerTypeFilter} onChange={handleCustomerTypeFilter} title="Filter by Type">
                           <option value="">All</option>
                           <option value="main">Main</option>
                           <option value="branch">Branch</option>
                         </select>
                       </div>
 
-                      {/* Created By filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Created By</label>
-                        <select
-                          className="form-select form-select-sm"
-                          value={createdByFilter}
-                          onChange={handleCreatedByFilter}
-                          title="Filter by Created By"
-                        >
+                        <select className="form-select form-select-sm" value={createdByFilter} onChange={handleCreatedByFilter} title="Filter by Created By">
                           <option value="">Select Created By</option>
                           {filterEmployees.map((emp) => (
                             <option key={emp._id} value={emp.name}>{emp.name}</option>
@@ -273,15 +258,9 @@ export const CustomerMasterGrid = () => {
                         </select>
                       </div>
 
-                      {/* Owned By filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Owned By</label>
-                        <select
-                          className="form-select form-select-sm"
-                          value={ownedByFilter}
-                          onChange={handleOwnedByFilter}
-                          title="Filter by Owned By"
-                        >
+                        <select className="form-select form-select-sm" value={ownedByFilter} onChange={handleOwnedByFilter} title="Filter by Owned By">
                           <option value="">Select Owned By</option>
                           <option value="NA">NA / None</option>
                           {filterEmployees.map((emp) => (
@@ -290,15 +269,9 @@ export const CustomerMasterGrid = () => {
                         </select>
                       </div>
 
-                      {/* Priority filter */}
                       <div className="col-12 col-sm-6 col-lg-1">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Priority</label>
-                        <select
-                          className="form-select form-select-sm"
-                          value={priorityFilter}
-                          onChange={handlePriorityFilter}
-                          title="Filter by Priority"
-                        >
+                        <select className="form-select form-select-sm" value={priorityFilter} onChange={handlePriorityFilter} title="Filter by Priority">
                           <option value="">Select Priority</option>
                           <option value="P1">P1 - High</option>
                           <option value="P2">P2 - Medium</option>
@@ -307,15 +280,9 @@ export const CustomerMasterGrid = () => {
                         </select>
                       </div>
 
-                      {/* Industry Type filter */}
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Select Industry Type</label>
-                        <select
-                          className="form-select form-select-sm"
-                          value={industryTypeFilter}
-                          onChange={handleIndustryTypeFilter}
-                          title="Filter by Industry Type"
-                        >
+                        <select className="form-select form-select-sm" value={industryTypeFilter} onChange={handleIndustryTypeFilter} title="Filter by Industry Type">
                           <option value="">Select Industry Type</option>
                           <option value="NA">NA</option>
                           {industryOptions.map((opt) => (
@@ -324,38 +291,20 @@ export const CustomerMasterGrid = () => {
                         </select>
                       </div>
 
-                      {/* Action buttons */}
                       <div className="col-12 col-sm-6 col-lg-2 text-end">
                         <div className="btn-group flex-wrap" role="group">
                           {isFilterActive && (
-                            <button
-                              onClick={handleResetFilters}
-                              type="button"
-                              className="btn btn-sm btn-outline-light me-1"
-                              title="Clear all filters"
-                            >
+                            <button onClick={handleResetFilters} type="button" className="btn btn-sm btn-outline-light me-1" title="Clear all filters">
                               <i className="fa-solid fa-xmark"></i>
                             </button>
                           )}
 
                           {canExport && (
                             <>
-                              <button
-                                onClick={handleExportPDF}
-                                type="button"
-                                className="btn btn-sm btn-danger me-1"
-                                title="Export to PDF"
-                                disabled={loading}
-                              >
+                              <button onClick={handleExportPDF} type="button" className="btn btn-sm btn-danger me-1" title="Export to PDF" disabled={loading}>
                                 <i className="fa-solid fa-file-pdf"></i>
                               </button>
-                              <button
-                                onClick={handleExportExcel}
-                                type="button"
-                                className="btn btn-sm btn-success me-1"
-                                title="Export to Excel"
-                                disabled={loading}
-                              >
+                              <button onClick={handleExportExcel} type="button" className="btn btn-sm btn-success me-1" title="Export to Excel" disabled={loading}>
                                 <i className="fa-solid fa-file-excel"></i>
                               </button>
                             </>
@@ -444,6 +393,7 @@ export const CustomerMasterGrid = () => {
                       <table className="table table-striped table-class" id="table-id">
                         <thead>
                           <tr className="th_border">
+                            <th style={{ width: "45px" }}></th>
                             <th>Sr. No</th>
                             <th className="align_left_td td_width">Customer Name</th>
                             <th>Type</th>
@@ -460,6 +410,13 @@ export const CustomerMasterGrid = () => {
                           {customers.length > 0 ? (
                             customers.map((customer, index) => (
                               <tr className="border my-4" key={customer._id}>
+                                <td className="text-center align-middle">
+                                  {customer.isChecked ? (
+                                    <i className="fa-solid fa-circle-check text-success" style={{ fontSize: "20px" }} title="Verified"></i>
+                                  ) : (
+                                    <i className="fa-regular fa-circle text-muted" style={{ fontSize: "20px" }} title="Not Verified"></i>
+                                  )}
+                                </td>
                                 <td className="w-10">{index + 1 + (currentPage - 1) * itemsPerPage}</td>
                                 <td className="align_left_td td_width wrap-text-of-col">
                                   {customer.custName}
@@ -503,7 +460,7 @@ export const CustomerMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="10" className="text-center">No data found</td>
+                              <td colSpan="11" className="text-center">No data found</td>
                             </tr>
                           )}
                         </tbody>
@@ -515,48 +472,28 @@ export const CustomerMasterGrid = () => {
                 {/* ── Pagination ── */}
                 {pagination.totalPages > 0 && (
                   <div className="pagination-container text-center my-3 sm">
-                    <button
-                      disabled={!pagination.hasPrevPage || loading}
-                      onClick={() => handlePageChange(1)}
-                      className="btn btn-dark btn-sm me-2"
-                    >
+                    <button disabled={!pagination.hasPrevPage || loading} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">
                       First
                     </button>
-                    <button
-                      disabled={!pagination.hasPrevPage || loading}
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      className="btn btn-dark btn-sm me-2"
-                    >
+                    <button disabled={!pagination.hasPrevPage || loading} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">
                       Previous
                     </button>
 
                     {startPage > 1 && <span className="mx-2 text-white">...</span>}
 
                     {pageButtons.map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        disabled={loading}
-                        className={`btn btn-sm me-1 ${currentPage === page ? "btn-primary" : "btn-dark"}`}
-                      >
+                      <button key={page} onClick={() => handlePageChange(page)} disabled={loading}
+                        className={`btn btn-sm me-1 ${currentPage === page ? "btn-primary" : "btn-dark"}`}>
                         {page}
                       </button>
                     ))}
 
                     {endPage < pagination.totalPages && <span className="mx-2 text-white">...</span>}
 
-                    <button
-                      disabled={!pagination.hasNextPage || loading}
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      className="btn btn-dark btn-sm me-2"
-                    >
+                    <button disabled={!pagination.hasNextPage || loading} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">
                       Next
                     </button>
-                    <button
-                      disabled={!pagination.hasNextPage || loading}
-                      onClick={() => handlePageChange(pagination.totalPages)}
-                      className="btn btn-dark btn-sm"
-                    >
+                    <button disabled={!pagination.hasNextPage || loading} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">
                       Last
                     </button>
 
