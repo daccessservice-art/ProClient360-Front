@@ -392,37 +392,45 @@ export const CustomerMasterGrid = () => {
                     <div className="table-responsive">
                       <table className="table table-striped table-class" id="table-id">
                         <thead>
-                          <tr className="th_border">
-                            <th style={{ width: "45px" }}></th>
-                            <th>Sr. No</th>
-                            <th className="align_left_td td_width">Customer Name</th>
-                            <th>Type</th>
-                            <th className="align_left_td">Branch Of</th>
-                            <th>GST No</th>
-                            <th>Industry</th>
-                            <th>Priority</th>
-                            <th>Created By</th>
-                            <th>Owned By</th>
-                            <th>Action</th>
+                          <tr className="th_border">                           
+                            <th className="text-center align-middle">Sr. No</th>
+                            <th className="align_left_td td_width align-middle">Customer Name</th>
+                            <th className="text-center align-middle">Type</th>
+                            <th className="align_left_td align-middle">Branch Of</th>
+                            <th className="text-center align-middle">GST No</th>
+                            <th className="text-center align-middle">Industry</th>
+                            <th className="text-center align-middle">Priority</th>
+                            <th className="text-center align-middle">Created By</th>
+                            <th className="text-center align-middle">Owned By</th>
+                            <th style={{ width: "80px" }} className="text-center align-middle">Verified / Not Verified</th> 
+                            <th className="text-center align-middle">Action</th>
                           </tr>
                         </thead>
                         <tbody>
                           {customers.length > 0 ? (
                             customers.map((customer, index) => (
                               <tr className="border my-4" key={customer._id}>
-                                <td className="text-center align-middle">
-                                  {customer.isChecked ? (
-                                    <i className="fa-solid fa-circle-check text-success" style={{ fontSize: "20px" }} title="Verified"></i>
-                                  ) : (
-                                    <i className="fa-regular fa-circle text-muted" style={{ fontSize: "20px" }} title="Not Verified"></i>
-                                  )}
+
+                                {/* Sr. No */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                  {index + 1 + (currentPage - 1) * itemsPerPage}
                                 </td>
-                                <td className="w-10">{index + 1 + (currentPage - 1) * itemsPerPage}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">
+
+                                {/* Customer Name — left aligned */}
+                                <td
+                                  className="align_left_td td_width wrap-text-of-col"
+                                  style={{ verticalAlign: "middle" }}
+                                >
                                   {customer.custName}
                                 </td>
-                                <td>{getCustomerTypeBadge(customer.customerType)}</td>
-                                <td className="align_left_td">
+
+                                {/* Type badge */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                  {getCustomerTypeBadge(customer.customerType)}
+                                </td>
+
+                                {/* Branch Of — left aligned */}
+                                <td className="align_left_td" style={{ verticalAlign: "middle" }}>
                                   {customer.customerType === "branch" && customer.branchOf ? (
                                     <small className="text-muted">
                                       {customer.branchOf.custName || "N/A"}
@@ -431,20 +439,54 @@ export const CustomerMasterGrid = () => {
                                     <span className="text-muted">—</span>
                                   )}
                                 </td>
-                                <td>{customer.GSTNo}</td>
-                                <td>
+
+                                {/* GST No */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                  {customer.GSTNo}
+                                </td>
+
+                                {/* Industry */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                   <span className="badge bg-secondary">
                                     {getIndustryDisplay(customer)}
                                   </span>
                                 </td>
-                                <td>
+
+                                {/* Priority */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                   <span className={getPriorityBadgeClass(customer.customerPriority)}>
                                     {customer.customerPriority || "N/A"}
                                   </span>
                                 </td>
-                                <td>{customer.createdBy?.name || "N/A"}</td>
-                                <td>{customer.ownedBy || "N/A"}</td>
-                                <td>
+
+                                {/* Created By — inline style, cannot be overridden */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                  {customer.createdBy?.name || "N/A"}
+                                </td>
+
+                                {/* Owned By — inline style, cannot be overridden */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                  {customer.ownedBy || "N/A"}
+                                </td>
+                                {/* Verified / Not Verified icon — inline style ensures center always works */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center", width: "45px" }}>
+                                  {customer.isChecked ? (
+                                    <i
+                                      className="fa-solid fa-circle-check text-success"
+                                      style={{ fontSize: "20px" }}
+                                      title="Verified"
+                                    ></i>
+                                  ) : (
+                                    <i
+                                      className="fa-regular fa-circle text-muted"
+                                      style={{ fontSize: "20px" }}
+                                      title="Not Verified"
+                                    ></i>
+                                  )}
+                                </td>
+
+                                {/* Action */}
+                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                   {user?.permissions?.includes("updateCustomer") || user?.user === "company" ? (
                                     <span onClick={() => handleUpdate(customer)} className="update">
                                       <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
@@ -456,11 +498,14 @@ export const CustomerMasterGrid = () => {
                                     </span>
                                   ) : ""}
                                 </td>
+
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="11" className="text-center">No data found</td>
+                              <td colSpan="11" style={{ textAlign: "center", verticalAlign: "middle" }}>
+                                No data found
+                              </td>
                             </tr>
                           )}
                         </tbody>

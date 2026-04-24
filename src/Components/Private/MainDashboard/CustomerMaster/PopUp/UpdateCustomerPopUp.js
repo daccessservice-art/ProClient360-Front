@@ -313,36 +313,6 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
               <div className="modal-body">
                 <div className="row modal_body_height">
 
-                  {/* ── Is Checked Checkbox ── */}
-                  <div className="col-12 mb-3">
-                    <div className="d-flex align-items-center gap-3 p-2 rounded" style={{ backgroundColor: "#e8f5e9", border: "1px solid #a5d6a7" }}>
-                      <div className="form-check mb-0">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          id="isChecked"
-                          checked={isChecked}
-                          onChange={(e) => setIsChecked(e.target.checked)}
-                          style={{ width: "20px", height: "20px", cursor: "pointer" }}
-                        />
-                        <label className="form-check-label ms-2" htmlFor="isChecked" style={{ cursor: "pointer" }}>
-                          {isChecked ? (
-                            <span className="text-success fw-bold">
-                              <i className="fa-solid fa-circle-check me-1"></i>Customer Verified
-                            </span>
-                          ) : (
-                            <span className="text-muted">
-                              <i className="fa-regular fa-circle me-1"></i>Mark as Verified
-                            </span>
-                          )}
-                        </label>
-                      </div>
-                      <small className="text-muted ms-auto" style={{ fontSize: "11px" }}>
-                        Check to show green tick in table
-                      </small>
-                    </div>
-                  </div>
-
                   <div className="col-12 col-lg-6">
                     <div className="">
                       <label htmlFor="FullName" className="form-label label_text">Full Name <RequiredStar /></label>
@@ -590,6 +560,36 @@ const UpdateCustomerPopUp = ({ handleUpdate, selectedCust }) => {
                     <div className="mb-3">
                       <label htmlFor="zone" className="form-label label_text">Zone <RequiredStar /></label>
                       <input type="text" className="form-control rounded-0" id="zone" name="zone" value={customer.zone || ""} onChange={handleChange} required readOnly />
+                    </div>
+                  </div>
+
+                  {/* ── Is Checked Checkbox ── */}
+                  <div className="col-12 mb-3">
+                    <div className="d-flex align-items-center gap-3 p-2 rounded" style={{ backgroundColor: "#e8f5e9", border: "1px solid #a5d6a7" }}>
+                      <div className="form-check mb-0">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="isChecked"
+                          checked={isChecked}
+                          onChange={(e) => setIsChecked(e.target.checked)}
+                          style={{ width: "20px", height: "20px", cursor: "pointer" }}
+                        />
+                        <label className="form-check-label ms-2" htmlFor="isChecked" style={{ cursor: "pointer" }}>
+                          {isChecked ? (
+                            <span className="text-success fw-bold">
+                              <i className="fa-solid fa-circle-check me-1"></i>Customer Verified
+                            </span>
+                          ) : (
+                            <span className="text-muted">
+                              <i className="fa-regular fa-circle me-1"></i>Mark as Verified
+                            </span>
+                          )}
+                        </label>
+                      </div>
+                      <small className="text-muted ms-auto" style={{ fontSize: "11px" }}>
+                        Check to show green tick in table
+                      </small>
                     </div>
                   </div>
 
