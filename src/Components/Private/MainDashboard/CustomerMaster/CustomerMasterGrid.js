@@ -14,6 +14,14 @@ const ALLOWED_EXPORT_DESIGNATIONS = [
   "Junior Software Developer",
 ];
 
+// ── Same 3 designations can use Bulk Delete ──
+const ALLOWED_BULK_DELETE_DESIGNATIONS = [
+  "Director Digi Solution",
+  "CEO & Founder",
+  "Junior Software Developer",
+   "Soft Test"
+];
+
 export const CustomerMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -42,6 +50,12 @@ export const CustomerMasterGrid = () => {
   const [customerTypeFilter, setCustomerTypeFilter] = useState("");
   const [filterEmployees, setFilterEmployees] = useState([]);
 
+  // ── Bulk Delete State ──
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleteConfirmShow, setBulkDeleteConfirmShow] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const itemsPerPage = 20;
 
   const industryOptions = [
@@ -55,6 +69,11 @@ export const CustomerMasterGrid = () => {
   const canExport =
     user?.user === "company" ||
     ALLOWED_EXPORT_DESIGNATIONS.includes(user?.designation || "");
+
+  // ── Can use bulk delete ──
+  const canBulkDelete =
+    user?.user === "company" ||
+    ALLOWED_BULK_DELETE_DESIGNATIONS.includes(user?.designation || "");
 
   useEffect(() => {
     const fetchFilterEmployees = async () => {
@@ -70,7 +89,10 @@ export const CustomerMasterGrid = () => {
     fetchFilterEmployees();
   }, []);
 
-  const handlePageChange = (page) => { setCurrentPage(page); };
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    setSelectedIds([]); // Clear selection on page change
+  };
   const handleAdd = () => { setAddPopUpShow(!AddPopUpShow); };
   const handleUpdate = (customer) => { setSelectedCust(customer); setUpdatePopUpShow(!updatePopUpShow); };
   const handelDeleteClosePopUpClick = (id) => { setSelecteId(id); setdeletePopUpShow(!deletePopUpShow); };
@@ -81,6 +103,75 @@ export const CustomerMasterGrid = () => {
     setdeletePopUpShow(false);
     setCurrentPage(1);
   };
+
+  // ── Bulk Delete Handlers ──
+  const handleToggleBulkDeleteMode = () => {
+    setBulkDeleteMode((prev) => !prev);
+    setSelectedIds([]);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.length === customers.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(customers.map((c) => c._id));
+    }
+  };
+
+  const handleSelectOne = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDeleteConfirm = () => {
+    if (selectedIds.length === 0) {
+      toast.error("No customers selected");
+      return;
+    }
+    setBulkDeleteConfirmShow(true);
+  };
+
+  const handleBulkDeleteExecute = async () => {
+    setBulkDeleting(true);
+    setBulkDeleteConfirmShow(false);
+
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (const id of selectedIds) {
+      const data = await deleteCustomer(id);
+      if (data?.success) {
+        successCount++;
+      } else {
+        failCount++;
+        const cust = customers.find((c) => c._id === id);
+        errors.push(cust?.custName || id);
+      }
+    }
+
+    setBulkDeleting(false);
+    setSelectedIds([]);
+    setBulkDeleteMode(false);
+
+    if (successCount > 0) {
+      toast.success(`${successCount} customer${successCount > 1 ? "s" : ""} deleted successfully`);
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} customer${failCount > 1 ? "s" : ""} could not be deleted (may have branches or projects)`);
+    }
+
+    setCurrentPage(1);
+    // Re-fetch by toggling a dummy state – the useEffect will pick up currentPage=1
+    // Actually trigger re-fetch by toggling deletePopUpShow momentarily
+    setdeletePopUpShow(false);
+    // We trigger a re-fetch by incrementing a counter instead
+    setRefetchTrigger((n) => n + 1);
+  };
+
+  // ── Refetch trigger (avoids re-using deletePopUpShow for bulk) ──
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const handleExportPDF = async () => {
     if (!canExport) {
@@ -150,6 +241,7 @@ export const CustomerMasterGrid = () => {
     priorityFilter,
     industryTypeFilter,
     customerTypeFilter,
+    refetchTrigger,
   ]);
 
   const handleCreatedByFilter = (e) => { setCreatedByFilter(e.target.value); setCurrentPage(1); };
@@ -198,9 +290,12 @@ export const CustomerMasterGrid = () => {
 
   const isFilterActive = createdByFilter || ownedByFilter || search || priorityFilter || industryTypeFilter || customerTypeFilter;
 
+  const allCurrentPageSelected = customers.length > 0 && selectedIds.length === customers.length;
+  const someSelected = selectedIds.length > 0 && selectedIds.length < customers.length;
+
   return (
     <>
-      {loading && (
+      {(loading || bulkDeleting) && (
         <div className="overlay"><span className="loader"></span></div>
       )}
 
@@ -299,6 +394,20 @@ export const CustomerMasterGrid = () => {
                             </button>
                           )}
 
+                          {/* ── Bulk Delete Toggle Button ── */}
+                          {canBulkDelete && (
+                            <button
+                              onClick={handleToggleBulkDeleteMode}
+                              type="button"
+                              className={`btn btn-sm me-1 ${bulkDeleteMode ? "btn-warning" : "btn-outline-warning"}`}
+                              title={bulkDeleteMode ? "Exit Bulk Delete Mode" : "Enable Bulk Delete"}
+                              disabled={loading}
+                            >
+                              <i className={`fa-solid ${bulkDeleteMode ? "fa-xmark" : "fa-trash-can"} me-1`}></i>
+                              {bulkDeleteMode ? "Exit" : "Bulk"}
+                            </button>
+                          )}
+
                           {canExport && (
                             <>
                               <button onClick={handleExportPDF} type="button" className="btn btn-sm btn-danger me-1" title="Export to PDF" disabled={loading}>
@@ -311,7 +420,7 @@ export const CustomerMasterGrid = () => {
                           )}
 
                           {user?.permissions?.includes("createCustomer") || user.user === "company" ? (
-                            <button onClick={handleAdd} type="button" className="btn btn-sm btn-dark" disabled={loading}>
+                            <button onClick={handleAdd} type="button" className="btn btn-sm btn-dark" disabled={loading || bulkDeleteMode}>
                               <i className="fa-solid fa-plus"></i> Add
                             </button>
                           ) : null}
@@ -321,6 +430,75 @@ export const CustomerMasterGrid = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* ── Bulk Delete Action Bar ── */}
+                {bulkDeleteMode && (
+                  <div className="row px-2 pb-1">
+                    <div className="col-12">
+                      <div
+                        className="d-flex align-items-center flex-wrap gap-2 px-3 py-2 rounded"
+                        style={{
+                          backgroundColor: "#fff3cd",
+                          border: "1px solid #ffc107",
+                        }}
+                      >
+                        {/* Select All Checkbox */}
+                        <div className="form-check mb-0 me-2">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="selectAllChk"
+                            checked={allCurrentPageSelected}
+                            ref={(el) => {
+                              if (el) el.indeterminate = someSelected;
+                            }}
+                            onChange={handleSelectAll}
+                            style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                          />
+                          <label className="form-check-label fw-semibold ms-1" htmlFor="selectAllChk" style={{ cursor: "pointer", fontSize: "13px" }}>
+                            {allCurrentPageSelected ? "Deselect All" : "Select All"} (this page)
+                          </label>
+                        </div>
+
+                        <span className="text-muted" style={{ fontSize: "13px" }}>|</span>
+
+                        {/* Selection count */}
+                        <span style={{ fontSize: "13px" }}>
+                          <i className="fa-solid fa-check-square me-1 text-warning"></i>
+                          <strong>{selectedIds.length}</strong> customer{selectedIds.length !== 1 ? "s" : ""} selected
+                        </span>
+
+                        <span className="text-muted" style={{ fontSize: "13px" }}>|</span>
+
+                        {/* Delete Selected Button */}
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          onClick={handleBulkDeleteConfirm}
+                          disabled={selectedIds.length === 0 || loading}
+                        >
+                          <i className="fa-solid fa-trash me-1"></i>
+                          Delete Selected ({selectedIds.length})
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary btn-sm ms-auto"
+                          onClick={() => setSelectedIds([])}
+                          disabled={selectedIds.length === 0}
+                        >
+                          <i className="fa-solid fa-xmark me-1"></i>Clear Selection
+                        </button>
+
+                        <small className="text-muted w-100" style={{ fontSize: "11px" }}>
+                          <i className="fa-solid fa-circle-info me-1 text-warning"></i>
+                          Bulk delete mode is active. Customers with linked branches or projects cannot be deleted.
+                          Selection resets on page change.
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* ── Active filter badges ── */}
                 {isFilterActive && (
@@ -392,118 +570,162 @@ export const CustomerMasterGrid = () => {
                     <div className="table-responsive">
                       <table className="table table-striped table-class" id="table-id">
                         <thead>
-                          <tr className="th_border">                           
+                          <tr className="th_border">
+                            {/* Bulk Delete Checkbox Column */}
+                            {bulkDeleteMode && (
+                              <th className="text-center align-middle" style={{ width: "42px" }}>
+                                <input
+                                  type="checkbox"
+                                  className="form-check-input"
+                                  checked={allCurrentPageSelected}
+                                  ref={(el) => {
+                                    if (el) el.indeterminate = someSelected;
+                                  }}
+                                  onChange={handleSelectAll}
+                                  style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                                  title="Select / Deselect all on this page"
+                                />
+                              </th>
+                            )}
                             <th className="text-center align-middle">Sr. No</th>
                             <th className="align_left_td td_width align-middle">Customer Name</th>
                             <th className="text-center align-middle">Type</th>
-                            <th className="align_left_td align-middle">Branch Of</th>
                             <th className="text-center align-middle">GST No</th>
                             <th className="text-center align-middle">Industry</th>
                             <th className="text-center align-middle">Priority</th>
                             <th className="text-center align-middle">Created By</th>
                             <th className="text-center align-middle">Owned By</th>
-                            <th style={{ width: "80px" }} className="text-center align-middle">Verified / Not Verified</th> 
+                            <th style={{ width: "80px" }} className="text-center align-middle">Verified</th>
                             <th className="text-center align-middle">Action</th>
                           </tr>
                         </thead>
                         <tbody>
                           {customers.length > 0 ? (
-                            customers.map((customer, index) => (
-                              <tr className="border my-4" key={customer._id}>
-
-                                {/* Sr. No */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                  {index + 1 + (currentPage - 1) * itemsPerPage}
-                                </td>
-
-                                {/* Customer Name — left aligned */}
-                                <td
-                                  className="align_left_td td_width wrap-text-of-col"
-                                  style={{ verticalAlign: "middle" }}
+                            customers.map((customer, index) => {
+                              const isSelected = selectedIds.includes(customer._id);
+                              return (
+                                <tr
+                                  className="border my-4"
+                                  key={customer._id}
+                                  style={
+                                    bulkDeleteMode && isSelected
+                                      ? { backgroundColor: "#fff3cd", outline: "2px solid #ffc107" }
+                                      : {}
+                                  }
                                 >
-                                  {customer.custName}
-                                </td>
-
-                                {/* Type badge */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                  {getCustomerTypeBadge(customer.customerType)}
-                                </td>
-
-                                {/* Branch Of — left aligned */}
-                                <td className="align_left_td" style={{ verticalAlign: "middle" }}>
-                                  {customer.customerType === "branch" && customer.branchOf ? (
-                                    <small className="text-muted">
-                                      {customer.branchOf.custName || "N/A"}
-                                    </small>
-                                  ) : (
-                                    <span className="text-muted">—</span>
+                                  {/* Bulk select checkbox */}
+                                  {bulkDeleteMode && (
+                                    <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                      <input
+                                        type="checkbox"
+                                        className="form-check-input"
+                                        checked={isSelected}
+                                        onChange={() => handleSelectOne(customer._id)}
+                                        style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                                      />
+                                    </td>
                                   )}
-                                </td>
 
-                                {/* GST No */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                  {customer.GSTNo}
-                                </td>
+                                  {/* Sr. No */}
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                    {index + 1 + (currentPage - 1) * itemsPerPage}
+                                  </td>
 
-                                {/* Industry */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                  <span className="badge bg-secondary">
-                                    {getIndustryDisplay(customer)}
-                                  </span>
-                                </td>
+                                  {/* Customer Name */}
+                                  <td
+                                    className="align_left_td td_width wrap-text-of-col"
+                                    style={{ verticalAlign: "middle" }}
+                                  >
+                                    {customer.custName}
+                                  </td>
 
-                                {/* Priority */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                  <span className={getPriorityBadgeClass(customer.customerPriority)}>
-                                    {customer.customerPriority || "N/A"}
-                                  </span>
-                                </td>
+                                  {/* Type badge */}
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                    {getCustomerTypeBadge(customer.customerType)}
+                                  </td>
 
-                                {/* Created By — inline style, cannot be overridden */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                  {customer.createdBy?.name || "N/A"}
-                                </td>
+                                  {/* GST No */}
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                    {customer.GSTNo}
+                                  </td>
 
-                                {/* Owned By — inline style, cannot be overridden */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                  {customer.ownedBy || "N/A"}
-                                </td>
-                                {/* Verified / Not Verified icon — inline style ensures center always works */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center", width: "45px" }}>
-                                  {customer.isChecked ? (
-                                    <i
-                                      className="fa-solid fa-circle-check text-success"
-                                      style={{ fontSize: "20px" }}
-                                      title="Verified"
-                                    ></i>
-                                  ) : (
-                                    <i
-                                      className="fa-regular fa-circle text-muted"
-                                      style={{ fontSize: "20px" }}
-                                      title="Not Verified"
-                                    ></i>
-                                  )}
-                                </td>
-
-                                {/* Action */}
-                                <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                  {user?.permissions?.includes("updateCustomer") || user?.user === "company" ? (
-                                    <span onClick={() => handleUpdate(customer)} className="update">
-                                      <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
+                                  {/* Industry */}
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                    <span className="badge bg-secondary">
+                                      {getIndustryDisplay(customer)}
                                     </span>
-                                  ) : ""}
-                                  {user?.permissions?.includes("deleteCustomer") || user?.user === "company" ? (
-                                    <span onClick={() => handelDeleteClosePopUpClick(customer._id)} className="delete">
-                                      <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                    </span>
-                                  ) : ""}
-                                </td>
+                                  </td>
 
-                              </tr>
-                            ))
+                                  {/* Priority */}
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                    <span className={getPriorityBadgeClass(customer.customerPriority)}>
+                                      {customer.customerPriority || "N/A"}
+                                    </span>
+                                  </td>
+
+                                  {/* Created By */}
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                    {customer.createdBy?.name || "N/A"}
+                                  </td>
+
+                                  {/* Owned By */}
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                    {customer.ownedBy || "N/A"}
+                                  </td>
+
+                                  {/* Verified */}
+                                  <td
+                                    style={{
+                                      verticalAlign: "middle",
+                                      textAlign: "center",
+                                      width: "45px",
+                                    }}
+                                  >
+                                    {customer.isChecked && (
+                                      <i
+                                        className="fa-solid fa-check text-success"
+                                        style={{ fontSize: "20px" }}
+                                        title="Verified"
+                                      ></i>
+                                    )}
+                                  </td>
+
+                                  {/* Action */}
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                                    {!bulkDeleteMode && (
+                                      <>
+                                        {user?.permissions?.includes("updateCustomer") || user?.user === "company" ? (
+                                          <span onClick={() => handleUpdate(customer)} className="update">
+                                            <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
+                                          </span>
+                                        ) : ""}
+                                        {user?.permissions?.includes("deleteCustomer") || user?.user === "company" ? (
+                                          <span onClick={() => handelDeleteClosePopUpClick(customer._id)} className="delete">
+                                            <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
+                                          </span>
+                                        ) : ""}
+                                      </>
+                                    )}
+                                    {bulkDeleteMode && (
+                                      <span
+                                        style={{ cursor: "pointer" }}
+                                        onClick={() => handleSelectOne(customer._id)}
+                                        title={isSelected ? "Deselect" : "Select for deletion"}
+                                      >
+                                        <i
+                                          className={`fa-solid ${isSelected ? "fa-circle-check text-warning" : "fa-circle text-secondary"}`}
+                                          style={{ fontSize: "18px" }}
+                                        ></i>
+                                      </span>
+                                    )}
+                                  </td>
+
+                                </tr>
+                              );
+                            })
                           ) : (
                             <tr>
-                              <td colSpan="11" style={{ textAlign: "center", verticalAlign: "middle" }}>
+                              <td colSpan={bulkDeleteMode ? "12" : "11"} style={{ textAlign: "center", verticalAlign: "middle" }}>
                                 No data found
                               </td>
                             </tr>
@@ -557,6 +779,7 @@ export const CustomerMasterGrid = () => {
         </div>
       </div>
 
+      {/* ── Single Delete Popup ── */}
       {deletePopUpShow && (
         <DeletePopUP
           message={"Are you sure! Do you want to Delete ?"}
@@ -565,6 +788,17 @@ export const CustomerMasterGrid = () => {
           heading="Delete"
         />
       )}
+
+      {/* ── Bulk Delete Confirm Popup ── */}
+      {bulkDeleteConfirmShow && (
+        <DeletePopUP
+          message={`Are you sure you want to delete ${selectedIds.length} selected customer${selectedIds.length > 1 ? "s" : ""}? This action cannot be undone. Customers with linked branches or projects will not be deleted.`}
+          cancelBtnCallBack={() => setBulkDeleteConfirmShow(false)}
+          confirmBtnCallBack={handleBulkDeleteExecute}
+          heading={`Bulk Delete (${selectedIds.length})`}
+        />
+      )}
+
       {AddPopUpShow && <AddCustomerPopUp handleAdd={handleAdd} />}
       {updatePopUpShow && (
         <UpdateCustomerPopUp selectedCust={selectedCust} handleUpdate={handleUpdate} />
