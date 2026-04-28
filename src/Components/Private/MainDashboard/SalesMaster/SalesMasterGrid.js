@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useContext, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
@@ -23,6 +23,7 @@ import ChatbotDrawer from "./PopUp/ChatbotDrawer";
 
 const ALL_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/my-leads`;
 
+// ── Today's Action hover popup ────────────────────────────────────────────────
 const TodayActionHoverPopup = ({ lead, sidebarW, onMouseEnter, onMouseLeave }) => {
   if (!lead) return null;
   const today = new Date().toDateString();
@@ -79,6 +80,111 @@ const TodayActionHoverPopup = ({ lead, sidebarW, onMouseEnter, onMouseLeave }) =
     </div>
   );
 };
+
+// ── Amount Total Summary Popup ────────────────────────────────────────────────
+// Shows when status or source filter is active — sums quotation from all funnel leads
+const AmountTotalPopup = ({ funnelLeads, filters }) => {
+  const hasFilter = filters.status || filters.source || filters.callLeads;
+  if (!hasFilter) return null;
+
+  // Only count leads that have a quotation > 0
+  const leadsWithAmount = funnelLeads.filter(l => l.quotation > 0);
+
+  // Totals per status
+  const wonTotal     = leadsWithAmount.filter(l => l.STATUS === 'Won').reduce((s, l) => s + (l.quotation || 0), 0);
+  const ongoingTotal = leadsWithAmount.filter(l => l.STATUS === 'Ongoing').reduce((s, l) => s + (l.quotation || 0), 0);
+  const pendingTotal = leadsWithAmount.filter(l => l.STATUS === 'Pending').reduce((s, l) => s + (l.quotation || 0), 0);
+  const lostTotal    = leadsWithAmount.filter(l => l.STATUS === 'Lost').reduce((s, l) => s + (l.quotation || 0), 0);
+  const grandTotal   = leadsWithAmount.reduce((s, l) => s + (l.quotation || 0), 0);
+
+  const fmt = (n) => n > 0 ? '₹' + Number(n).toLocaleString('en-IN') : '—';
+
+  // Build active filter label
+  const filterParts = [];
+  if (filters.status)    filterParts.push(filters.status);
+  if (filters.source)    filterParts.push(filters.source);
+  if (filters.callLeads) filterParts.push(filters.callLeads);
+  const filterLabel = filterParts.join(' · ');
+
+  // Status rows to show (only if that filter is not hiding them)
+  const rows = [
+    { label: 'Won',     amount: wonTotal,     color: '#198754', bg: '#d1e7dd', show: !filters.status || filters.status === 'Won' },
+    { label: 'Ongoing', amount: ongoingTotal, color: '#0d6efd', bg: '#cfe2ff', show: !filters.status || filters.status === 'Ongoing' },
+    { label: 'Pending', amount: pendingTotal, color: '#856404', bg: '#fff3cd', show: !filters.status || filters.status === 'Pending' },
+    { label: 'Lost',    amount: lostTotal,    color: '#842029', bg: '#f8d7da', show: !filters.status || filters.status === 'Lost' },
+  ].filter(r => r.show);
+
+  if (grandTotal === 0 && leadsWithAmount.length === 0) {
+    return (
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: '8px',
+        background: '#f8f9fa', border: '1px dashed #ced4da', borderRadius: '8px',
+        padding: '6px 14px', fontSize: '0.8rem', color: '#6c757d',
+      }}>
+        <i className="fa-solid fa-indian-rupee-sign"></i>
+        <span>No quotation data for <strong>{filterLabel}</strong></span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%)',
+      border: '1px solid #b8d0fd',
+      borderRadius: '10px',
+      padding: '10px 16px',
+      boxShadow: '0 2px 12px rgba(13,110,253,0.10)',
+      minWidth: '260px',
+      animation: 'popupFadeIn 0.2s ease',
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{
+          background: 'linear-gradient(135deg, #0d6efd, #6f42c1)',
+          color: '#fff', borderRadius: '6px', padding: '3px 10px',
+          fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.3px',
+        }}>
+          <i className="fa-solid fa-filter me-1"></i>{filterLabel}
+        </span>
+        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+          {leadsWithAmount.length} lead{leadsWithAmount.length !== 1 ? 's' : ''} with amount
+        </span>
+      </div>
+
+      {/* Status breakdown */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+        {rows.map(r => r.amount > 0 && (
+          <span key={r.label} style={{
+            background: r.bg, color: r.color,
+            borderRadius: '5px', padding: '3px 10px',
+            fontSize: '0.75rem', fontWeight: 600,
+          }}>
+            {r.label}: {fmt(r.amount)}
+          </span>
+        ))}
+      </div>
+
+      {/* Grand total */}
+      <div style={{
+        borderTop: '1px solid #e2e8f0', paddingTop: '7px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ fontSize: '0.78rem', color: '#334155', fontWeight: 600 }}>
+          <i className="fa-solid fa-sigma me-1" style={{ color: '#0d6efd' }}></i>Total
+        </span>
+        <span style={{
+          fontSize: '0.92rem', fontWeight: 800,
+          color: '#0d6efd', letterSpacing: '-0.3px',
+        }}>
+          <i className="fa-solid fa-indian-rupee-sign me-1" style={{ fontSize: '0.78rem' }}></i>
+          {Number(grandTotal).toLocaleString('en-IN')}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const SalesMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
@@ -140,6 +246,9 @@ export const SalesMasterGrid = () => {
   const isFollowUpTodayMode = filters.followUpToday;
   const isTodayActionMode = filters.todayAction;
   const sidebarW = isopen ? 260 : 125;
+
+  // ── Amount total — computed from funnelLeads (all matching leads) ─────────
+  const hasAmountFilter = !!(filters.status || filters.source || filters.callLeads);
 
   const handlePageChange = (page) => { if (page >= 1 && page <= pagination.totalPages) setPagination(prev => ({ ...prev, currentPage: page })); };
   const handleBgColor = (status) => { switch (status) { case "Won": return "badge bg-success text-white"; case "Ongoing": return "badge bg-primary text-white"; case "Pending": return "badge bg-warning text-dark"; case "Lost": return "badge bg-danger text-white"; default: return "badge bg-secondary"; } };
@@ -206,7 +315,8 @@ export const SalesMasterGrid = () => {
 
                 {data?.quotationFunnel && (<div className="row p-2 m-1"><div className="col-12"><SalesQuotationFunnel totalQuotationAmount={data.quotationFunnel.totalActiveQuotationAmount || 0} activeQuotationLeads={data.quotationFunnel.activeQuotationLeads || []} wonAmount={data.quotationFunnel.totalWonAmount || 0} lostAmount={data.quotationFunnel.totalLostAmount || 0} /></div></div>)}
 
-                <div className="row align-items-center p-3 m-1 bg-light rounded mb-3">
+                {/* ── Filter bar ────────────────────────────────────────── */}
+                <div className="row align-items-center p-3 m-1 bg-light rounded mb-2">
                   <div className="col-12 col-lg-6">
                     <div className="input-group">
                       <input type="text" className="form-control" placeholder="Search by Mobile Number or Company Name..." value={filters.searchTerm || ""} onChange={handleSearchChange} />
@@ -226,6 +336,19 @@ export const SalesMasterGrid = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* ── Amount Total Popup — shows below filter bar when filter is active ── */}
+                {hasAmountFilter && !funnelLoading && (
+                  <div className="row px-3 mb-2" style={{ marginTop: '-2px' }}>
+                    <div className="col-12 d-flex align-items-center gap-3 flex-wrap">
+                      <AmountTotalPopup funnelLeads={funnelLeads} filters={filters} />
+                      <small className="text-muted" style={{ fontSize: '0.73rem' }}>
+                        <i className="fa-solid fa-circle-info me-1"></i>
+                        Total across all {funnelLeads.length} filtered lead{funnelLeads.length !== 1 ? 's' : ''}
+                      </small>
+                    </div>
+                  </div>
+                )}
 
                 {viewMode === "funnel" && (
                   <div className="row bg-white p-3 m-1 border rounded shadow-sm">

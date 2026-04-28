@@ -29,7 +29,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     contact: '',
     company: '',
     subject: '',
-    products: '',
+    products: [],
     sources: '',
     callLeads: '',
     message: '',
@@ -78,7 +78,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const [showCustomProduct, setShowCustomProduct] = useState(false);
   const [customProduct, setCustomProduct] = useState('');
 
-  const products = [
+  const productsList = [
     'surveillance System', 'Access Control System', 'TurnKey Project', 'Alleviz',
     'CafeLive', 'WorksJoy', 'WorksJoy Blu', 'Fire Alarm System', 'Fire Hydrant System',
     'IDS', 'AI Face Machines', 'Entrance Automation', 'Guard Tour System',
@@ -87,6 +87,8 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     'EPBX System', 'CMS', 'Lift Eliviter System', 'AV6', 'Walky Talky System',
     'Device Management System', 'Other',
   ];
+
+  const productOptions = productsList.map(p => ({ value: p, label: p }));
 
   const sources = [
     'Google', 'Tender', 'Exhibitions', 'JustDial', 'Facebook', 'LinkedIn',
@@ -179,7 +181,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
             contact: customer.phoneNumber1 || customer.contact || customer.contactNumber || '',
             company: customer.custName || customer.name || customer.companyName || '',
             address: {
-              pincode: billingAddress.pincode || '',
+              pincode: billingAddress.pincode || billingAddress.pin || billingAddress.zip || billingAddress.zipCode || customer.pincode || '',
               state: billingAddress.state || '',
               city: billingAddress.city || '',
               add: billingAddress.add || billingAddress.addressLine1 || billingAddress.address || '',
@@ -195,9 +197,13 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
   const resetFormData = () => {
     setFormData(prev => ({
-      ...prev, name: '', email: '', contact: '', company: '',
+      ...prev, name: '', email: '', contact: '', company: '', products: [],
       address: { pincode: '', state: '', city: '', add: '', country: '' },
     }));
+    setShowCustomProduct(false);
+    setCustomProduct('');
+    setPincodeStatus('');
+    clearFieldError('pincode');
   };
 
   useEffect(() => { loadDepartments(1, deptSearchTerm); }, [loadDepartments, deptSearchTerm]);
@@ -209,41 +215,79 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     } else { setEmployeeOptions([]); setAssignedEmployee(null); }
   }, [selectedDepartment, loadEmployees, empSearchTerm]);
 
+  // ✅ FIXED: Smart pincode handling — works for BOTH new & existing customers
   useEffect(() => {
     const fetchData = async () => {
       const pin = formData.address.pincode || '';
-      if (pin.length > 0 && pin.length < 6) {
-        setFieldError('pincode', 'Pincode must be exactly 6 digits.');
+
+      if (pin.length === 0) {
+        clearFieldError('pincode');
         setPincodeStatus('');
-        setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
         return;
       }
-      if (pin.length === 0) { clearFieldError('pincode'); setPincodeStatus(''); return; }
+
+      if (pin.length > 0 && pin.length < 6) {
+        // Only enforce errors for NEW customers
+        if (customerType === 'new') {
+          setFieldError('pincode', 'Pincode must be exactly 6 digits.');
+          setPincodeStatus('');
+          setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
+        }
+        return;
+      }
+
       if (pin.length === 6) {
+        // ✅ Existing customer: if state & city already loaded from DB, trust them — skip API
+        if (customerType === 'existing' && formData.address.state && formData.address.city) {
+          setPincodeStatus('valid');
+          clearFieldError('pincode');
+          return;
+        }
+
         clearFieldError('pincode');
         setPincodeStatus('loading');
         setIsLoadingAddress(true);
         try {
           const data = await getAddress(pin);
           if (data && data !== 'Error' && (data.state || data.city)) {
-            setFormData(prev => ({ ...prev, address: { ...prev.address, state: data.state || '', city: data.city || '', country: data.country || 'India' } }));
+            setFormData(prev => ({
+              ...prev,
+              address: {
+                ...prev.address,
+                state: data.state || prev.address.state || '',
+                city: data.city || prev.address.city || '',
+                country: data.country || prev.address.country || 'India',
+              },
+            }));
             setPincodeStatus('valid');
+            clearFieldError('pincode');
+          } else {
+            // ✅ Existing customer: keep saved data on API failure
+            if (customerType === 'existing') {
+              setPincodeStatus('');
+              clearFieldError('pincode');
+            } else {
+              setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
+              setPincodeStatus('invalid');
+              setFieldError('pincode', 'Invalid Pincode — no location found. Please check and try again.');
+            }
+          }
+        } catch {
+          // ✅ Existing customer: keep saved data on API error
+          if (customerType === 'existing') {
+            setPincodeStatus('');
             clearFieldError('pincode');
           } else {
             setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
             setPincodeStatus('invalid');
-            setFieldError('pincode', 'Invalid Pincode — no location found. Please check and try again.');
+            setFieldError('pincode', 'Could not verify pincode. Please check your connection.');
           }
-        } catch {
-          setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
-          setPincodeStatus('invalid');
-          setFieldError('pincode', 'Could not verify pincode. Please check your connection.');
         } finally { setIsLoadingAddress(false); }
       }
     };
     const t = setTimeout(fetchData, 600);
     return () => clearTimeout(t);
-  }, [formData.address.pincode]);
+  }, [formData.address.pincode, customerType, formData.address.state, formData.address.city]);
 
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
@@ -290,12 +334,31 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       else { setShowCustomSource(false); setCustomSource(''); clearFieldError('customSource'); setFormData(prev => ({ ...prev, [name]: value })); }
       return;
     }
-    if (name === 'products') {
-      if (value === 'Other') { setShowCustomProduct(true); setFormData(prev => ({ ...prev, [name]: '' })); }
-      else { setShowCustomProduct(false); setCustomProduct(''); clearFieldError('customProduct'); setFormData(prev => ({ ...prev, [name]: value })); }
-      return;
-    }
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleProductsChange = (selectedOptions) => {
+    const hasOther = selectedOptions?.some(opt => opt.value === 'Other') || false;
+    if (hasOther) {
+      setShowCustomProduct(true);
+      const otherProducts = selectedOptions?.filter(opt => opt.value !== 'Other') || [];
+      setFormData(prev => ({ ...prev, products: otherProducts }));
+    } else {
+      setShowCustomProduct(false);
+      setCustomProduct('');
+      clearFieldError('customProduct');
+      setFormData(prev => ({ ...prev, products: selectedOptions || [] }));
+    }
+  };
+
+  const handleCustomProductChange = (e) => {
+    const value = e.target.value;
+    setCustomProduct(value);
+    if (value && !isValidCustomText(value)) {
+      setFieldError('customProduct', 'Product name must contain at least one letter.');
+    } else {
+      clearFieldError('customProduct');
+    }
   };
 
   const handleCustomSourceChange = (e) => {
@@ -305,16 +368,11 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     else { clearFieldError('customSource'); }
   };
 
-  const handleCustomProductChange = (e) => {
-    const value = e.target.value;
-    setCustomProduct(value); setFormData(prev => ({ ...prev, products: value }));
-    if (value && !isValidCustomText(value)) { setFieldError('customProduct', 'Product name must contain at least one letter.'); }
-    else { clearFieldError('customProduct'); }
-  };
-
   const handleCustomerTypeChange = (e) => {
     const type = e.target.value;
     setCustomerType(type);
+    setPincodeStatus('');
+    clearFieldError('pincode');
     if (type === 'new') {
       resetFormData(); setSelectedCustomer(null);
       setCustPage(1); setCustHasMore(true); setCustOptions([]);
@@ -322,28 +380,37 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     }
   };
 
+  const getFinalProducts = () => {
+    const selectedProductNames = formData.products.map(p => p.value || p.label || p);
+    if (showCustomProduct && customProduct.trim()) {
+      selectedProductNames.push(customProduct.trim());
+    }
+    return selectedProductNames.join(', ');
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const { name, email, contact, subject, company, products, sources, callLeads, message, address } = formData;
+    const finalProducts = getFinalProducts();
 
     if (customerType === 'new') {
-      if (!name || !company || !contact || !products || !address.pincode || !address.add || !sources) {
+      if (!name || !company || !contact || !finalProducts || !address.pincode || !address.add || !sources) {
         toast.error('Please fill in all required fields, including Pincode, full address, and source.');
         return;
       }
     } else {
-      if (!selectedCustomer || !products || !sources) {
+      if (!selectedCustomer || !finalProducts || !sources) {
         toast.error('Please select a customer and fill in all required fields.');
         return;
       }
     }
 
     if (name && !isValidName(name)) { toast.error('Contact Name must contain only letters and spaces.'); setFieldError('name', 'Contact Name must contain only letters and spaces.'); return; }
-    // ✅ EMAIL: only validate format IF a value is provided — NOT required
     if (email && !isValidEmail(email)) { toast.error('Please enter a valid email address.'); setFieldError('email', 'Please enter a valid email address.'); return; }
     if (subject && !isValidSubject(subject)) { toast.error('Subject must contain at least one letter.'); setFieldError('subject', 'Subject must contain at least one letter.'); return; }
     if (message && !isValidMessage(message)) { toast.error('Message must contain at least one letter.'); setFieldError('message', 'Message must contain at least one letter.'); return; }
 
+    // ✅ Only validate pincode strictly for NEW customers
     if (customerType === 'new' && address.pincode) {
       if (!isValidPincode(address.pincode)) { toast.error('Pincode must be exactly 6 digits.'); setFieldError('pincode', 'Pincode must be exactly 6 digits.'); return; }
       if (pincodeStatus === 'invalid') { toast.error('Invalid Pincode — no location found.'); setFieldError('pincode', 'Invalid Pincode.'); return; }
@@ -380,7 +447,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       SENDER_STATE: address.state,
       SENDER_PINCODE: address.pincode,
       SENDER_COUNTRY_ISO: address.country,
-      QUERY_PRODUCT_NAME: products,
+      QUERY_PRODUCT_NAME: finalProducts,
       QUERY_SOURCES_NAME: sources,
       QUERY_MESSAGE: message || '',
       callLeads: callLeads || 'Warm Leads',
@@ -395,6 +462,22 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
   const FieldError = ({ msg }) =>
     msg ? <small className="text-danger d-block mt-1"><i className="fa-solid fa-circle-exclamation me-1"></i>{msg}</small> : null;
+
+  const selectStyles = {
+    control: (p) => ({ ...p, borderRadius: 0, borderColor: '#ced4da', fontSize: '14px', minHeight: '38px' }),
+    option: (p, s) => ({
+      ...p,
+      backgroundColor: s.isSelected ? '#007bff' : s.isFocused ? '#f8f9fa' : 'white',
+      color: s.isSelected ? 'white' : '#212529',
+    }),
+    multiValue: (p) => ({ ...p, backgroundColor: '#007bff', borderRadius: '3px' }),
+    multiValueLabel: (p) => ({ ...p, color: 'white', fontSize: '13px', padding: '2px 6px' }),
+    multiValueRemove: (p) => ({
+      ...p, color: 'white', paddingLeft: '4px', paddingRight: '4px',
+      ':hover': { backgroundColor: '#0056b3', color: 'white' },
+    }),
+    placeholder: (p) => ({ ...p, color: '#6c757d', fontSize: '14px' }),
+  };
 
   return (
     <>
@@ -436,10 +519,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                           isLoading={custLoading} placeholder="Search and select client..."
                           noOptionsMessage={({ inputValue }) => inputValue ? 'No clients found.' : 'Type to search...'}
                           loadingMessage={() => 'Loading clients...'} closeMenuOnSelect filterOption={() => true}
-                          styles={{
-                            control: p => ({ ...p, borderRadius: 0, borderColor: '#ced4da', fontSize: '16px', minHeight: '38px' }),
-                            option: (p, s) => ({ ...p, backgroundColor: s.isSelected ? '#007bff' : s.isFocused ? '#f8f9fa' : 'white', color: s.isSelected ? 'white' : '#212529' }),
-                          }}
+                          styles={selectStyles}
                         />
                         <div className="mt-1">
                           {custLoading && <small className="text-info">Loading clients...</small>}
@@ -469,7 +549,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                     <FieldError msg={fieldErrors.name} />
                   </div>
 
-                  {/* ✅ EMAIL — NOT required (removed RequiredStar and required attribute) */}
+                  {/* EMAIL */}
                   <div className="col-md-6">
                     <label className="form-label">Contact Email</label>
                     <input type="email" className={`form-control ${fieldErrors.email ? 'is-invalid' : ''}`} name="email"
@@ -506,20 +586,28 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                     <FieldError msg={fieldErrors.subject} />
                   </div>
 
-                  {/* Products */}
+                  {/* Products - Multi Select */}
                   <div className="col-md-6">
                     <label className="form-label">Products <RequiredStar /></label>
-                    <select className="form-select" name="products" value={showCustomProduct ? 'Other' : formData.products} onChange={handleInputChange} required>
-                      <option value="">Select Products....</option>
-                      {products.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
+                    <Select
+                      isMulti
+                      options={productOptions}
+                      value={formData.products}
+                      onChange={handleProductsChange}
+                      placeholder="Select Products..."
+                      noOptionsMessage={() => 'No products found'}
+                      closeMenuOnSelect={false}
+                      styles={selectStyles}
+                      className={fieldErrors.customProduct ? 'is-invalid-select' : ''}
+                    />
                     {showCustomProduct && (
                       <div className="mt-2">
                         <input type="text" className={`form-control ${fieldErrors.customProduct ? 'is-invalid' : ''}`}
-                          placeholder="Enter custom product name" value={customProduct} onChange={handleCustomProductChange} maxLength={100} required />
+                          placeholder="Enter custom product name" value={customProduct} onChange={handleCustomProductChange} maxLength={100} />
                         <FieldError msg={fieldErrors.customProduct} />
                       </div>
                     )}
+                    <small className="text-muted d-block mt-1">Select multiple products. Choose "Other" to add a custom product.</small>
                   </div>
 
                   {/* Leads */}
@@ -566,13 +654,17 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                         {isLoadingCustomerAddress && <small className="text-info ms-2">Loading customer address...</small>}
                       </div>
                       <div className="col-12 col-lg-6 mb-3">
-                        <input type="text" className={`form-control ${fieldErrors.pincode ? 'is-invalid' : pincodeStatus === 'valid' ? 'is-valid' : ''}`}
+                        <input type="text"
+                          className={`form-control ${customerType === 'existing' ? '' : (fieldErrors.pincode ? 'is-invalid' : pincodeStatus === 'valid' ? 'is-valid' : '')}`}
                           name="pincode" placeholder="Pincode (6 digits only)" maxLength="6"
-                          onChange={customerType === 'new' ? handleAddressChange : undefined} value={formData.address.pincode}
-                          required={customerType === 'new'} readOnly={customerType === 'existing'}
+                          onChange={customerType === 'new' ? handleAddressChange : undefined}
+                          value={formData.address.pincode}
+                          required={customerType === 'new'}
+                          readOnly={customerType === 'existing'}
                           style={customerType === 'existing' ? { backgroundColor: '#f8f9fa' } : {}} />
-                        {pincodeStatus === 'loading' && <small className="text-info"><i className="fa-solid fa-spinner fa-spin me-1"></i>Verifying pincode...</small>}
-                        {pincodeStatus === 'valid' && <small className="text-success"><i className="fa-solid fa-circle-check me-1"></i>Valid pincode — address auto-filled.</small>}
+                        {customerType === 'new' && pincodeStatus === 'loading' && <small className="text-info"><i className="fa-solid fa-spinner fa-spin me-1"></i>Verifying pincode...</small>}
+                        {customerType === 'new' && pincodeStatus === 'valid' && <small className="text-success"><i className="fa-solid fa-circle-check me-1"></i>Valid pincode — address auto-filled.</small>}
+                        {customerType === 'existing' && formData.address.pincode && <small className="text-success"><i className="fa-solid fa-circle-check me-1"></i>Pincode loaded from customer record.</small>}
                         <FieldError msg={fieldErrors.pincode} />
                       </div>
                       <div className="col-12 col-lg-6 mb-3">
@@ -629,7 +721,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                             onInputChange={val => { setDeptSearchTerm(val); setDeptPage(1); }}
                             onMenuScrollToBottom={() => { if (hasMoreDepartments) { const np = deptPage + 1; setDeptPage(np); loadDepartments(np, deptSearchTerm); } }}
                             placeholder="Select Department..." isClearable
-                            styles={{ control: p => ({ ...p, borderRadius: 0, borderColor: '#ced4da', fontSize: '16px' }), option: (p, s) => ({ ...p, backgroundColor: s.isSelected ? '#007bff' : s.isFocused ? '#f8f9fa' : 'white', color: s.isSelected ? 'white' : '#212529' }) }}
+                            styles={selectStyles}
                           />
                         </div>
                         <div className="col-12 col-lg-6 mt-2">
@@ -643,7 +735,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                             placeholder={loadingEmployees ? 'Loading employees...' : 'Select Employee...'}
                             noOptionsMessage={() => selectedDepartment ? 'No employees found' : 'Select a department first'}
                             isDisabled={!selectedDepartment || loadingEmployees}
-                            styles={{ control: p => ({ ...p, borderRadius: 0, borderColor: '#ced4da', fontSize: '16px' }), option: (p, s) => ({ ...p, backgroundColor: s.isSelected ? '#007bff' : s.isFocused ? '#f8f9fa' : 'white', color: s.isSelected ? 'white' : '#212529' }) }}
+                            styles={selectStyles}
                           />
                         </div>
                       </div>
@@ -660,6 +752,13 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
           </div>
         </div>
       </div>
+
+      <style>{`
+        .is-invalid-select .css-13cymwt-control {
+          border-color: #dc3545 !important;
+          box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25) !important;
+        }
+      `}</style>
     </>
   );
 };
