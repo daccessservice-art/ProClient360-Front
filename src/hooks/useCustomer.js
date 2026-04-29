@@ -5,7 +5,7 @@ const url = baseUrl + "/api/customer";
 
 const getCustomers = async (
   page = 1,
-  limit = 20,
+  limit = 40,
   search = null,
   createdBy = null,
   ownedBy = null,

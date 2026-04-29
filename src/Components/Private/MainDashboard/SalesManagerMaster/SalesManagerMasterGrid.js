@@ -15,11 +15,13 @@ import useSubmitEnquiry from "../../../../hooks/leads/useSubmitEnquiry";
 import SalesFunnelView from "../SalesMaster/PopUp/SalesFunnelView";
 import ChatbotDrawer from "../SalesMaster/PopUp/ChatbotDrawer";
 import UpdateSalesPopUp from "../SalesMaster/PopUp/UpdateSalesPopUp";
+// ── NEW IMPORT ──
+import TransferOwnershipPopUp from "../SalesMaster/PopUp/TransferOwnershipPopUp";
 
 const ALL_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/all-leads`;
 const EMP_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/employee-leads`;
 
-// ── Amount Total Summary Popup (copied from SalesMasterGrid) ─────────────────
+// ── Amount Total Summary Popup ────────────────────────────────────────────────
 const AmountTotalPopup = ({ funnelLeads, filters }) => {
   const hasFilter = filters.status || filters.source || filters.callLeads;
   if (!hasFilter) return null;
@@ -112,10 +114,12 @@ export const SalesManagerMasterGrid = () => {
   const [leadToDelete,      setLeadToDelete]      = useState(null);
   const [generatingPDF,     setGeneratingPDF]     = useState(false);
   const [UpdatePopUpShow,   setUpdatePopUpShow]   = useState(false);
+  // ── NEW STATE ──
+  const [transferOwnershipShow, setTransferOwnershipShow] = useState(false);
 
   const { user } = useContext(UserContext);
 
-  const { managers: salesEmployees, loading: employeesLoading } = useSalesManagers();
+  const { managers: salesEmployees, loading: employeesLoading, refetch: refetchEmployees } = useSalesManagers();
   const [selectedEmployee, setSelectedEmployee] = useState({ _id: "all", name: "All Leads" });
 
   const { deleteLead, loading: deleteLoading } = useDeleteLead();
@@ -419,8 +423,9 @@ export const SalesManagerMasterGrid = () => {
 
   const canUpdateLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
   const canDeleteLead = user?.permissions?.includes('deleteLead') || user?.user === 'company';
+  // ── NEW: only company or users with updateLead can transfer ownership ──
+  const canTransferOwnership = user?.user === 'company' || user?.permissions?.includes('updateLead');
   const displayLeads  = data?.leads;
-  // Sr.No + Company + Contact + Product + Source + Mobile + Amount + Created + FollowUp + Status + [AssignedTo] + Action
   const colSpan = isAllMode ? 12 : 11;
 
   return (
@@ -437,7 +442,7 @@ export const SalesManagerMasterGrid = () => {
             <div className="main-panel" style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}>
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
-                {/* ── Title + view toggle + PDF ── */}
+                {/* ── Title + view toggle + PDF + Transfer Ownership ── */}
                 <div className="row px-2 py-1 mb-3">
                   <div className="col-12 col-lg-4">
                     <h5 className="text-white py-2">Sales Manager Dashboard</h5>
@@ -452,6 +457,19 @@ export const SalesManagerMasterGrid = () => {
                         ? <><span className="spinner-border spinner-border-sm" role="status"></span> Generating...</>
                         : <><i className="fa-solid fa-file-pdf"></i> Download PDF</>}
                     </button>
+
+                    {/* ── NEW: Transfer Ownership Button ── */}
+                    {canTransferOwnership && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-info"
+                        onClick={() => setTransferOwnershipShow(true)}
+                        title="Transfer lead ownership from one employee to another"
+                      >
+                        <i className="fa-solid fa-people-arrows me-1"></i>Transfer Ownership
+                      </button>
+                    )}
+
                     <div className="btn-group" role="group">
                       <button type="button"
                         className={`btn btn-sm ${viewMode === "table" ? "btn-primary" : "btn-outline-secondary"}`}
@@ -579,7 +597,7 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     </div>
 
-                    {/* ── Amount Total Popup — appears below filter bar when status/source/leads filter active ── */}
+                    {/* ── Amount Total Popup ── */}
                     {hasAmountFilter && !funnelLoading && (
                       <div className="row px-3 mb-2" style={{ marginTop: '-2px' }}>
                         <div className="col-12 d-flex align-items-center gap-3 flex-wrap">
@@ -631,7 +649,6 @@ export const SalesManagerMasterGrid = () => {
                                   <th style={{ minWidth:"120px" }} className="text-start">Product</th>
                                   <th style={{ width:"100px" }}>Source</th>
                                   <th style={{ width:"120px" }}>Mobile</th>
-                                  {/* ✅ Amount column */}
                                   <th style={{ width:"140px" }}>Amount</th>
                                   <th style={{ width:"120px" }}>Created Date</th>
                                   <th style={{ width:"120px" }}>Follow-up Date</th>
@@ -663,8 +680,6 @@ export const SalesManagerMasterGrid = () => {
                                         <td className="text-start">{lead.QUERY_PRODUCT_NAME || "Not available."}</td>
                                         <td><small className="text-muted">{lead.SOURCE}</small></td>
                                         <td><small className="text-muted">{lead.SENDER_MOBILE || "Not available."}</small></td>
-
-                                        {/* ✅ Amount cell — identical to SalesMasterGrid */}
                                         <td>
                                           {hasAmount ? (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -682,7 +697,6 @@ export const SalesManagerMasterGrid = () => {
                                             <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>
                                           )}
                                         </td>
-
                                         <td><small className="text-muted">{formatDateforTaskUpdate(lead.createdAt)}</small></td>
                                         <td>
                                           {lead.nextFollowUpDate ? (
@@ -693,8 +707,6 @@ export const SalesManagerMasterGrid = () => {
                                         </td>
                                         <td><span className={handleBgColor(lead.STATUS)}>{lead.STATUS || "N/A"}</span></td>
                                         {isAllMode && <td><small className="text-muted">{lead.assignedTo?.name || "Not assigned"}</small></td>}
-
-                                        {/* ✅ Action buttons */}
                                         <td className="text-center">
                                           <div className="d-flex justify-content-center gap-1">
                                             <button className="btn btn-sm btn-outline-info" onClick={() => handleDetailsPopUpClick(lead)} title="View">
@@ -817,6 +829,14 @@ export const SalesManagerMasterGrid = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── NEW: Transfer Ownership Popup ── */}
+      {transferOwnershipShow && (
+        <TransferOwnershipPopUp
+          onClose={() => setTransferOwnershipShow(false)}
+          onSuccess={() => { refetch(); fetchFunnelLeads(); refetchEmployees?.(); }}
+        />
       )}
 
       <ChatbotDrawer page="manager" employeeId={selectedEmployee?._id} />

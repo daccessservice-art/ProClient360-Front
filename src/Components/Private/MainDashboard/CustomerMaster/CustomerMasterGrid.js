@@ -4,6 +4,7 @@ import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddCustomerPopUp from "./PopUp/AddCustomerPopUp";
 import UpdateCustomerPopUp from "./PopUp/UpdateCustomerPopUp";
+import ReassignOwnedByPopUp from "./PopUp/ReassignOwnedByPopUp";
 import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel, getEmployees } from "../../../../hooks/useCustomer";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
@@ -14,12 +15,19 @@ const ALLOWED_EXPORT_DESIGNATIONS = [
   "Junior Software Developer",
 ];
 
-// ── Same 3 designations can use Bulk Delete ──
 const ALLOWED_BULK_DELETE_DESIGNATIONS = [
   "Director Digi Solution",
   "CEO & Founder",
   "Junior Software Developer",
-   "Soft Test"
+  "Soft Test",
+];
+
+// ── Same 3 designations + company can reassign ownership ──
+const ALLOWED_REASSIGN_DESIGNATIONS = [
+  "Director Digi Solution",
+  "CEO & Founder",
+  "Junior Software Developer",
+  "Soft Test",
 ];
 
 export const CustomerMasterGrid = () => {
@@ -32,6 +40,9 @@ export const CustomerMasterGrid = () => {
   const [deletePopUpShow, setdeletePopUpShow] = useState(false);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
 
+  // ── Reassign popup ──
+  const [reassignPopUpShow, setReassignPopUpShow] = useState(false);
+
   const [selectedId, setSelecteId] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [selectedCust, setSelectedCust] = useState(null);
@@ -40,7 +51,7 @@ export const CustomerMasterGrid = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({
     currentPage: 1, totalPages: 0, totalCustomers: 0,
-    limit: 20, hasNextPage: false, hasPrevPage: false,
+    limit: 40, hasNextPage: false, hasPrevPage: false,
   });
 
   const [createdByFilter, setCreatedByFilter] = useState("");
@@ -56,7 +67,10 @@ export const CustomerMasterGrid = () => {
   const [bulkDeleteConfirmShow, setBulkDeleteConfirmShow] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  const itemsPerPage = 20;
+  // ── Refetch trigger ──
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+  const itemsPerPage = 40;
 
   const industryOptions = [
     "IT & Software", "Manufacturing", "Construction & Infrastructure",
@@ -70,18 +84,20 @@ export const CustomerMasterGrid = () => {
     user?.user === "company" ||
     ALLOWED_EXPORT_DESIGNATIONS.includes(user?.designation || "");
 
-  // ── Can use bulk delete ──
   const canBulkDelete =
     user?.user === "company" ||
     ALLOWED_BULK_DELETE_DESIGNATIONS.includes(user?.designation || "");
+
+  // ── Can reassign ownership ──
+  const canReassign =
+    user?.user === "company" ||
+    ALLOWED_REASSIGN_DESIGNATIONS.includes(user?.designation || "");
 
   useEffect(() => {
     const fetchFilterEmployees = async () => {
       try {
         const data = await getEmployees();
-        if (data.success && data.employees) {
-          setFilterEmployees(data.employees);
-        }
+        if (data.success && data.employees) setFilterEmployees(data.employees);
       } catch (error) {
         console.error("Error fetching employees for filters:", error);
       }
@@ -91,7 +107,7 @@ export const CustomerMasterGrid = () => {
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    setSelectedIds([]); // Clear selection on page change
+    setSelectedIds([]);
   };
   const handleAdd = () => { setAddPopUpShow(!AddPopUpShow); };
   const handleUpdate = (customer) => { setSelectedCust(customer); setUpdatePopUpShow(!updatePopUpShow); };
@@ -125,10 +141,7 @@ export const CustomerMasterGrid = () => {
   };
 
   const handleBulkDeleteConfirm = () => {
-    if (selectedIds.length === 0) {
-      toast.error("No customers selected");
-      return;
-    }
+    if (selectedIds.length === 0) { toast.error("No customers selected"); return; }
     setBulkDeleteConfirmShow(true);
   };
 
@@ -138,7 +151,6 @@ export const CustomerMasterGrid = () => {
 
     let successCount = 0;
     let failCount = 0;
-    const errors = [];
 
     for (const id of selectedIds) {
       const data = await deleteCustomer(id);
@@ -146,8 +158,6 @@ export const CustomerMasterGrid = () => {
         successCount++;
       } else {
         failCount++;
-        const cust = customers.find((c) => c._id === id);
-        errors.push(cust?.custName || id);
       }
     }
 
@@ -155,23 +165,24 @@ export const CustomerMasterGrid = () => {
     setSelectedIds([]);
     setBulkDeleteMode(false);
 
-    if (successCount > 0) {
-      toast.success(`${successCount} customer${successCount > 1 ? "s" : ""} deleted successfully`);
-    }
-    if (failCount > 0) {
-      toast.error(`${failCount} customer${failCount > 1 ? "s" : ""} could not be deleted (may have branches or projects)`);
-    }
+    if (successCount > 0) toast.success(`${successCount} customer${successCount > 1 ? "s" : ""} deleted successfully`);
+    if (failCount > 0) toast.error(`${failCount} customer${failCount > 1 ? "s" : ""} could not be deleted (may have branches or projects)`);
 
     setCurrentPage(1);
-    // Re-fetch by toggling a dummy state – the useEffect will pick up currentPage=1
-    // Actually trigger re-fetch by toggling deletePopUpShow momentarily
-    setdeletePopUpShow(false);
-    // We trigger a re-fetch by incrementing a counter instead
     setRefetchTrigger((n) => n + 1);
   };
 
-  // ── Refetch trigger (avoids re-using deletePopUpShow for bulk) ──
-  const [refetchTrigger, setRefetchTrigger] = useState(0);
+  // ── Reassign Handlers ──
+  const handleOpenReassign = () => {
+    setBulkDeleteMode(false);
+    setSelectedIds([]);
+    setReassignPopUpShow(true);
+  };
+
+  const handleReassignDone = () => {
+    // Called when at least 1 customer was reassigned — refetch table
+    setRefetchTrigger((n) => n + 1);
+  };
 
   const handleExportPDF = async () => {
     if (!canExport) {
@@ -181,7 +192,7 @@ export const CustomerMasterGrid = () => {
     try {
       const result = await exportCustomersPDF();
       if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export PDF"); }
-    } catch (error) { toast.error("An unexpected error occurred while exporting PDF"); }
+    } catch { toast.error("An unexpected error occurred while exporting PDF"); }
   };
 
   const handleExportExcel = async () => {
@@ -192,7 +203,7 @@ export const CustomerMasterGrid = () => {
     try {
       const result = await exportCustomersExcel();
       if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Excel"); }
-    } catch (error) { toast.error("An unexpected error occurred while exporting Excel"); }
+    } catch { toast.error("An unexpected error occurred while exporting Excel"); }
   };
 
   const handleResetFilters = () => {
@@ -205,14 +216,9 @@ export const CustomerMasterGrid = () => {
       try {
         setLoading(true);
         const data = await getCustomers(
-          currentPage,
-          itemsPerPage,
-          search,
-          createdByFilter,
-          ownedByFilter,
-          priorityFilter,
-          industryTypeFilter,
-          customerTypeFilter
+          currentPage, itemsPerPage, search,
+          createdByFilter, ownedByFilter, priorityFilter,
+          industryTypeFilter, customerTypeFilter
         );
         if (data?.success) {
           setCustomers(data.customers || []);
@@ -231,17 +237,9 @@ export const CustomerMasterGrid = () => {
     };
     fetchData();
   }, [
-    currentPage,
-    deletePopUpShow,
-    AddPopUpShow,
-    updatePopUpShow,
-    search,
-    createdByFilter,
-    ownedByFilter,
-    priorityFilter,
-    industryTypeFilter,
-    customerTypeFilter,
-    refetchTrigger,
+    currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow,
+    search, createdByFilter, ownedByFilter, priorityFilter,
+    industryTypeFilter, customerTypeFilter, refetchTrigger,
   ]);
 
   const handleCreatedByFilter = (e) => { setCreatedByFilter(e.target.value); setCurrentPage(1); };
@@ -254,9 +252,7 @@ export const CustomerMasterGrid = () => {
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
   let startPage = Math.max(1, currentPage - halfMaxButtons);
   let endPage = Math.min(pagination.totalPages, startPage + maxPageButtons - 1);
-  if (endPage - startPage + 1 < maxPageButtons) {
-    startPage = Math.max(1, endPage - maxPageButtons + 1);
-  }
+  if (endPage - startPage + 1 < maxPageButtons) startPage = Math.max(1, endPage - maxPageButtons + 1);
 
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
@@ -268,7 +264,7 @@ export const CustomerMasterGrid = () => {
   for (let i = startPage; i <= endPage; i++) { pageButtons.push(i); }
 
   const getIndustryDisplay = (customer) => {
-    if (customer.industryType === "Other") { return customer.industryTypeOther || "Other"; }
+    if (customer.industryType === "Other") return customer.industryTypeOther || "Other";
     return customer.industryType || "N/A";
   };
 
@@ -289,7 +285,6 @@ export const CustomerMasterGrid = () => {
   };
 
   const isFilterActive = createdByFilter || ownedByFilter || search || priorityFilter || industryTypeFilter || customerTypeFilter;
-
   const allCurrentPageSelected = customers.length > 0 && selectedIds.length === customers.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < customers.length;
 
@@ -336,7 +331,7 @@ export const CustomerMasterGrid = () => {
 
                       <div className="col-12 col-sm-6 col-lg-1">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Type</label>
-                        <select className="form-select form-select-sm" value={customerTypeFilter} onChange={handleCustomerTypeFilter} title="Filter by Type">
+                        <select className="form-select form-select-sm" value={customerTypeFilter} onChange={handleCustomerTypeFilter}>
                           <option value="">All</option>
                           <option value="main">Main</option>
                           <option value="branch">Branch</option>
@@ -345,7 +340,7 @@ export const CustomerMasterGrid = () => {
 
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Created By</label>
-                        <select className="form-select form-select-sm" value={createdByFilter} onChange={handleCreatedByFilter} title="Filter by Created By">
+                        <select className="form-select form-select-sm" value={createdByFilter} onChange={handleCreatedByFilter}>
                           <option value="">Select Created By</option>
                           {filterEmployees.map((emp) => (
                             <option key={emp._id} value={emp.name}>{emp.name}</option>
@@ -355,7 +350,7 @@ export const CustomerMasterGrid = () => {
 
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Owned By</label>
-                        <select className="form-select form-select-sm" value={ownedByFilter} onChange={handleOwnedByFilter} title="Filter by Owned By">
+                        <select className="form-select form-select-sm" value={ownedByFilter} onChange={handleOwnedByFilter}>
                           <option value="">Select Owned By</option>
                           <option value="NA">NA / None</option>
                           {filterEmployees.map((emp) => (
@@ -366,7 +361,7 @@ export const CustomerMasterGrid = () => {
 
                       <div className="col-12 col-sm-6 col-lg-1">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Priority</label>
-                        <select className="form-select form-select-sm" value={priorityFilter} onChange={handlePriorityFilter} title="Filter by Priority">
+                        <select className="form-select form-select-sm" value={priorityFilter} onChange={handlePriorityFilter}>
                           <option value="">Select Priority</option>
                           <option value="P1">P1 - High</option>
                           <option value="P2">P2 - Medium</option>
@@ -377,7 +372,7 @@ export const CustomerMasterGrid = () => {
 
                       <div className="col-12 col-sm-6 col-lg-2">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Select Industry Type</label>
-                        <select className="form-select form-select-sm" value={industryTypeFilter} onChange={handleIndustryTypeFilter} title="Filter by Industry Type">
+                        <select className="form-select form-select-sm" value={industryTypeFilter} onChange={handleIndustryTypeFilter}>
                           <option value="">Select Industry Type</option>
                           <option value="NA">NA</option>
                           {industryOptions.map((opt) => (
@@ -388,9 +383,24 @@ export const CustomerMasterGrid = () => {
 
                       <div className="col-12 col-sm-6 col-lg-2 text-end">
                         <div className="btn-group flex-wrap" role="group">
+
                           {isFilterActive && (
                             <button onClick={handleResetFilters} type="button" className="btn btn-sm btn-outline-light me-1" title="Clear all filters">
                               <i className="fa-solid fa-xmark"></i>
+                            </button>
+                          )}
+
+                          {/* ── Reassign Ownership Button ── */}
+                          {canReassign && (
+                            <button
+                              onClick={handleOpenReassign}
+                              type="button"
+                              className="btn btn-sm btn-outline-info me-1"
+                              title="Reassign Customer Ownership"
+                              disabled={loading || bulkDeleteMode}
+                            >
+                              <i className="fa-solid fa-arrows-rotate me-1"></i>
+                              Reassign
                             </button>
                           )}
 
@@ -424,6 +434,7 @@ export const CustomerMasterGrid = () => {
                               <i className="fa-solid fa-plus"></i> Add
                             </button>
                           ) : null}
+
                         </div>
                       </div>
 
@@ -437,21 +448,15 @@ export const CustomerMasterGrid = () => {
                     <div className="col-12">
                       <div
                         className="d-flex align-items-center flex-wrap gap-2 px-3 py-2 rounded"
-                        style={{
-                          backgroundColor: "#fff3cd",
-                          border: "1px solid #ffc107",
-                        }}
+                        style={{ backgroundColor: "#fff3cd", border: "1px solid #ffc107" }}
                       >
-                        {/* Select All Checkbox */}
                         <div className="form-check mb-0 me-2">
                           <input
                             className="form-check-input"
                             type="checkbox"
                             id="selectAllChk"
                             checked={allCurrentPageSelected}
-                            ref={(el) => {
-                              if (el) el.indeterminate = someSelected;
-                            }}
+                            ref={(el) => { if (el) el.indeterminate = someSelected; }}
                             onChange={handleSelectAll}
                             style={{ width: "18px", height: "18px", cursor: "pointer" }}
                           />
@@ -462,7 +467,6 @@ export const CustomerMasterGrid = () => {
 
                         <span className="text-muted" style={{ fontSize: "13px" }}>|</span>
 
-                        {/* Selection count */}
                         <span style={{ fontSize: "13px" }}>
                           <i className="fa-solid fa-check-square me-1 text-warning"></i>
                           <strong>{selectedIds.length}</strong> customer{selectedIds.length !== 1 ? "s" : ""} selected
@@ -470,7 +474,6 @@ export const CustomerMasterGrid = () => {
 
                         <span className="text-muted" style={{ fontSize: "13px" }}>|</span>
 
-                        {/* Delete Selected Button */}
                         <button
                           type="button"
                           className="btn btn-danger btn-sm"
@@ -492,8 +495,7 @@ export const CustomerMasterGrid = () => {
 
                         <small className="text-muted w-100" style={{ fontSize: "11px" }}>
                           <i className="fa-solid fa-circle-info me-1 text-warning"></i>
-                          Bulk delete mode is active. Customers with linked branches or projects cannot be deleted.
-                          Selection resets on page change.
+                          Bulk delete mode is active. Customers with linked branches or projects cannot be deleted. Selection resets on page change.
                         </small>
                       </div>
                     </div>
@@ -513,7 +515,6 @@ export const CustomerMasterGrid = () => {
                             onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
-
                       {customerTypeFilter && (
                         <span className="badge bg-primary me-1">
                           Type: {customerTypeFilter === "main" ? "Main" : "Branch"}
@@ -521,7 +522,6 @@ export const CustomerMasterGrid = () => {
                             onClick={() => { setCustomerTypeFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
-
                       {createdByFilter && (
                         <span className="badge bg-secondary me-1">
                           Created: {createdByFilter}
@@ -529,7 +529,6 @@ export const CustomerMasterGrid = () => {
                             onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
-
                       {ownedByFilter && (
                         <span className="badge bg-secondary me-1">
                           Owned: {ownedByFilter}
@@ -537,7 +536,6 @@ export const CustomerMasterGrid = () => {
                             onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
-
                       {priorityFilter && (
                         <span className="badge bg-warning text-dark me-1">
                           Priority: {priorityFilter}
@@ -545,7 +543,6 @@ export const CustomerMasterGrid = () => {
                             onClick={() => { setPriorityFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
-
                       {industryTypeFilter && (
                         <span className="badge bg-dark me-1">
                           Industry: {industryTypeFilter}
@@ -553,7 +550,6 @@ export const CustomerMasterGrid = () => {
                             onClick={() => { setIndustryTypeFilter(""); setCurrentPage(1); }}></i>
                         </span>
                       )}
-
                       {!loading && (
                         <small className="text-white-50 ms-2">
                           Showing {customers.length}
@@ -571,16 +567,13 @@ export const CustomerMasterGrid = () => {
                       <table className="table table-striped table-class" id="table-id">
                         <thead>
                           <tr className="th_border">
-                            {/* Bulk Delete Checkbox Column */}
                             {bulkDeleteMode && (
                               <th className="text-center align-middle" style={{ width: "42px" }}>
                                 <input
                                   type="checkbox"
                                   className="form-check-input"
                                   checked={allCurrentPageSelected}
-                                  ref={(el) => {
-                                    if (el) el.indeterminate = someSelected;
-                                  }}
+                                  ref={(el) => { if (el) el.indeterminate = someSelected; }}
                                   onChange={handleSelectAll}
                                   style={{ width: "16px", height: "16px", cursor: "pointer" }}
                                   title="Select / Deselect all on this page"
@@ -613,7 +606,6 @@ export const CustomerMasterGrid = () => {
                                       : {}
                                   }
                                 >
-                                  {/* Bulk select checkbox */}
                                   {bulkDeleteMode && (
                                     <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                       <input
@@ -626,71 +618,46 @@ export const CustomerMasterGrid = () => {
                                     </td>
                                   )}
 
-                                  {/* Sr. No */}
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     {index + 1 + (currentPage - 1) * itemsPerPage}
                                   </td>
 
-                                  {/* Customer Name */}
-                                  <td
-                                    className="align_left_td td_width wrap-text-of-col"
-                                    style={{ verticalAlign: "middle" }}
-                                  >
+                                  <td className="align_left_td td_width wrap-text-of-col" style={{ verticalAlign: "middle" }}>
                                     {customer.custName}
                                   </td>
 
-                                  {/* Type badge */}
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     {getCustomerTypeBadge(customer.customerType)}
                                   </td>
 
-                                  {/* GST No */}
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     {customer.GSTNo}
                                   </td>
 
-                                  {/* Industry */}
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                    <span className="badge bg-secondary">
-                                      {getIndustryDisplay(customer)}
-                                    </span>
+                                    <span className="badge bg-secondary">{getIndustryDisplay(customer)}</span>
                                   </td>
 
-                                  {/* Priority */}
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     <span className={getPriorityBadgeClass(customer.customerPriority)}>
                                       {customer.customerPriority || "N/A"}
                                     </span>
                                   </td>
 
-                                  {/* Created By */}
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     {customer.createdBy?.name || "N/A"}
                                   </td>
 
-                                  {/* Owned By */}
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     {customer.ownedBy || "N/A"}
                                   </td>
 
-                                  {/* Verified */}
-                                  <td
-                                    style={{
-                                      verticalAlign: "middle",
-                                      textAlign: "center",
-                                      width: "45px",
-                                    }}
-                                  >
+                                  <td style={{ verticalAlign: "middle", textAlign: "center", width: "45px" }}>
                                     {customer.isChecked && (
-                                      <i
-                                        className="fa-solid fa-check text-success"
-                                        style={{ fontSize: "20px" }}
-                                        title="Verified"
-                                      ></i>
+                                      <i className="fa-solid fa-check text-success" style={{ fontSize: "20px" }} title="Verified"></i>
                                     )}
                                   </td>
 
-                                  {/* Action */}
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     {!bulkDeleteMode && (
                                       <>
@@ -719,7 +686,6 @@ export const CustomerMasterGrid = () => {
                                       </span>
                                     )}
                                   </td>
-
                                 </tr>
                               );
                             })
@@ -739,12 +705,8 @@ export const CustomerMasterGrid = () => {
                 {/* ── Pagination ── */}
                 {pagination.totalPages > 0 && (
                   <div className="pagination-container text-center my-3 sm">
-                    <button disabled={!pagination.hasPrevPage || loading} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">
-                      First
-                    </button>
-                    <button disabled={!pagination.hasPrevPage || loading} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">
-                      Previous
-                    </button>
+                    <button disabled={!pagination.hasPrevPage || loading} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">First</button>
+                    <button disabled={!pagination.hasPrevPage || loading} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">Previous</button>
 
                     {startPage > 1 && <span className="mx-2 text-white">...</span>}
 
@@ -757,12 +719,8 @@ export const CustomerMasterGrid = () => {
 
                     {endPage < pagination.totalPages && <span className="mx-2 text-white">...</span>}
 
-                    <button disabled={!pagination.hasNextPage || loading} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">
-                      Next
-                    </button>
-                    <button disabled={!pagination.hasNextPage || loading} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">
-                      Last
-                    </button>
+                    <button disabled={!pagination.hasNextPage || loading} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">Next</button>
+                    <button disabled={!pagination.hasNextPage || loading} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">Last</button>
 
                     <div className="mt-1">
                       <small className="text-white-50">
@@ -800,8 +758,17 @@ export const CustomerMasterGrid = () => {
       )}
 
       {AddPopUpShow && <AddCustomerPopUp handleAdd={handleAdd} />}
+
       {updatePopUpShow && (
         <UpdateCustomerPopUp selectedCust={selectedCust} handleUpdate={handleUpdate} />
+      )}
+
+      {/* ── Reassign Ownership Popup ── */}
+      {reassignPopUpShow && (
+        <ReassignOwnedByPopUp
+          onClose={() => setReassignPopUpShow(false)}
+          onDone={handleReassignDone}
+        />
       )}
     </>
   );
