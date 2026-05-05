@@ -22,7 +22,7 @@ const productOptions = [
   "Home Automation", "IP PA and Communication System", "CRM", "KMS",
   "VMS", "PMS", "Boom Barrier System", "Tripod System", "Flap Barrier System",
   "EPBX System", "CMS", "Lift Elevator System", "AV6", "Walky Talky System",
-  "Device Management System"
+  "Device Management System", "VisionIQ","CineMind","Extracto","Virtual Agent"
 ];
 
 // ── Review Criteria (12 fields) ──────────────────────────────────────────────

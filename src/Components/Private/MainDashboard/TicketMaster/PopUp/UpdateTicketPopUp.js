@@ -123,7 +123,11 @@ const UpdateEmployeePopUp = ({ handleUpdate, selectedTicket }) => {
     "Lift Elevator System",
     "AV6",
     "Walky Talky System",
-    "Device Management System"
+    "Device Management System",
+    "VisionIQ",
+    "CineMind",
+    "Extracto",
+    "Virtual Agent"
   ];
 
   return (

@@ -40,6 +40,10 @@ const PRODUCT_OPTIONS = [
   "AV6",
   "Walky Talky System",
   "Device Management System",
+  "VisionIQ",
+  "CineMind",
+  "Extracto",
+  "Virtual Agent",
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────

@@ -85,7 +85,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     'Home Automation', 'IP PA and Communication System', 'CRM', 'Security Systems',
     'KMS', 'VMS', 'PMS', 'Boom Barrier System', 'Tripod System', 'Flap Barrier System',
     'EPBX System', 'CMS', 'Lift Eliviter System', 'AV6', 'Walky Talky System',
-    'Device Management System', 'Other',
+    'Device Management System', 'VisionIQ','CineMind','Extracto','Virtual Agent', 'Other',
   ];
 
   const productOptions = productsList.map(p => ({ value: p, label: p }));

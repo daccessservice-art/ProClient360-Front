@@ -480,6 +480,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             <option value="AV6">AV6</option>
                                             <option value="Walky Talky System">Walky Talky System</option>
                                             <option value="Device Management System">Device Management System</option>
+                                            <option value="VisionIQ">VisionIQ</option>
+                                            <option value="CineMind">CineMind</option>
+                                            <option value="Extracto">Extracto</option>
+                                            <option value="Virtual Agent">Virtual Agent</option>
                                         </select>
                                     </div>
                                 </div>
