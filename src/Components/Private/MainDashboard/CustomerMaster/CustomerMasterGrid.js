@@ -22,7 +22,6 @@ const ALLOWED_BULK_DELETE_DESIGNATIONS = [
   "Soft Test",
 ];
 
-// ── Same 3 designations + company can reassign ownership ──
 const ALLOWED_REASSIGN_DESIGNATIONS = [
   "Director Digi Solution",
   "CEO & Founder",
@@ -40,7 +39,6 @@ export const CustomerMasterGrid = () => {
   const [deletePopUpShow, setdeletePopUpShow] = useState(false);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
 
-  // ── Reassign popup ──
   const [reassignPopUpShow, setReassignPopUpShow] = useState(false);
 
   const [selectedId, setSelecteId] = useState(null);
@@ -54,6 +52,12 @@ export const CustomerMasterGrid = () => {
     limit: 40, hasNextPage: false, hasPrevPage: false,
   });
 
+  // ── Filtered counts (respects active filters) ──
+  const [totalCounts, setTotalCounts] = useState({ main: 0, branch: 0 });
+
+  // ── ALL-TIME total counts (always unfiltered — shown in header badges) ──
+  const [allTotalCounts, setAllTotalCounts] = useState({ main: 0, branch: 0 });
+
   const [createdByFilter, setCreatedByFilter] = useState("");
   const [ownedByFilter, setOwnedByFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
@@ -61,13 +65,11 @@ export const CustomerMasterGrid = () => {
   const [customerTypeFilter, setCustomerTypeFilter] = useState("");
   const [filterEmployees, setFilterEmployees] = useState([]);
 
-  // ── Bulk Delete State ──
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDeleteConfirmShow, setBulkDeleteConfirmShow] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  // ── Refetch trigger ──
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const itemsPerPage = 40;
@@ -88,7 +90,6 @@ export const CustomerMasterGrid = () => {
     user?.user === "company" ||
     ALLOWED_BULK_DELETE_DESIGNATIONS.includes(user?.designation || "");
 
-  // ── Can reassign ownership ──
   const canReassign =
     user?.user === "company" ||
     ALLOWED_REASSIGN_DESIGNATIONS.includes(user?.designation || "");
@@ -120,7 +121,6 @@ export const CustomerMasterGrid = () => {
     setCurrentPage(1);
   };
 
-  // ── Bulk Delete Handlers ──
   const handleToggleBulkDeleteMode = () => {
     setBulkDeleteMode((prev) => !prev);
     setSelectedIds([]);
@@ -172,7 +172,6 @@ export const CustomerMasterGrid = () => {
     setRefetchTrigger((n) => n + 1);
   };
 
-  // ── Reassign Handlers ──
   const handleOpenReassign = () => {
     setBulkDeleteMode(false);
     setSelectedIds([]);
@@ -180,7 +179,6 @@ export const CustomerMasterGrid = () => {
   };
 
   const handleReassignDone = () => {
-    // Called when at least 1 customer was reassigned — refetch table
     setRefetchTrigger((n) => n + 1);
   };
 
@@ -226,6 +224,16 @@ export const CustomerMasterGrid = () => {
             currentPage: 1, totalPages: 0, totalCustomers: 0,
             limit: itemsPerPage, hasNextPage: false, hasPrevPage: false,
           });
+
+          // ── Filtered counts (matches active filters) ──
+          if (data.counts) {
+            setTotalCounts({ main: data.counts.main || 0, branch: data.counts.branch || 0 });
+          }
+
+          // ── Always-total counts (ignores all filters — shown in header) ──
+          if (data.allCounts) {
+            setAllTotalCounts({ main: data.allCounts.main || 0, branch: data.allCounts.branch || 0 });
+          }
         } else {
           toast(data?.error || "Failed to fetch customers");
         }
@@ -307,14 +315,54 @@ export const CustomerMasterGrid = () => {
 
                 {/* ── Top bar ── */}
                 <div className="row px-2 py-1 align-items-center">
-                  <div className="col-12 col-lg-2">
-                    <h5 className="text-white py-2 mb-0">Customer Master</h5>
+
+                  {/* ── Heading: always shows TOTAL Main / Branch across ALL customers (unfiltered) ── */}
+                  <div className="col-12 col-lg-3">
+                    <h5 className="text-white py-2 mb-0 d-flex align-items-center flex-wrap gap-2">
+                      Customer Master
+                      {!loading && (
+                        <>
+                          {/* Total Main — always full count regardless of filters */}
+                          <span
+                            className="badge bg-primary"
+                            title="Total Main customers (all customers, ignores filters)"
+                            style={{ fontSize: "11px", fontWeight: "500" }}
+                          >
+                            <i className="fa-solid fa-building me-1"></i>
+                            {allTotalCounts.main} Main
+                          </span>
+
+                          {/* Total Branch — always full count regardless of filters */}
+                          <span
+                            className="badge bg-info text-dark"
+                            title="Total Branch customers (all customers, ignores filters)"
+                            style={{ fontSize: "11px", fontWeight: "500" }}
+                          >
+                            <i className="fa-solid fa-code-branch me-1"></i>
+                            {allTotalCounts.branch} Branch
+                          </span>
+
+                          {/* If filters are active, also show filtered sub-counts */}
+                          {isFilterActive && (
+                            <span
+                              className="badge bg-secondary"
+                              title="Filtered result counts"
+                              style={{ fontSize: "10px", fontWeight: "400" }}
+                            >
+                              (Filtered: {totalCounts.main}M / {totalCounts.branch}B)
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </h5>
                   </div>
 
-                  <div className="col-12 col-lg-10">
+                  {/* ── Controls ── */}
+                  <div className="col-12 col-lg-9">
                     <div className="row g-2 align-items-end justify-content-end">
 
-                      <div className="col-12 col-sm-6 col-lg-2">
+                      {/* ── Search bar ── */}
+                      <div className="col-12 col-sm-6 col-lg-3">
                         <div className="form">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
@@ -348,10 +396,10 @@ export const CustomerMasterGrid = () => {
                         </select>
                       </div>
 
-                      <div className="col-12 col-sm-6 col-lg-2">
+                      <div className="col-12 col-sm-6 col-lg-1">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Owned By</label>
                         <select className="form-select form-select-sm" value={ownedByFilter} onChange={handleOwnedByFilter}>
-                          <option value="">Select Owned By</option>
+                          <option value="">Owned By</option>
                           <option value="NA">NA / None</option>
                           {filterEmployees.map((emp) => (
                             <option key={emp._id} value={emp.name}>{emp.name}</option>
@@ -362,7 +410,7 @@ export const CustomerMasterGrid = () => {
                       <div className="col-12 col-sm-6 col-lg-1">
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Priority</label>
                         <select className="form-select form-select-sm" value={priorityFilter} onChange={handlePriorityFilter}>
-                          <option value="">Select Priority</option>
+                          <option value="">Priority</option>
                           <option value="P1">P1 - High</option>
                           <option value="P2">P2 - Medium</option>
                           <option value="P3">P3 - Low</option>
@@ -370,10 +418,10 @@ export const CustomerMasterGrid = () => {
                         </select>
                       </div>
 
-                      <div className="col-12 col-sm-6 col-lg-2">
-                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Select Industry Type</label>
+                      <div className="col-12 col-sm-6 col-lg-1">
+                        <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>Industry Type</label>
                         <select className="form-select form-select-sm" value={industryTypeFilter} onChange={handleIndustryTypeFilter}>
-                          <option value="">Select Industry Type</option>
+                          <option value="">Industry</option>
                           <option value="NA">NA</option>
                           {industryOptions.map((opt) => (
                             <option key={opt} value={opt}>{opt}</option>
@@ -390,7 +438,6 @@ export const CustomerMasterGrid = () => {
                             </button>
                           )}
 
-                          {/* ── Reassign Ownership Button ── */}
                           {canReassign && (
                             <button
                               onClick={handleOpenReassign}
@@ -404,7 +451,6 @@ export const CustomerMasterGrid = () => {
                             </button>
                           )}
 
-                          {/* ── Bulk Delete Toggle Button ── */}
                           {canBulkDelete && (
                             <button
                               onClick={handleToggleBulkDeleteMode}
