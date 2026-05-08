@@ -69,6 +69,8 @@ import { FeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingM
 import { ExhibitionMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionMasterGrid";
 import { ExhibitionVisitMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionVisitMasterGrid";
 
+import { AccountMasterGrid } from "./Components/Private/MainDashboard/AccountMaster/AccountMasterGrid";
+
 import AssetView from "./Components/Public/AssetView";
 
 // Custom component to check if user has required permissions
@@ -226,6 +228,7 @@ const AllRoutes = () => {
                 
                 <Route exact path="/ExhibitionMasterGrid" element={<ProtectRoute Component={ExhibitionMasterGrid} />} />
                 <Route exact path="/ExhibitionVisitMasterGrid" element={<ProtectRoute Component={ExhibitionVisitMasterGrid} />} />
+                <Route exact path="/AccountMasterGrid" element={<ProtectRoute Component={AccountMasterGrid} />} />
                             
                 {/* Company Routes */}
                 {user && user?.user === 'company' && (

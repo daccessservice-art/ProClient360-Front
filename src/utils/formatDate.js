@@ -82,3 +82,14 @@ export function formatDateTimeForDisplay(dateString) {
 
   return `${day} ${month} ${year} ${hours}:${minutes}`;
 }
+
+// ✅ NEW — formats number as Indian currency: ₹1,00,000
+export function formatCurrency(amount) {
+  if (amount === null || amount === undefined || isNaN(amount)) return '₹0';
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}

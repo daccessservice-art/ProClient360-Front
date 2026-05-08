@@ -430,6 +430,14 @@ export const Sidebar = ({ isopen, active }) => {
                             </Link>
                         </li>
                     ) : null}
+{user?.permissions?.includes("viewAccountMaster") || user?.user === 'company' ? (
+    <li title="Account Master" className={active === "AccountMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+        <Link to='/AccountMasterGrid' className="nav-link ">
+            <i className="fa-solid fa-indian-rupee-sign ps-3 side_icon_fs"></i>
+            <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>Account Master</span>
+        </Link>
+    </li>
+) : null}
                 </ul>
             </nav>
         </div>

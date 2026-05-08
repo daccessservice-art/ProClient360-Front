@@ -1142,6 +1142,18 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
+                          {/* ✅ NEW: ACCOUNT MASTER */}
+                          <tr className="table-primary">
+                            <td className="fw-bold">Accounts Master</td>
+                            <td><label className="toggler-wrapper style-22"><input type="checkbox" name="createAccountMaster" checked={designation.permissions.includes('createAccountMaster')} onChange={(e) => handlePermissionChange('createAccountMaster', e.target.checked)} />
+                            <div className="toggler-slider"><div className="toggler-knob"></div></div></label></td>
+                            <td><label className="toggler-wrapper style-22"><input type="checkbox" name="viewAccountMaster" checked={designation.permissions.includes('viewAccountMaster')} onChange={(e) => handlePermissionChange('viewAccountMaster', e.target.checked)} /><div className="toggler-slider"><div className="toggler-knob"></div></div></label></td>
+                            <td><label className="toggler-wrapper style-22"><input type="checkbox" name="updateAccountMaster" checked={designation.permissions.includes('updateAccountMaster')} onChange={(e) => handlePermissionChange('updateAccountMaster', e.target.checked)} /><div className="toggler-slider"><div className="toggler-knob"></div></div></label></td>
+                            <td><label className="toggler-wrapper style-22"><input type="checkbox" name="deleteAccountMaster" checked={designation.permissions.includes('deleteAccountMaster')} onChange={(e) => handlePermissionChange('deleteAccountMaster', e.target.checked)} /><div className="toggler-slider"><div className="toggler-knob"></div></div></label>
+                            </td>
+                          </tr>
+
+
                         </tbody>
                       </table>
                     </div>
