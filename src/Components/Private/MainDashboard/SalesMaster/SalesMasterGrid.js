@@ -20,6 +20,7 @@ import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import useReassignLead from "../../../../hooks/leads/useReassignLead";
 import MeetingDrawer from "./PopUp/MeetingDrawer";
 import ChatbotDrawer from "./PopUp/ChatbotDrawer";
+import SurveyEngineerWorkPopup from "./PopUp/SurveyEngineerWorkPopup";
 
 const ALL_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/my-leads`;
 
@@ -82,15 +83,12 @@ const TodayActionHoverPopup = ({ lead, sidebarW, onMouseEnter, onMouseLeave }) =
 };
 
 // ── Amount Total Summary Popup ────────────────────────────────────────────────
-// Shows when status or source filter is active — sums quotation from all funnel leads
 const AmountTotalPopup = ({ funnelLeads, filters }) => {
   const hasFilter = filters.status || filters.source || filters.callLeads;
   if (!hasFilter) return null;
 
-  // Only count leads that have a quotation > 0
   const leadsWithAmount = funnelLeads.filter(l => l.quotation > 0);
 
-  // Totals per status
   const wonTotal     = leadsWithAmount.filter(l => l.STATUS === 'Won').reduce((s, l) => s + (l.quotation || 0), 0);
   const ongoingTotal = leadsWithAmount.filter(l => l.STATUS === 'Ongoing').reduce((s, l) => s + (l.quotation || 0), 0);
   const pendingTotal = leadsWithAmount.filter(l => l.STATUS === 'Pending').reduce((s, l) => s + (l.quotation || 0), 0);
@@ -99,14 +97,12 @@ const AmountTotalPopup = ({ funnelLeads, filters }) => {
 
   const fmt = (n) => n > 0 ? '₹' + Number(n).toLocaleString('en-IN') : '—';
 
-  // Build active filter label
   const filterParts = [];
   if (filters.status)    filterParts.push(filters.status);
   if (filters.source)    filterParts.push(filters.source);
   if (filters.callLeads) filterParts.push(filters.callLeads);
   const filterLabel = filterParts.join(' · ');
 
-  // Status rows to show (only if that filter is not hiding them)
   const rows = [
     { label: 'Won',     amount: wonTotal,     color: '#198754', bg: '#d1e7dd', show: !filters.status || filters.status === 'Won' },
     { label: 'Ongoing', amount: ongoingTotal, color: '#0d6efd', bg: '#cfe2ff', show: !filters.status || filters.status === 'Ongoing' },
@@ -137,7 +133,6 @@ const AmountTotalPopup = ({ funnelLeads, filters }) => {
       minWidth: '260px',
       animation: 'popupFadeIn 0.2s ease',
     }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
         <span style={{
           background: 'linear-gradient(135deg, #0d6efd, #6f42c1)',
@@ -151,7 +146,6 @@ const AmountTotalPopup = ({ funnelLeads, filters }) => {
         </span>
       </div>
 
-      {/* Status breakdown */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
         {rows.map(r => r.amount > 0 && (
           <span key={r.label} style={{
@@ -164,7 +158,6 @@ const AmountTotalPopup = ({ funnelLeads, filters }) => {
         ))}
       </div>
 
-      {/* Grand total */}
       <div style={{
         borderTop: '1px solid #e2e8f0', paddingTop: '7px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -213,6 +206,10 @@ export const SalesMasterGrid = () => {
   const { reassignLead } = useReassignLead();
   const [allLeads, setAllLeads] = useState([]);
 
+  // ========== SURVEY ENGINEER WORK POPUP STATE ==========
+  const [surveyWorkPopup, setSurveyWorkPopup] = useState(false);
+  const [selectedSurveyLead, setSelectedSurveyLead] = useState(null);
+
   const fetchAllLeadsForFunnel = useCallback(async () => {
     setFunnelLoading(true);
     try {
@@ -221,6 +218,32 @@ export const SalesMasterGrid = () => {
       if (response.data.success) setFunnelLeads(response.data.leads || []); else setFunnelLeads([]);
     } catch (err) { setFunnelLeads([]); } finally { setFunnelLoading(false); }
   }, [filters.source, filters.date, filters.status, filters.callLeads, filters.searchTerm, filters.followUpToday, filters.todayAction]);
+
+  // ========== SURVEY ENGINEER WORK HANDLERS ==========
+  const handleSurveyWork = (lead) => {
+    // Check if current user is a survey engineer
+    const isSurveyEngineer = user?.role === 'survey_engineer' || user?.role === 'Survey Engineer';
+    const isAssignedToMe = lead.assignedSurveyEngineer?._id === user?._id;
+    
+    if (!isSurveyEngineer) {
+      toast.error('Only survey engineers can submit survey reports.');
+      return;
+    }
+    
+    if (!isAssignedToMe) {
+      toast.error('This lead is not assigned to you for survey.');
+      return;
+    }
+    
+    setSelectedSurveyLead(lead);
+    setSurveyWorkPopup(true);
+  };
+
+  const handleSurveySuccess = () => {
+    refetch();
+    fetchAllLeadsForFunnel();
+    toast.success('Survey report submitted successfully!');
+  };
 
   useEffect(() => { fetchAllLeadsForFunnel(); }, [fetchAllLeadsForFunnel]);
   useEffect(() => { if (viewMode === "funnel") fetchAllLeadsForFunnel(); }, [viewMode]);
@@ -247,7 +270,6 @@ export const SalesMasterGrid = () => {
   const isTodayActionMode = filters.todayAction;
   const sidebarW = isopen ? 260 : 125;
 
-  // ── Amount total — computed from funnelLeads (all matching leads) ─────────
   const hasAmountFilter = !!(filters.status || filters.source || filters.callLeads);
 
   const handlePageChange = (page) => { if (page >= 1 && page <= pagination.totalPages) setPagination(prev => ({ ...prev, currentPage: page })); };
@@ -286,6 +308,9 @@ export const SalesMasterGrid = () => {
 
   const formatAmount = (val) => { if (!val || val <= 0) return null; return '₹' + Number(val).toLocaleString('en-IN'); };
 
+  // Check if user is survey engineer
+  const isSurveyEngineer = user?.role === 'survey_engineer' || user?.role === 'Survey Engineer';
+
   return (
     <>
       {(loading || funnelLoading) && (<div className="overlay"><span className="loader"></span></div>)}
@@ -315,7 +340,7 @@ export const SalesMasterGrid = () => {
 
                 {data?.quotationFunnel && (<div className="row p-2 m-1"><div className="col-12"><SalesQuotationFunnel totalQuotationAmount={data.quotationFunnel.totalActiveQuotationAmount || 0} activeQuotationLeads={data.quotationFunnel.activeQuotationLeads || []} wonAmount={data.quotationFunnel.totalWonAmount || 0} lostAmount={data.quotationFunnel.totalLostAmount || 0} /></div></div>)}
 
-                {/* ── Filter bar ────────────────────────────────────────── */}
+                {/* Filter bar */}
                 <div className="row align-items-center p-3 m-1 bg-light rounded mb-2">
                   <div className="col-12 col-lg-6">
                     <div className="input-group">
@@ -337,7 +362,7 @@ export const SalesMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* ── Amount Total Popup — shows below filter bar when filter is active ── */}
+                {/* Amount Total Popup */}
                 {hasAmountFilter && !funnelLoading && (
                   <div className="row px-3 mb-2" style={{ marginTop: '-2px' }}>
                     <div className="col-12 d-flex align-items-center gap-3 flex-wrap">
@@ -424,12 +449,24 @@ export const SalesMasterGrid = () => {
                                         <div className="btn-group" role="group">
                                           <button className="btn btn-sm btn-outline-info" onClick={() => handleDetailsPopUpClick(lead)} title="View"><i className="fa-solid fa-eye"></i></button>
                                           <button className="btn btn-sm btn-outline-primary" onClick={() => handleMeeting(lead)} title="Schedule Meeting"><i className="fa-solid fa-video"></i></button>
+                                          {/* Survey Work Button for Survey Engineers */}
+                                          {isSurveyEngineer && lead.assignedSurveyEngineer?._id === user?._id && (
+                                            <button className="btn btn-sm btn-outline-success" onClick={() => handleSurveyWork(lead)} title="Submit Survey Report">
+                                              <i className="fa-solid fa-clipboard-list"></i>
+                                            </button>
+                                          )}
                                         </div>
                                       ) : (
                                         <div className="btn-group" role="group">
                                           {canUpdateLead && (<button className="btn btn-sm btn-outline-success" onClick={() => handleUpdate(lead)} title="Update"><i className="fa-solid fa-pen"></i></button>)}
                                           {canAssignLead && (<button className="btn btn-sm btn-outline-warning" onClick={() => handleAssign(lead)} title="Reassign"><i className="fa-solid fa-share"></i></button>)}
                                           <button className="btn btn-sm btn-outline-primary" onClick={() => handleMeeting(lead)} title="Schedule Meeting"><i className="fa-solid fa-video"></i></button>
+                                          {/* Survey Work Button for Survey Engineers */}
+                                          {isSurveyEngineer && lead.assignedSurveyEngineer?._id === user?._id && (
+                                            <button className="btn btn-sm btn-outline-info" onClick={() => handleSurveyWork(lead)} title="Submit Survey Report">
+                                              <i className="fa-solid fa-clipboard-list"></i>
+                                            </button>
+                                          )}
                                           {lead.SOURCE === 'Direct' && canDeleteLead && (<button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(lead._id)} title="Delete"><i className="fa-solid fa-trash"></i></button>)}
                                         </div>
                                       )}
@@ -472,6 +509,18 @@ export const SalesMasterGrid = () => {
       {showLeadPopUp && selectedLead && (<ViewSalesLeadPopUp closePopUp={() => { setShowLeadPopUp(false); setSelectedLead(null); }} selectedLead={selectedLead} />)}
       {meetingDrawer && selectedLead && <MeetingDrawer lead={selectedLead} onClose={handleMeetingClose} />}
       <ChatbotDrawer page="sales" />
+
+      {/* Survey Engineer Work Popup */}
+      {surveyWorkPopup && selectedSurveyLead && (
+        <SurveyEngineerWorkPopup 
+          selectedLead={selectedSurveyLead}
+          onClose={() => {
+            setSurveyWorkPopup(false);
+            setSelectedSurveyLead(null);
+          }}
+          onSuccess={handleSurveySuccess}
+        />
+      )}
 
       <style jsx>{`
         .row-today-followup { animation: blinkRed 1s infinite; }

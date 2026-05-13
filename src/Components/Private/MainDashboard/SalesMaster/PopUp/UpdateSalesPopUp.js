@@ -3,6 +3,8 @@ import toast from 'react-hot-toast';
 import { RequiredStar } from '../../../RequiredStar/RequiredStar';
 import useUpdateLead from '../../../../../hooks/leads/useUpdateLead';
 import { ObjectId } from 'bson';
+import Select from 'react-select';
+import axios from 'axios';
 
 const actionOptions = [
   '1. Call Not Connect/ Callback',
@@ -35,7 +37,77 @@ const sourceOptions = [
   'Referral', 'Email Campaign', 'Cold Call', 'Website', 'Walk-In', 'Other'
 ];
 
-/* ── Editable Sender Information ── */
+// Survey Engineer Select Component
+const SurveyEngineerSelect = ({ selectedEngineer, onEngineerChange, disabled }) => {
+  const [employeeOptions, setEmployeeOptions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const loadAllEmployees = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/employee/all`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      let employees = [];
+      if (response.data.success) {
+        employees = response.data.employees || response.data.data || [];
+      } else if (Array.isArray(response.data)) {
+        employees = response.data;
+      } else if (response.data.employees) {
+        employees = response.data.employees;
+      }
+      
+      if (employees && employees.length > 0) {
+        const options = employees.map(emp => ({ 
+          value: emp._id, 
+          label: `${emp.name}${emp.department?.name ? ` (${emp.department.name})` : ''}${emp.role ? ` - ${emp.role}` : ''}` 
+        }));
+        setEmployeeOptions(options);
+      } else {
+        setEmployeeOptions([]);
+      }
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      setEmployeeOptions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAllEmployees();
+  }, []);
+
+  return (
+    <div className="mb-3">
+      <label className="form-label fw-bold">Assign to Survey Engineer</label>
+      <Select
+        options={employeeOptions}
+        value={selectedEngineer}
+        onChange={onEngineerChange}
+        isLoading={loading}
+        placeholder={loading ? "Loading employees..." : "Select Employee for Survey..."}
+        isClearable
+        isDisabled={disabled || loading}
+        noOptionsMessage={() => loading ? "Loading..." : "No employees found"}
+        styles={{
+          control: (provided) => ({
+            ...provided,
+            borderRadius: 0,
+            borderColor: '#ced4da',
+            fontSize: '14px',
+          })
+        }}
+      />
+      <small className="text-muted">Assign this lead to any employee for site survey</small>
+    </div>
+  );
+};
+
+/* Editable Sender Information */
 const EditableSenderInfo = ({ senderInfo, onSenderChange }) => {
   return (
     <div className="row">
@@ -58,7 +130,7 @@ const EditableSenderInfo = ({ senderInfo, onSenderChange }) => {
           <label className="form-label fw-bold" style={{ fontSize: '0.82rem' }}>Name</label>
           <input type="text" className="form-control form-control-sm" value={senderInfo.name}
             onChange={(e) => onSenderChange('name', e.target.value)} placeholder="Contact Name"
-            maxLength={50} onKeyPress={(e) => { if (!/[A-Za-z\s]/.test(e.key)) e.preventDefault(); }} />
+            maxLength={50} />
         </div>
 
         <div className="mb-2">
@@ -131,7 +203,7 @@ const EditableSenderInfo = ({ senderInfo, onSenderChange }) => {
   );
 };
 
-/* ── Read-only Query Information ── */
+/* Read-only Query Information */
 const QueryInfoView = ({ lead }) => {
   if (!lead) return null;
 
@@ -151,33 +223,33 @@ const QueryInfoView = ({ lead }) => {
     <div className="row">
       <div className="col-md-6 mb-2">
         <h6 className="fw-bold" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Product: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Product: </span>
           <span style={{ color: '#3b82f6' }}>{lead.QUERY_PRODUCT_NAME || "—"}</span>
         </h6>
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Subject: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Subject: </span>
           {lead.SUBJECT || "—"}
         </h6>
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Query Time: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Query Time: </span>
           {fmtDate(lead.createdAt)}
         </h6>
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Assigned By: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Assigned By: </span>
           {lead.assignedBy?.name || "Unknown"}
         </h6>
       </div>
       <div className="col-md-6 mb-2">
         <h6 className="fw-bold" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Assigned To: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Assigned To: </span>
           {lead.assignedTo?.name || "Unknown"}
         </h6>
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Assigned Time: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Assigned Time: </span>
           {fmtAssignedTime(lead.assignedTime)}
         </h6>
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Status: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Status: </span>
           <span className={
             lead.STATUS === 'Won' ? 'badge bg-success' :
             lead.STATUS === 'Lost' ? 'badge bg-danger' :
@@ -186,17 +258,17 @@ const QueryInfoView = ({ lead }) => {
           }>{lead.STATUS || "—"}</span>
         </h6>
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Current Stage: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Current Stage: </span>
           {lead.step || "—"}
         </h6>
       </div>
       <div className="col-md-6 mb-2">
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Completed: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Completed: </span>
           {lead.complated || "0"}%
         </h6>
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Won Amount: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Won Amount: </span>
           <span style={{ color: '#15803d', fontWeight: 700 }}>
             {lead.quotation > 0 ? '₹' + Number(lead.quotation).toLocaleString('en-IN') : "—"}
           </span>
@@ -204,7 +276,7 @@ const QueryInfoView = ({ lead }) => {
       </div>
       <div className="col-md-6 mb-2">
         <h6 className="fw-bold mt-2" style={{ fontSize: '0.85rem' }}>
-          <p className="fw-bold d-inline" style={{ color: '#1e293b' }}>Remark: </p>
+          <span className="fw-bold d-inline" style={{ color: '#1e293b' }}>Remark: </span>
           {lead.rem || "—"}
         </h6>
       </div>
@@ -218,9 +290,7 @@ const QueryInfoView = ({ lead }) => {
   );
 };
 
-/* ══════════════════════════════════
-   MAIN UPDATE POPUP
-═══════════════════════════════════ */
+/* MAIN UPDATE POPUP */
 const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
   const [showInfo, setShowInfo] = useState(isCompany);
   const [isLoading, setIsLoading] = useState(false);
@@ -228,9 +298,22 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
     actionType: '', date: '', completion: '', status: '', quotation: '', rem: '', callLeads: ''
   });
 
+  const [assignedSurveyEngineer, setAssignedSurveyEngineer] = useState(null);
+
   const [senderInfo, setSenderInfo] = useState({
     source: '', name: '', company: '', email: '', mobile: '',
     address: '', city: '', state: '', pincode: '', country: '', subject: '',
+  });
+
+  const [additionalFields, setAdditionalFields] = useState({
+    projectSize: '',
+    requirementType: '',
+    requirementMode: '',
+    surveyNeeded: '',
+    surveyDateTime: '',
+    communicatePerson: '',
+    communicateEmail: '',
+    communicateContact: ''
   });
 
   const [previousActions, setPreviousActions] = useState([]);
@@ -238,6 +321,10 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
 
   const handleSenderChange = (field, value) => {
     setSenderInfo(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAdditionalFieldChange = (field, value) => {
+    setAdditionalFields(prev => ({ ...prev, [field]: value }));
   };
 
   useEffect(() => {
@@ -271,6 +358,20 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
         country: selectedLead.SENDER_COUNTRY_ISO || '',
         subject: selectedLead.SUBJECT || '',
       });
+
+      setAdditionalFields({
+        projectSize: selectedLead.projectSize || '',
+        requirementType: selectedLead.requirementType || '',
+        requirementMode: selectedLead.requirementMode || '',
+        surveyNeeded: selectedLead.surveyNeeded || '',
+        surveyDateTime: selectedLead.surveyDetails?.dateTime ? new Date(selectedLead.surveyDetails.dateTime).toISOString().slice(0, 16) : '',
+        communicatePerson: selectedLead.surveyDetails?.communicatePerson || '',
+        communicateEmail: selectedLead.surveyDetails?.communicateEmail || '',
+        communicateContact: selectedLead.surveyDetails?.communicateContact || ''
+      });
+
+      setAssignedSurveyEngineer(selectedLead.assignedSurveyEngineer ? 
+        { value: selectedLead.assignedSurveyEngineer._id, label: selectedLead.assignedSurveyEngineer.name } : null);
 
       let actions = [];
       if (selectedLead.previousActions && selectedLead.previousActions.length > 0) {
@@ -336,7 +437,20 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
       nextFollowUpDate: actionData.date ? new Date(actionData.date).toISOString() : null,
       quotation: actionData.quotation ? parseFloat(actionData.quotation) : 0,
       rem: actionData.rem || '',
-      callLeads: actionData.callLeads || 'Warm Leads'
+      callLeads: actionData.callLeads || 'Warm Leads',
+      projectSize: additionalFields.projectSize && additionalFields.projectSize.trim() !== '' ? additionalFields.projectSize : null,
+      requirementType: additionalFields.requirementType && additionalFields.requirementType.trim() !== '' ? additionalFields.requirementType : null,
+      requirementMode: additionalFields.requirementMode && additionalFields.requirementMode.trim() !== '' ? additionalFields.requirementMode : null,
+      surveyNeeded: additionalFields.surveyNeeded && additionalFields.surveyNeeded.trim() !== '' ? additionalFields.surveyNeeded : null,
+      surveyDetails: {
+        dateTime: additionalFields.surveyDateTime ? new Date(additionalFields.surveyDateTime) : null,
+        communicatePerson: additionalFields.communicatePerson,
+        communicateEmail: additionalFields.communicateEmail,
+        communicateContact: additionalFields.communicateContact
+      },
+      assignedSurveyEngineer: assignedSurveyEngineer ? assignedSurveyEngineer.value : null,
+      surveyEngineerAssignedAt: assignedSurveyEngineer ? new Date() : null,
+      surveyEngineerAssignedBy: assignedSurveyEngineer ? selectedLead.assignedTo?._id : null
     };
 
     const newAction = {
@@ -398,7 +512,6 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
       <div className="modal-dialog modal-xl" style={{ maxWidth: '960px', width: '96%' }}>
         <div className="modal-content p-3">
           <form onSubmit={handleActionSubmit}>
-
             <div className="modal-header">
               <h5 className="card-title fw-bold mb-0">
                 <i className="fa-solid fa-pen-to-square me-2" style={{ color: '#6366f1' }}></i>
@@ -418,20 +531,174 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
             </div>
 
             <div className="modal-body" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
+              {/* Project Details & Survey Requirements */}
+              <div className="mb-4 border rounded p-3" style={{ backgroundColor: '#f9fafb' }}>
+                <h6 className="fw-bold mb-3" style={{ color: '#1e40af' }}>
+                  <i className="fa-solid fa-clipboard-list me-2"></i>
+                  Project & Survey Details
+                </h6>
+                <div className="row g-3">
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold">Project Size</label>
+                    <select 
+                      className="form-select" 
+                      value={additionalFields.projectSize || ''}
+                      onChange={(e) => handleAdditionalFieldChange('projectSize', e.target.value)}
+                    >
+                      <option value="">Select Size...</option>
+                      <option value="big">Big</option>
+                      <option value="medium">Medium</option>
+                      <option value="small">Small</option>
+                    </select>
+                  </div>
 
-              {/* ═══ SECTION 1: Editable Sender Info + Read-only Query Info ═══ */}
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold">Requirement Type</label>
+                    <div className="d-flex gap-3 mt-2">
+                      <div className="form-check">
+                        <input 
+                          className="form-check-input" 
+                          type="radio" 
+                          name="requirementType" 
+                          value="survey"
+                          checked={additionalFields.requirementType === 'survey'}
+                          onChange={(e) => handleAdditionalFieldChange('requirementType', e.target.value)}
+                        />
+                        <label className="form-check-label">Survey</label>
+                      </div>
+                      <div className="form-check">
+                        <input 
+                          className="form-check-input" 
+                          type="radio" 
+                          name="requirementType" 
+                          value="demo"
+                          checked={additionalFields.requirementType === 'demo'}
+                          onChange={(e) => handleAdditionalFieldChange('requirementType', e.target.value)}
+                        />
+                        <label className="form-check-label">Demo</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold">Mode</label>
+                    <div className="d-flex gap-3 mt-2">
+                      <div className="form-check">
+                        <input 
+                          className="form-check-input" 
+                          type="radio" 
+                          name="requirementMode" 
+                          value="online"
+                          disabled={!additionalFields.requirementType}
+                          checked={additionalFields.requirementMode === 'online'}
+                          onChange={(e) => handleAdditionalFieldChange('requirementMode', e.target.value)}
+                        />
+                        <label className="form-check-label">Online</label>
+                      </div>
+                      <div className="form-check">
+                        <input 
+                          className="form-check-input" 
+                          type="radio" 
+                          name="requirementMode" 
+                          value="offline"
+                          disabled={!additionalFields.requirementType}
+                          checked={additionalFields.requirementMode === 'offline'}
+                          onChange={(e) => handleAdditionalFieldChange('requirementMode', e.target.value)}
+                        />
+                        <label className="form-check-label">Offline</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-md-12">
+                    <label className="form-label fw-bold">Survey Needed?</label>
+                    <div className="d-flex gap-3 mt-2">
+                      <div className="form-check">
+                        <input 
+                          className="form-check-input" 
+                          type="radio" 
+                          name="surveyNeeded" 
+                          value="yes"
+                          checked={additionalFields.surveyNeeded === 'yes'}
+                          onChange={(e) => handleAdditionalFieldChange('surveyNeeded', e.target.value)}
+                        />
+                        <label className="form-check-label">Yes</label>
+                      </div>
+                      <div className="form-check">
+                        <input 
+                          className="form-check-input" 
+                          type="radio" 
+                          name="surveyNeeded" 
+                          value="no"
+                          checked={additionalFields.surveyNeeded === 'no'}
+                          onChange={(e) => handleAdditionalFieldChange('surveyNeeded', e.target.value)}
+                        />
+                        <label className="form-check-label">No</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {additionalFields.surveyNeeded === 'yes' && (
+                    <>
+                      <div className="col-md-6">
+                        <label className="form-label fw-bold">Survey Date & Time</label>
+                        <input 
+                          type="datetime-local" 
+                          className="form-control"
+                          value={additionalFields.surveyDateTime}
+                          onChange={(e) => handleAdditionalFieldChange('surveyDateTime', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-bold">Communicate Person Name</label>
+                        <input 
+                          type="text" 
+                          className="form-control"
+                          placeholder="Enter person name"
+                          value={additionalFields.communicatePerson}
+                          onChange={(e) => handleAdditionalFieldChange('communicatePerson', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-bold">Communicate Email</label>
+                        <input 
+                          type="email" 
+                          className="form-control"
+                          placeholder="Enter email address"
+                          value={additionalFields.communicateEmail}
+                          onChange={(e) => handleAdditionalFieldChange('communicateEmail', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label fw-bold">Communicate Contact Number</label>
+                        <input 
+                          type="tel" 
+                          className="form-control"
+                          placeholder="Enter contact number"
+                          value={additionalFields.communicateContact}
+                          onChange={(e) => handleAdditionalFieldChange('communicateContact', e.target.value)}
+                        />
+                      </div>
+                      <div className="col-12">
+                        <SurveyEngineerSelect 
+                          selectedEngineer={assignedSurveyEngineer}
+                          onEngineerChange={setAssignedSurveyEngineer}
+                          disabled={false}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Sender Info & Query Info */}
               {showInfo && (
                 <>
-                  {/* Sender Information — Editable */}
                   <EditableSenderInfo
                     senderInfo={senderInfo}
                     onSenderChange={handleSenderChange}
                   />
-
-                  {/* Divider */}
                   <hr style={{ margin: '16px 0 12px 0', borderColor: '#e2e8f0' }} />
-
-                  {/* Query Information — Read-only */}
                   <div style={{
                     background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px',
                     padding: '14px 18px', marginBottom: '8px',
@@ -445,115 +712,113 @@ const UpdateSalesPopUp = ({ selectedLead, onUpdate, onClose, isCompany }) => {
                 </>
               )}
 
-              {/* ═══ SECTION 2: Work Data ═══ */}
+              {/* Work Data */}
               {!isCompany && (
-                <>
-                  <div className={`text-muted border-top ${showInfo ? 'pt-3 mt-2' : 'pt-0 mt-0'} pb-2 mb-3`}>
-                    <h5>
-                      <i className="fa-solid fa-briefcase me-2" style={{ color: '#f59e0b' }}></i>
-                      Work Data
-                    </h5>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label htmlFor="status" className="form-label fw-bold">Status<RequiredStar /></label>
-                        <select id="status" className="form-select" name="status" onChange={handleActionChange} value={actionData.status} required>
-                          <option value="" disabled>-- Select a status --</option>
-                          <option value="Pending">Pending</option>
-                          <option value="Ongoing">Ongoing</option>
-                          <option value="Won">Won</option>
-                          <option value="Lost">Lost</option>
-                        </select>
-                      </div>
+                <div className={`text-muted border-top ${showInfo ? 'pt-3 mt-2' : 'pt-0 mt-0'} pb-2 mb-3`}>
+                  <h5>
+                    <i className="fa-solid fa-briefcase me-2" style={{ color: '#f59e0b' }}></i>
+                    Work Data
+                  </h5>
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label htmlFor="status" className="form-label fw-bold">Status<RequiredStar /></label>
+                      <select id="status" className="form-select" name="status" onChange={handleActionChange} value={actionData.status} required>
+                        <option value="" disabled>-- Select a status --</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Ongoing">Ongoing</option>
+                        <option value="Won">Won</option>
+                        <option value="Lost">Lost</option>
+                      </select>
+                    </div>
 
-                      {actionData.status !== 'Won' && actionData.status !== 'Lost' && (
-                        <div className="col-md-6">
-                          <label htmlFor="actionType" className="form-label fw-bold">Steps<RequiredStar /></label>
-                          <select id="actionType" name="actionType" className="form-select" value={actionData.actionType} onChange={handleActionChange} required>
-                            <option value="" disabled>-- Select an action --</option>
-                            {actionOptions.map((action, index) => (
-                              <option key={index} value={action}>{action}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
+                    {actionData.status !== 'Won' && actionData.status !== 'Lost' && (
                       <div className="col-md-6">
-                        <label htmlFor="callLeads" className="form-label fw-bold">Leads (Optional)</label>
-                        <select id="callLeads" name="callLeads" className="form-select" value={actionData.callLeads} onChange={handleActionChange}>
-                          <option value="">Select Leads....</option>
-                          {callLeadsOptions.map((lead, index) => (
-                            <option key={index} value={lead}>{lead}</option>
+                        <label htmlFor="actionType" className="form-label fw-bold">Steps<RequiredStar /></label>
+                        <select id="actionType" name="actionType" className="form-select" value={actionData.actionType} onChange={handleActionChange} required>
+                          <option value="" disabled>-- Select an action --</option>
+                          {actionOptions.map((action, index) => (
+                            <option key={index} value={action}>{action}</option>
                           ))}
                         </select>
                       </div>
+                    )}
 
-                      {actionData.status !== 'Won' && actionData.status !== 'Lost' && (
-                        <div className="col-md-6">
-                          <label htmlFor="completion" className="form-label fw-bold">Status (%)<RequiredStar /></label>
-                          <input type="text" className="form-control" id="completion" name="completion"
-                            placeholder="Enter work completion %" maxLength={6} value={actionData.completion}
-                            onChange={handleActionChange} required />
-                        </div>
-                      )}
+                    <div className="col-md-6">
+                      <label htmlFor="callLeads" className="form-label fw-bold">Leads (Optional)</label>
+                      <select id="callLeads" name="callLeads" className="form-select" value={actionData.callLeads} onChange={handleActionChange}>
+                        <option value="">Select Leads....</option>
+                        {callLeadsOptions.map((lead, index) => (
+                          <option key={index} value={lead}>{lead}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                      {actionData.status === 'Won' && (
-                        <div className="col-md-6">
-                          <label htmlFor="quotation" className="form-label fw-bold">Amount Show (₹)<RequiredStar /></label>
-                          <input type="text" className="form-control" id="quotation" name="quotation"
-                            placeholder="Enter quotation amount" value={actionData.quotation}
-                            onChange={handleActionChange} required />
-                        </div>
-                      )}
-
-                      {actionData.status !== 'Won' && actionData.status !== 'Lost' &&
-                        amountSteps.includes(actionData.actionType) && (
-                        <div className="col-md-6">
-                          <label htmlFor="quotation" className="form-label fw-bold">
-                            Amount Show (₹)
-                            {actionData.actionType === '7. Quotation Submission' && <RequiredStar />}
-                          </label>
-                          <input type="text" className="form-control" id="quotation" name="quotation"
-                            placeholder="Enter quotation amount" value={actionData.quotation}
-                            onChange={handleActionChange}
-                            required={actionData.actionType === '7. Quotation Submission'} />
-                        </div>
-                      )}
-
-                      {actionData.status !== 'Won' && actionData.status !== 'Lost' && (
-                        <div className="col-md-6">
-                          <label htmlFor="date" className="form-label fw-bold">Next Follow-up Date<RequiredStar /></label>
-                          <input id="date" type="datetime-local" className="form-control" name="date"
-                            value={actionData.date || ''} onChange={handleActionChange}
-                            min={new Date().toISOString().slice(0, 16)} required />
-                        </div>
-                      )}
-
-                      <div className="col-12">
-                        <label htmlFor="rem" className="form-label fw-bold">
-                          Remark
-                          {(actionData.status === 'Won' || actionData.status === 'Lost') && <RequiredStar />}
-                        </label>
-                        {actionData.status === 'Lost' && (
-                          <div className="alert alert-danger py-1 px-2 mb-1" style={{ fontSize: '0.78rem' }}>
-                            <i className="fa-solid fa-circle-exclamation me-1"></i>
-                            Lost reason is <strong>required</strong>.
-                          </div>
-                        )}
-                        <textarea id="rem" name="rem"
-                          className={`form-control ${actionData.status === 'Lost' ? 'border-danger' : ''}`}
-                          placeholder={
-                            actionData.status === 'Lost'
-                              ? 'Required: Why was this deal lost?'
-                              : actionData.status === 'Won'
-                              ? 'Required: Describe how the deal was won.'
-                              : 'Enter your remarks here...'
-                          }
-                          rows="3" value={actionData.rem} onChange={handleActionChange}
-                          required={actionData.status === 'Won' || actionData.status === 'Lost'} />
+                    {actionData.status !== 'Won' && actionData.status !== 'Lost' && (
+                      <div className="col-md-6">
+                        <label htmlFor="completion" className="form-label fw-bold">Status (%)<RequiredStar /></label>
+                        <input type="text" className="form-control" id="completion" name="completion"
+                          placeholder="Enter work completion %" maxLength={6} value={actionData.completion}
+                          onChange={handleActionChange} required />
                       </div>
+                    )}
+
+                    {actionData.status === 'Won' && (
+                      <div className="col-md-6">
+                        <label htmlFor="quotation" className="form-label fw-bold">Amount Show (₹)<RequiredStar /></label>
+                        <input type="text" className="form-control" id="quotation" name="quotation"
+                          placeholder="Enter quotation amount" value={actionData.quotation}
+                          onChange={handleActionChange} required />
+                      </div>
+                    )}
+
+                    {actionData.status !== 'Won' && actionData.status !== 'Lost' &&
+                      amountSteps.includes(actionData.actionType) && (
+                      <div className="col-md-6">
+                        <label htmlFor="quotation" className="form-label fw-bold">
+                          Amount Show (₹)
+                          {actionData.actionType === '7. Quotation Submission' && <RequiredStar />}
+                        </label>
+                        <input type="text" className="form-control" id="quotation" name="quotation"
+                          placeholder="Enter quotation amount" value={actionData.quotation}
+                          onChange={handleActionChange}
+                          required={actionData.actionType === '7. Quotation Submission'} />
+                      </div>
+                    )}
+
+                    {actionData.status !== 'Won' && actionData.status !== 'Lost' && (
+                      <div className="col-md-6">
+                        <label htmlFor="date" className="form-label fw-bold">Next Follow-up Date<RequiredStar /></label>
+                        <input id="date" type="datetime-local" className="form-control" name="date"
+                          value={actionData.date || ''} onChange={handleActionChange}
+                          min={new Date().toISOString().slice(0, 16)} required />
+                      </div>
+                    )}
+
+                    <div className="col-12">
+                      <label htmlFor="rem" className="form-label fw-bold">
+                        Remark
+                        {(actionData.status === 'Won' || actionData.status === 'Lost') && <RequiredStar />}
+                      </label>
+                      {actionData.status === 'Lost' && (
+                        <div className="alert alert-danger py-1 px-2 mb-1" style={{ fontSize: '0.78rem' }}>
+                          <i className="fa-solid fa-circle-exclamation me-1"></i>
+                          Lost reason is <strong>required</strong>.
+                        </div>
+                      )}
+                      <textarea id="rem" name="rem"
+                        className={`form-control ${actionData.status === 'Lost' ? 'border-danger' : ''}`}
+                        placeholder={
+                          actionData.status === 'Lost'
+                            ? 'Required: Why was this deal lost?'
+                            : actionData.status === 'Won'
+                            ? 'Required: Describe how the deal was won.'
+                            : 'Enter your remarks here...'
+                        }
+                        rows="3" value={actionData.rem} onChange={handleActionChange}
+                        required={actionData.status === 'Won' || actionData.status === 'Lost'} />
                     </div>
                   </div>
-                </>
+                </div>
               )}
             </div>
 

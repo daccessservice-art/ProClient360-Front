@@ -90,6 +90,21 @@ export const Sidebar = ({ isopen, active }) => {
                         </>
                     ) : null}
 
+                    {/* ========== SURVEY ENGINEER DASHBOARD - NEW ========== */}
+                    {/* Only show for users with surveyEngineer permission */}
+                    {user?.permissions?.includes('surveyEngineer') && (
+                        <li
+                            title="Survey Dashboard"
+                            className={active === "SurveyEngineerDashboard" ? "nav-item active" : "nav-item sidebar_item"}>
+                            <Link to='/SurveyEngineerDashboard' className="nav-link ">
+                                <i className="fa-solid fa-clipboard-list ps-3 side_icon_fs"></i>
+                                <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                                    Survey Dashboard
+                                </span>
+                            </Link>
+                        </li>
+                    )}
+
                     {/* Sales Master */}
                     {(user?.permissions?.includes("viewLead") || user?.user === 'company') && 
                     (!user?.permissions?.includes("viewMarketingDashboard")) ? (
@@ -130,7 +145,7 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
-                    {/* ✅ Exhibition Master - NEW */}
+                    {/* Exhibition Master */}
                     {user?.permissions?.includes("viewExhibition") || user?.user === 'company' ? (
                         <li title="Exhibition Master"
                             className={active === "ExhibitionMasterGrid" ? "nav-item active" : "nav-item sidebar_item"}>
@@ -143,7 +158,7 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
-                    {/* ✅ Exhibition Visit - NEW */}
+                    {/* Exhibition Visit */}
                     {user?.permissions?.includes("viewExhibitionVisit") || user?.user === 'company' ? (
                         <li title="Exhibition Visit"
                             className={active === "ExhibitionVisitMasterGrid" ? "nav-item active" : "nav-item sidebar_item"}>
@@ -184,7 +199,7 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
-                    {/* Ticket Master - Only if user has viewService permission or is company */}
+                    {/* Ticket Master */}
                     {user?.permissions?.includes("viewService") || user?.user === 'company' ? (
                         <li
                             title="Ticket Master"
@@ -430,14 +445,16 @@ export const Sidebar = ({ isopen, active }) => {
                             </Link>
                         </li>
                     ) : null}
-{user?.permissions?.includes("viewAccountMaster") || user?.user === 'company' ? (
-    <li title="Account Master" className={active === "AccountMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-        <Link to='/AccountMasterGrid' className="nav-link ">
-            <i className="fa-solid fa-indian-rupee-sign ps-3 side_icon_fs"></i>
-            <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>Account Master</span>
-        </Link>
-    </li>
-) : null}
+
+                    {/* Account Master */}
+                    {user?.permissions?.includes("viewAccountMaster") || user?.user === 'company' ? (
+                        <li title="Account Master" className={active === "AccountMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+                            <Link to='/AccountMasterGrid' className="nav-link ">
+                                <i className="fa-solid fa-indian-rupee-sign ps-3 side_icon_fs"></i>
+                                <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>Account Master</span>
+                            </Link>
+                        </li>
+                    ) : null}
                 </ul>
             </nav>
         </div>

@@ -36,6 +36,14 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     status: 'Pending',
     value: '',
     address: { pincode: '', state: '', city: '', country: '', add: '' },
+    projectSize: '',
+    requirementType: '',
+    requirementMode: '',
+    surveyNeeded: '',
+    surveyNeededDateTime: '',
+    surveyNeededContactPersonName: '',
+    surveyNeededContactPersonEmail: '',
+    surveyNeededContactPersonNumber: '',
   });
 
   const [fieldErrors, setFieldErrors] = useState({
@@ -151,8 +159,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       setCustHasMore(customers.length === PAGE_SIZE);
       setCustPage(page + 1);
     } catch (error) {
-      if (requestId !== latestCustRequestId.current) return;
-      toast.error('Failed to load customers');
+      if (requestId === latestCustRequestId.current) toast.error('Failed to load customers');
     } finally {
       if (requestId === latestCustRequestId.current) setCustLoading(false);
     }
@@ -199,6 +206,10 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     setFormData(prev => ({
       ...prev, name: '', email: '', contact: '', company: '', products: [],
       address: { pincode: '', state: '', city: '', add: '', country: '' },
+      projectSize: '',
+      requirementType: '',
+      requirementMode: '',
+      surveyNeeded: '',
     }));
     setShowCustomProduct(false);
     setCustomProduct('');
@@ -215,73 +226,29 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     } else { setEmployeeOptions([]); setAssignedEmployee(null); }
   }, [selectedDepartment, loadEmployees, empSearchTerm]);
 
-  // ✅ FIXED: Smart pincode handling — works for BOTH new & existing customers
   useEffect(() => {
     const fetchData = async () => {
       const pin = formData.address.pincode || '';
-
-      if (pin.length === 0) {
-        clearFieldError('pincode');
-        setPincodeStatus('');
-        return;
-      }
-
+      if (pin.length === 0) { clearFieldError('pincode'); setPincodeStatus(''); return; }
       if (pin.length > 0 && pin.length < 6) {
-        // Only enforce errors for NEW customers
-        if (customerType === 'new') {
-          setFieldError('pincode', 'Pincode must be exactly 6 digits.');
-          setPincodeStatus('');
-          setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
-        }
+        if (customerType === 'new') { setFieldError('pincode', 'Pincode must be exactly 6 digits.'); setPincodeStatus(''); setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } })); }
         return;
       }
-
       if (pin.length === 6) {
-        // ✅ Existing customer: if state & city already loaded from DB, trust them — skip API
-        if (customerType === 'existing' && formData.address.state && formData.address.city) {
-          setPincodeStatus('valid');
-          clearFieldError('pincode');
-          return;
-        }
-
-        clearFieldError('pincode');
-        setPincodeStatus('loading');
-        setIsLoadingAddress(true);
+        if (customerType === 'existing' && formData.address.state && formData.address.city) { setPincodeStatus('valid'); clearFieldError('pincode'); return; }
+        clearFieldError('pincode'); setPincodeStatus('loading'); setIsLoadingAddress(true);
         try {
           const data = await getAddress(pin);
           if (data && data !== 'Error' && (data.state || data.city)) {
-            setFormData(prev => ({
-              ...prev,
-              address: {
-                ...prev.address,
-                state: data.state || prev.address.state || '',
-                city: data.city || prev.address.city || '',
-                country: data.country || prev.address.country || 'India',
-              },
-            }));
-            setPincodeStatus('valid');
-            clearFieldError('pincode');
+            setFormData(prev => ({ ...prev, address: { ...prev.address, state: data.state || prev.address.state || '', city: data.city || prev.address.city || '', country: data.country || prev.address.country || 'India' } }));
+            setPincodeStatus('valid'); clearFieldError('pincode');
           } else {
-            // ✅ Existing customer: keep saved data on API failure
-            if (customerType === 'existing') {
-              setPincodeStatus('');
-              clearFieldError('pincode');
-            } else {
-              setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
-              setPincodeStatus('invalid');
-              setFieldError('pincode', 'Invalid Pincode — no location found. Please check and try again.');
-            }
+            if (customerType === 'existing') { setPincodeStatus(''); clearFieldError('pincode'); }
+            else { setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } })); setPincodeStatus('invalid'); setFieldError('pincode', 'Invalid Pincode — no location found.'); }
           }
         } catch {
-          // ✅ Existing customer: keep saved data on API error
-          if (customerType === 'existing') {
-            setPincodeStatus('');
-            clearFieldError('pincode');
-          } else {
-            setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } }));
-            setPincodeStatus('invalid');
-            setFieldError('pincode', 'Could not verify pincode. Please check your connection.');
-          }
+          if (customerType === 'existing') { setPincodeStatus(''); clearFieldError('pincode'); }
+          else { setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } })); setPincodeStatus('invalid'); setFieldError('pincode', 'Could not verify pincode.'); }
         } finally { setIsLoadingAddress(false); }
       }
     };
@@ -292,10 +259,8 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
     if (['state', 'city', 'country'].includes(name)) {
-      if (value && !isValidAddressText(value)) {
-        setFieldError(name, `${name.charAt(0).toUpperCase() + name.slice(1)} must contain only letters and spaces.`);
-        return;
-      } else { clearFieldError(name); }
+      if (value && !isValidAddressText(value)) { setFieldError(name, `${name.charAt(0).toUpperCase() + name.slice(1)} must contain only letters and spaces.`); return; }
+      else { clearFieldError(name); }
     }
     if (name === 'pincode') {
       const digitsOnly = value.replace(/[^0-9]/g, '');
@@ -344,9 +309,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       const otherProducts = selectedOptions?.filter(opt => opt.value !== 'Other') || [];
       setFormData(prev => ({ ...prev, products: otherProducts }));
     } else {
-      setShowCustomProduct(false);
-      setCustomProduct('');
-      clearFieldError('customProduct');
+      setShowCustomProduct(false); setCustomProduct(''); clearFieldError('customProduct');
       setFormData(prev => ({ ...prev, products: selectedOptions || [] }));
     }
   };
@@ -354,11 +317,8 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const handleCustomProductChange = (e) => {
     const value = e.target.value;
     setCustomProduct(value);
-    if (value && !isValidCustomText(value)) {
-      setFieldError('customProduct', 'Product name must contain at least one letter.');
-    } else {
-      clearFieldError('customProduct');
-    }
+    if (value && !isValidCustomText(value)) { setFieldError('customProduct', 'Product name must contain at least one letter.'); }
+    else { clearFieldError('customProduct'); }
   };
 
   const handleCustomSourceChange = (e) => {
@@ -370,21 +330,13 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
   const handleCustomerTypeChange = (e) => {
     const type = e.target.value;
-    setCustomerType(type);
-    setPincodeStatus('');
-    clearFieldError('pincode');
-    if (type === 'new') {
-      resetFormData(); setSelectedCustomer(null);
-      setCustPage(1); setCustHasMore(true); setCustOptions([]);
-      setCustSearch(''); setDebouncedCustSearch('');
-    }
+    setCustomerType(type); setPincodeStatus(''); clearFieldError('pincode');
+    if (type === 'new') { resetFormData(); setSelectedCustomer(null); setCustPage(1); setCustHasMore(true); setCustOptions([]); setCustSearch(''); setDebouncedCustSearch(''); }
   };
 
   const getFinalProducts = () => {
     const selectedProductNames = formData.products.map(p => p.value || p.label || p);
-    if (showCustomProduct && customProduct.trim()) {
-      selectedProductNames.push(customProduct.trim());
-    }
+    if (showCustomProduct && customProduct.trim()) { selectedProductNames.push(customProduct.trim()); }
     return selectedProductNames.join(', ');
   };
 
@@ -410,7 +362,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     if (subject && !isValidSubject(subject)) { toast.error('Subject must contain at least one letter.'); setFieldError('subject', 'Subject must contain at least one letter.'); return; }
     if (message && !isValidMessage(message)) { toast.error('Message must contain at least one letter.'); setFieldError('message', 'Message must contain at least one letter.'); return; }
 
-    // ✅ Only validate pincode strictly for NEW customers
     if (customerType === 'new' && address.pincode) {
       if (!isValidPincode(address.pincode)) { toast.error('Pincode must be exactly 6 digits.'); setFieldError('pincode', 'Pincode must be exactly 6 digits.'); return; }
       if (pincodeStatus === 'invalid') { toast.error('Invalid Pincode — no location found.'); setFieldError('pincode', 'Invalid Pincode.'); return; }
@@ -434,6 +385,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
     const assignedTo = assignmentType === 'self' ? user._id : assignedEmployee;
 
+    // ========== CRITICAL FIX: Convert empty strings to null ==========
     const mappedData = {
       customerType,
       customerId: customerType === 'existing' ? selectedCustomer.value : null,
@@ -455,6 +407,17 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       assignedTo,
       assignedBy: user._id,
       assignedTime: new Date().toISOString(),
+      // CRITICAL: Send null for empty strings, not empty string ''
+      projectSize: formData.projectSize && formData.projectSize.trim() !== '' ? formData.projectSize : null,
+      requirementType: formData.requirementType && formData.requirementType.trim() !== '' ? formData.requirementType : null,
+      requirementMode: formData.requirementMode && formData.requirementMode.trim() !== '' ? formData.requirementMode : null,
+      surveyNeeded: formData.surveyNeeded && formData.surveyNeeded.trim() !== '' ? formData.surveyNeeded : null,
+      surveyDetails: formData.surveyNeeded === 'yes' ? {
+        dateTime: formData.surveyNeededDateTime ? new Date(formData.surveyNeededDateTime).toISOString() : null,
+        communicatePerson: formData.surveyNeededContactPersonName || '',
+        communicateEmail: formData.surveyNeededContactPersonEmail || '',
+        communicateContact: formData.surveyNeededContactPersonNumber || '',
+      } : { dateTime: null, communicatePerson: '', communicateEmail: '', communicateContact: '' },
     };
 
     onAddLead(mappedData);
@@ -644,6 +607,133 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                       placeholder="Enter a Message...." value={formData.message} onChange={handleInputChange}
                       style={{ width: '100%', height: '100px' }} maxLength={500} />
                     <FieldError msg={fieldErrors.message} />
+                  </div>
+
+                  {/* PROJECT & SURVEY DETAILS SECTION */}
+                  <div className="col-12">
+                    <div className="p-3 rounded" style={{ background: '#faf5ff', border: '1px solid #e9d5ff' }}>
+                      <h6 className="fw-bold mb-3" style={{ fontSize: '0.9rem', color: '#7c3aed' }}>
+                        <i className="fa-solid fa-clipboard-list me-2"></i>
+                        Project & Survey Details
+                      </h6>
+                      <div className="row g-3">
+
+                        {/* Size of Project */}
+                        <div className="col-md-6">
+                          <label className="form-label">Size of Project</label>
+                          <select className="form-select" name="projectSize"
+                            value={formData.projectSize || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, projectSize: e.target.value }))}>
+                            <option value="">Select Size...</option>
+                            <option value="big">Big</option>
+                            <option value="medium">Medium</option>
+                            <option value="small">Small</option>
+                          </select>
+                        </div>
+
+                        {/* Survey or Demo */}
+                        <div className="col-md-6">
+                          <label className="form-label">Survey / Demo</label>
+                          <div className="d-flex gap-4 mt-1">
+                            <div className="form-check">
+                              <input className="form-check-input" type="radio" name="requirementType"
+                                id="requirementTypeSurvey" value="survey"
+                                checked={formData.requirementType === 'survey'}
+                                onChange={(e) => setFormData(prev => ({ ...prev, requirementType: e.target.value, requirementMode: '' }))} />
+                              <label className="form-check-label" htmlFor="requirementTypeSurvey">Survey</label>
+                            </div>
+                            <div className="form-check">
+                              <input className="form-check-input" type="radio" name="requirementType"
+                                id="requirementTypeDemo" value="demo"
+                                checked={formData.requirementType === 'demo'}
+                                onChange={(e) => setFormData(prev => ({ ...prev, requirementType: e.target.value, requirementMode: '' }))} />
+                              <label className="form-check-label" htmlFor="requirementTypeDemo">Demo</label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Online / Offline */}
+                        {formData.requirementType && (
+                          <div className="col-md-6">
+                            <label className="form-label">{formData.requirementType === 'survey' ? 'Survey' : 'Demo'} Mode</label>
+                            <div className="d-flex gap-4 mt-1">
+                              <div className="form-check">
+                                <input className="form-check-input" type="radio" name="requirementMode"
+                                  id="requirementModeOnline" value="online"
+                                  checked={formData.requirementMode === 'online'}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, requirementMode: e.target.value }))} />
+                                <label className="form-check-label" htmlFor="requirementModeOnline">Online</label>
+                              </div>
+                              <div className="form-check">
+                                <input className="form-check-input" type="radio" name="requirementMode"
+                                  id="requirementModeOffline" value="offline"
+                                  checked={formData.requirementMode === 'offline'}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, requirementMode: e.target.value }))} />
+                                <label className="form-check-label" htmlFor="requirementModeOffline">Offline</label>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Survey Needed */}
+                        <div className="col-md-6">
+                          <label className="form-label">Survey Needed</label>
+                          <div className="d-flex gap-4 mt-1">
+                            <div className="form-check">
+                              <input className="form-check-input" type="radio" name="surveyNeeded"
+                                id="surveyNeededYes" value="yes"
+                                checked={formData.surveyNeeded === 'yes'}
+                                onChange={(e) => setFormData(prev => ({ ...prev, surveyNeeded: e.target.value }))} />
+                              <label className="form-check-label" htmlFor="surveyNeededYes">Yes</label>
+                            </div>
+                            <div className="form-check">
+                              <input className="form-check-input" type="radio" name="surveyNeeded"
+                                id="surveyNeededNo" value="no"
+                                checked={formData.surveyNeeded === 'no'}
+                                onChange={(e) => setFormData(prev => ({ ...prev, surveyNeeded: e.target.value }))} />
+                              <label className="form-check-label" htmlFor="surveyNeededNo">No</label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Survey Details */}
+                        {formData.surveyNeeded === 'yes' && (
+                          <>
+                            <div className="col-md-6">
+                              <label className="form-label">Survey Date & Time</label>
+                              <input type="datetime-local" className="form-control"
+                                value={formData.surveyNeededDateTime || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, surveyNeededDateTime: e.target.value }))} />
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Contact Person Name</label>
+                              <input type="text" className="form-control"
+                                value={formData.surveyNeededContactPersonName || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, surveyNeededContactPersonName: e.target.value }))}
+                                placeholder="Enter contact person name" maxLength={50}
+                                onKeyPress={(e) => { if (!/[A-Za-z\s]/.test(e.key)) e.preventDefault(); }} />
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Contact Person Email</label>
+                              <input type="email" className="form-control"
+                                value={formData.surveyNeededContactPersonEmail || ''}
+                                onChange={(e) => setFormData(prev => ({ ...prev, surveyNeededContactPersonEmail: e.target.value }))}
+                                placeholder="Enter email" maxLength={100} />
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Contact Number</label>
+                              <input type="tel" className="form-control"
+                                value={formData.surveyNeededContactPersonNumber || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/[^0-9]/g, '');
+                                  setFormData(prev => ({ ...prev, surveyNeededContactPersonNumber: val }));
+                                }}
+                                placeholder="Enter contact number" maxLength={10} inputMode="numeric" />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Address */}
