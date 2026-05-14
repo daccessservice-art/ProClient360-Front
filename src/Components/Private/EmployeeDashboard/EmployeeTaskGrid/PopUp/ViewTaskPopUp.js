@@ -18,10 +18,8 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
       const data = await getMyTaskSheet(selectedId);
       if (data) {
         setTasks(data.task || []);
-        // setLoading(false);
       }
     };
-
     fetchData();
   }, [updateTaskPopUpShow]);
 
@@ -37,13 +35,10 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
       >
         <div className="modal-dialog modal-xl modal_table_width">
           <div className="modal-content p-3">
-            <form
-            // onSubmit={handleEmployeeAdd}
-            >
+            <form>
               <div className="modal-header pt-0">
                 <h5 className="card-title fw-bold" id="exampleModalLongTitle">
                   Task List
-                  {/* Forward */}
                 </h5>
                 <button
                   onClick={() => handleViewTask()}
@@ -55,20 +50,14 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
                 </button>
               </div>
               <div className="modal-body " >
-
-
-
-                {/* <div className="row bg-white p-2 m-1 border rounded modal_body_height"> */}
                 <div className=" row bg-white p-2 m-1 border rounded modal_body_height" style={{ maxWidth: '60vw' }}>
                   <div className="col-12 py-2">
                     <div className="table-responsive">
-                      <table
-                        className="table table-striped table-class"
-                        id="table-id"
-                      >
+                      <table className="table table-striped table-class" id="table-id">
                         <tr className="th_border">
                           <th>Task No.</th>
                           <th>Task Name</th>
+                          <th>Subtask Name</th>
                           <th>Start Date</th>
                           <th>End Date</th>
                           <th>Remarks</th>
@@ -81,27 +70,22 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
                               <tr className="border my-4" key={task.id}>
                                 <td className="w-10">{index + 1}</td>
                                 <td className="text-wrap">{task.taskName.name}</td>
+                                {/* Display Subtask Name */}
+                                <td className="text-wrap text-primary fw-bold">{task.subtaskName || "-"}</td>
                                 <td className="w-20">{formatDate(task.startDate)}</td>
                                 <td className="w-20">{formatDate(task.endDate)}</td>
                                 <td className="w-30">{task.remark||"N/A"}</td>
                                 <td className="w-20">{task.taskStatus}</td>
                                 <td>
-                                  <span
-                                    onClick={
-                                      () => handleUpdateTask(task)
-                                    }
-                                    className={`update_icon`}
-                                  >
-                                    <i
-                                      className={`fa-solid fa-pen text-success cursor-pointer me-3 `}
-                                    ></i>
+                                  <span onClick={() => handleUpdateTask(task)} className={`update_icon`}>
+                                    <i className={`fa-solid fa-pen text-success cursor-pointer me-3`}></i>
                                   </span>
                                 </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="6" className="text-center">
+                              <td colSpan="8" className="text-center"> {/* ✅ Changed colspan to 8 */}
                                 No tasks assigned
                               </td>
                             </tr>
@@ -110,8 +94,6 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
                       </table>
                     </div>
                   </div>
-
-
                 </div>
               </div>
             </form>
@@ -123,8 +105,6 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
         <TaskListUpdatedPopUp
           selectedTask={selectedTask}
           handleUpdateTask={handleUpdateTask}
-        // heading="Forward"
-        // cancelBtnCallBack={handleAddDepartment}
         />
       ) : (
         <></>

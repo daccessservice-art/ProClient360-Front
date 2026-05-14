@@ -7,12 +7,9 @@ const url = baseUrl + "/api/tasksheet";
 const getAllTask = async () => {
   try {
     const response = await axios.get(`${url}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     const data = response.data;
-
     if (data.error) {
       console.error(data.error);
       toast.error(data.error);
@@ -29,12 +26,9 @@ const getAllTask = async () => {
 const getTaskSheet = async (id) => {
   try {
     const response = await axios.get(`${url}/${id}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     const data = response.data;
-
     if (data.error) {
       console.error(data.error);
       toast.error(data.error);
@@ -51,12 +45,9 @@ const getTaskSheet = async (id) => {
 const getMyTaskSheet = async (projectId) => {
   try {
     const response = await axios.get(`${url}/my/${projectId}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     const data = response.data;
-
     if (data.error) {
       console.error(data.error);
       toast.error(data.error);
@@ -73,18 +64,14 @@ const getMyTaskSheet = async (projectId) => {
 const createTaskSheet = async (taskData) => {
   try {
     const response = await axios.post(`${url}`, taskData, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     const data = response.data;
-
     if (data.error) {
       console.error(data.error);
       toast.error(data.error);
       return { success: false, error: data.error };
     }
-
     toast.success(data.message || "Task created successfully");
     return data;
   } catch (error) {
@@ -98,18 +85,14 @@ const createTaskSheet = async (taskData) => {
 const updateTaskSheet = async (id, updatedData) => {
   try {
     const response = await axios.put(`${url}/${id}`, updatedData, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     const data = response.data;
-
     if (data.error) {
       console.error(data.error);
       toast.error(data.error);
       return { success: false, error: data.error };
     }
-
     toast.success(data.message || "Task updated successfully");
     return data;
   } catch (error) {
@@ -120,21 +103,39 @@ const updateTaskSheet = async (id, updatedData) => {
   }
 };
 
-const deleteTaskSheet = async (id) => {
+// ✅ NEW: Update only subtask by employee
+const updateSubtask = async (id, subtaskData) => {
   try {
-    const response = await axios.delete(`${url}/${id}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
+    const response = await axios.patch(`${url}/update-subtask/${id}`, subtaskData, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     const data = response.data;
-
     if (data.error) {
       console.error(data.error);
       toast.error(data.error);
       return { success: false, error: data.error };
     }
+    toast.success(data.message || "Subtask updated successfully");
+    return data;
+  } catch (error) {
+    console.error(error);
+    const errorMessage = error.response?.data?.error || "Error updating subtask";
+    toast.error(errorMessage);
+    return { success: false, error: errorMessage };
+  }
+};
 
+const deleteTaskSheet = async (id) => {
+  try {
+    const response = await axios.delete(`${url}/${id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    const data = response.data;
+    if (data.error) {
+      console.error(data.error);
+      toast.error(data.error);
+      return { success: false, error: data.error };
+    }
     toast.success(data.message || "Task deleted successfully");
     return data;
   } catch (error) {
@@ -151,5 +152,6 @@ export {
   updateTaskSheet, 
   deleteTaskSheet, 
   getTaskSheet, 
-  getMyTaskSheet 
+  getMyTaskSheet,
+  updateSubtask
 };

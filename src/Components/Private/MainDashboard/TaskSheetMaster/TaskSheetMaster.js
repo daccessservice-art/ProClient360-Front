@@ -21,7 +21,6 @@ import axios from "axios";
 
 const PAGE_SIZE = 10;
 
-// ── Local date formatter: "11 Feb 2026" ──
 const formatTaskDate = (dateStr) => {
   if (!dateStr) return "N/A";
   const d = new Date(dateStr);
@@ -46,6 +45,7 @@ export const TaskSheetMaster = () => {
   const [isChecked, setIsChecked] = React.useState(true);
 
   const [taskName, setTaskName] = useState("");
+  const [subtaskName, setSubtaskName] = useState(""); // ✅ New State
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [remark, setRemark] = useState("");
@@ -72,8 +72,6 @@ export const TaskSheetMaster = () => {
   const [employeeTaskAssignments, setEmployeeTaskAssignments] = useState([]);
   const [selectedRowId, setSelectedRowId] = useState(null);
 
-  // ── Send completion notification email to assignedBy when task hits 100% ──
-  // Called from: forActionShow → after loading actions, check if task is complete
   const sendCompletionNotification = useCallback(async (taskId, assignedById, employeeId, taskNameStr) => {
     try {
       const baseUrl = process.env.REACT_APP_API_URL;
@@ -82,9 +80,7 @@ export const TaskSheetMaster = () => {
         { taskId, assignedById, employeeId, taskName: taskNameStr },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
-      console.log("Completion notification sent for task:", taskId);
     } catch (err) {
-      // Non-blocking — don't show error toast for notification failure
       console.error("Completion notification failed:", err);
     }
   }, []);
@@ -131,8 +127,6 @@ export const TaskSheetMaster = () => {
 
   const handleTaskCancel = () => setTaskAddPopUpShow(!taskAddPopUpShow);
 
-  // ── Opens Action Modal Popup ──
-  // Also triggers completion email if taskLevel === 100
   const forActionShow = useCallback(async (taskId, rowId) => {
     try {
       setActionLoading(true);
@@ -141,8 +135,6 @@ export const TaskSheetMaster = () => {
       setForTask(data?.actions);
       setShowAction(true);
 
-      // ── Check if the task is 100% complete and notify assignedBy ──
-      // Find this task in employeeTaskAssignments to get assignedById & employeeName
       let matchedTask = null;
       let matchedEmployee = null;
       for (const assignment of employeeTaskAssignments) {
@@ -157,12 +149,7 @@ export const TaskSheetMaster = () => {
       }
 
       if (matchedTask && matchedTask.taskLevel === 100 && matchedTask.assignedById) {
-        await sendCompletionNotification(
-          taskId,
-          matchedTask.assignedById,
-          matchedEmployee.employeeId,
-          matchedTask.taskName
-        );
+        await sendCompletionNotification(taskId, matchedTask.assignedById, matchedEmployee.employeeId, matchedTask.taskName);
       }
     } catch {
       toast.error("Failed to load actions");
@@ -194,11 +181,8 @@ export const TaskSheetMaster = () => {
               setLoading(true);
               const data = await deleteTaskSheet(task.id);
               setTasks(tasks.filter((t) => t.id !== task.id));
-              if (data?.success) {
-                toast.success(data?.message || "Task deleted successfully");
-              } else {
-                toast.error(data?.error || "Failed to delete task");
-              }
+              if (data?.success) toast.success(data?.message || "Task deleted successfully");
+              else toast.error(data?.error || "Failed to delete task");
             } catch {
               toast.error("Error deleting task");
             } finally {
@@ -230,7 +214,6 @@ export const TaskSheetMaster = () => {
       try {
         setLoading(true);
         const response = await getTaskSheet(id);
-
         setProjectName(response.task[0].project);
 
         const transformedTasks = transformProjectToTasks(response);
@@ -267,6 +250,7 @@ export const TaskSheetMaster = () => {
                       employeeName: employeeMap[empId].name,
                       taskId: task._id,
                       taskName: task.taskName?.name || 'Unknown Task',
+                      subtaskName: task.subtaskName || "", // ✅ Bind Subtask
                       startDate: task.startDate,
                       endDate: task.endDate,
                       priority: task.priority || 'medium',
@@ -292,6 +276,7 @@ export const TaskSheetMaster = () => {
               groupedAssignments[assignment.employeeId].tasks.push({
                 taskId: assignment.taskId,
                 taskName: assignment.taskName,
+                subtaskName: assignment.subtaskName, // ✅ Bind Subtask
                 startDate: assignment.startDate,
                 endDate: assignment.endDate,
                 priority: assignment.priority,
@@ -367,13 +352,12 @@ export const TaskSheetMaster = () => {
     if (submitting) return;
 
     const employeeIds = selectedEmployees.map(emp => emp.value);
-    const data = { project: id, employees: employeeIds, taskName, startDate, endDate, remark, priority };
+    const data = { project: id, employees: employeeIds, taskName, subtaskName, startDate, endDate, remark, priority }; // ✅ Added subtaskName
 
     if (!selectedEmployees.length || !taskName || !startDate || !endDate) {
       return toast.error("Please fill all required fields");
     }
     if (remark.length > 2000) return toast.error("Remark cannot exceed 2000 characters");
-    // ✅ REMOVED: back-date restriction — allow past dates for start/end
     if (new Date(endDate) < new Date(startDate)) return toast.error("End date cannot be before start date");
 
     try {
@@ -396,6 +380,7 @@ export const TaskSheetMaster = () => {
 
   const clearForm = () => {
     setTaskName("");
+    setSubtaskName(""); // ✅ Clear Subtask
     setStartDate("");
     setEndDate("");
     setRemark("");
@@ -459,6 +444,7 @@ export const TaskSheetMaster = () => {
                                   <th>Assign To</th>
                                   <th>Priority</th>
                                   <th>Task Name</th>
+                                  <th>Subtask Name</th> {/* ✅ New Column */}
                                   <th>Start Date</th>
                                   <th>End Date</th>
                                   <th className="text-center">Actions</th>
@@ -480,48 +466,31 @@ export const TaskSheetMaster = () => {
                                         key={rowId}
                                         style={{
                                           backgroundColor: rowBg,
-                                          borderLeft: isSelected
-                                            ? "4px solid #0d6efd"
-                                            : isCompleted
-                                            ? "4px solid #28a745"
-                                            : "none",
+                                          borderLeft: isSelected ? "4px solid #0d6efd" : isCompleted ? "4px solid #28a745" : "none",
                                           transition: "all 0.3s ease",
                                         }}
                                       >
-                                        <td className="align-middle">
-                                          <span className="fw-bold">{task.assignedBy}</span>
-                                        </td>
-                                        <td className="align-middle">
-                                          <strong>{assignment.employeeName}</strong>
-                                        </td>
+                                        <td className="align-middle"><span className="fw-bold">{task.assignedBy}</span></td>
+                                        <td className="align-middle"><strong>{assignment.employeeName}</strong></td>
                                         <td className="align-middle text-center">
-                                          <span className={`badge ${
-                                            task.priority === 'high' ? 'bg-danger' :
-                                            task.priority === 'medium' ? 'bg-warning' :
-                                            'bg-info'
-                                          }`}>
+                                          <span className={`badge ${task.priority === 'high' ? 'bg-danger' : task.priority === 'medium' ? 'bg-warning' : 'bg-info'}`}>
                                             {task.priority?.charAt(0).toUpperCase() + task.priority?.slice(1)}
                                           </span>
                                         </td>
                                         <td className="align-middle text-start">
                                           <span className="d-flex align-items-center gap-1">
                                             {task.taskName}
-                                            {isCompleted && (
-                                              <span className="badge bg-success ms-1" style={{ fontSize: "0.65rem" }}>
-                                                ✓ Done
-                                              </span>
-                                            )}
+                                            {isCompleted && <span className="badge bg-success ms-1" style={{ fontSize: "0.65rem" }}>✓ Done</span>}
                                             {task.remark && (
-                                              <button
-                                                type="button"
-                                                className="btn btn-sm btn-link p-0 ms-1"
-                                                onClick={() => handleViewRemark(task.remark, task.taskName)}
-                                                title="View Remark"
-                                              >
+                                              <button type="button" className="btn btn-sm btn-link p-0 ms-1" onClick={() => handleViewRemark(task.remark, task.taskName)} title="View Remark">
                                                 <i className="fa-solid fa-eye text-primary"></i>
                                               </button>
                                             )}
                                           </span>
+                                        </td>
+                                        {/* ✅ Display Subtask */}
+                                        <td className="align-middle text-start">
+                                          <span className="text-muted">{task.subtaskName || "-"}</span>
                                         </td>
                                         <td className="align-middle">{formatTaskDate(task.startDate)}</td>
                                         <td className="align-middle">{formatTaskDate(task.endDate)}</td>
@@ -556,8 +525,7 @@ export const TaskSheetMaster = () => {
                                               }
                                             }}
                                           >
-                                            <i className="fa-solid fa-list-check me-1"></i>
-                                            View
+                                            <i className="fa-solid fa-list-check me-1"></i> View
                                           </button>
                                         </td>
                                       </tr>
@@ -580,13 +548,7 @@ export const TaskSheetMaster = () => {
                     <div className="col-12 col-md-6 col-lg-3">
                       <div className="mb-3">
                         <label htmlFor="taskName" className="form-label label_text">Task Name <RequiredStar /></label>
-                        <select
-                          className="form-select rounded-0"
-                          onChange={(e) => handleTaskSelection(e.target.value)}
-                          value={taskName}
-                          required
-                          disabled={submitting}
-                        >
+                        <select className="form-select rounded-0" onChange={(e) => handleTaskSelection(e.target.value)} value={taskName} required disabled={submitting}>
                           <option value="">-- Select Task Name --</option>
                           {taskDropDown && taskDropDown.map((task) => (
                             <option key={task._id} value={task._id}>{task.name}</option>
@@ -596,17 +558,26 @@ export const TaskSheetMaster = () => {
                       </div>
                     </div>
 
+                    {/* ✅ New Subtask Name Input Field */}
+                    <div className="col-12 col-md-6 col-lg-3">
+                      <div className="mb-3">
+                        <label htmlFor="subtaskName" className="form-label label_text">Subtask Name</label>
+                        <input
+                          type="text"
+                          className="form-control rounded-0"
+                          id="subtaskName"
+                          placeholder="Enter Subtask Details"
+                          value={subtaskName}
+                          onChange={(e) => setSubtaskName(e.target.value)}
+                          disabled={submitting}
+                        />
+                      </div>
+                    </div>
+
                     <div className="col-12 col-md-6 col-lg-3">
                       <div className="mb-3">
                         <label htmlFor="priority" className="form-label label_text">Priority <RequiredStar /></label>
-                        <select
-                          className="form-select rounded-0"
-                          id="priority"
-                          onChange={(e) => setPriority(e.target.value)}
-                          value={priority}
-                          required
-                          disabled={submitting}
-                        >
+                        <select className="form-select rounded-0" id="priority" onChange={(e) => setPriority(e.target.value)} value={priority} required disabled={submitting}>
                           <option value="low">Low</option>
                           <option value="medium">Medium</option>
                           <option value="high">High</option>
@@ -617,32 +588,14 @@ export const TaskSheetMaster = () => {
                     <div className="col-12 col-md-6 col-lg-3">
                       <div className="mb-3">
                         <label htmlFor="startDate" className="form-label label_text">Start Date <RequiredStar /></label>
-                        {/* ✅ REMOVED min={today} — back dates are now allowed */}
-                        <input
-                          type="date"
-                          className="form-control rounded-0"
-                          id="startDate"
-                          onChange={(e) => setStartDate(e.target.value)}
-                          value={startDate}
-                          required
-                          disabled={submitting}
-                        />
+                        <input type="date" className="form-control rounded-0" id="startDate" onChange={(e) => setStartDate(e.target.value)} value={startDate} required disabled={submitting} />
                       </div>
                     </div>
 
                     <div className="col-12 col-md-6 col-lg-3">
                       <div className="mb-3">
                         <label htmlFor="endDate" className="form-label label_text">End Date <RequiredStar /></label>
-                        {/* ✅ REMOVED min={startDate || today} — back dates are now allowed */}
-                        <input
-                          type="date"
-                          className="form-control rounded-0"
-                          id="endDate"
-                          onChange={(e) => setEndDate(e.target.value)}
-                          value={endDate}
-                          required
-                          disabled={submitting}
-                        />
+                        <input type="date" className="form-control rounded-0" id="endDate" onChange={(e) => setEndDate(e.target.value)} value={endDate} required disabled={submitting} />
                       </div>
                     </div>
 
@@ -683,32 +636,15 @@ export const TaskSheetMaster = () => {
 
                     <div className="col-12 col-md-12 col-lg-12">
                       <div className="mb-3">
-                        <label htmlFor="remark" className="form-label label_text">
-                          Remark / Description <span className="text-muted">({remark.length}/2000)</span>
-                        </label>
-                        <textarea
-                          onChange={(e) => setRemark(e.target.value)}
-                          value={remark}
-                          className="textarea_edit col-12"
-                          placeholder=""
-                          rows="3"
-                          style={{ minHeight: "170px", resize: "vertical" }}
-                          disabled={submitting}
-                          maxLength={2000}
-                        ></textarea>
-                        {remark.length > 1800 && (
-                          <div className="text-danger small">Warning: Approaching character limit</div>
-                        )}
+                        <label htmlFor="remark" className="form-label label_text">Remark / Description <span className="text-muted">({remark.length}/2000)</span></label>
+                        <textarea onChange={(e) => setRemark(e.target.value)} value={remark} className="textarea_edit col-12" rows="3" style={{ minHeight: "170px", resize: "vertical" }} disabled={submitting} maxLength={2000}></textarea>
+                        {remark.length > 1800 && <div className="text-danger small">Warning: Approaching character limit</div>}
                       </div>
                     </div>
 
                     <div className="col-12 col-lg-3 pt-3 mt-3">
                       <button type="submit" className="btn adbtn btn-success px-4 me-lg-4 mx-auto" disabled={submitting}>
-                        {submitting ? (
-                          <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Assigning...</>
-                        ) : (
-                          <><i className="fa-solid fa-plus"></i> Add</>
-                        )}
+                        {submitting ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Assigning...</> : <><i className="fa-solid fa-plus"></i> Add</>}
                       </button>
                       <button onClick={clearForm} type="button" className="btn adbtn btn-danger px-4 mx-auto" disabled={submitting}>
                         <i className="fa-solid fa-xmark"></i> Clear
@@ -716,11 +652,7 @@ export const TaskSheetMaster = () => {
                     </div>
 
                     <div className="col-12 py-2 div_scroll">
-                      <ViewSwitcher
-                        onViewModeChange={(viewMode) => setView(viewMode)}
-                        onViewListChange={setIsChecked}
-                        isChecked={isChecked}
-                      />
+                      <ViewSwitcher onViewModeChange={(viewMode) => setView(viewMode)} onViewListChange={setIsChecked} isChecked={isChecked} />
                       <Gantt
                         tasks={tasks}
                         viewMode={view}
@@ -735,9 +667,7 @@ export const TaskSheetMaster = () => {
                         rowHeight={40}
                         fontSize={12}
                       />
-                      {taskAddPopUpShow && (
-                        <AddTaskPopUp handleAdd={handleTaskSelection} cancelBtnCallBack={handleTaskCancel} />
-                      )}
+                      {taskAddPopUpShow && <AddTaskPopUp handleAdd={handleTaskSelection} cancelBtnCallBack={handleTaskCancel} />}
                     </div>
 
                   </div>
@@ -750,25 +680,17 @@ export const TaskSheetMaster = () => {
 
       {/* ── Action Modal Popup ── */}
       {showAction && (
-        <div
-          className="modal fade show"
-          style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 1050 }}
-        >
+        <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-scrollable" style={{ maxWidth: "800px", width: "95%" }}>
             <div className="modal-content">
               <div className="modal-header" style={{ background: "linear-gradient(135deg, #f8fafc, #f1f5f9)", borderBottom: "1px solid rgba(0,0,0,0.07)" }}>
-                <h6 className="modal-title fw-bold" style={{ color: "#1e293b" }}>
-                  <i className="fa-solid fa-list-check me-2 text-primary"></i>Task Actions
-                </h6>
+                <h6 className="modal-title fw-bold" style={{ color: "#1e293b" }}><i className="fa-solid fa-list-check me-2 text-primary"></i>Task Actions</h6>
                 <button type="button" className="btn-close" onClick={handleCloseAction}></button>
               </div>
-
               <div className="modal-body p-0">
                 {actionLoading ? (
                   <div className="d-flex justify-content-center align-items-center p-5">
-                    <div className="spinner-border text-primary" role="status">
-                      <span className="visually-hidden">Loading...</span>
-                    </div>
+                    <div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading...</span></div>
                   </div>
                 ) : (
                   <div className="table-responsive">
@@ -794,14 +716,7 @@ export const TaskSheetMaster = () => {
                                 <div className="d-flex align-items-center justify-content-center gap-2">
                                   <span className="fw-bold" style={{ minWidth: 36 }}>{action.complated}%</span>
                                   <div className="progress" style={{ width: "80px", height: "8px" }}>
-                                    <div
-                                      className={`progress-bar ${action.complated === 100 ? "bg-success" : "bg-warning"}`}
-                                      role="progressbar"
-                                      aria-valuenow={action.complated}
-                                      aria-valuemin="0"
-                                      aria-valuemax="100"
-                                      style={{ width: `${action.complated}%` }}
-                                    ></div>
+                                    <div className={`progress-bar ${action.complated === 100 ? "bg-success" : "bg-warning"}`} role="progressbar" aria-valuenow={action.complated} aria-valuemin="0" aria-valuemax="100" style={{ width: `${action.complated}%` }}></div>
                                   </div>
                                 </div>
                               </td>
@@ -809,23 +724,14 @@ export const TaskSheetMaster = () => {
                           ))}
                         </tbody>
                       ) : (
-                        <tbody>
-                          <tr>
-                            <td colSpan="5">
-                              <h6 className="text-center text-muted py-4">No Action performed yet...</h6>
-                            </td>
-                          </tr>
-                        </tbody>
+                        <tbody><tr><td colSpan="5"><h6 className="text-center text-muted py-4">No Action performed yet...</h6></td></tr></tbody>
                       )}
                     </table>
                   </div>
                 )}
               </div>
-
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={handleCloseAction}>
-                  Close
-                </button>
+                <button type="button" className="btn btn-secondary" onClick={handleCloseAction}>Close</button>
               </div>
             </div>
           </div>
@@ -843,9 +749,7 @@ export const TaskSheetMaster = () => {
               </div>
               <div className="modal-body">
                 <h6 className="fw-bold mb-3">Task: {selectedTaskName}</h6>
-                <div className="border rounded p-3 bg-light">
-                  <p>{selectedRemark}</p>
-                </div>
+                <div className="border rounded p-3 bg-light"><p>{selectedRemark}</p></div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowRemarkPopup(false)}>Close</button>
