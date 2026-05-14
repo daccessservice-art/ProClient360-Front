@@ -57,7 +57,7 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
                         <tr className="th_border">
                           <th>Task No.</th>
                           <th>Task Name</th>
-                          <th>Subtask Name</th>
+                          <th>Subtask Name</th> {/* ✅ New Column */}
                           <th>Start Date</th>
                           <th>End Date</th>
                           <th>Remarks</th>
@@ -70,7 +70,7 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
                               <tr className="border my-4" key={task.id}>
                                 <td className="w-10">{index + 1}</td>
                                 <td className="text-wrap">{task.taskName.name}</td>
-                                {/* Display Subtask Name */}
+                                {/* ✅ Display Subtask Name */}
                                 <td className="text-wrap text-primary fw-bold">{task.subtaskName || "-"}</td>
                                 <td className="w-20">{formatDate(task.startDate)}</td>
                                 <td className="w-20">{formatDate(task.endDate)}</td>
@@ -113,4 +113,4 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
   );
 };
 
-export default ViewTaskPopUp;
+export default ViewTaskPopUp; 

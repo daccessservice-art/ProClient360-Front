@@ -153,5 +153,5 @@ export {
   deleteTaskSheet, 
   getTaskSheet, 
   getMyTaskSheet,
-  updateSubtask
+  updateSubtask // ✅ Export new function
 };
