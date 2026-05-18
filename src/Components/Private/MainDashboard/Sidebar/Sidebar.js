@@ -145,6 +145,20 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
+{/* ✅ NEW: Old Sales History - COMPANY & SALES MANAGER ACCESS */}
+
+{user?.user === 'company' || user?.permissions?.includes("viewSalesManagerMaster") ? (
+    <li title="Old Sales History"
+        className={active === "OldSalesHistory" ? "nav-item active" : "nav-item sidebar_item"}>
+        <Link to='/OldSalesHistory' className="nav-link ">
+            <i className="fa-solid fa-clock-rotate-left ps-3 side_icon_fs"></i>
+            <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                Old Sales History
+            </span>
+        </Link>
+    </li>
+) : null}
+
                     {/* Exhibition Master */}
                     {user?.permissions?.includes("viewExhibition") || user?.user === 'company' ? (
                         <li title="Exhibition Master"

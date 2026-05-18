@@ -75,6 +75,9 @@ import AssetView from "./Components/Public/AssetView";
 
 import SurveyEngineerDashboard from "./Components/Private/MainDashboard/SalesMaster/SurveyEngineerDashboard";
 
+import { OldSalesHistoryGrid } from './Components/Private/MainDashboard/SalesMaster/OldSalesHistoryGrid';
+
+
 // Custom component to check if user has required permissions
 const SalesManagerRoute = () => {
     const { user } = useContext(UserContext);
@@ -232,7 +235,10 @@ const AllRoutes = () => {
                 <Route exact path="/ExhibitionVisitMasterGrid" element={<ProtectRoute Component={ExhibitionVisitMasterGrid} />} />
                 <Route exact path="/AccountMasterGrid" element={<ProtectRoute Component={AccountMasterGrid} />} />
                 
-                <Route exact path="/SurveyEngineerDashboard" element={<ProtectRoute Component={SurveyEngineerDashboard} />} />                {/* Company Routes */}
+                <Route exact path="/SurveyEngineerDashboard" element={<ProtectRoute Component={SurveyEngineerDashboard} />} /> 
+                
+                <Route exact path="/OldSalesHistory" element={<ProtectRoute Component={OldSalesHistoryGrid} />} />
+                               {/* Company Routes */}
                 {user && user?.user === 'company' && (
                     <>
                         <Route exact path="/MainDashboard" element={<MainDashboard />} />
