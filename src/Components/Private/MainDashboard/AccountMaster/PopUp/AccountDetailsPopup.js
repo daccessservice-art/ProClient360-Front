@@ -253,7 +253,7 @@ const AccountDetailsPopup = ({ account, handleClose }) => {
                                             </div>
 
                                             <div className="col-12 col-lg-4 mb-3">
-                                                <label className="form-label">Tax Amount <RequiredStar /></label>
+                                                <label className="form-label">Applicable Tax (%) <RequiredStar /></label>
                                                 <input
                                                     type="number"
                                                     className="form-control"
@@ -277,7 +277,7 @@ const AccountDetailsPopup = ({ account, handleClose }) => {
                                             </div>
 
                                             <div className="col-12 col-lg-4 mb-3">
-                                                <label className="form-label">Advance Payment Received</label>
+                                                <label className="form-label">Advance Amount Received</label>
                                                 <input
                                                     type="number"
                                                     className="form-control"
@@ -289,7 +289,7 @@ const AccountDetailsPopup = ({ account, handleClose }) => {
                                             </div>
 
                                             <div className="col-12 col-lg-4 mb-3">
-                                                <label className="form-label">Total Received Amount <RequiredStar /></label>
+                                                <label className="form-label">Total Amount Received <RequiredStar /></label>
                                                 <input
                                                     type="number"
                                                     className="form-control"
@@ -302,7 +302,7 @@ const AccountDetailsPopup = ({ account, handleClose }) => {
                                             </div>
 
                                             <div className="col-12 col-lg-4 mb-3">
-                                                <label className="form-label">Pending Amount (Auto)</label>
+                                                <label className="form-label">Outstanding Amount (Auto)</label>
                                                 <input
                                                     type="text"
                                                     className="form-control bg-danger text-white"
@@ -311,7 +311,7 @@ const AccountDetailsPopup = ({ account, handleClose }) => {
                                                 />
                                             </div>
 
-                                            <div className="col-12 col-lg-4 mb-3">
+                                            {/* <div className="col-12 col-lg-4 mb-3">
                                                 <label className="form-label">Invoice Status</label>
                                                 <input
                                                     type="text"
@@ -320,7 +320,7 @@ const AccountDetailsPopup = ({ account, handleClose }) => {
                                                     readOnly
                                                     style={{ backgroundColor: '#e9ecef' }}
                                                 />
-                                            </div>
+                                            </div> */}
 
                                             {accountData.accountActions?.invoiceNumber && (
                                                 <div className="col-12 col-lg-4 mb-3">

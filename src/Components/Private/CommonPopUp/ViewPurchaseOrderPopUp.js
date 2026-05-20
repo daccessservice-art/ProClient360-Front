@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -25,6 +25,24 @@ const numberToWords = (num) => {
   return result;
 };
 
+// ── Company Configs ──────────────────────────────────────────────────────────
+const COMPANY_CONFIGS = {
+  daccess: {
+    name:    'DACCESS SECURITY SYSTEMS PVT. LTD.',
+    address: 'Office No.05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India',
+    gstin:   '27AACCD7325G1ZR',
+    logoUrl: '/static/assets/img/nav/DACCESS.png',
+    logoAlt: 'DACCESS',
+  },
+  entero: {
+    name:    'ENTERO SYSTEMS INDIA PVT. LTD.',
+    address: 'Factory Address: Gate No: Shop No.3, Sr.No.170, Gavhane Industrial Estate, Devkar vasti, Bhosari, Pune - 411039, Maharashtra, India',
+    gstin:   '27AAJCE1335Q1Z8',
+    logoUrl: '/static/assets/img/nav/ENTERO.png',
+    logoAlt: 'ENTERO',
+  },
+};
+
 const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
   const po         = selectedPO || {};
   const items      = po.items      || [];
@@ -34,8 +52,11 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
   const cgst       = totalTax / 2;
   const sgst       = totalTax / 2;
 
-  const API_URL  = process.env.REACT_APP_API_URL || 'http://localhost:5443';
-  const LOGO_URL = 'https://image2url.com/r2/default/images/1771396818586-be570726-9409-4f91-97bd-dee0ec030a0b.png';
+  // ── Default is DAccess ───────────────────────────────────────────────────
+  const [printAs, setPrintAs] = useState('daccess');
+  const company = COMPANY_CONFIGS[printAs];
+
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
 
   const getPaymentText = () => {
     const pt = po.paymentTerms || {};
@@ -48,7 +69,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
     return parts.join(' | ') || 'As per agreement';
   };
 
-  // ✅ FIXED: build vendor address from billingAddress object or manualAddress string
   const getVendorAddress = () => {
     const vendor = po.vendor || {};
     if (vendor.typeOfVendor === 'Import') {
@@ -70,7 +90,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
     const toastId = toast.loading('Generating PDF...');
     try {
       const response = await axios.get(
-        `${API_URL}/api/purchaseOrder/${po._id}/pdf`,
+        `${API_URL}/api/purchaseOrder/${po._id}/pdf?printAs=${printAs}`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           responseType: 'blob',
@@ -109,28 +129,53 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               Purchase Order &nbsp;—&nbsp;
               <span className="text-warning">{po.orderNumber || 'N/A'}</span>
             </h5>
+
+            {/* Company Toggle — DAccess / Entero */}
+            <div className="d-flex align-items-center gap-2 ms-auto me-3">
+              <span className="text-white small fw-bold">Print As:</span>
+              <div className="btn-group btn-group-sm" role="group">
+                <button
+                  type="button"
+                  className={`btn ${printAs === 'daccess' ? 'btn-warning' : 'btn-outline-warning'}`}
+                  onClick={() => setPrintAs('daccess')}
+                >
+                  DAccess
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${printAs === 'entero' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setPrintAs('entero')}
+                >
+                  Entero
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn-close btn-close-white"
+              onClick={closePopUp}
+            ></button>
           </div>
 
           {/* Modal Body */}
           <div className="modal-body p-0" style={{ overflowY: 'auto', backgroundColor: '#fff' }}>
 
-            {/* Company Header */}
+            {/* Company Header — changes based on toggle */}
             <div className="px-4 pt-3 pb-2 border-bottom">
               <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
                   <img
-                    src={LOGO_URL}
-                    alt="ENTERO"
+                    src={company.logoUrl}
+                    alt={company.logoAlt}
                     style={{ height: '45px', objectFit: 'contain', marginBottom: '6px' }}
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
-                  <div className="fw-bold" style={{ fontSize: '14px' }}>ENTERO SYSTEMS INDIA PVT. LTD.</div>
-                  <div className="text-muted" style={{ fontSize: '11px' }}>
-                    Factory Address: Gate No: Shop No.3, Sr.No.170, Gavhane Industrial Estate, Devkar vasti, Bhosari, Pune - 411039, Maharashtra, India
-                  </div>
+                  <div className="fw-bold" style={{ fontSize: '14px' }}>{company.name}</div>
+                  <div className="text-muted" style={{ fontSize: '11px' }}>{company.address}</div>
                 </div>
                 <div className="text-end">
-                  <div className="fw-bold" style={{ fontSize: '11px' }}>GSTIN/UIN: 27AAJCE1335Q1Z8</div>
+                  <div className="fw-bold" style={{ fontSize: '11px' }}>GSTIN/UIN: {company.gstin}</div>
                   <h4 className="text-danger fw-bold mt-1 mb-0">Purchase Order</h4>
                 </div>
               </div>
@@ -142,7 +187,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                 <div className="px-2 py-1 fw-bold" style={{ backgroundColor: '#b4b49a', fontSize: '11px' }}>
                   VENDOR DETAILS
                 </div>
-                {/* ✅ FIXED: vendor address display */}
                 <div className="p-2" style={{ fontSize: '11px', minHeight: '75px' }}>
                   <div className="fw-bold">{po.vendor?.vendorName || 'N/A'}</div>
                   {getVendorAddress() && (
@@ -185,6 +229,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                     <th>QTY</th>
                     <th>RATE</th>
                     <th>DISC.%</th>
+                    <th>WARRANTY</th>
                     <th>TOTAL AMT.(₹)</th>
                     <th>GROSS AMT.(₹)</th>
                     <th>GST%/AMT.</th>
@@ -212,6 +257,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                         <td className="text-end">{qty.toFixed(2)}</td>
                         <td className="text-end">{rate.toFixed(2)}</td>
                         <td className="text-center">{disc > 0 ? `${disc}%` : '-'}</td>
+                        <td className="text-center">{item.warranty || '-'}</td>
                         <td className="text-end">{lineAmt.toFixed(2)}</td>
                         <td className="text-end">{lineAmt.toFixed(2)}</td>
                         <td className="text-center">
@@ -223,7 +269,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                   })}
                   {Array(Math.max(0, 5 - items.length)).fill(null).map((_, i) => (
                     <tr key={`ef-${i}`} style={{ height: '22px' }}>
-                      {Array(11).fill(null).map((__, j) => <td key={j}></td>)}
+                      {Array(12).fill(null).map((__, j) => <td key={j}></td>)}
                     </tr>
                   ))}
                   <tr className="fw-bold" style={{ backgroundColor: '#f5f5f5' }}>
@@ -231,7 +277,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                     <td className="text-end">Total</td>
                     <td></td><td></td>
                     <td className="text-end">{items.reduce((s,i) => s+(Number(i.quantity)||0),0).toFixed(2)}</td>
-                    <td></td><td></td>
+                    <td></td><td></td><td></td>
                     <td className="text-end">{totalAmt.toFixed(2)}</td>
                     <td className="text-end">{totalAmt.toFixed(2)}</td>
                     <td className="text-end">{totalTax.toFixed(2)}</td>
@@ -324,13 +370,13 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               </div>
             </div>
 
-            {/* Payment Terms + Signature */}
+            {/* Payment Terms + Signature — uses company.name */}
             <div className="row g-0 mx-0 border-top">
               <div className="col-6 border-end p-3" style={{ fontSize: '11px', minHeight: '65px' }}>
                 <strong>Payment Terms:</strong>{' '}{getPaymentText()}
               </div>
               <div className="col-6 p-2 text-end" style={{ fontSize: '11px' }}>
-                <div className="mb-1">For, ENTERO SYSTEMS INDIA PVT. LTD.</div>
+                <div className="mb-1">For, {company.name}</div>
                 <div className="border mx-auto mt-2 d-flex align-items-center justify-content-center"
                   style={{ width: '90px', height: '38px' }}>
                   <span className="text-muted" style={{ fontSize: '9px' }}>Authorised Signatory</span>
@@ -351,7 +397,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
           {/* Modal Footer */}
           <div className="modal-footer py-2 bg-light">
             <button onClick={handleDownloadPDF} className="btn btn-warning btn-sm fw-bold">
-              <i className="fa-solid fa-file-pdf me-1"></i> Download PDF
+              <i className="fa-solid fa-file-pdf me-1"></i> Download PDF ({printAs === 'daccess' ? 'DAccess' : 'Entero'})
             </button>
             <button onClick={closePopUp} className="btn btn-secondary btn-sm">
               <i className="fa-solid fa-times me-1"></i> Close

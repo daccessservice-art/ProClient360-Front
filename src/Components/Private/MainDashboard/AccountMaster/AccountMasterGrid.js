@@ -368,12 +368,12 @@ export const AccountMasterGrid = () => {
                                 {/* ── Stats Cards ───────────────────────────────── */}
                                 <div className="row px-2 mb-3">
                                     {[
-                                        { label: 'Total Invoice Received', value: stats.totalAccounts, bg: 'bg-primary', currency: false },
+                                        { label: 'Total Invoiced Accounts', value: stats.totalAccounts, bg: 'bg-primary', currency: false },
                                         { label: 'Total Amount Received',         value: stats.totalReceivedAmount, bg: 'bg-success', currency: true },
-                                        { label: 'Total Amount Pending',          value: stats.totalPendingAmount, bg: 'bg-danger', currency: true },
-                                        { label: '100% Paid',                   value: stats.paidCount, bg: 'bg-info', currency: false },
-                                        { label: 'Partial Amount',                value: stats.partialCount, bg: 'bg-warning text-dark', currency: false },
-                                        { label: 'Pending',                value: stats.pendingCount, bg: 'bg-secondary', currency: false },
+                                        { label: 'Outstanding Amount',          value: stats.totalPendingAmount, bg: 'bg-danger', currency: true },
+                                        { label: 'Fully Paid Accounts',                   value: stats.paidCount, bg: 'bg-info', currency: false },
+                                        { label: 'Partially Paid Accounts',                value: stats.partialCount, bg: 'bg-warning text-dark', currency: false },
+                                        { label: 'Unpaid Accounts',                value: stats.pendingCount, bg: 'bg-secondary', currency: false },
                                     ].map((card, i) => (
                                         <div key={i} className="col-12 col-lg-2 mb-2">
                                             <div className={`card ${card.bg} ${card.bg.includes('text-dark') ? '' : 'text-white'}`}>

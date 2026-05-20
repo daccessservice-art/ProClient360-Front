@@ -159,7 +159,7 @@ const ConvertToInvoicePopup = ({ account, handleClose }) => {
                                 </div>
 
                                 <div className="col-12 col-lg-6 mb-3">
-                                    <label className="form-label">Tax Amount (GST) <RequiredStar /></label>
+                                    <label className="form-label">Applicable Tax (%) <RequiredStar /></label>
                                     <input
                                         type="number"
                                         className="form-control"
