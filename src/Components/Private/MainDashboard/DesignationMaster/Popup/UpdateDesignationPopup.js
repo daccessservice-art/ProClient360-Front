@@ -1181,6 +1181,46 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
+                          {/* PROJECT PURCHASE */}
+<tr className="table-info">
+    <td className="fw-bold">
+        <i className="fa-solid fa-boxes-stacked me-2"></i>
+        Project Purchase
+    </td>
+    <td>
+        <label className="toggler-wrapper style-22">
+            <input type="checkbox" name="createProjectPurchase"
+                checked={designation.permissions?.includes('createProjectPurchase')}
+                onChange={(e) => handlePermissionChange('createProjectPurchase', e.target.checked)} />
+            <div className="toggler-slider"><div className="toggler-knob"></div></div>
+        </label>
+    </td>
+    <td>
+        <label className="toggler-wrapper style-22">
+            <input type="checkbox" name="viewProjectPurchase"
+                checked={designation.permissions?.includes('viewProjectPurchase')}
+                onChange={(e) => handlePermissionChange('viewProjectPurchase', e.target.checked)} />
+            <div className="toggler-slider"><div className="toggler-knob"></div></div>
+        </label>
+    </td>
+    <td>
+        <label className="toggler-wrapper style-22">
+            <input type="checkbox" name="updateProjectPurchase"
+                checked={designation.permissions?.includes('updateProjectPurchase')}
+                onChange={(e) => handlePermissionChange('updateProjectPurchase', e.target.checked)} />
+            <div className="toggler-slider"><div className="toggler-knob"></div></div>
+        </label>
+    </td>
+    <td>
+        <label className="toggler-wrapper style-22">
+            <input type="checkbox" name="deleteProjectPurchase"
+                checked={designation.permissions?.includes('deleteProjectPurchase')}
+                onChange={(e) => handlePermissionChange('deleteProjectPurchase', e.target.checked)} />
+            <div className="toggler-slider"><div className="toggler-knob"></div></div>
+        </label>
+    </td>
+</tr>
+
                           {/* SURVEY ENGINEER */}
                           <tr className="table-info" style={{ backgroundColor: '#e3f2fd' }}>
                             <td className="fw-bold text-primary">

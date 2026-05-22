@@ -77,6 +77,9 @@ import SurveyEngineerDashboard from "./Components/Private/MainDashboard/SalesMas
 
 import { OldSalesHistoryGrid } from './Components/Private/MainDashboard/SalesMaster/OldSalesHistoryGrid';
 
+import { ProjectPurchaseMasterGrid } from "./Components/Private/MainDashboard/ProjectPurchaseMaster/ProjectPurchaseMasterGrid";
+
+
 
 // Custom component to check if user has required permissions
 const SalesManagerRoute = () => {
@@ -238,6 +241,8 @@ const AllRoutes = () => {
                 <Route exact path="/SurveyEngineerDashboard" element={<ProtectRoute Component={SurveyEngineerDashboard} />} /> 
                 
                 <Route exact path="/OldSalesHistory" element={<ProtectRoute Component={OldSalesHistoryGrid} />} />
+                
+                <Route exact path="/ProjectPurchaseMasterGrid" element={<ProtectRoute Component={ProjectPurchaseMasterGrid} />} />
                                {/* Company Routes */}
                 {user && user?.user === 'company' && (
                     <>

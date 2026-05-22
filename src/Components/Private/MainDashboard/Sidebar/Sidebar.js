@@ -469,6 +469,18 @@ export const Sidebar = ({ isopen, active }) => {
                             </Link>
                         </li>
                     ) : null}
+
+                    {/* Project Purchase Master */}
+{user?.permissions?.includes("viewProjectPurchase") || user?.user === 'company' ? (
+    <li title="Project Purchase" className={active === "ProjectPurchaseMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+        <Link to='/ProjectPurchaseMasterGrid' className="nav-link ">
+            <i className="fa-solid fa-boxes-stacked ps-3 side_icon_fs"></i>
+            <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                Project Purchase
+            </span>
+        </Link>
+    </li>
+) : null}
                 </ul>
             </nav>
         </div>

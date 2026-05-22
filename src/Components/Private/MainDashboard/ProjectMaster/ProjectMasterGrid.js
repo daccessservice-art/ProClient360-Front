@@ -1,4 +1,4 @@
-import { useState,useContext, useEffect } from "react";
+import { useState, useContext, useEffect } from "react";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
 import toast from 'react-hot-toast';
@@ -7,10 +7,48 @@ import AddProjectPopup from "./PopUp/AddProjectPopup";
 import UpdateProjectPopup from "./PopUp/UpdateProjectPopup";
 import DownloadPopup from "./PopUp/DownloadProjectPopup";
 import { getProjects, deleteProject } from "../../../../hooks/useProjects";
+import { getMaterialStatusByProject } from "../../../../hooks/useProjectPurchase";
 import { formatDate } from "../../../../utils/formatDate";
 import GaintchartPoup from "./PopUp/GaintchartPoup";
 import { useNavigate } from "react-router-dom";
 import { UserContext } from "../../../../context/UserContext";
+
+// ─── Material Availability Badge for Project Master ────────────────
+const MaterialAvailabilityBadge = ({ projectId }) => {
+    const [status, setStatus] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!projectId) return;
+        setLoading(true);
+        getMaterialStatusByProject(projectId)
+            .then(data => {
+                if (data?.success) setStatus(data);
+            })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [projectId]);
+
+    if (loading) return <small className="text-muted">...</small>;
+    if (!status) return <span className="badge bg-secondary" style={{ fontSize: '10px' }}>No Request</span>;
+
+    const badgeClass = status.materialAvailable ? 'bg-success' :
+        status.materialStatus === 'Not Available' ? 'bg-danger' :
+        status.materialStatus === 'Check Pending' ? 'bg-warning text-dark' : 'bg-info';
+
+    return (
+        <div>
+            <span className={`badge rounded-pill px-2 py-1 ${badgeClass}`} style={{ fontSize: '10px' }}>
+                {status.materialStatus || 'N/A'}
+            </span>
+            {status.paymentTermsMatch && status.paymentTermsMatch !== 'Pending' && (
+                <div style={{ fontSize: '9px' }} className={status.paymentTermsMatch === 'Matched' ? 'text-success' : 'text-danger'}>
+                    Pay: {status.paymentTermsMatch}
+                </div>
+            )}
+        </div>
+    );
+};
 
 export const ProjectMasterGrid = () => {
   const navigate = useNavigate();
@@ -141,9 +179,8 @@ export const ProjectMasterGrid = () => {
     }
   };
 
-  // Arrow color based on actual task count from backend
   const getAssignIconColor = (taskCount) => {
-    return taskCount > 0 ? "#198754" : "#adb5bd"; // green if tasks exist, grey if not
+    return taskCount > 0 ? "#198754" : "#adb5bd";
   };
 
   const getAssignIconTitle = (taskCount) => {
@@ -247,6 +284,7 @@ export const ProjectMasterGrid = () => {
                             <th>Start Date</th>
                             <th>End Date</th>
                             <th>Status</th>
+                            <th>Material</th>
                             <th>Assign</th>
                             <th>Action</th>
                           </tr>
@@ -277,6 +315,10 @@ export const ProjectMasterGrid = () => {
                                   <span className={`badge rounded-pill px-2 py-1 ${getStatusBadgeClass(project.projectStatus)}`}>
                                     {project.projectStatus}
                                   </span>
+                                </td>
+                                {/* ─── NEW: Material Availability Column ────── */}
+                                <td className="w-20">
+                                  <MaterialAvailabilityBadge projectId={project._id} />
                                 </td>
                                 <td className="w-20">
                                   {user?.permissions?.includes("viewTaskSheet") || user?.user === 'company' ? (
@@ -311,7 +353,7 @@ export const ProjectMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="11" className="text-center">
+                              <td colSpan="12" className="text-center">
                                 No data found
                               </td>
                             </tr>
@@ -329,7 +371,6 @@ export const ProjectMasterGrid = () => {
                       disabled={!pagination.hasPrevPage}
                       className="btn btn-dark btn-sm me-1"
                       style={{ borderRadius: "4px" }}
-                      aria-label="First Page"
                     >
                       First
                     </button>
@@ -339,7 +380,6 @@ export const ProjectMasterGrid = () => {
                       onClick={() => handlePageChange(pagination.currentPage - 1)}
                       className="btn btn-dark btn-sm me-1"
                       style={{ borderRadius: "4px" }}
-                      aria-label="Previous Page"
                     >
                       Previous
                     </button>
@@ -380,8 +420,6 @@ export const ProjectMasterGrid = () => {
                             pagination.currentPage === number ? "btn-primary" : "btn-dark"
                           }`}
                           style={{ minWidth: "35px", borderRadius: "4px" }}
-                          aria-label={`Go to page ${number}`}
-                          aria-current={pagination.currentPage === number ? "page" : undefined}
                         >
                           {number}
                         </button>
@@ -401,7 +439,6 @@ export const ProjectMasterGrid = () => {
                       disabled={!pagination.hasNextPage}
                       className="btn btn-dark btn-sm"
                       style={{ borderRadius: "4px" }}
-                      aria-label="Last Page"
                     >
                       Last
                     </button>
