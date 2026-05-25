@@ -226,46 +226,92 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     } else { setEmployeeOptions([]); setAssignedEmployee(null); }
   }, [selectedDepartment, loadEmployees, empSearchTerm]);
 
+  // --- MODIFIED PINCODE EFFECT ---
+  // Now attempts to fetch address, but does not block or clear fields on failure.
   useEffect(() => {
     const fetchData = async () => {
       const pin = formData.address.pincode || '';
-      if (pin.length === 0) { clearFieldError('pincode'); setPincodeStatus(''); return; }
+      if (pin.length === 0) { 
+        clearFieldError('pincode'); 
+        setPincodeStatus(''); 
+        return; 
+      }
+      
+      // Format validation (length)
       if (pin.length > 0 && pin.length < 6) {
-        if (customerType === 'new') { setFieldError('pincode', 'Pincode must be exactly 6 digits.'); setPincodeStatus(''); setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } })); }
+        if (customerType === 'new') { 
+          setFieldError('pincode', 'Pincode must be exactly 6 digits.'); 
+          setPincodeStatus(''); 
+          // We don't clear state/city here anymore, allowing user to fill them first if they want
+        }
         return;
       }
+      
       if (pin.length === 6) {
-        if (customerType === 'existing' && formData.address.state && formData.address.city) { setPincodeStatus('valid'); clearFieldError('pincode'); return; }
-        clearFieldError('pincode'); setPincodeStatus('loading'); setIsLoadingAddress(true);
+        // If existing customer and fields are already filled, we assume it's valid
+        if (customerType === 'existing' && formData.address.state && formData.address.city) { 
+          setPincodeStatus('valid'); 
+          clearFieldError('pincode'); 
+          return; 
+        }
+        
+        clearFieldError('pincode'); 
+        setPincodeStatus('loading'); 
+        setIsLoadingAddress(true);
+        
         try {
           const data = await getAddress(pin);
+          // Only update if API returns valid data
           if (data && data !== 'Error' && (data.state || data.city)) {
-            setFormData(prev => ({ ...prev, address: { ...prev.address, state: data.state || prev.address.state || '', city: data.city || prev.address.city || '', country: data.country || prev.address.country || 'India' } }));
-            setPincodeStatus('valid'); clearFieldError('pincode');
+            setFormData(prev => ({ 
+              ...prev, 
+              address: { 
+                ...prev.address, 
+                state: data.state || prev.address.state || '', 
+                city: data.city || prev.address.city || '', 
+                country: data.country || prev.address.country || 'India' 
+              } 
+            }));
+            setPincodeStatus('valid'); 
+            clearFieldError('pincode');
           } else {
-            if (customerType === 'existing') { setPincodeStatus(''); clearFieldError('pincode'); }
-            else { setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } })); setPincodeStatus('invalid'); setFieldError('pincode', 'Invalid Pincode — no location found.'); }
+            // --- CHANGE START ---
+            // If API fails or returns no data, we DO NOT clear the fields.
+            // We DO NOT set 'invalid' status that blocks submission.
+            // We simply clear the loading state and let the user fill the data manually.
+            setPincodeStatus(''); 
+            clearFieldError('pincode');
+            // --- CHANGE END ---
           }
         } catch {
-          if (customerType === 'existing') { setPincodeStatus(''); clearFieldError('pincode'); }
-          else { setFormData(prev => ({ ...prev, address: { ...prev.address, state: '', city: '', country: '' } })); setPincodeStatus('invalid'); setFieldError('pincode', 'Could not verify pincode.'); }
-        } finally { setIsLoadingAddress(false); }
+          // Same logic as above for network errors
+          setPincodeStatus(''); 
+          clearFieldError('pincode');
+        } finally { 
+          setIsLoadingAddress(false); 
+        }
       }
     };
     const t = setTimeout(fetchData, 600);
     return () => clearTimeout(t);
-  }, [formData.address.pincode, customerType, formData.address.state, formData.address.city]);
+  }, [formData.address.pincode, customerType]); // Removed state/city from dependency to allow manual edit without triggering fetch again
 
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
     if (['state', 'city', 'country'].includes(name)) {
-      if (value && !isValidAddressText(value)) { setFieldError(name, `${name.charAt(0).toUpperCase() + name.slice(1)} must contain only letters and spaces.`); return; }
-      else { clearFieldError(name); }
+      if (value && !isValidAddressText(value)) { 
+        setFieldError(name, `${name.charAt(0).toUpperCase() + name.slice(1)} must contain only letters and spaces.`); 
+      } else { 
+        clearFieldError(name); 
+      }
     }
     if (name === 'pincode') {
       const digitsOnly = value.replace(/[^0-9]/g, '');
-      if (value !== digitsOnly) { setFieldError('pincode', 'Pincode must contain digits only.'); }
-      else { clearFieldError('pincode'); }
+      if (value !== digitsOnly) { 
+        setFieldError('pincode', 'Pincode must contain digits only.'); 
+      } else { 
+        clearFieldError('pincode'); 
+      }
       setFormData(prev => ({ ...prev, address: { ...prev.address, [name]: digitsOnly } }));
       return;
     }
@@ -363,9 +409,17 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     if (message && !isValidMessage(message)) { toast.error('Message must contain at least one letter.'); setFieldError('message', 'Message must contain at least one letter.'); return; }
 
     if (customerType === 'new' && address.pincode) {
-      if (!isValidPincode(address.pincode)) { toast.error('Pincode must be exactly 6 digits.'); setFieldError('pincode', 'Pincode must be exactly 6 digits.'); return; }
-      if (pincodeStatus === 'invalid') { toast.error('Invalid Pincode — no location found.'); setFieldError('pincode', 'Invalid Pincode.'); return; }
+      // Kept format validation (6 digits), but removed API existence validation check
+      if (!isValidPincode(address.pincode)) { 
+        toast.error('Pincode must be exactly 6 digits.'); 
+        setFieldError('pincode', 'Pincode must be exactly 6 digits.'); 
+        return; 
+      }
+      
+      // --- REMOVED: The check that blocked submission if API failed ---
+      // if (pincodeStatus === 'invalid') { ... return; }
     }
+    
     if (address.state && !isValidAddressText(address.state)) { toast.error('State must contain only letters and spaces.'); setFieldError('state', 'State: letters only.'); return; }
     if (address.city && !isValidAddressText(address.city)) { toast.error('City must contain only letters and spaces.'); setFieldError('city', 'City: letters only.'); return; }
     if (address.country && !isValidAddressText(address.country)) { toast.error('Country must contain only letters and spaces.'); setFieldError('country', 'Country: letters only.'); return; }
@@ -385,7 +439,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
     const assignedTo = assignmentType === 'self' ? user._id : assignedEmployee;
 
-    // ========== CRITICAL FIX: Convert empty strings to null ==========
     const mappedData = {
       customerType,
       customerId: customerType === 'existing' ? selectedCustomer.value : null,
@@ -407,7 +460,6 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       assignedTo,
       assignedBy: user._id,
       assignedTime: new Date().toISOString(),
-      // CRITICAL: Send null for empty strings, not empty string ''
       projectSize: formData.projectSize && formData.projectSize.trim() !== '' ? formData.projectSize : null,
       requirementType: formData.requirementType && formData.requirementType.trim() !== '' ? formData.requirementType : null,
       requirementMode: formData.requirementMode && formData.requirementMode.trim() !== '' ? formData.requirementMode : null,
