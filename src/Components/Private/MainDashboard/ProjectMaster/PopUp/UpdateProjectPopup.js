@@ -13,8 +13,6 @@ const PAGE_SIZE = 15;
 const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
     const { user } = useContext(UserContext);
 
-    // generateTokenAndSendResponse stores designation as a plain string:
-    // designation: user.designation.name  ← string, NOT object
     const designationName = user?.designation || "";
     const isProjectCoordinator = designationName.trim().toLowerCase() === "project coordinator";
 
@@ -52,12 +50,20 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         pincode: selectedProject?.Address?.pincode || "",
     });
 
+    // ✅ FIXED: Merge only state/city/country, keep pincode and add intact
     useEffect(() => {
         const fetchData = async () => {
             const data = await getAddress(address.pincode);
-            if (data !== "Error") setAddress(data);
+            if (data && data !== "Error") {
+                setAddress(prev => ({
+                    ...prev,
+                    state: data.state || "",
+                    city: data.city || "",
+                    country: data.country || "",
+                }));
+            }
         };
-        if (address.pincode > 0) fetchData();
+        if (address.pincode && String(address.pincode).length === 6) fetchData();
     }, [address.pincode]);
 
     const loadCustomers = useCallback(async (page, search) => {
@@ -99,7 +105,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         }
     }, [projects.advancePay, projects.payAgainstDelivery, projects.payAfterCompletion]);
 
-    // Only these fields can be changed by Project Coordinator
     const coordinatorAllowedFields = [
         "projectStatus",
         "completeLevel",
@@ -114,7 +119,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
     const handleChange = (event) => {
         const { name, value } = event.target;
 
-        // Silently block restricted fields for Project Coordinator
         if (isProjectCoordinator && !coordinatorAllowedFields.includes(name)) return;
 
         if (["purchaseOrderValue", "completeLevel"].includes(name)) {
@@ -302,7 +306,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                         <div className="modal-body">
                             <div className="row modal_body_height">
 
-                                {/* Customer Name — LOCKED */}
+                                {/* Customer Name */}
                                 <div className="col-12">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Customer Name <RequiredStar /></label>
@@ -333,7 +337,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Project Name — LOCKED */}
+                                {/* Project Name */}
                                 <div className="col-12 mb-3">
                                     <label className="form-label label_text">Project Name <RequiredStar /></label>
                                     <textarea
@@ -348,7 +352,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     />
                                 </div>
 
-                                {/* Project Status — ✅ EDITABLE */}
+                                {/* Project Status */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <label className="form-label label_text">Project Status <RequiredStar /></label>
                                     <select
@@ -363,7 +367,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </select>
                                 </div>
 
-                                {/* Completion Level — ✅ EDITABLE */}
+                                {/* Completion Level */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Completion level <RequiredStar /></label>
@@ -382,7 +386,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Purchase Order Date — LOCKED */}
+                                {/* Purchase Order Date */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Purchase Order Date <RequiredStar /></label>
@@ -398,7 +402,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Purchase Order Number — LOCKED */}
+                                {/* Purchase Order Number */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Purchase Order Number <RequiredStar /></label>
@@ -416,7 +420,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Purchase Order Value — LOCKED */}
+                                {/* Purchase Order Value */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Purchase Order Value (Rs/USD) <RequiredStar /></label>
@@ -435,7 +439,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Category — LOCKED */}
+                                {/* Category */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Category of Project <RequiredStar /></label>
@@ -488,7 +492,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Project Start Date — ✅ EDITABLE */}
+                                {/* Project Start Date */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Project Start Date <RequiredStar /></label>
@@ -502,7 +506,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Project End Date — ✅ EDITABLE */}
+                                {/* Project End Date */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Project End Date <RequiredStar /></label>
@@ -516,7 +520,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Project Completion Details — ✅ EDITABLE */}
+                                {/* Project Completion Details */}
                                 {projects?.projectStatus === "Completed" && (
                                     <div className="col-12 mt-4">
                                         <div className="row border bg-light mx-auto p-3">
@@ -562,7 +566,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 )}
 
-                                {/* Payment Terms — LOCKED */}
+                                {/* Payment Terms */}
                                 <div className="col-12 mt-2">
                                     <div className="row border bg-gray mx-auto">
                                         <div className="col-10 mb-3">
@@ -595,7 +599,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* Address — LOCKED */}
+                                {/* Address */}
                                 <div className="col-12 mt-2">
                                     <div className="row border mt-4 bg-gray mx-auto">
                                         <div className="col-12 mb-3">
@@ -629,7 +633,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     </div>
                                 </div>
 
-                                {/* PO Copy — always visible */}
+                                {/* PO Copy */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Purchase Order Copy <RequiredStar /></label>
@@ -637,7 +641,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     <button type="button" className="btn btn-outline-dark" onClick={() => viewFile('POCopy')}>View</button>
                                 </div>
 
-                                {/* Remark — LOCKED */}
+                                {/* Remark */}
                                 <div className="col-12 mt-2">
                                     <div className="mb-3">
                                         <label className="form-label label_text">Remark</label>
