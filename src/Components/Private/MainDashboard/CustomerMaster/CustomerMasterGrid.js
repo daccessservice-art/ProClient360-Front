@@ -56,7 +56,7 @@ export const CustomerMasterGrid = () => {
   const [totalCounts, setTotalCounts] = useState({ main: 0, branch: 0 });
 
   // ── ALL-TIME total counts (always unfiltered — shown in header badges) ──
-  const [allTotalCounts, setAllTotalCounts] = useState({ main: 0, branch: 0 });
+  const [allTotalCounts, setAllTotalCounts] = useState({ main: 0, branch: 0, total: 0 });
 
   const [createdByFilter, setCreatedByFilter] = useState("");
   const [ownedByFilter, setOwnedByFilter] = useState("");
@@ -232,7 +232,7 @@ export const CustomerMasterGrid = () => {
 
           // ── Always-total counts (ignores all filters — shown in header) ──
           if (data.allCounts) {
-            setAllTotalCounts({ main: data.allCounts.main || 0, branch: data.allCounts.branch || 0 });
+            setAllTotalCounts({ main: data.allCounts.main || 0, branch: data.allCounts.branch || 0, total: data.allCounts.total || 0, });
           }
         } else {
           toast(data?.error || "Failed to fetch customers");
@@ -319,42 +319,52 @@ export const CustomerMasterGrid = () => {
                   {/* ── Heading: always shows TOTAL Main / Branch across ALL customers (unfiltered) ── */}
                   <div className="col-12 col-lg-3">
                     <h5 className="text-white py-2 mb-0 d-flex align-items-center flex-wrap gap-2">
-                      Customer Master
-                      {!loading && (
-                        <>
-                          {/* Total Main — always full count regardless of filters */}
-                          <span
-                            className="badge bg-primary"
-                            title="Total Main customers (all customers, ignores filters)"
-                            style={{ fontSize: "11px", fontWeight: "500" }}
-                          >
-                            <i className="fa-solid fa-building me-1"></i>
-                            {allTotalCounts.main} Main
-                          </span>
+  Customer Master
+  {!loading && (
+    <>
+      {/* Total Count Badge */}
+      <span
+        className="badge bg-light text-dark"
+        title="Total customers (all)"
+        style={{ fontSize: "11px", fontWeight: "600" }}
+      >
+        <i className="fa-solid fa-users me-1"></i>
+        {allTotalCounts.total} Total
+      </span>
 
-                          {/* Total Branch — always full count regardless of filters */}
-                          <span
-                            className="badge bg-info text-dark"
-                            title="Total Branch customers (all customers, ignores filters)"
-                            style={{ fontSize: "11px", fontWeight: "500" }}
-                          >
-                            <i className="fa-solid fa-code-branch me-1"></i>
-                            {allTotalCounts.branch} Branch
-                          </span>
+      {/* Total Main — always full count regardless of filters */}
+      <span
+        className="badge bg-primary"
+        title="Total Main customers (all customers, ignores filters)"
+        style={{ fontSize: "11px", fontWeight: "500" }}
+      >
+        <i className="fa-solid fa-building me-1"></i>
+        {allTotalCounts.main} Main
+      </span>
 
-                          {/* If filters are active, also show filtered sub-counts */}
-                          {isFilterActive && (
-                            <span
-                              className="badge bg-secondary"
-                              title="Filtered result counts"
-                              style={{ fontSize: "10px", fontWeight: "400" }}
-                            >
-                              (Filtered: {totalCounts.main}M / {totalCounts.branch}B)
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </h5>
+      {/* Total Branch — always full count regardless of filters */}
+      <span
+        className="badge bg-info text-dark"
+        title="Total Branch customers (all customers, ignores filters)"
+        style={{ fontSize: "11px", fontWeight: "500" }}
+      >
+        <i className="fa-solid fa-code-branch me-1"></i>
+        {allTotalCounts.branch} Branch
+      </span>
+
+      {/* If filters are active, also show filtered sub-counts */}
+      {isFilterActive && (
+        <span
+          className="badge bg-secondary"
+          title="Filtered result counts"
+          style={{ fontSize: "10px", fontWeight: "400" }}
+        >
+          (Filtered: {totalCounts.main}M / {totalCounts.branch}B)
+        </span>
+      )}
+    </>
+  )}
+</h5>
                   </div>
 
                   {/* ── Controls ── */}
