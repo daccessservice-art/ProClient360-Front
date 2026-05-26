@@ -528,6 +528,7 @@ const AddProjectPopup = ({ handleAdd }) => {
                       <option value="CineMind">CineMind</option>
                       <option value="Extracto">Extracto</option>
                       <option value="Virtual Agent">Virtual Agent</option>
+                      <option value="LAN Cabling Activity">LAN Cabling Activity</option>
                     </select>
                   </div>
                 </div>

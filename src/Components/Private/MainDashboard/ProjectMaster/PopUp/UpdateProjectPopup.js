@@ -451,6 +451,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             disabled={isProjectCoordinator}
                                             style={isProjectCoordinator ? lockedStyle : {}}
                                         >
+                                            <option value="Surveillance System">Surveillance System</option>
                                             <option value="CCTV System">CCTV System</option>
                                             <option value="TA System">TA System</option>
                                             <option value="Hajeri">Hajeri</option>
@@ -488,6 +489,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             <option value="CineMind">CineMind</option>
                                             <option value="Extracto">Extracto</option>
                                             <option value="Virtual Agent">Virtual Agent</option>
+                                            <option value="LAN Cabling Activity">LAN Cabling Activity</option>
                                         </select>
                                     </div>
                                 </div>

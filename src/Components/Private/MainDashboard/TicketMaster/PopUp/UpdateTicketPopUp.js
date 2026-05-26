@@ -92,6 +92,7 @@ const UpdateEmployeePopUp = ({ handleUpdate, selectedTicket }) => {
   };
 
   const productOptions = [
+    "Surveillance System",
     "CCTV System",
     "TA System",
     "Hajeri",
@@ -127,7 +128,8 @@ const UpdateEmployeePopUp = ({ handleUpdate, selectedTicket }) => {
     "VisionIQ",
     "CineMind",
     "Extracto",
-    "Virtual Agent"
+    "Virtual Agent",
+    "LAN Cabling Activity",
   ];
 
   return (

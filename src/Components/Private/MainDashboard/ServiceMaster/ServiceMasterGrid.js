@@ -15,14 +15,14 @@ import { getAllService } from "../../../../hooks/useService";
 import axios from "axios";
 
 const productOptions = [
-  "CCTV System", "TA System", "Hajeri", "SmartFace", "ZKBioSecurity",
+  "Surveillance System", "CCTV System", "TA System", "Hajeri", "SmartFace", "ZKBioSecurity",
   "Access Control System", "Turnkey Project", "Alleviz", "CafeLive",
   "WorksJoy", "WorksJoy Blu", "Fire Alarm System", "Fire Hydrant System",
   "IDS", "AI Face Machines", "Entrance Automation", "Guard Tour System",
   "Home Automation", "IP PA and Communication System", "CRM", "KMS",
   "VMS", "PMS", "Boom Barrier System", "Tripod System", "Flap Barrier System",
   "EPBX System", "CMS", "Lift Elevator System", "AV6", "Walky Talky System",
-  "Device Management System", "VisionIQ","CineMind","Extracto","Virtual Agent"
+  "Device Management System", "VisionIQ","CineMind","Extracto","Virtual Agent", "LAN Cabling Activity"
 ];
 
 // ── Review Criteria (12 fields) ──────────────────────────────────────────────

@@ -87,13 +87,13 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
   const [customProduct, setCustomProduct] = useState('');
 
   const productsList = [
-    'surveillance System', 'Access Control System', 'TurnKey Project', 'Alleviz',
+    'Surveillance System', 'Access Control System', 'TurnKey Project', 'Alleviz',
     'CafeLive', 'WorksJoy', 'WorksJoy Blu', 'Fire Alarm System', 'Fire Hydrant System',
     'IDS', 'AI Face Machines', 'Entrance Automation', 'Guard Tour System',
     'Home Automation', 'IP PA and Communication System', 'CRM', 'Security Systems',
     'KMS', 'VMS', 'PMS', 'Boom Barrier System', 'Tripod System', 'Flap Barrier System',
     'EPBX System', 'CMS', 'Lift Eliviter System', 'AV6', 'Walky Talky System',
-    'Device Management System', 'VisionIQ','CineMind','Extracto','Virtual Agent', 'Other',
+    'Device Management System', 'VisionIQ','CineMind','Extracto','Virtual Agent', 'LAN Cabling Activity', 'Other',
   ];
 
   const productOptions = productsList.map(p => ({ value: p, label: p }));

@@ -7,6 +7,7 @@ import { createExhibitionVisit, getExhibitionsDropdown } from "../../../../../ho
 
 // ─── Full product list ────────────────────────────────────────────────────────
 const PRODUCT_OPTIONS = [
+  "Surveillance System",
   "CCTV System",
   "TA System",
   "Hajeri",
@@ -44,6 +45,7 @@ const PRODUCT_OPTIONS = [
   "CineMind",
   "Extracto",
   "Virtual Agent",
+  "LAN Cabling Activity"
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
