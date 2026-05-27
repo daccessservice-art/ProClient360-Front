@@ -79,6 +79,8 @@ import { OldSalesHistoryGrid } from './Components/Private/MainDashboard/SalesMas
 
 import { ProjectPurchaseMasterGrid } from "./Components/Private/MainDashboard/ProjectPurchaseMaster/ProjectPurchaseMasterGrid";
 
+import { AccountFollowUpMasterGrid } from "./Components/Private/MainDashboard/AccountMaster/AccountFollowUpMasterGrid";
+
 
 
 // Custom component to check if user has required permissions
@@ -243,6 +245,9 @@ const AllRoutes = () => {
                 <Route exact path="/OldSalesHistory" element={<ProtectRoute Component={OldSalesHistoryGrid} />} />
                 
                 <Route exact path="/ProjectPurchaseMasterGrid" element={<ProtectRoute Component={ProjectPurchaseMasterGrid} />} />
+
+                <Route exact path="/AccountFollowUpMasterGrid" element={<ProtectRoute Component={AccountFollowUpMasterGrid} />} />
+
                                {/* Company Routes */}
                 {user && user?.user === 'company' && (
                     <>

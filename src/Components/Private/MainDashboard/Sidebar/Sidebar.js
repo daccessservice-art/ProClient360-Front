@@ -470,6 +470,15 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
+                    {user?.permissions?.includes("viewAccountMaster") || user?.user === 'company' ? (
+    <li title="Account Follow-Up" className={active === "AccountFollowUpMasterGrid" ? "nav-item active" : "nav-item sidebar_item"}>
+        <Link to='/AccountFollowUpMasterGrid' className="nav-link">
+            <i className="fa-solid fa-phone-volume ps-3 side_icon_fs"></i>
+            <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>Account Follow-Up</span>
+        </Link>
+    </li>
+) : null}
+
                     {/* Project Purchase Master */}
 {user?.permissions?.includes("viewProjectPurchase") || user?.user === 'company' ? (
     <li title="Project Purchase" className={active === "ProjectPurchaseMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
