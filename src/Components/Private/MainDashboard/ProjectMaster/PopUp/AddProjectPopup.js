@@ -23,6 +23,7 @@ const AddProjectPopup = ({ handleAdd }) => {
   const [POCopy, setPOCopy] = useState("");
   const [loading, setLoading] = useState(false);
   const [retention, setRetention] = useState(0);
+  const [retentionDays, setRetentionDays] = useState(0); // ─── NEW STATE
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [isLoadingCustomerAddress, setIsLoadingCustomerAddress] = useState(false);
 
@@ -222,6 +223,12 @@ const AddProjectPopup = ({ handleAdd }) => {
       return toast.error("The total payment percentage cannot exceed 100%");
     }
 
+    // ─── NEW: Retention Validation (Max 10%) ───
+    if (totalPayment < 90) {
+      return toast.error("Retention cannot be more than 10%. Please adjust payment terms.");
+    }
+    // ───────────────────────────────────────────
+
     // Address validation
     if (!Address.pincode || Address.pincode.length !== 6) {
       return toast.error("Please enter valid 6-digit pincode");
@@ -261,6 +268,7 @@ const AddProjectPopup = ({ handleAdd }) => {
       payAgainstDelivery: Number(payAgainstDelivery) || 0,
       payAfterCompletion: Number(payAfterCompletion) || 0,
       retention: Number(retention) || 0,
+      retentionDays: Number(retentionDays) || 0, // ─── ADD NEW FIELD
       remark: remark.trim(),
       Address: {
         pincode: Address.pincode,
@@ -650,6 +658,29 @@ const AddProjectPopup = ({ handleAdd }) => {
                         />
                       </div>
                     </div>
+
+                    {/* ─── NEW FIELD: Retention Days ─── */}
+                    <div className="col-12 col-lg-6 mt-2">
+                        <div className="mb-3">
+                            <label htmlFor="retentionDays" className="form-label label_text">Retention Days</label>
+                            <input
+                                type="number"
+                                min="0"
+                                className="form-control rounded-0"
+                                id="retentionDays"
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (/^\d*$/.test(value)) {
+                                        setRetentionDays(value);
+                                    }
+                                }}
+                                value={retentionDays}
+                                placeholder="0"
+                            />
+                        </div>
+                    </div>
+                    {/* ─────────────────────────────────── */}
+
                   </div>
                 </div>
                 

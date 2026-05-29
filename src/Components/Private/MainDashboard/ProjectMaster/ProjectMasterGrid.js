@@ -6,6 +6,7 @@ import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddProjectPopup from "./PopUp/AddProjectPopup";
 import UpdateProjectPopup from "./PopUp/UpdateProjectPopup";
 import DownloadPopup from "./PopUp/DownloadProjectPopup";
+import MRFPopup from "./PopUp/MRFPopup";
 import { getProjects, deleteProject } from "../../../../hooks/useProjects";
 import { getMaterialStatusByProject } from "../../../../hooks/useProjectPurchase";
 import { formatDate } from "../../../../utils/formatDate";
@@ -65,6 +66,9 @@ export const ProjectMasterGrid = () => {
   const [UpdatePopUpShow, setUpdatePopUpShow] = useState(false);
   const [DetailsPopUpShow, setDetailsPopUpShow] = useState(false);
   const [DownloadPopUpShow, setDownloadPopUpShow] = useState(false);
+  // ─── NEW: MRF Popup State ───────────────────────────────────────────
+  const [MRFPopUpShow, setMRFPopUpShow] = useState(false);
+  // ───────────────────────────────────────────────────────────────────
 
   const [selectedId, setSelecteId] = useState(null);
   const [project, setProject] = useState([]);
@@ -111,6 +115,13 @@ export const ProjectMasterGrid = () => {
   const handleDownloads = () => {
     setDownloadPopUpShow(!DownloadPopUpShow);
   };
+
+  // ─── NEW: MRF Handler ───────────────────────────────────────────────
+  const handleMRF = (project = null) => {
+    setSelectedProject(project);
+    setMRFPopUpShow(!MRFPopUpShow);
+  };
+  // ───────────────────────────────────────────────────────────────────
 
   const handleChange = (filterType, value) => {
     const updatedFilters = { ...filters, [filterType]: value || null };
@@ -316,7 +327,7 @@ export const ProjectMasterGrid = () => {
                                     {project.projectStatus}
                                   </span>
                                 </td>
-                                {/* ─── NEW: Material Availability Column ────── */}
+                                {/* Material Availability Column */}
                                 <td className="w-20">
                                   <MaterialAvailabilityBadge projectId={project._id} />
                                 </td>
@@ -337,17 +348,57 @@ export const ProjectMasterGrid = () => {
                                     ></i>
                                   ) : null}
                                 </td>
+
+                                {/* ─── ACTION COLUMN: Edit + Delete + NEW MRF Button ─── */}
                                 <td className="w-20">
                                   {user?.permissions?.includes("updateProject") || user?.user === 'company' ? (
-                                    <span onClick={() => handleUpdate(project)} className="update">
+                                    <span onClick={() => handleUpdate(project)} className="update" title="Edit Project">
                                       <i className="mx-1 fa-solid fa-pen text-success cursor-pointer"></i>
                                     </span>
                                   ) : null}
                                   {user?.permissions?.includes("deleteProject") || user?.user === 'company' ? (
-                                    <span onClick={() => handelDeleteClosePopUpClick(project._id)} className="delete">
+                                    <span onClick={() => handelDeleteClosePopUpClick(project._id)} className="delete" title="Delete Project">
                                       <i className="mx-1 fa-solid fa-trash text-danger cursor-pointer"></i>
                                     </span>
                                   ) : null}
+
+                                  {/* ─── NEW: MRF Button ─────────────────────── */}
+                                  {user?.permissions?.includes("createMRF") || user?.permissions?.includes("updateProject") || user?.user === 'company' ? (
+                                    <span
+                                      onClick={() => handleMRF(project)}
+                                      title="Create / View MRF"
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      <span
+                                        style={{
+                                          display: 'inline-block',
+                                          background: 'linear-gradient(135deg, #1a252f 0%, #2c3e50 100%)',
+                                          color: '#fff',
+                                          fontSize: '9px',
+                                          fontWeight: '700',
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          marginLeft: '4px',
+                                          letterSpacing: '0.3px',
+                                          verticalAlign: 'middle',
+                                          boxShadow: '0 1px 4px rgba(44,62,80,0.25)',
+                                          transition: 'transform 0.15s, box-shadow 0.15s',
+                                          cursor: 'pointer',
+                                        }}
+                                        onMouseEnter={e => {
+                                          e.currentTarget.style.transform = 'scale(1.1)';
+                                          e.currentTarget.style.boxShadow = '0 3px 8px rgba(44,62,80,0.4)';
+                                        }}
+                                        onMouseLeave={e => {
+                                          e.currentTarget.style.transform = 'scale(1)';
+                                          e.currentTarget.style.boxShadow = '0 1px 4px rgba(44,62,80,0.25)';
+                                        }}
+                                      >
+                                        📋 MRF
+                                      </span>
+                                    </span>
+                                  ) : null}
+                                  {/* ──────────────────────────────────────────── */}
                                 </td>
                               </tr>
                             ))
@@ -480,6 +531,12 @@ export const ProjectMasterGrid = () => {
       ) : (
         <></>
       )}
+
+      {/* ─── NEW: MRF Popup ──────────────────────────────────────────── */}
+      {MRFPopUpShow && selectedProject ? (
+        <MRFPopup selectedProject={selectedProject} handleMRF={handleMRF} />
+      ) : null}
+      {/* ──────────────────────────────────────────────────────────────── */}
     </>
   );
 };

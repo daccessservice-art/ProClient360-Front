@@ -40,6 +40,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         warrantyCertificate: selectedProject?.warrantyCertificate || "",
         warrantyStartDate: selectedProject?.warrantyStartDate || "",
         warrantyMonths: selectedProject?.warrantyMonths || "",
+        retentionDays: selectedProject?.retentionDays || 0, // ─── INIT NEW FIELD
     });
 
     const [address, setAddress] = useState({
@@ -188,7 +189,8 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             custId: selectedCustomer?.value,
             retention: retention,
             Address: { ...address },
-            warrantyMonths: projects.warrantyMonths ? parseInt(projects.warrantyMonths) : 0
+            warrantyMonths: projects.warrantyMonths ? parseInt(projects.warrantyMonths) : 0,
+            retentionDays: projects.retentionDays || 0 // ─── ENSURE IN DATA
         };
 
         if (isProjectCoordinator) {
@@ -235,6 +237,13 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                 setLoading(false);
                 return toast.error("Sum of Advance Payment, Pay Against Delivery, and Pay After Completion cannot exceed 100%");
             }
+
+            // ─── NEW: Retention Validation (Max 10%) ───
+            if (Number(updatedProject.retention) > 10) {
+                setLoading(false);
+                return toast.error("Retention cannot be more than 10%.");
+            }
+            // ───────────────────────────────────────────
         }
 
         if (updatedProject.startDate > updatedProject.endDate) {
@@ -598,6 +607,25 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                                 <input type="text" className="form-control rounded-0" name="retention" value={retention} readOnly style={{ backgroundColor: '#f8f9fa' }} required />
                                             </div>
                                         </div>
+                                        
+                                        {/* ─── NEW FIELD: Retention Days ─── */}
+                                        <div className="col-12 col-lg-6 mt-2">
+                                            <div className="mb-3">
+                                                <label className="form-label label_text">Retention Days</label>
+                                                <input 
+                                                    type="number" 
+                                                    min="0"
+                                                    className="form-control rounded-0" 
+                                                    name="retentionDays" 
+                                                    onChange={handleChange} 
+                                                    value={projects?.retentionDays || 0}
+                                                    readOnly={isProjectCoordinator}
+                                                    style={isProjectCoordinator ? lockedStyle : {}}
+                                                />
+                                            </div>
+                                        </div>
+                                        {/* ─────────────────────────────────── */}
+
                                     </div>
                                 </div>
 

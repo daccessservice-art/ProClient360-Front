@@ -230,7 +230,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       if (selectedLead.firstCallDate) {
         setFirstCallDate(new Date(selectedLead.firstCallDate));
       } else if (sortedHistory.length > 0) {
-        // Fallback: use first call's date
         setFirstCallDate(new Date(sortedHistory[0].date));
       }
       
@@ -307,7 +306,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
         return;
       }
       
-      // Check if all 9 calls (3 days × 3 attempts) are completed
+      // Check if all 9 calls (3 days x 3 attempts) are completed
       const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
       if (callHistoryData.length < 9 || uniqueDays.length < 3) {
         toast.error('Please complete all 3 days (9 total calls) before marking as Call Unanswered.');
@@ -323,12 +322,15 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     // Add specific data based on feasibility type
     if (actionData.feasibility === 'feasible') {
       actionData.assignedTo = assignedEmployee;
-      actionData.feasibleReason = formData.feasibleReason;
+      actionData.remark = formData.feasibleReason;
     } else if (actionData.feasibility === 'not-feasible') {
       actionData.remark = formData.notFeasibleReason;
     } else if (actionData.feasibility === 'call-unanswered') {
       actionData.remark = formData.callUnansweredReason;
-      actionData.callHistory = callHistoryData;
+      // ✅ FIX: Do NOT send callHistory here.
+      // All 9 calls were already individually saved to the DB via /call-attempt/:id route
+      // when the user clicked each attempt button. Sending the array again causes:
+      // "lead validation failed: callHistory.9.attempt: Path `attempt` is required"
     }
 
     console.log('Submitting form with data:', actionData);
@@ -350,7 +352,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
 
   // Function to get which day should be shown based on DATE
   const getCurrentDayBasedOnDate = () => {
-    // If no first call date, start with Day 1
     if (!firstCallDate) {
       return 1;
     }
@@ -373,16 +374,16 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     return 1;
   };
 
-  // NEW: Function to get time remaining until next attempt is available
+  // Function to get time remaining until next attempt is available
   const getTimeUntilNextAttempt = (day, attempt) => {
-    if (attempt === 1) return 0; // First attempt is always available
+    if (attempt === 1) return 0;
     
     const previousAttempt = attempt - 1;
     const previousCall = callHistoryData.find(
       call => call.day === day && call.attempt === previousAttempt
     );
     
-    if (!previousCall) return Infinity; // Previous attempt not made yet
+    if (!previousCall) return Infinity;
     
     const previousCallTime = new Date(previousCall.date).getTime();
     const now = new Date().getTime();
@@ -392,7 +393,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     return Math.max(0, timeRemaining);
   };
 
-  // NEW: Format milliseconds to MM:SS
+  // Format milliseconds to MM:SS
   const formatTimeRemaining = (ms) => {
     if (ms <= 0) return "00:00";
     const totalSeconds = Math.ceil(ms / 1000);
@@ -401,9 +402,8 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
-  // UPDATED: Function to handle call attempts with TIME validation
+  // Function to handle call attempts with TIME validation
   const handleCallAttempt = async (day, attempt) => {
-    // Check if this specific call attempt already exists
     const existingCallIndex = callHistoryData.findIndex(
       call => call.day === day && call.attempt === attempt
     );
@@ -413,14 +413,12 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       return;
     }
 
-    // Check if user is trying to make call on correct day
     const currentDayBasedOnDate = getCurrentDayBasedOnDate();
     if (day !== currentDayBasedOnDate) {
       toast.error(`You can only make calls for Day ${currentDayBasedOnDate} today. Please try again tomorrow for Day ${day}.`);
       return;
     }
 
-    // NEW: Check 2-minute delay for attempts 2 and 3
     if (attempt > 1) {
       const timeRemaining = getTimeUntilNextAttempt(day, attempt);
       if (timeRemaining > 0) {
@@ -430,7 +428,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       }
     }
 
-    // Check if previous attempt in the same day is completed
     if (attempt > 1) {
       const previousAttempt = attempt - 1;
       const previousAttemptExists = callHistoryData.some(
@@ -443,7 +440,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       }
     }
 
-    // For Day 2 and Day 3, check if previous day is complete
     if (day > 1) {
       const previousDay = day - 1;
       const previousDayCalls = callHistoryData.filter(call => call.day === previousDay);
@@ -454,11 +450,9 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       }
     }
     
-    // Save the call attempt to database
     const result = await saveCallAttemptToDatabase(selectedLead._id, day, attempt);
     
     if (result.success) {
-      // Add to local state for display
       const newCall = {
         day,
         attempt,
@@ -470,7 +464,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       
       const updatedCallHistory = [...callHistoryData, newCall];
       
-      // Sort the array by day and attempt
       updatedCallHistory.sort((a, b) => {
         if (a.day !== b.day) return a.day - b.day;
         return a.attempt - b.attempt;
@@ -478,7 +471,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       
       setCallHistoryData(updatedCallHistory);
       
-      // Set first call date if this is the first call
       if (!firstCallDate && day === 1 && attempt === 1) {
         setFirstCallDate(new Date());
       }
@@ -487,14 +479,12 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       
       toast.success(`Day ${day} - Attempt ${attempt} recorded successfully!`);
       
-      // Show time info for next attempt
       if (attempt < 3) {
         toast.success(`⏳ Next attempt (Attempt ${attempt + 1}) will be available in 2 minutes`, {
           duration: 4000,
         });
       }
       
-      // Check if day is complete
       const dayCallsCount = updatedCallHistory.filter(call => call.day === day).length;
       if (dayCallsCount === 3) {
         if (day < 3) {
@@ -518,28 +508,24 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     );
   };
 
-  // UPDATED: Function to check if a button should be disabled with TIME validation
+  // Function to check if a button should be disabled with TIME validation
   const isButtonDisabled = (day, attempt) => {
-    // Check if this day is available based on date
     const currentDayBasedOnDate = getCurrentDayBasedOnDate();
     if (day !== currentDayBasedOnDate) {
       return true;
     }
 
-    // If already made, disable it
     if (isCallAttemptMade(day, attempt)) {
       return true;
     }
 
-    // NEW: Check 2-minute delay for attempts 2 and 3
     if (attempt > 1) {
       const timeRemaining = getTimeUntilNextAttempt(day, attempt);
       if (timeRemaining > 0) {
-        return true; // Still waiting
+        return true;
       }
     }
 
-    // For attempt 2 or 3, check if previous attempt is completed
     if (attempt > 1) {
       const previousAttempt = attempt - 1;
       const previousAttemptExists = callHistoryData.some(
@@ -551,7 +537,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
       }
     }
 
-    // For Day 2 or Day 3, check if previous day is complete
     if (day > 1) {
       const previousDay = day - 1;
       const previousDayCalls = callHistoryData.filter(call => call.day === previousDay);
@@ -583,7 +568,7 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
     return null;
   };
 
-  // UPDATED: Display call attempt buttons with countdown timer
+  // Display call attempt buttons with countdown timer
   const displayCallButtons = () => {
     const uniqueDays = [...new Set(callHistoryData.map(call => call.day))];
     const allDaysCompleted = uniqueDays.length === 3 && callHistoryData.length === 9;
@@ -618,7 +603,6 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
           <strong>Today you can only make calls for Day {currentDayBasedOnDate}.</strong> Wait 2 minutes between attempts.
         </p>
         
-        {/* Show all 3 days, but disable based on date */}
         {[1, 2, 3].map((day) => {
           const maxAttempts = 3;
           const dayCallsCount = callHistoryData.filter(call => call.day === day).length;
