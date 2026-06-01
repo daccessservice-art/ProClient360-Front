@@ -13,8 +13,8 @@ const VendorRegistrationForm = () => {
     typeOfVendor: '',
     GSTNo: '',
     brandName: '',
-    modelName: '',
-    price: '',
+    modelName: '', 
+    price: '',    
     websiteURL: '',
     linkedinURL: '',
     twitterProfile: '',
@@ -167,11 +167,9 @@ const VendorRegistrationForm = () => {
     }
   };
 
-  // Handle pincode change to fetch address
   const handlePincodeChange = async (e) => {
     const value = e.target.value;
     
-    // Update the pincode in the form data
     setFormData(prev => ({
       ...prev,
       billingAddress: {
@@ -180,7 +178,6 @@ const VendorRegistrationForm = () => {
       }
     }));
 
-    // Fetch address when pincode is 6 digits
     if (value.length === 6) {
       setIsLoadingAddress(true);
       try {
@@ -193,7 +190,7 @@ const VendorRegistrationForm = () => {
               ...prev.billingAddress,
               state: addressData.state || "",
               city: addressData.city || "",
-              country: addressData.country || "India" // Default to India
+              country: addressData.country || "India"
             }
           }));
           toast.success("Address details fetched successfully");
@@ -207,7 +204,6 @@ const VendorRegistrationForm = () => {
         setIsLoadingAddress(false);
       }
     } else if (value.length < 6) {
-      // Reset address fields if pincode is less than 6 digits
       setFormData(prev => ({
         ...prev,
         billingAddress: {
@@ -352,34 +348,17 @@ const VendorRegistrationForm = () => {
       padding: '40px 20px',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
-      {/* CSS fix for labels and placeholders */}
+      {/* Mobile Fixes */}
       <style>{`
-        /* All labels must be white */
-        form label {
-          color: white !important;
-        }
-        
-        /* Placeholder styling */
-        .vendor-input::placeholder {
-          color: rgba(255,255,255,0.95) !important;
-        }
-        .vendor-input::-webkit-input-placeholder {
-          color: rgba(255,255,255,0.95) !important;
-        }
-        .vendor-input::-moz-placeholder {
-          color: rgba(255,255,255,0.95) !important;
-        }
-        .vendor-input:-ms-input-placeholder {
-          color: rgba(255,255,255,0.95) !important;
-        }
-        
-        /* Dropdown options should remain dark for readability */
-        select.vendor-input option {
-          color: #333 !important;
+        @media (max-width: 768px) {
+          .mobile-wrapper { width: 95% !important; padding: 10px !important; }
+          .mobile-input { width: 100% !important; }
+          .mobile-row { flex-direction: column !important; width: 100% !important; gap: 5px !important; }
+          .mobile-img { display: none !important; }
         }
       `}</style>
 
-      <div style={{ maxWidth: '78%', margin: '0 auto' }}>
+      <div style={{ maxWidth: '78%', margin: '0 auto' }} className="mobile-wrapper">
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <img
             src="/static/assets/img/daccess.png"
@@ -421,15 +400,6 @@ const VendorRegistrationForm = () => {
               padding: "30px"
             }}
           >
-            <div style={{
-              position: 'absolute',
-              top: '10px',
-              right: '10px',
-              fontSize: '10px',
-              color: 'rgba(255,255,255,0.5)'
-            }}>
-            </div>
-
             <img
               src="/static/assets/img/vendorreghand.png"
               alt="Registration illustration"
@@ -443,6 +413,7 @@ const VendorRegistrationForm = () => {
                 pointerEvents: 'none',
                 filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))'
               }}
+              className="mobile-img"
             />
 
             <div style={{
@@ -465,15 +436,15 @@ const VendorRegistrationForm = () => {
                 Type of Vendor: <span style={{ color: '#ff9933' }}>*</span>
               </label>
               <select
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 name="typeOfVendor"
                 value={formData.typeOfVendor}
                 onChange={handleChange}
                 required
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
-                  color: 'white',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #ced4da',
+                  color: '#000000',
                   padding: '12px 15px',
                   borderRadius: '4px',
                   width: '67%',
@@ -499,10 +470,10 @@ const VendorRegistrationForm = () => {
                   Specify Vendor Type: <span style={{ color: '#ff9933' }}>*</span>
                 </label>
                 <input
-                  className="vendor-input"
+                  className="vendor-input mobile-input"
                   type="text"
                   name="customVendorType"
-                  placeholder="Enter custom vendor type"
+                  placeholder="Enter vendor type..."
                   value={formData.customVendorType}
                   onChange={handleChange}
                   required={formData.typeOfVendor === 'Other'}
@@ -525,15 +496,15 @@ const VendorRegistrationForm = () => {
                 Material Category: <span style={{ color: '#ff9933' }}>*</span>
               </label>
               <select
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 name="materialCategory"
                 value={formData.materialCategory}
                 onChange={handleChange}
                 required
                 style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
-                  color: 'white',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #ced4da',
+                  color: '#000000',
                   padding: '12px 15px',
                   borderRadius: '4px',
                   width: '67%',
@@ -553,7 +524,7 @@ const VendorRegistrationForm = () => {
               </label>
               <div style={{ position: 'relative' }}>
                 <input
-                  className="vendor-input"
+                  className="vendor-input mobile-input"
                   type="text"
                   name="vendorName"
                   placeholder="Enter Vendor Name*"
@@ -603,7 +574,7 @@ const VendorRegistrationForm = () => {
                 Vendor Email: <span style={{ color: '#ff9933' }}>*</span>
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="email"
                 name="email"
                 placeholder="Enter Vendor Email*"
@@ -628,7 +599,7 @@ const VendorRegistrationForm = () => {
                 GST Number: <span style={{ color: '#ff9933' }}>*</span>
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="text"
                 name="GSTNo"
                 placeholder="Enter GST Number*"
@@ -669,7 +640,7 @@ const VendorRegistrationForm = () => {
                   Brands Work With: <span style={{ color: '#ff9933' }}>*</span>
                 </label>
                 <input
-                  className="vendor-input"
+                  className="vendor-input mobile-input"
                   type="text"
                   name="brandsWorkWith"
                   placeholder="Enter brands you work with"
@@ -690,77 +661,31 @@ const VendorRegistrationForm = () => {
               </div>
             )}
 
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '13px', marginBottom: '5px', display: 'block' }}>
-                Brand Name:
-              </label>
-              <input
-                className="vendor-input"
-                type="text"
-                name="brandName"
-                placeholder="Enter Brand Name"
-                value={formData.brandName}
-                onChange={handleChange}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
-                  color: 'white',
-                  padding: '12px 15px',
-                  borderRadius: '4px',
-                  width: '67%',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '13px', marginBottom: '5px', display: 'block' }}>
-                Model Name:
-              </label>
-              <input
-                className="vendor-input"
-                type="text"
-                name="modelName"
-                placeholder="Enter Model Name"
-                value={formData.modelName}
-                onChange={handleChange}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
-                  color: 'white',
-                  padding: '12px 15px',
-                  borderRadius: '4px',
-                  width: '67%',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '30px' }}>
-              <label style={{ fontSize: '13px', marginBottom: '5px', display: 'block' }}>
-                Price:
-              </label>
-              <input
-                className="vendor-input"
-                type="text"
-                name="price"
-                placeholder="Enter Price"
-                value={formData.price}
-                onChange={handleChange}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
-                  color: 'white',
-                  padding: '12px 15px',
-                  borderRadius: '4px',
-                  width: '67%',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-            </div>
+            {formData.typeOfVendor !== 'Logistics' && formData.typeOfVendor !== 'Labour Contractor' && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '13px', marginBottom: '5px', display: 'block' }}>
+                  Brand Name:
+                </label>
+                <input
+                  className="vendor-input mobile-input"
+                  type="text"
+                  name="brandName"
+                  placeholder="Enter Brand Name"
+                  value={formData.brandName}
+                  onChange={handleChange}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    border: '1px solid rgba(255, 255, 255, 0.4)',
+                    color: 'white',
+                    padding: '12px 15px',
+                    borderRadius: '4px',
+                    width: '67%',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            )}
 
             <div style={{
               color: 'white',
@@ -782,7 +707,7 @@ const VendorRegistrationForm = () => {
                 Vendor Website (URL):
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="url"
                 name="websiteURL"
                 placeholder="Paste Vendor Website (URL)"
@@ -806,7 +731,7 @@ const VendorRegistrationForm = () => {
                 Vendor LinkedIn (Profile Link):
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="url"
                 name="linkedinURL"
                 placeholder="Paste LinkedIn (Profile Link)"
@@ -830,7 +755,7 @@ const VendorRegistrationForm = () => {
                 Twitter (X) Profile:
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="url"
                 name="twitterProfile"
                 placeholder="Paste Twitter (X) Profile"
@@ -875,7 +800,7 @@ const VendorRegistrationForm = () => {
                 Contact Person Name: <span style={{ color: '#ff9933' }}>*</span>
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="text"
                 name="vendorContactPersonName1"
                 placeholder="Enter Contact Person Name*"
@@ -900,7 +825,7 @@ const VendorRegistrationForm = () => {
                 Contact Person Mobile No.: <span style={{ color: '#ff9933' }}>*</span>
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="tel"
                 name="phoneNumber1"
                 placeholder="Enter Contact Person Mobile No.*"
@@ -931,7 +856,7 @@ const VendorRegistrationForm = () => {
                 Contact Person Name:
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="text"
                 name="vendorContactPersonName2"
                 placeholder="Enter Contact Person Name"
@@ -955,7 +880,7 @@ const VendorRegistrationForm = () => {
                 Contact Person Mobile No.:
               </label>
               <input
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 type="tel"
                 name="phoneNumber2"
                 placeholder="Enter Contact Person Mobile No."
@@ -995,7 +920,7 @@ const VendorRegistrationForm = () => {
                   Manual Address: <span style={{ color: '#ff9933' }}>*</span>
                 </label>
                 <textarea
-                  className="vendor-input"
+                  className="vendor-input mobile-input"
                   name="manualAddress"
                   placeholder="Enter manual address details"
                   value={formData.manualAddress}
@@ -1020,14 +945,14 @@ const VendorRegistrationForm = () => {
 {formData.typeOfVendor !== 'Import' && formData.typeOfVendor !== 'Other' && (
   <>
     <div style={{ marginBottom: '20px' }}>
-      <div style={{ display: 'flex', gap: '10px', width: '67%' }}>
+      <div style={{ display: 'flex', gap: '10px', width: '67%' }} className="mobile-row">
         <div style={{ flex: 1 }}>
           <label style={{ fontSize: '13px', marginBottom: '5px', display: 'block' }}>
             Pincode: <span style={{ color: '#ff9933' }}>*</span>
           </label>
           <div style={{ position: 'relative' }}>
             <input
-              className="vendor-input"
+              className="vendor-input mobile-input"
               type="text"
               name="pincode"
               placeholder="Enter 6-digit Pincode*"
@@ -1076,7 +1001,7 @@ const VendorRegistrationForm = () => {
             Country: <span style={{ color: '#ff9933' }}>*</span>
           </label>
           <input
-            className="vendor-input"
+            className="vendor-input mobile-input"
             type="text"
             name="country"
             placeholder="Enter Country*"
@@ -1104,13 +1029,13 @@ const VendorRegistrationForm = () => {
     </div>
 
     <div style={{ marginBottom: '20px' }}>
-      <div style={{ display: 'flex', gap: '10px', width: '67%' }}>
+      <div style={{ display: 'flex', gap: '10px', width: '67%' }} className="mobile-row">
         <div style={{ flex: 1 }}>
           <label style={{ fontSize: '13px', marginBottom: '5px', display: 'block' }}>
             State: <span style={{ color: '#ff9933' }}>*</span>
           </label>
           <input
-            className="vendor-input"
+            className="vendor-input mobile-input"
             type="text"
             name="state"
             placeholder="Enter State*"
@@ -1140,7 +1065,7 @@ const VendorRegistrationForm = () => {
             City: <span style={{ color: '#ff9933' }}>*</span>
           </label>
           <input
-            className="vendor-input"
+            className="vendor-input mobile-input"
             type="text"
             name="city"
             placeholder="Enter City*"
@@ -1172,7 +1097,7 @@ const VendorRegistrationForm = () => {
         Street Address: <span style={{ color: '#ff9933' }}>*</span>
       </label>
       <input
-        className="vendor-input"
+        className="vendor-input mobile-input"
         type="text"
         name="add"
         placeholder="Enter Street Address*"
@@ -1219,7 +1144,7 @@ const VendorRegistrationForm = () => {
               </label>
               <div style={{ position: 'relative' }}>
                 <input
-                  className="vendor-input"
+                  className="vendor-input mobile-input"
                   type="file"
                   onChange={handleFileChange}
                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
@@ -1258,7 +1183,7 @@ const VendorRegistrationForm = () => {
                 Remarks: <span style={{ fontSize: '11px', color: '#aaa' }}>(Optional)</span>
               </label>
               <textarea
-                className="vendor-input"
+                className="vendor-input mobile-input"
                 name="remarks"
                 placeholder="Enter any additional information or remarks"
                 value={formData.remarks}

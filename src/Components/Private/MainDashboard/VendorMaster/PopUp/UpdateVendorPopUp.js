@@ -6,7 +6,8 @@ import { getAddress } from "../../../../../hooks/usePincode";
 import { toast } from "react-hot-toast";
 
 const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) => {
-  const [vendor, setVendor] = useState(selectedVendor);
+  // Initialize state safely to prevent white screen crashes
+  const [vendor, setVendor] = useState(selectedVendor || {});
   const [typeOfVendor, setTypeOfVendor] = useState((selectedVendor?.typeOfVendor || "").trim());
   const [materialCategory, setMaterialCategory] = useState(selectedVendor?.materialCategory || "");
   const [vendorRating, setVendorRating] = useState(selectedVendor?.vendorRating || 0);
@@ -34,7 +35,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
     return pincode && pincode.toString().trim() !== '' && !isNaN(pincode) && parseInt(pincode) > 0;
   };
 
-  // Load brands from localStorage and from props
   useEffect(() => {
     const savedProductBrands = localStorage.getItem('productBrands');
     let productBrands = [];
@@ -42,8 +42,8 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
       productBrands = JSON.parse(savedProductBrands);
     }
     
-    // Combine with brands from props, removing duplicates
-    const allBrands = [...new Set([...productBrands, ...brands])];
+    // Handle brands safely
+    const allBrands = [...new Set([...productBrands, ...(brands || [])])];
     setLocalBrands(allBrands);
   }, [brands]);
 
@@ -51,7 +51,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
     const fetchData = async () => {
       if (isValidPincode(billingAddress.pincode)) {
         const data = await getAddress(billingAddress.pincode);
-
         if (data !== "Error") {
           setBillingAddress(prevAddress => ({
             ...prevAddress, 
@@ -62,13 +61,12 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
         }
       }
     };
-    
     fetchData();
   }, [billingAddress.pincode]);
 
   useEffect(() => {
-    if (vendor) {
-      const vendorBillingAddress = vendor.billingAddress || {
+    if (selectedVendor) {
+      const vendorBillingAddress = selectedVendor.billingAddress || {
         add: "",
         city: "",
         state: "",
@@ -77,15 +75,16 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
       };
       
       setBillingAddress(vendorBillingAddress);
-      setTypeOfVendor((vendor.typeOfVendor || "").trim());
-      setMaterialCategory(vendor.materialCategory || "");
-      setVendorRating(vendor.vendorRating || 0);
-      setBrandsWorkWith(vendor.brandsWorkWith || "");
-      setCustomVendorType(vendor.customVendorType || "");
-      setRemarks(vendor.remarks || "");
-      setManualAddress(vendor.manualAddress || "");
+      setTypeOfVendor((selectedVendor.typeOfVendor || "").trim());
+      setMaterialCategory(selectedVendor.materialCategory || "");
+      setVendorRating(selectedVendor.vendorRating || 0);
+      setBrandsWorkWith(selectedVendor.brandsWorkWith || "");
+      setCustomVendorType(selectedVendor.customVendorType || "");
+      setRemarks(selectedVendor.remarks || "");
+      setManualAddress(selectedVendor.manualAddress || "");
+      setVendor(selectedVendor);
     }
-  }, [vendor]);
+  }, [selectedVendor]);
 
   const handleBillingChange = (e) => {
     const { name, value } = e.target;
@@ -222,7 +221,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
               <div className="modal-body">
                 <div className="row modal_body_height">
                   
-                  {/* Material Category */}
                   <div className="col-12">
                     <div className="mb-3">
                       <label className="form-label label_text">
@@ -242,7 +240,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                     </div>
                   </div>
 
-                  {/* Type of Vendor */}
                   <div className="col-12">
                     <div className="mb-3">
                       <label className="form-label label_text">
@@ -267,7 +264,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                     </div>
                   </div>
 
-                  {/* Custom Vendor Type */}
                   {typeOfVendor === "Other" && (
                     <div className="col-12">
                       <div className="mb-3">
@@ -286,7 +282,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                     </div>
                   )}
 
-                  {/* Vendor Rating */}
                   <div className="col-12">
                     <div className="mb-3">
                       <label className="form-label label_text">
@@ -304,7 +299,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                     </div>
                   </div>
 
-                  {/* Brands Work With */}
                   {typeOfVendor === "B2B Material" && (
                     <div className="col-12">
                       <div className="mb-3">
@@ -347,7 +341,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                         maxLength={300}
                         placeholder="Update Vendor Name.... "
                         name="vendorName"
-                        value={vendor.vendorName || ""}
+                        value={vendor?.vendorName || ""}
                         onChange={handleChange}
                         aria-describedby="nameHelp"
                         required
@@ -367,7 +361,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                         placeholder="Update Email...."
                         className="form-control rounded-0"
                         id="Email"
-                        value={vendor.email || ""}
+                        value={vendor?.email || ""}
                         onChange={handleChange}
                         aria-describedby="emailHelp"
                         required
@@ -396,7 +390,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                             maxLength={100}
                             name="vendorContactPersonName1"
                             onChange={handleChange}
-                            value={vendor.vendorContactPersonName1 || ""}
+                            value={vendor?.vendorContactPersonName1 || ""}
                             aria-describedby="mobileNoHelp"
                             required
                           />
@@ -420,7 +414,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                             id="phoneNumber1"
                             name="phoneNumber1"
                             onChange={handleChange}
-                            value={vendor.phoneNumber1 || ""}
+                            value={vendor?.phoneNumber1 || ""}
                             aria-describedby="secemailHelp"
                             required
                           />
@@ -442,7 +436,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                             maxLength={100}
                             name="vendorContactPersonName2"
                             onChange={handleChange}
-                            value={vendor.vendorContactPersonName2 || ""}
+                            value={vendor?.vendorContactPersonName2 || ""}
                             aria-describedby="mobileNoHelp"
                           />
                         </div>
@@ -465,7 +459,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                             id="phoneNumber2"
                             onChange={handleChange}
                             name="phoneNumber2"
-                            value={vendor.phoneNumber2 || ""}
+                            value={vendor?.phoneNumber2 || ""}
                             aria-describedby="secemailHelp"
                           />
                         </div>
@@ -473,7 +467,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                     </div>
                   </div>
 
-                  {/* Manual Address for Import Vendors */}
                   {typeOfVendor === "Import" && (
                     <div className="col-12 mt-2">
                       <div className="mb-3">
@@ -493,7 +486,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                     </div>
                   )}
 
-                  {/* Structured Address Section */}
                   {typeOfVendor !== "Import" && (
                     <div className="col-12 mt-2">
                       <div className="row border mt-4 bg-gray mx-auto">
@@ -510,7 +502,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                               id="Pincode"
                               name="pincode"
                               onChange={handleBillingChange}
-                              value={billingAddress.pincode || ""}
+                              value={billingAddress?.pincode || ""}
                               aria-describedby="emailHelp"
                               required
                             />
@@ -527,7 +519,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                               onChange={handleBillingChange}
                               name="state"
                               maxLength={50}
-                              value={billingAddress.state || ""}
+                              value={billingAddress?.state || ""}
                               aria-describedby="emailHelp"
                               required
                             />
@@ -544,7 +536,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                               onChange={handleBillingChange}
                               name="city"
                               maxLength={50}
-                              value={billingAddress.city || ""}
+                              value={billingAddress?.city || ""}
                               aria-describedby="emailHelp"
                               required
                             />
@@ -561,7 +553,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                               name="country"
                               maxLength={50}
                               onChange={handleBillingChange}
-                              value={billingAddress.country || ""}
+                              value={billingAddress?.country || ""}
                               aria-describedby="emailHelp"
                             />
                           </div>
@@ -576,7 +568,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                               maxLength={500}
                               placeholder="House NO., Building Name, Road Name, Area, Colony"
                               onChange={handleBillingChange}
-                              value={billingAddress.add || ""}
+                              value={billingAddress?.add || ""}
                               rows="2"
                               required
                             ></textarea>
@@ -599,14 +591,13 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                         maxLength={15}
                         name="GSTNo"
                         onChange={handleChange}
-                        value={vendor.GSTNo || ""}
+                        value={vendor?.GSTNo || ""}
                         aria-describedby="emailHelp"
                         required
                       />
                     </div>
                   </div>
 
-                  {/* Remarks Field */}
                   <div className="col-12 mt-3">
                     <div className="mb-3">
                       <label htmlFor="remarks" className="form-label label_text">
@@ -648,7 +639,6 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
         </div>
       </div>
 
-      {/* Add New Brand Modal */}
       {showAddBrandModal && (
         <div className="modal fade show d-flex align-items-center" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1050 }}>
           <div className="modal-dialog" style={{ maxWidth: '500px', margin: '1.75rem auto' }}>

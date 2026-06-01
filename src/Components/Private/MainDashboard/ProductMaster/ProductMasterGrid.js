@@ -207,7 +207,7 @@ export const ProductMasterGrid = () => {
                             <th>Product Category</th>
                             <th>Base UOM</th>
                             <th>Category</th>
-                            <th>MRP</th>
+                            <th>Purchase Price</th>
                             <th>Discount Type</th>
                             <th>Action</th>
                           </tr>

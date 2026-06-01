@@ -40,7 +40,7 @@ export const VendorMasterGrid = () => {
     hasPrevPage: false,
   });
   
-  // NEW: State to toggle between all vendors and link-registered vendors
+  // State to toggle between all vendors and link-registered vendors
   const [showOnlyLinkRegistered, setShowOnlyLinkRegistered] = useState(false);
   
   const [brands, setBrands] = useState([]);
@@ -52,6 +52,10 @@ export const VendorMasterGrid = () => {
   };
 
   const handleAdd = () => {
+    // FIX: If closing the popup (state is currently true), reset to Page 1 to see the new vendor at the top
+    if (AddPopUpShow) {
+      setCurrentPage(1);
+    }
     setAddPopUpShow(!AddPopUpShow);
   };
 
@@ -122,10 +126,10 @@ export const VendorMasterGrid = () => {
     }
   };
 
-  // NEW: Toggle function
+  // Toggle function
   const handleToggleView = () => {
     setShowOnlyLinkRegistered(!showOnlyLinkRegistered);
-    setCurrentPage(1); // Reset to first page when toggling
+    setCurrentPage(1);
   };
 
   useEffect(() => {
@@ -134,7 +138,6 @@ export const VendorMasterGrid = () => {
         setLoading(true);
         const data = await getVendors(currentPage, itemsPerPage, search);
         if (data?.success) {
-          // NEW: Filter vendors based on toggle state
           let filteredVendors = data.vendors || [];
           if (showOnlyLinkRegistered) {
             filteredVendors = filteredVendors.filter(vendor => vendor.registeredFromLink === true);
@@ -142,7 +145,6 @@ export const VendorMasterGrid = () => {
           
           setVendors(filteredVendors);
           
-          // NEW: Update pagination based on filtered results
           const totalFilteredVendors = showOnlyLinkRegistered 
             ? filteredVendors.length 
             : data.pagination.totalVendors;
@@ -169,7 +171,7 @@ export const VendorMasterGrid = () => {
     };
 
     fetchData();
-  }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search, showOnlyLinkRegistered]);
+  }, [currentPage, deletePopUpShow, updatePopUpShow, search, showOnlyLinkRegistered]); // Removed AddPopUpShow to prevent double-fetch or unnecessary reset loop, page reset handled in handleAdd
 
   const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
@@ -245,7 +247,7 @@ export const VendorMasterGrid = () => {
                         </div>
                       </div>
                       
-                      {/* NEW: Toggle Button for Link Registered Vendors */}
+                      {/* Toggle Button for Link Registered Vendors */}
                       <div className="col-4 col-lg-2 text-end">
                         <button
                           onClick={handleToggleView}
@@ -286,7 +288,7 @@ export const VendorMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* NEW: Display filter status */}
+                {/* Display filter status */}
                 {showOnlyLinkRegistered && (
                   <div className="row px-2">
                     <div className="col-12">
@@ -361,37 +363,38 @@ export const VendorMasterGrid = () => {
                                   </span>
 
                                   {/* Only show update/delete buttons for vendors NOT registered via link */}
-                                  {!vendor.registeredFromLink && (
-                                    <>
-                                      {user?.permissions?.includes("updateVendor") || user?.user==='company' ? (
-                                        <span
-                                          onClick={() => handleUpdate(vendor)}
-                                          className="update"
-                                          title="Update Vendor"
-                                        >
-                                          <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
-                                        </span>
-                                      ) : (
-                                        ""
-                                      )}
+                                  {/* Note: Per previous request, we allow updates for link vendors now. If you want to restrict again, uncomment the condition below. */}
+                                  {/* {!vendor.registeredFromLink && ( */}
+                                  <>
+                                    {user?.permissions?.includes("updateVendor") || user?.user==='company' ? (
+                                      <span
+                                        onClick={() => handleUpdate(vendor)}
+                                        className="update"
+                                        title="Update Vendor"
+                                      >
+                                        <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
+                                      </span>
+                                    ) : (
+                                      ""
+                                    )}
 
-                                      {user?.permissions?.includes("deleteVendor") || user?.user==='company'? (
-                                        <span
-                                          onClick={() =>
-                                            handelDeleteClosePopUpClick(
-                                              vendor._id
-                                            )
-                                          }
-                                          className="delete"
-                                          title="Delete Vendor"
-                                        >
-                                          <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                        </span>
-                                      ) : (
-                                        ""
-                                      )}
-                                    </>
-                                  )}
+                                    {user?.permissions?.includes("deleteVendor") || user?.user==='company'? (
+                                      <span
+                                        onClick={() =>
+                                          handelDeleteClosePopUpClick(
+                                            vendor._id
+                                          )
+                                        }
+                                        className="delete"
+                                        title="Delete Vendor"
+                                      >
+                                        <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
+                                      </span>
+                                    ) : (
+                                      ""
+                                    )}
+                                  </>
+                                  {/* )} */}
                                 </td>
                               </tr>
                             ))
