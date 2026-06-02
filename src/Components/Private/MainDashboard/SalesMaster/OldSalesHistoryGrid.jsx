@@ -58,6 +58,14 @@ export const OldSalesHistoryGrid = () => {
   const displayLeads = data?.leads || [];
   const historyCounts = data?.historyCounts || {};
 
+  const formatAmount = (val) => {
+    if (!val || val <= 0) return null;
+    return '₹' + Number(val).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(filters.searchTerm), 500);
     return () => clearTimeout(t);
@@ -113,8 +121,6 @@ export const OldSalesHistoryGrid = () => {
       default: return "badge bg-secondary";
     }
   };
-
-  const formatAmount = (val) => (!val || val <= 0) ? null : '₹' + Number(val).toLocaleString('en-IN');
 
   // ✅ ACCESS DENIED CHECK AFTER ALL HOOKS
   if (!isCompanyOrManager) {
@@ -187,7 +193,7 @@ export const OldSalesHistoryGrid = () => {
                           <div className="card-body text-center py-3">
                             <div style={{ fontSize: '0.85rem', color: '#15803d', fontWeight: 600 }}>Won Deals</div>
                             <h2 className="fw-bold mb-0 text-success">{historyCounts.wonCount || 0}</h2>
-                            <small className="text-muted">₹{Number(historyCounts.totalWonAmount || 0).toLocaleString('en-IN')}</small>
+                            <small className="text-muted">₹{Number(historyCounts.totalWonAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</small>
                           </div>
                         </div>
                       </div>
@@ -196,7 +202,7 @@ export const OldSalesHistoryGrid = () => {
                           <div className="card-body text-center py-3">
                             <div style={{ fontSize: '0.85rem', color: '#b91c1c', fontWeight: 600 }}>Lost Deals</div>
                             <h2 className="fw-bold mb-0 text-danger">{historyCounts.lostCount || 0}</h2>
-                            <small className="text-muted">₹{Number(historyCounts.totalLostAmount || 0).toLocaleString('en-IN')}</small>
+                            <small className="text-muted">₹{Number(historyCounts.totalLostAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</small>
                           </div>
                         </div>
                       </div>
@@ -245,7 +251,7 @@ export const OldSalesHistoryGrid = () => {
                                 <th style={{ minWidth:"120px" }} className="text-start">Contact Name</th>
                                 <th style={{ minWidth:"120px" }} className="text-start">Product</th>
                                 <th style={{ width:"100px" }}>Source</th>
-                                <th style={{ width:"120px" }}>Amount</th>
+                                <th style={{ width:"140px" }} className="text-end">Amount</th>
                                 <th style={{ width:"120px" }}>Closed Date</th>
                                 <th style={{ width:"80px" }}>Status</th>
                                 <th className="text-center" style={{ width:"140px" }}>Action</th>
@@ -260,7 +266,13 @@ export const OldSalesHistoryGrid = () => {
                                     <td className="text-start">{lead.SENDER_NAME || "—"}</td>
                                     <td className="text-start">{lead.QUERY_PRODUCT_NAME || "—"}</td>
                                     <td><small className="text-muted">{lead.SOURCE}</small></td>
-                                    <td>{lead.quotation > 0 ? <span style={{ color: '#15803d', fontWeight: 700 }}>{formatAmount(lead.quotation)}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}</td>
+                                    <td className="text-end">
+                                      {lead.quotation > 0 ? (
+                                        <span style={{ color: '#15803d', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>{formatAmount(lead.quotation)}</span>
+                                      ) : (
+                                        <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>
+                                      )}
+                                    </td>
                                     <td><small className="text-muted">{formatDateforTaskUpdate(lead.updatedAt || lead.createdAt)}</small></td>
                                     <td><span className={handleBgColor(lead.STATUS)}>{lead.STATUS}</span></td>
                                     <td className="text-center">

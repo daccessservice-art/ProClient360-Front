@@ -79,6 +79,14 @@ export const AccountMasterGrid = () => {
 
     const ITEMS_PER_PAGE = 20;
 
+    const formatAmount = (val) => {
+        if (!val || val <= 0) return null;
+        return '₹' + Number(val).toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    };
+
     // ─── Handlers ──────────────────────────────────────────────────
     const handlePageChange    = (page) => setCurrentPage(page);
     const handleSearchChange  = (e)    => setSearchTerm(e.target.value);
@@ -302,9 +310,9 @@ export const AccountMasterGrid = () => {
                                                         <th className="align_left_td">Customer Name</th>
                                                         <th className="align_left_td">Project Name</th>
                                                         <th>PO Number</th>
-                                                        <th>PO Value</th>
-                                                        <th>Received</th>
-                                                        <th>Pending</th>
+                                                        <th className="text-end">PO Value</th>
+                                                        <th className="text-end">Received</th>
+                                                        <th className="text-end">Pending</th>
                                                         <th>Material</th>
                                                         <th>Invoice Status</th>
                                                         <th>Installation</th>
@@ -319,9 +327,33 @@ export const AccountMasterGrid = () => {
                                                                 <td className="align_left_td wrap-text-of-col">{account.customerName || "N/A"}</td>
                                                                 <td className="align_left_td wrap-text-of-col">{account.projectName  || "N/A"}</td>
                                                                 <td>{account.poNumber || "N/A"}</td>
-                                                                <td>{formatCurrency(account.basicAmount)}</td>
-                                                                <td className="text-success">{formatCurrency(account.accountActions?.receivedAmount)}</td>
-                                                                <td className="text-danger">{formatCurrency(account.accountActions?.pendingAmount)}</td>
+                                                                <td className="text-end">
+                                                                    {account.basicAmount > 0 ? (
+                                                                        <span style={{ color: '#0d6efd', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
+                                                                            {formatAmount(account.basicAmount)}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="text-end">
+                                                                    {account.accountActions?.receivedAmount > 0 ? (
+                                                                        <span style={{ color: '#15803d', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
+                                                                            {formatAmount(account.accountActions.receivedAmount)}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="text-end">
+                                                                    {account.accountActions?.pendingAmount > 0 ? (
+                                                                        <span style={{ color: '#dc3545', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
+                                                                            {formatAmount(account.accountActions.pendingAmount)}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>
+                                                                    )}
+                                                                </td>
                                                                 <td>
                                                                     <MaterialStatusBadge projectId={account.projectId?._id || account.projectId} />
                                                                 </td>

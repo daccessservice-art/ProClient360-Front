@@ -65,6 +65,14 @@ export const PurchaseOrderMasterGrid = () => {
 
   const itemsPerPage = 20;
 
+  const formatAmount = (val) => {
+    if (!val || val <= 0) return null;
+    return '₹' + Number(val).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
@@ -245,7 +253,7 @@ export const PurchaseOrderMasterGrid = () => {
                             <th>Vendor Name</th>
                             <th>Transaction Type</th>
                             <th>Purchase Type</th>
-                            <th>Grand Total</th>
+                            <th className="text-end">Grand Total</th>
                             <th>Status</th>
                             <th>Action</th>
                           </tr>
@@ -274,7 +282,15 @@ export const PurchaseOrderMasterGrid = () => {
                                     {po.purchaseType}
                                   </span>
                                 </td>
-                                <td>₹{po.grandTotal.toFixed(2)}</td>
+                                <td className="text-end">
+                                  {po.grandTotal > 0 ? (
+                                    <span style={{ color: '#15803d', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
+                                      {formatAmount(po.grandTotal)}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>
+                                  )}
+                                </td>
                                 <td>
                                   <span className={`badge ${getStatusBadgeClass(po.status)}`}>
                                     {po.status}

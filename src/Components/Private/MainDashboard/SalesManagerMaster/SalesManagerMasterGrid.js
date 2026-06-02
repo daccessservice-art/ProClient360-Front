@@ -33,7 +33,7 @@ const AmountTotalPopup = ({ funnelLeads, filters }) => {
   const lostTotal    = leadsWithAmount.filter(l => l.STATUS === 'Lost').reduce((s, l) => s + (l.quotation || 0), 0);
   const grandTotal   = leadsWithAmount.reduce((s, l) => s + (l.quotation || 0), 0);
 
-  const fmt = (n) => n > 0 ? '₹' + Number(n).toLocaleString('en-IN') : '—';
+  const fmt = (n) => n > 0 ? '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
   const filterParts = [];
   if (filters.status)    filterParts.push(filters.status);
   if (filters.source)    filterParts.push(filters.source);
@@ -94,7 +94,7 @@ const AmountTotalPopup = ({ funnelLeads, filters }) => {
         </span>
         <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0d6efd' }}>
           <i className="fa-solid fa-indian-rupee-sign me-1" style={{ fontSize: '0.78rem' }}></i>
-          {Number(grandTotal).toLocaleString('en-IN')}
+          {Number(grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
     </div>
@@ -191,7 +191,13 @@ export const SalesManagerMasterGrid = () => {
       + " " + d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:false, timeZone:"Asia/Kolkata" });
   };
 
-  const formatAmount = (val) => (!val || val <= 0) ? null : '₹' + Number(val).toLocaleString('en-IN');
+  const formatAmount = (val) => {
+    if (!val || val <= 0) return null;
+    return '₹' + Number(val).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
 
   useEffect(() => {
     if (data) setPagination(prev => ({ ...prev, ...data.pagination }));
@@ -331,7 +337,7 @@ export const SalesManagerMasterGrid = () => {
           <td>${lead.QUERY_PRODUCT_NAME || '—'}</td>
           <td>${lead.SOURCE || '—'}</td>
           <td>${lead.SENDER_MOBILE || '—'}</td>
-          <td>${lead.quotation > 0 ? '₹' + Number(lead.quotation).toLocaleString('en-IN') : '—'}</td>
+          <td style="text-align:right">${lead.quotation > 0 ? '₹' + Number(lead.quotation).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</td>
           <td style="white-space:nowrap">${formatLeadTimeIST(lead.createdAt)}</td>
           <td style="white-space:nowrap">${lead.nextFollowUpDate ? formatLeadTimeIST(lead.nextFollowUpDate) : '—'}</td>
           <td>${lead.assignedTo?.name || 'Unassigned'}</td>
@@ -375,7 +381,7 @@ export const SalesManagerMasterGrid = () => {
         <div class="table-section"><div class="section-title">Detailed Leads Data (${counts.total} Records)</div>
           <table><thead><tr>
             <th>#</th><th>Company Name</th><th>Contact Name</th><th>Product</th>
-            <th>Source</th><th>Mobile</th><th>Amount</th>
+            <th>Source</th><th>Mobile</th><th style="text-align:right">Amount</th>
             <th>Created Date</th><th>Follow-up Date</th><th>Assigned To</th><th>Status</th>
           </tr></thead>
           <tbody>${rowsHTML || '<tr><td colspan="11" style="text-align:center;padding:16px;color:#999;">No leads found</td></tr>'}</tbody>
@@ -423,7 +429,6 @@ export const SalesManagerMasterGrid = () => {
 
   const canUpdateLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
   const canDeleteLead = user?.permissions?.includes('deleteLead') || user?.user === 'company';
-  // ── NEW: only company or users with updateLead can transfer ownership ──
   const canTransferOwnership = user?.user === 'company' || user?.permissions?.includes('updateLead');
   const displayLeads  = data?.leads;
   const colSpan = isAllMode ? 12 : 11;
@@ -442,7 +447,6 @@ export const SalesManagerMasterGrid = () => {
             <div className="main-panel" style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}>
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
-                {/* ── Title + view toggle + PDF + Transfer Ownership ── */}
                 <div className="row px-2 py-1 mb-3">
                   <div className="col-12 col-lg-4">
                     <h5 className="text-white py-2">Sales Manager Dashboard</h5>
@@ -458,7 +462,6 @@ export const SalesManagerMasterGrid = () => {
                         : <><i className="fa-solid fa-file-pdf"></i> Download PDF</>}
                     </button>
 
-                    {/* ── NEW: Transfer Ownership Button ── */}
                     {canTransferOwnership && (
                       <button
                         type="button"
@@ -485,7 +488,6 @@ export const SalesManagerMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* ── Employee selector ── */}
                 <div className="row align-items-center p-3 m-1 bg-light rounded mb-3">
                   <div className="col-12 col-lg-5 mb-2 mb-lg-0">
                     <label className="form-label fw-semibold mb-1">
@@ -502,7 +504,6 @@ export const SalesManagerMasterGrid = () => {
 
                 {selectedEmployee && data && (
                   <>
-                    {/* ── Dashboard Cards ── */}
                     <SalesDashboardCards
                       allLeadsCount={data.leadCounts?.allLeadsCount || 0}
                       ongogingCount={data.leadCounts?.ongoingCount  || 0}
@@ -516,7 +517,6 @@ export const SalesManagerMasterGrid = () => {
                       invalidLeadsCount={data.leadCounts?.invalidLeadsCount || 0}
                     />
 
-                    {/* ── Quotation Funnel ── */}
                     {data.quotationFunnel && (
                       <div className="row p-2 m-1"><div className="col-12">
                         <SalesQuotationFunnel
@@ -528,7 +528,6 @@ export const SalesManagerMasterGrid = () => {
                       </div></div>
                     )}
 
-                    {/* ── Filters ── */}
                     <div className="row align-items-center p-3 m-1 bg-light rounded mb-2">
                       <div className="col-12 col-lg-6">
                         <div className="input-group">
@@ -597,7 +596,6 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     </div>
 
-                    {/* ── Amount Total Popup ── */}
                     {hasAmountFilter && !funnelLoading && (
                       <div className="row px-3 mb-2" style={{ marginTop: '-2px' }}>
                         <div className="col-12 d-flex align-items-center gap-3 flex-wrap">
@@ -610,7 +608,6 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     )}
 
-                    {/* ── Funnel View ── */}
                     {viewMode === "funnel" && (
                       <div className="row bg-white p-3 m-1 border rounded shadow-sm">
                         <div className="col-12" style={{ overflowX:"auto" }}>
@@ -635,7 +632,6 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     )}
 
-                    {/* ── Table View ── */}
                     {viewMode === "table" && (
                       <div className="row bg-white p-3 m-1 border rounded shadow-sm">
                         <div className="col-12">
@@ -649,7 +645,7 @@ export const SalesManagerMasterGrid = () => {
                                   <th style={{ minWidth:"120px" }} className="text-start">Product</th>
                                   <th style={{ width:"100px" }}>Source</th>
                                   <th style={{ width:"120px" }}>Mobile</th>
-                                  <th style={{ width:"140px" }}>Amount</th>
+                                  <th style={{ width:"140px" }} className="text-end">Amount</th>
                                   <th style={{ width:"120px" }}>Created Date</th>
                                   <th style={{ width:"120px" }}>Follow-up Date</th>
                                   <th style={{ width:"80px" }}>Status</th>
@@ -680,9 +676,9 @@ export const SalesManagerMasterGrid = () => {
                                         <td className="text-start">{lead.QUERY_PRODUCT_NAME || "Not available."}</td>
                                         <td><small className="text-muted">{lead.SOURCE}</small></td>
                                         <td><small className="text-muted">{lead.SENDER_MOBILE || "Not available."}</small></td>
-                                        <td>
+                                        <td className="text-end">
                                           {hasAmount ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                                               <span style={{
                                                 width: '9px', height: '9px', borderRadius: '50%',
                                                 background: '#22c55e', display: 'inline-block',
@@ -744,7 +740,6 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     )}
 
-                    {/* ── Pagination ── */}
                     {viewMode === "table" && !loading && pagination.totalPages > 1 && (
                       <div className="d-flex justify-content-center mt-3">
                         <nav><ul className="pagination mb-0">
@@ -783,7 +778,6 @@ export const SalesManagerMasterGrid = () => {
         </div>
       </div>
 
-      {/* ── Popups ── */}
       {showLeadPopUp && selectedLead && (
         <ViewSalesLeadPopUp closePopUp={() => { setShowLeadPopUp(false); setSelectedLead(null); }} selectedLead={selectedLead}/>
       )}
@@ -831,7 +825,6 @@ export const SalesManagerMasterGrid = () => {
         </div>
       )}
 
-      {/* ── NEW: Transfer Ownership Popup ── */}
       {transferOwnershipShow && (
         <TransferOwnershipPopUp
           onClose={() => setTransferOwnershipShow(false)}

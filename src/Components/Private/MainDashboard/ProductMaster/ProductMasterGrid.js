@@ -133,6 +133,14 @@ export const ProductMasterGrid = () => {
     pageButtons.push(i);
   }
 
+  const formatAmount = (val) => {
+    if (!val || val <= 0) return null;
+    return '₹' + Number(val).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
   return (
     <>
       {loading && (
@@ -207,7 +215,7 @@ export const ProductMasterGrid = () => {
                             <th>Product Category</th>
                             <th>Base UOM</th>
                             <th>Category</th>
-                            <th>Purchase Price</th>
+                            <th className="text-end">Purchase Price</th>
                             <th>Discount Type</th>
                             <th>Action</th>
                           </tr>
@@ -227,7 +235,15 @@ export const ProductMasterGrid = () => {
                                     {product.category}
                                   </span>
                                 </td>
-                                <td>{product.mrp}</td>
+                                <td className="text-end">
+                                  {product.mrp > 0 ? (
+                                    <span style={{ color: '#15803d', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
+                                      {formatAmount(product.mrp)}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>—</span>
+                                  )}
+                                </td>
                                 <td>
                                   <span className={`badge ${
                                     product.discountType === 'Zero Discount' ? 'bg-secondary' : 

@@ -69,7 +69,7 @@ const TodayActionHoverPopup = ({ lead, sidebarW, onMouseEnter, onMouseLeave }) =
               {action.completion !== undefined && <span style={{ color: '#475569', fontSize: '0.73rem' }}><i className="fa-solid fa-circle-check me-1" style={{ color: '#22c55e', fontSize: '0.65rem' }}></i>{action.completion}% done</span>}
               {action.callLeads && <span style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', padding: '1px 7px', color: '#475569', fontSize: '0.68rem' }}>{action.callLeads}</span>}
             </div>
-            {action.quotation > 0 && <div style={{ color: '#16a34a', fontWeight: 600, marginBottom: '5px', fontSize: '0.76rem' }}><i className="fa-solid fa-indian-rupee-sign me-1"></i>{Number(action.quotation).toLocaleString('en-IN')}</div>}
+            {action.quotation > 0 && <div style={{ color: '#16a34a', fontWeight: 600, marginBottom: '5px', fontSize: '0.76rem' }}><i className="fa-solid fa-indian-rupee-sign me-1"></i>{Number(action.quotation).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>}
             {action.rem && <div style={{ background: '#f8fafc', borderRadius: '5px', padding: '6px 10px', color: '#334155', marginBottom: '6px', fontSize: '0.73rem', fontStyle: 'italic', maxHeight: '60px', overflow: 'hidden', lineHeight: 1.4 }}><i className="fa-solid fa-quote-left me-1" style={{ color: '#94a3b8', fontSize: '0.65rem' }}></i>{action.rem}</div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
               {action.nextFollowUpDate && <span style={{ color: '#7c3aed', fontSize: '0.71rem' }}><i className="fa-solid fa-calendar-check me-1"></i>{formatFollowUp(action.nextFollowUpDate)}</span>}
@@ -95,7 +95,7 @@ const AmountTotalPopup = ({ funnelLeads, filters }) => {
   const lostTotal    = leadsWithAmount.filter(l => l.STATUS === 'Lost').reduce((s, l) => s + (l.quotation || 0), 0);
   const grandTotal   = leadsWithAmount.reduce((s, l) => s + (l.quotation || 0), 0);
 
-  const fmt = (n) => n > 0 ? '₹' + Number(n).toLocaleString('en-IN') : '—';
+  const fmt = (n) => n > 0 ? '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 
   const filterParts = [];
   if (filters.status)    filterParts.push(filters.status);
@@ -170,7 +170,7 @@ const AmountTotalPopup = ({ funnelLeads, filters }) => {
           color: '#0d6efd', letterSpacing: '-0.3px',
         }}>
           <i className="fa-solid fa-indian-rupee-sign me-1" style={{ fontSize: '0.78rem' }}></i>
-          {Number(grandTotal).toLocaleString('en-IN')}
+          {Number(grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       </div>
     </div>
@@ -221,7 +221,6 @@ export const SalesMasterGrid = () => {
 
   // ========== SURVEY ENGINEER WORK HANDLERS ==========
   const handleSurveyWork = (lead) => {
-    // Check if current user is a survey engineer
     const isSurveyEngineer = user?.role === 'survey_engineer' || user?.role === 'Survey Engineer';
     const isAssignedToMe = lead.assignedSurveyEngineer?._id === user?._id;
     
@@ -306,7 +305,13 @@ export const SalesMasterGrid = () => {
   const canUpdateLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
   const canDeleteLead = user?.permissions?.includes('deleteLead') || user?.user === 'company';
 
-  const formatAmount = (val) => { if (!val || val <= 0) return null; return '₹' + Number(val).toLocaleString('en-IN'); };
+  const formatAmount = (val) => {
+    if (!val || val <= 0) return null;
+    return '₹' + Number(val).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
 
   // Check if user is survey engineer
   const isSurveyEngineer = user?.role === 'survey_engineer' || user?.role === 'Survey Engineer';
@@ -396,7 +401,7 @@ export const SalesMasterGrid = () => {
                               <th style={{ minWidth: '120px' }} className="text-start">Product</th>
                               <th style={{ width: '100px' }}>Source</th>
                               <th style={{ width: '120px' }}>Mobile</th>
-                              <th style={{ width: '140px' }}>Amount</th>
+                              <th style={{ width: '140px' }} className="text-end">Amount</th>
                               <th style={{ width: '120px' }}>Created Date</th>
                               <th style={{ width: '120px' }}>Follow-up Date</th>
                               <th style={{ width: '80px' }}>Status</th>
@@ -427,9 +432,9 @@ export const SalesMasterGrid = () => {
                                     <td className="text-start">{lead.QUERY_PRODUCT_NAME || "Not available."}</td>
                                     <td><small className="text-muted">{lead.SOURCE}</small></td>
                                     <td><small className="text-muted">{lead.SENDER_MOBILE || "Not available."}</small></td>
-                                    <td>
+                                    <td className="text-end">
                                       {hasAmount ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end' }}>
                                           <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 8px rgba(34,197,94,0.6)', flexShrink: 0, animation: 'greenDotPulse 2s infinite' }}></span>
                                           <span style={{ color: '#15803d', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>{formatAmount(lead.quotation)}</span>
                                         </div>
@@ -449,7 +454,6 @@ export const SalesMasterGrid = () => {
                                         <div className="btn-group" role="group">
                                           <button className="btn btn-sm btn-outline-info" onClick={() => handleDetailsPopUpClick(lead)} title="View"><i className="fa-solid fa-eye"></i></button>
                                           <button className="btn btn-sm btn-outline-primary" onClick={() => handleMeeting(lead)} title="Schedule Meeting"><i className="fa-solid fa-video"></i></button>
-                                          {/* Survey Work Button for Survey Engineers */}
                                           {isSurveyEngineer && lead.assignedSurveyEngineer?._id === user?._id && (
                                             <button className="btn btn-sm btn-outline-success" onClick={() => handleSurveyWork(lead)} title="Submit Survey Report">
                                               <i className="fa-solid fa-clipboard-list"></i>
@@ -461,7 +465,6 @@ export const SalesMasterGrid = () => {
                                           {canUpdateLead && (<button className="btn btn-sm btn-outline-success" onClick={() => handleUpdate(lead)} title="Update"><i className="fa-solid fa-pen"></i></button>)}
                                           {canAssignLead && (<button className="btn btn-sm btn-outline-warning" onClick={() => handleAssign(lead)} title="Reassign"><i className="fa-solid fa-share"></i></button>)}
                                           <button className="btn btn-sm btn-outline-primary" onClick={() => handleMeeting(lead)} title="Schedule Meeting"><i className="fa-solid fa-video"></i></button>
-                                          {/* Survey Work Button for Survey Engineers */}
                                           {isSurveyEngineer && lead.assignedSurveyEngineer?._id === user?._id && (
                                             <button className="btn btn-sm btn-outline-info" onClick={() => handleSurveyWork(lead)} title="Submit Survey Report">
                                               <i className="fa-solid fa-clipboard-list"></i>
@@ -534,7 +537,7 @@ export const SalesMasterGrid = () => {
         .badge-pulse-dark-red { animation: badgeDarkRed 1.5s infinite; box-shadow: 0 0 8px rgba(139,0,0,0.6); font-size: .72rem; }
         @keyframes badgeDarkRed { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
         .date-glow-dark-red { animation: glowDarkRed 1.2s infinite; }
-        @keyframes glowDarkRed { 0%,100% { text-shadow: 0 0 4px rgba(139,0,0,0.5); } 50% { text-shadow: 0 0 12px rgba(139,0,0,0.9); } }
+        @keyframes glowDarkDarkRed { 0%,100% { text-shadow: 0 0 4px rgba(139,0,0,0.5); } 50% { text-shadow: 0 0 12px rgba(139,0,0,0.9); } }
         .table th { border-top: none; font-weight: 600; font-size: .875rem; white-space: nowrap; }
         .table td { vertical-align: middle; font-size: .875rem; }
         .btn-group .btn { padding: .25rem .5rem; font-size: .75rem; }

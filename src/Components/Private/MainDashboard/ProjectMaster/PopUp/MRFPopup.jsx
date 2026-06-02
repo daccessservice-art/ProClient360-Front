@@ -251,7 +251,7 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                         <div style={{ fontSize: "11px", fontWeight: "700", textAlign: "center", color: "#2c3e50", marginBottom: "4px" }}>
                                             Supply Only
                                         </div>
-                                        {["Project", "Dealer"].map(opt => (
+                                        {["Project", "Supply"].map(opt => (
                                             <label key={opt} style={{
                                                 display: "flex", alignItems: "center", gap: "6px",
                                                 fontSize: "11px", cursor: "pointer", padding: "4px 8px",
@@ -275,7 +275,7 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
 
                                     {/* Panel 1 – Customer's GRN Team */}
                                     <div style={{ padding: "8px 10px", borderRight: "1px solid #dee2e6" }}>
-                                        <div style={panelHead("#fff3cd")}>Customer's GRN Team Contact Details</div>
+                                        <div style={panelHead("#fff3cd")}>Customer's Store Team Contact Details</div>
                                         <div style={{ padding: "6px 0 0" }}>
                                             <label style={lbl}>Name</label>
                                             <input style={{...inp, marginBottom:"4px"}} value={grnName} onChange={e=>setGrnName(e.target.value)} placeholder="Name" />
@@ -288,7 +288,7 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
 
                                     {/* Panel 2 – Customer Project Team Details */}
                                     <div style={{ padding: "8px 10px", borderRight: "1px solid #dee2e6" }}>
-                                        <div style={panelHead("#e3f2fd")}>Customer Project Team Details</div>
+                                        <div style={panelHead("#e3f2fd")}>Customer Project Team Contact Details</div>
                                         <div style={{ padding: "6px 0 0" }}>
                                             <label style={lbl}>Name</label>
                                             <input style={{...inp, marginBottom:"4px"}} value={cptName} onChange={e=>setCptName(e.target.value)} placeholder="Name" />
@@ -301,7 +301,7 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
 
                                     {/* Panel 3 – Customer's Project Team Contact Details (NEW) */}
                                     <div style={{ padding: "8px 10px", borderRight: "1px solid #dee2e6" }}>
-                                        <div style={panelHead("#e8f5e9")}>Customer's Project Team Contact Details</div>
+                                        <div style={panelHead("#e8f5e9")}>Customer's Accounts & Finance Team Contact Details</div>
                                         <div style={{ padding: "6px 0 0" }}>
                                             <label style={lbl}>Name</label>
                                             <input style={{...inp, marginBottom:"4px"}} value={cptcName} onChange={e=>setCptcName(e.target.value)} placeholder="Name" />
@@ -314,7 +314,7 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
 
                                     {/* Panel 4 – Created By (auto from project) */}
                                     <div style={{ padding: "8px 10px" }}>
-                                        <div style={panelHead("#fce4ec")}>Project Created By</div>
+                                        <div style={panelHead("#fce4ec")}>Project Created By Sales Person</div>
                                         <div style={{ padding: "8px 0 0" }}>
                                             <div style={{
                                                 background: "#f8f9fa", border: "1px solid #dee2e6",
@@ -375,11 +375,12 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                         <thead>
                                             <tr>
                                                 <th style={{ ...th, width: "40px" }}>Sr. No</th>
-                                                <th style={{ ...th, minWidth: "80px" }}>Part No.</th>
-                                                <th style={{ ...th, minWidth: "90px" }}>Make</th>
-                                                <th style={{ ...th, minWidth: "100px" }}>Model No.</th>
+                                                <th style={{ ...th, minWidth: "80px" }}>Product Name</th>
+                                                <th style={{ ...th, minWidth: "90px" }}>Brand Name</th>
+                                                <th style={{ ...th, minWidth: "100px" }}>Model Name</th>
                                                 <th style={{ ...th, minWidth: "260px" }}>Material Description with Specification</th>
                                                 <th style={{ ...th, width: "70px" }}>Qty</th>
+                                                <th style={{ ...th, minWidth: "260px" }}>Remark</th>
                                                 <th style={{ ...th, width: "42px" }}>Del</th>
                                             </tr>
                                         </thead>
@@ -420,6 +421,14 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                                             <input style={inp} type="number" min="0"
                                                                 value={row.qty}
                                                                 onChange={e => handleRowChange(realIdx, "qty", e.target.value)} />
+                                                        </td>
+                                                        <td style={td}>
+                                                            <textarea
+                                                                style={{ ...inp, resize: "vertical", minHeight: "34px" }}
+                                                                value={row.materialDescription}
+                                                                onChange={e => handleRowChange(realIdx, "materialDescription", e.target.value)}
+                                                                rows={2} required
+                                                            />
                                                         </td>
                                                         <td style={{ ...td, textAlign: "center" }}>
                                                             <button type="button" onClick={() => removeRow(realIdx)} style={{
