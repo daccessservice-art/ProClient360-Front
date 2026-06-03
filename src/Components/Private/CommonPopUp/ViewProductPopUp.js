@@ -91,6 +91,30 @@ const ViewProductPopUp = ({ closePopUp, selectedProduct }) => {
                     {product?.minSalesPrice || "-"}
                     <p className="fw-bold mt-3">Min. Qty Level:</p>
                     {product?.minQtyLevel || "-"}
+
+                    {/* ✅ NEW: Current Stock Qty */}
+                    <p className="fw-bold mt-3">Current Stock Qty.:</p>
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        fontSize: "0.95rem",
+                        color:
+                          (product?.currentStockQty || 0) > 0
+                            ? "#1e40af"
+                            : product?.minQtyLevel > 0 &&
+                              (product?.currentStockQty || 0) <= product?.minQtyLevel
+                            ? "#dc2626"
+                            : "#6b7280",
+                      }}
+                    >
+                      {product?.currentStockQty != null ? product.currentStockQty : 0}
+                      {product?.baseUOM && (
+                        <small style={{ fontWeight: 400, fontSize: "0.75rem", marginLeft: 4 }}>
+                          {product.baseUOM}
+                        </small>
+                      )}
+                    </span>
+
                     <p className="fw-bold mt-3">Discount Type:</p>
                     <span className={`badge ${
                       product?.discountType === 'Zero Discount' ? 'bg-secondary' : 

@@ -75,7 +75,22 @@ const deleteProduct = async (Id) => {
   } catch (error) {
     console.log(error.response.data);
     return error.response.data.error;
-  }                 
+  }
 };
 
-export { getProducts, getProductById, createProduct, updateProduct, deleteProduct };  
+// ✅ NEW: Fetch ALL products for report (no pagination)
+const getAllProductsForReport = async (search = null) => {
+  try {
+    const response = await axios.get(`${url}/report/all?q=${search}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
+export { getProducts, getProductById, createProduct, updateProduct, deleteProduct, getAllProductsForReport };
