@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import validator from "validator";
 import toast from "react-hot-toast";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getAddress } from "../../../../../hooks/usePincode";
@@ -24,7 +23,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
   const [localBrands, setLocalBrands] = useState([]);
   const [remarks, setRemarks] = useState("");
   const [manualAddress, setManualAddress] = useState("");
-  
+
   const [billingAddress, setBillingAddress] = useState({
     pincode: "",
     state: "",
@@ -33,16 +32,10 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
     country: "",
   });
 
-  // Load brands from localStorage and from props
   useEffect(() => {
-    // First, load brands from localStorage using the same key as the product page
     const savedProductBrands = localStorage.getItem('productBrands');
     let productBrands = [];
-    if (savedProductBrands) {
-      productBrands = JSON.parse(savedProductBrands);
-    }
-    
-    // Combine with brands from props, removing duplicates
+    if (savedProductBrands) productBrands = JSON.parse(savedProductBrands);
     const allBrands = [...new Set([...productBrands, ...brands])];
     setLocalBrands(allBrands);
   }, [brands]);
@@ -53,7 +46,6 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
         setIsLoadingAddress(true);
         try {
           const data = await getAddress(billingAddress.pincode);
-
           if (data) {
             setBillingAddress(prevAddress => ({
               ...prevAddress,
@@ -89,7 +81,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
         }));
       }
     };
-    
+
     const timeoutId = setTimeout(() => {
       fetchData();
     }, 500);
@@ -111,10 +103,12 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
       vendorContactPersonName2,
       vendorContactPersonName1,
       phoneNumber2,
-      billingAddress: (typeOfVendor !== "Import" && typeOfVendor !== "Other") ? billingAddress : { add: "Not applicable for this vendor type" },
+      billingAddress: (typeOfVendor !== "Import" && typeOfVendor !== "Other")
+        ? billingAddress
+        : { add: "Not applicable for this vendor type" },
       GSTNo,
       customVendorType: typeOfVendor === "Other" ? customVendorType : "",
-      remarks: remarks,
+      remarks,
       manualAddress: typeOfVendor === "Import" ? manualAddress : "",
     };
 
@@ -127,29 +121,33 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
       !GSTNo ||
       (typeOfVendor === "Other" && !customVendorType) ||
       (typeOfVendor === "Import" && !manualAddress) ||
-      ((typeOfVendor !== "Import" && typeOfVendor !== "Other") && (!billingAddress.pincode || !billingAddress.state || !billingAddress.city || !billingAddress.add)) ||
+      ((typeOfVendor !== "Import" && typeOfVendor !== "Other") &&
+        (!billingAddress.pincode || !billingAddress.state || !billingAddress.city || !billingAddress.add)) ||
       (typeOfVendor === "B2B Material" && !brandsWorkWith)
     ) {
       return toast.error("Please fill all required fields");
     }
-    if (!validator.isEmail(email)) {
-      return toast.error("Enter valid Email");
-    }
-    if ((typeOfVendor !== "Import" && typeOfVendor !== "Other") && (billingAddress.pincode.length !== 6 || !/^\d{6}$/.test(billingAddress.pincode))) {
+
+    if (
+      (typeOfVendor !== "Import" && typeOfVendor !== "Other") &&
+      (billingAddress.pincode.length !== 6 || !/^\d{6}$/.test(billingAddress.pincode))
+    ) {
       return toast.error("Enter valid 6-digit Pincode");
     }
-    if (!validator.isMobilePhone(phoneNumber1, 'any', { strictMode: false })) {
+
+    if (!/^\d{10}$/.test(phoneNumber1)) {
       return toast.error("Please enter valid 10-digit phone number for Contact Person 1.");
     }
-    if (phoneNumber2 && !validator.isMobilePhone(phoneNumber2, 'any', { strictMode: false })) {
+
+    if (phoneNumber2 && !/^\d{10}$/.test(phoneNumber2)) {
       return toast.error("Please enter valid 10-digit phone number for Contact Person 2.");
     }
-    
+
     toast.loading("Creating Vendor...");
     const data = await createVendor(vendorData);
     toast.dismiss();
-    
-    if(data.success){
+
+    if (data.success) {
       toast.success(data.message);
       handleAdd();
     } else {
@@ -159,68 +157,41 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
 
   const handleVendorNameChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z0-9\s]*$/.test(value)) {
-      setVendorName(value);
-    }
+    if (/^[a-zA-Z0-9\s]*$/.test(value)) setVendorName(value);
   };
 
   const handleContactPersonName1Change = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setVendorContactPersonName1(value);
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setVendorContactPersonName1(value);
   };
 
   const handleContactPersonName2Change = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setVendorContactPersonName2(value);
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setVendorContactPersonName2(value);
   };
 
   const handleStateChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setBillingAddress(prevAddress => ({ 
-        ...prevAddress, 
-        state: value 
-      }));
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, state: value }));
   };
 
   const handleCityChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setBillingAddress(prevAddress => ({ 
-        ...prevAddress, 
-        city: value 
-      }));
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, city: value }));
   };
 
   const handleCountryChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z\s]*$/.test(value)) {
-      setBillingAddress(prevAddress => ({ 
-        ...prevAddress, 
-        country: value 
-      }));
-    }
+    if (/^[a-zA-Z\s]*$/.test(value)) setBillingAddress(prev => ({ ...prev, country: value }));
   };
 
   const handlePincodeChange = (e) => {
     const value = e.target.value;
-    if (/^\d{0,6}$/.test(value)) {
-      setBillingAddress(prevAddress => ({
-        ...prevAddress,
-        pincode: value,
-      }));
-    }
+    if (/^\d{0,6}$/.test(value)) setBillingAddress(prev => ({ ...prev, pincode: value }));
   };
 
   const handleGSTChange = (e) => {
-    const value = e.target.value.toUpperCase();
-    setGSTNo(value);
+    setGSTNo(e.target.value.toUpperCase());
   };
 
   const handleRatingClick = (rating) => {
@@ -228,16 +199,8 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
   };
 
   const handleAddNewBrand = () => {
-    if (newBrand.trim() === '') {
-      toast.error("Brand name is required");
-      return;
-    }
-    
-    if (localBrands.includes(newBrand)) {
-      toast.error("Brand already exists");
-      return;
-    }
-    
+    if (newBrand.trim() === '') { toast.error("Brand name is required"); return; }
+    if (localBrands.includes(newBrand)) { toast.error("Brand already exists"); return; }
     const updatedBrands = [...localBrands, newBrand];
     setLocalBrands(updatedBrands);
     addBrand(newBrand);
@@ -250,25 +213,14 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
     <>
       <div
         className="modal fade show"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          backgroundColor: "#00000090",
-        }}
+        style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}
       >
         <div className="modal-dialog modal-lg">
           <div className="modal-content p-3">
             <form onSubmit={handleVendorAdd}>
               <div className="modal-header pt-0">
-                <h5 className="card-title fw-bold" id="exampleModalLongTitle">
-                  Create New Vendor
-                </h5>
-                <button
-                  onClick={() => handleAdd()}
-                  type="button"
-                  className="close px-3"
-                  style={{ marginLeft: "auto" }}
-                >
+                <h5 className="card-title fw-bold">Create New Vendor</h5>
+                <button onClick={() => handleAdd()} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
                   <span aria-hidden="true">&times;</span>
                 </button>
               </div>
@@ -278,15 +230,8 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                   {/* Material Category */}
                   <div className="col-12">
                     <div className="mb-3">
-                      <label className="form-label label_text">
-                        Material Category <RequiredStar />
-                      </label>
-                      <select
-                        className="form-select rounded-0"
-                        value={materialCategory}
-                        onChange={(e) => setMaterialCategory(e.target.value)}
-                        required
-                      >
+                      <label className="form-label label_text">Material Category <RequiredStar /></label>
+                      <select className="form-select rounded-0" value={materialCategory} onChange={(e) => setMaterialCategory(e.target.value)} required>
                         <option value="">Select Material Category</option>
                         <option value="Raw Material">Raw Material</option>
                         <option value="Finished Goods">Finished Goods</option>
@@ -298,15 +243,8 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                   {/* Type of Vendor */}
                   <div className="col-12">
                     <div className="mb-3">
-                      <label className="form-label label_text">
-                        Type of Vendor <RequiredStar />
-                      </label>
-                      <select
-                        className="form-select rounded-0"
-                        value={typeOfVendor}
-                        onChange={(e) => setTypeOfVendor(e.target.value)}
-                        required
-                      >
+                      <label className="form-label label_text">Type of Vendor <RequiredStar /></label>
+                      <select className="form-select rounded-0" value={typeOfVendor} onChange={(e) => setTypeOfVendor(e.target.value)} required>
                         <option value="">Select Vendor Type</option>
                         <option value="Import">Import</option>
                         <option value="B2B Material">B2B Material</option>
@@ -324,17 +262,8 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                   {typeOfVendor === "Other" && (
                     <div className="col-12">
                       <div className="mb-3">
-                        <label className="form-label label_text">
-                          Specify Vendor Type <RequiredStar />
-                        </label>
-                        <input
-                          type="text"
-                          className="form-control rounded-0"
-                          value={customVendorType}
-                          onChange={(e) => setCustomVendorType(e.target.value)}
-                          placeholder="Enter vendor type..."
-                          required
-                        />
+                        <label className="form-label label_text">Specify Vendor Type <RequiredStar /></label>
+                        <input type="text" className="form-control rounded-0" value={customVendorType} onChange={(e) => setCustomVendorType(e.target.value)} placeholder="Enter vendor type..." required />
                       </div>
                     </div>
                   )}
@@ -342,9 +271,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                   {/* Vendor Rating */}
                   <div className="col-12">
                     <div className="mb-3">
-                      <label className="form-label label_text">
-                        Vendor Rating <RequiredStar />
-                      </label>
+                      <label className="form-label label_text">Vendor Rating <RequiredStar /></label>
                       <div className="d-flex">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <span
@@ -361,9 +288,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                   {typeOfVendor === "B2B Material" && (
                     <div className="col-12">
                       <div className="mb-3">
-                        <label className="form-label label_text">
-                          Brands Name <RequiredStar />
-                        </label>
+                        <label className="form-label label_text">Brands Name <RequiredStar /></label>
                         <div className="d-flex">
                           <select
                             className="form-select rounded-0 me-2"
@@ -388,11 +313,10 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                     </div>
                   )}
 
+                  {/* Vendor Name */}
                   <div className="col-12">
                     <div className="">
-                      <label htmlFor="vendorName" className="form-label label_text">
-                        Vendor Name <RequiredStar />
-                      </label>
+                      <label htmlFor="vendorName" className="form-label label_text">Vendor Name <RequiredStar /></label>
                       <input
                         type="text"
                         className="form-control rounded-0"
@@ -400,32 +324,30 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                         maxLength={300}
                         value={vendorName}
                         onChange={handleVendorNameChange}
-                        aria-describedby="nameHelp"
                         placeholder="Enter Vendor Name...."
                         required
                       />
                     </div>
                   </div>
 
+                  {/* Email - type="text", no format validation */}
                   <div className="col-12 mt-3">
                     <div className="mb-3">
-                      <label htmlFor="email" className="form-label label_text">
-                        Email <RequiredStar />
-                      </label>
+                      <label htmlFor="email" className="form-label label_text">Email <RequiredStar /></label>
                       <input
-                        type="email"
-                        maxLength={50}
+                        type="text"
+                        maxLength={100}
                         className="form-control rounded-0"
                         id="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        aria-describedby="emailHelp"
-                        placeholder="Enter Email...."
+                        placeholder="Enter Email or NA...."
                         required
                       />
                     </div>
                   </div>
 
+                  {/* Contact Information */}
                   <div className="col-12 mt-2">
                     <div className="row border bg-gray mx-auto">
                       <div className="col-10 mb-3">
@@ -434,10 +356,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="vendorContactPersonName1"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="vendorContactPersonName1" className="form-label label_text">
                             Contact Person Name 1 <RequiredStar />
                           </label>
                           <input
@@ -447,7 +366,6 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                             id="vendorContactPersonName1"
                             value={vendorContactPersonName1}
                             onChange={handleContactPersonName1Change}
-                            aria-describedby="emailHelp"
                             required
                           />
                         </div>
@@ -465,17 +383,13 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                             maxLength={50}
                             value={vendorContactPersonName2}
                             onChange={handleContactPersonName2Change}
-                            aria-describedby="emailHelp"
                           />
                         </div>
                       </div>
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="phoneNumber1"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="phoneNumber1" className="form-label label_text">
                             Contact Person No 1 <RequiredStar />
                           </label>
                           <input
@@ -486,11 +400,8 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                             value={phoneNumber1}
                             onChange={(e) => {
                               const value = e.target.value.replace(/[^0-9]/g, '');
-                              if (value.length <= 10) {
-                                setPhoneNumber1(value);
-                              }
+                              if (value.length <= 10) setPhoneNumber1(value);
                             }}
-                            aria-describedby="mobileNoHelp"
                             maxLength={10}
                             required
                           />
@@ -499,10 +410,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
 
                       <div className="col-12 col-lg-6 mt-2">
                         <div className="mb-3">
-                          <label
-                            htmlFor="phoneNumber2"
-                            className="form-label label_text"
-                          >
+                          <label htmlFor="phoneNumber2" className="form-label label_text">
                             Contact Person No. 2
                           </label>
                           <input
@@ -514,24 +422,19 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                             value={phoneNumber2}
                             onChange={(e) => {
                               const value = e.target.value.replace(/[^0-9]/g, '');
-                              if (value.length <= 10) {
-                                setPhoneNumber2(value);
-                              }
+                              if (value.length <= 10) setPhoneNumber2(value);
                             }}
-                            aria-describedby="MobileNoHelp"
                           />
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Manual Address for Import Vendors */}
+                  {/* Manual Address for Import */}
                   {typeOfVendor === "Import" && (
                     <div className="col-12 mt-2">
                       <div className="mb-3">
-                        <label className="form-label label_text">
-                          Address <RequiredStar />
-                        </label>
+                        <label className="form-label label_text">Address <RequiredStar /></label>
                         <textarea
                           className="form-control rounded-0"
                           rows="3"
@@ -545,7 +448,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                     </div>
                   )}
 
-                  {/* Structured Address Section */}
+                  {/* Structured Address */}
                   {typeOfVendor !== "Import" && typeOfVendor !== "Other" && (
                     <div className="col-12 mt-2">
                       <div className="row border mt-4 bg-gray mx-auto">
@@ -563,9 +466,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                               onChange={handlePincodeChange}
                               value={billingAddress.pincode}
                             />
-                            {isLoadingAddress && (
-                              <small className="text-info">Loading address details...</small>
-                            )}
+                            {isLoadingAddress && <small className="text-info">Loading address details...</small>}
                             {billingAddress.pincode.length === 6 && !isLoadingAddress && !billingAddress.state && (
                               <small className="text-danger">Invalid pincode or no data found</small>
                             )}
@@ -581,9 +482,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                               maxLength={50}
                               onChange={handleStateChange}
                               value={billingAddress.state}
-                              style={{ 
-                                backgroundColor: billingAddress.state && !isLoadingAddress ? '#f8f9fa' : 'white' 
-                              }}
+                              style={{ backgroundColor: billingAddress.state && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                             />
                           </div>
                         </div>
@@ -597,9 +496,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                               maxLength={50}
                               value={billingAddress.city}
                               onChange={handleCityChange}
-                              style={{ 
-                                backgroundColor: billingAddress.city && !isLoadingAddress ? '#f8f9fa' : 'white' 
-                              }}
+                              style={{ backgroundColor: billingAddress.city && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                             />
                           </div>
                         </div>
@@ -613,9 +510,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                               maxLength={50}
                               onChange={handleCountryChange}
                               value={billingAddress.country}
-                              style={{ 
-                                backgroundColor: billingAddress.country && !isLoadingAddress ? '#f8f9fa' : 'white' 
-                              }}
+                              style={{ backgroundColor: billingAddress.country && !isLoadingAddress ? '#f8f9fa' : 'white' }}
                             />
                           </div>
                         </div>
@@ -626,10 +521,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                               className="textarea_edit col-12"
                               maxLength={500}
                               placeholder="House NO., Building Name, Road Name, Area, Colony"
-                              onChange={(e) => setBillingAddress(prevAddress => ({ 
-                                ...prevAddress, 
-                                add: e.target.value 
-                              }))}
+                              onChange={(e) => setBillingAddress(prev => ({ ...prev, add: e.target.value }))}
                               value={billingAddress.add}
                               rows="2"
                             ></textarea>
@@ -639,6 +531,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                     </div>
                   )}
 
+                  {/* GST Number */}
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="">
                       <label htmlFor="GSTNumber" className="form-label label_text">
@@ -651,7 +544,6 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                         maxLength={15}
                         onChange={handleGSTChange}
                         value={GSTNo}
-                        aria-describedby="emailHelp"
                         required
                         placeholder="Enter GST Number"
                         minLength={2}
@@ -659,12 +551,10 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                     </div>
                   </div>
 
-                  {/* Remarks Field */}
+                  {/* Remarks */}
                   <div className="col-12 mt-3">
                     <div className="mb-3">
-                      <label htmlFor="remarks" className="form-label label_text">
-                        Remarks
-                      </label>
+                      <label htmlFor="remarks" className="form-label label_text">Remarks</label>
                       <textarea
                         className="form-control rounded-0"
                         id="remarks"
@@ -679,21 +569,11 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
 
                   <div className="row">
                     <div className="col-12 pt-3 mt-2">
-                      <button
-                        type="submit"
-                        className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
-                      >
-                        Add
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleAdd}
-                        className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
-                      >
-                        Cancel
-                      </button>
+                      <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">Add</button>
+                      <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">Cancel</button>
                     </div>
                   </div>
+
                 </div>
               </div>
             </form>
@@ -701,62 +581,37 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
         </div>
       </div>
 
-{showAddBrandModal && (
-  <div
-    className="modal fade show"
-    style={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#00000090",
-    }}
-  >
-    <div className="modal-dialog modal-xl">  
-      <div className="modal-content">
-        <div className="modal-header">
-          <h5 className="modal-title">Add New Brand</h5>
-          <button
-            type="button"
-            className="btn-close"
-            onClick={() => setShowAddBrandModal(false)}
-          ></button>
-        </div>
-        <div className="modal-body">
-          <div className="form-group">
-            <label>
-              Brand Name <RequiredStar />
-            </label>
-            <input
-              type="text"
-              className="form-control"
-              value={newBrand}
-              onChange={(e) => setNewBrand(e.target.value)}
-              required
-            />
+      {showAddBrandModal && (
+        <div
+          className="modal fade show"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#00000090" }}
+        >
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Add New Brand</h5>
+                <button type="button" className="btn-close" onClick={() => setShowAddBrandModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label>Brand Name <RequiredStar /></label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={newBrand}
+                    onChange={(e) => setNewBrand(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddBrandModal(false)}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={handleAddNewBrand}>Save</button>
+              </div>
+            </div>
           </div>
         </div>
-
-        <div className="modal-footer">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setShowAddBrandModal(false)}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleAddNewBrand}
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
+      )}
     </>
   );
 };
