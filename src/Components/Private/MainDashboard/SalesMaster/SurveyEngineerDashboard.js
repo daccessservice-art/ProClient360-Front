@@ -81,33 +81,39 @@ const SurveyEngineerDashboard = () => {
 
   const getSurveyReportStatusBadge = (lead) => {
     const status = lead.surveyReport?.status;
-    if (status === 'success') return <span className="badge bg-success">Completed</span>;
+    if (status === 'success')   return <span className="badge bg-success">Completed</span>;
     if (status === 'cancelled') return <span className="badge bg-danger">Cancelled</span>;
     return <span className="badge bg-warning text-dark">Pending</span>;
   };
 
   const getSurveyNeededBadge = (lead) => {
     if (lead.surveyNeeded === 'yes') return <span className="badge bg-primary">Survey Required</span>;
-    if (lead.surveyNeeded === 'no') return <span className="badge bg-secondary">Not Required</span>;
+    if (lead.surveyNeeded === 'no')  return <span className="badge bg-secondary">Not Required</span>;
     return <span className="badge bg-light text-dark border">—</span>;
   };
 
-  // ✅ KEY FIX: pending means no surveyReport OR status is pending
   const isPending = (lead) => {
     const s = lead.surveyReport?.status;
     return !s || s === 'pending';
   };
 
+  // ── Helper: build full URL for an uploaded file ──────────────────────────
+  const fileUrl = (filePath) => {
+    if (!filePath) return null;
+    if (filePath.startsWith('http')) return filePath;
+    return `${process.env.REACT_APP_API_URL}${filePath}`;
+  };
+
   const counts = {
-    all: leads.length,
-    pending: leads.filter(l => isPending(l)).length,
+    all:       leads.length,
+    pending:   leads.filter(l => isPending(l)).length,
     completed: leads.filter(l => l.surveyReport?.status === 'success').length,
     cancelled: leads.filter(l => l.surveyReport?.status === 'cancelled').length,
   };
 
   const filteredLeads = leads.filter(lead => {
-    if (activeCard === 'all') return true;
-    if (activeCard === 'pending') return isPending(lead);
+    if (activeCard === 'all')       return true;
+    if (activeCard === 'pending')   return isPending(lead);
     if (activeCard === 'completed') return lead.surveyReport?.status === 'success';
     if (activeCard === 'cancelled') return lead.surveyReport?.status === 'cancelled';
     return true;
@@ -141,13 +147,13 @@ const SurveyEngineerDashboard = () => {
                   </div>
                 </div>
 
-                {/* Clickable Stats Cards */}
+                {/* Stats Cards */}
                 <div className="row mb-4 px-2">
                   {[
-                    { key: 'all', label: 'Total Assigned', color: 'primary', icon: 'fa-list', textDark: false },
-                    { key: 'pending', label: 'Pending', color: 'warning', icon: 'fa-clock', textDark: true },
-                    { key: 'completed', label: 'Completed', color: 'success', icon: 'fa-check-circle', textDark: false },
-                    { key: 'cancelled', label: 'Cancelled', color: 'danger', icon: 'fa-ban', textDark: false },
+                    { key: 'all',       label: 'Total Assigned', color: 'primary', icon: 'fa-list',         textDark: false },
+                    { key: 'pending',   label: 'Pending',        color: 'warning', icon: 'fa-clock',        textDark: true  },
+                    { key: 'completed', label: 'Completed',      color: 'success', icon: 'fa-check-circle', textDark: false },
+                    { key: 'cancelled', label: 'Cancelled',      color: 'danger',  icon: 'fa-ban',          textDark: false },
                   ].map(card => (
                     <div className="col-md-3 col-6 mb-2" key={card.key}>
                       <div
@@ -198,9 +204,7 @@ const SurveyEngineerDashboard = () => {
                   <div className="col-12">
                     {loading ? (
                       <div className="text-center py-5">
-                        <div className="spinner-border text-primary mb-3" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </div>
+                        <div className="spinner-border text-primary mb-3" role="status"></div>
                         <div className="text-muted">Loading your assigned leads...</div>
                       </div>
                     ) : filteredLeads.length === 0 ? (
@@ -208,11 +212,9 @@ const SurveyEngineerDashboard = () => {
                         <i className="fa-solid fa-inbox fa-3x text-muted mb-3"></i>
                         <h5 className="text-muted">No Leads Found</h5>
                         <p className="text-muted">
-                          {activeCard === 'pending'
-                            ? "No pending survey leads. All done!"
-                            : activeCard === 'all'
-                            ? "You don't have any leads assigned for survey at the moment."
-                            : `No ${activeCard} survey leads found.`}
+                          {activeCard === 'pending'   ? "No pending survey leads. All done!" :
+                           activeCard === 'all'       ? "You don't have any leads assigned for survey." :
+                           `No ${activeCard} survey leads found.`}
                         </p>
                         {activeCard !== 'all' && (
                           <button className="btn btn-outline-primary btn-sm" onClick={() => setActiveCard('all')}>
@@ -225,15 +227,17 @@ const SurveyEngineerDashboard = () => {
                         <table className="table table-hover table-striped">
                           <thead className="table-dark">
                             <tr>
-                              <th style={{ width: '45px' }}>SR. No.</th>
+                              <th style={{ width: '45px' }}>SR.</th>
                               <th style={{ minWidth: '180px' }}>Company / Contact</th>
                               <th style={{ minWidth: '150px' }}>Product</th>
                               <th style={{ minWidth: '140px' }}>Sales Employee</th>
-                              <th style={{ width: '150px' }}>Survey Assigned At</th>
+                              <th style={{ width: '150px' }}>Assigned At</th>
                               <th style={{ width: '120px' }}>Survey Date</th>
                               <th style={{ width: '100px' }}>Project Size</th>
                               <th style={{ width: '110px' }}>Survey Needed</th>
                               <th style={{ width: '110px' }}>Report Status</th>
+                              {/* ✅ NEW: Documents column */}
+                              <th style={{ width: '130px' }}>Documents</th>
                               <th className="text-center" style={{ width: '120px' }}>Actions</th>
                             </tr>
                           </thead>
@@ -269,23 +273,75 @@ const SurveyEngineerDashboard = () => {
                                 </td>
                                 <td>
                                   {lead.projectSize ? (
-                                    <span className={`badge ${lead.projectSize === 'big' ? 'bg-danger' : lead.projectSize === 'medium' ? 'bg-warning text-dark' : 'bg-info text-dark'}`}>
+                                    <span className={`badge ${
+                                      lead.projectSize === 'big'    ? 'bg-danger' :
+                                      lead.projectSize === 'medium' ? 'bg-warning text-dark' : 'bg-info text-dark'
+                                    }`}>
                                       {lead.projectSize.charAt(0).toUpperCase() + lead.projectSize.slice(1)}
                                     </span>
                                   ) : '—'}
                                 </td>
                                 <td>{getSurveyNeededBadge(lead)}</td>
                                 <td>{getSurveyReportStatusBadge(lead)}</td>
+
+                                {/* ✅ Documents column — always visible if files exist */}
+                                <td>
+                                  {lead.surveyReport?.status === 'success' ? (
+                                    <div className="d-flex flex-column gap-1">
+                                      {fileUrl(lead.surveyReport?.reportFile) && (
+                                        <a
+                                          href={fileUrl(lead.surveyReport.reportFile)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="btn btn-xs btn-outline-primary"
+                                          style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                                          title="Download Survey Report (Word)"
+                                        >
+                                          <i className="fa-solid fa-file-word me-1"></i>Report
+                                        </a>
+                                      )}
+                                      {fileUrl(lead.surveyReport?.drawingFile) && (
+                                        <a
+                                          href={fileUrl(lead.surveyReport.drawingFile)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="btn btn-xs btn-outline-danger"
+                                          style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                                          title="Download Drawing (PDF)"
+                                        >
+                                          <i className="fa-solid fa-file-pdf me-1"></i>Drawing
+                                        </a>
+                                      )}
+                                      {fileUrl(lead.surveyReport?.boqFile) && (
+                                        <a
+                                          href={fileUrl(lead.surveyReport.boqFile)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="btn btn-xs btn-outline-success"
+                                          style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                                          title="Download BOQ (Excel)"
+                                        >
+                                          <i className="fa-solid fa-file-excel me-1"></i>BOQ
+                                        </a>
+                                      )}
+                                    </div>
+                                  ) : lead.surveyReport?.status === 'cancelled' ? (
+                                    <small className="text-danger">
+                                      <i className="fa-solid fa-ban me-1"></i>Cancelled
+                                    </small>
+                                  ) : (
+                                    <small className="text-muted">—</small>
+                                  )}
+                                </td>
+
                                 <td className="text-center">
                                   <div className="btn-group" role="group">
-                                    {/* History button always visible */}
                                     <button
                                       className="btn btn-sm btn-outline-secondary"
                                       onClick={() => handleShowHistory(lead)}
                                       title="View Work History">
                                       <i className="fa-solid fa-history"></i>
                                     </button>
-                                    {/* ✅ FIXED: Submit button for ALL pending leads - no role check */}
                                     {isPending(lead) ? (
                                       <button
                                         className="btn btn-sm btn-primary"
@@ -328,7 +384,7 @@ const SurveyEngineerDashboard = () => {
         />
       )}
 
-      {/* History Popup */}
+      {/* ✅ History Popup — with full documents section */}
       {showHistoryPopup && historyLead && (
         <div className="modal fade show" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#00000090', zIndex: 1080 }}>
           <div className="modal-dialog modal-lg">
@@ -340,7 +396,7 @@ const SurveyEngineerDashboard = () => {
                 </h5>
                 <button className="btn-close" onClick={() => { setShowHistoryPopup(false); setHistoryLead(null); }}></button>
               </div>
-              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
 
                 {/* Lead Summary */}
                 <div className="p-2 mb-3 rounded" style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}>
@@ -368,8 +424,126 @@ const SurveyEngineerDashboard = () => {
                   </div>
                 </div>
 
+                {/* ✅ Survey Report Documents — always visible when files exist */}
+                {historyLead.surveyReport?.status === 'success' && (
+                  <div className="mb-3">
+                    <h6 className="fw-bold mb-2 border-bottom pb-2">
+                      <i className="fa-solid fa-folder-open me-2 text-success"></i>
+                      Survey Documents
+                    </h6>
+                    <div className="p-3 rounded" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                      <div className="row g-2">
+                        {/* Survey Report Word */}
+                        <div className="col-md-4 col-6">
+                          <div className="p-2 rounded text-center" style={{ background: '#dbeafe', border: '1px solid #93c5fd' }}>
+                            <i className="fa-solid fa-file-word fa-2x text-primary mb-2 d-block"></i>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1e40af', marginBottom: '6px' }}>
+                              Survey Report
+                            </div>
+                            {fileUrl(historyLead.surveyReport?.reportFile) ? (
+                              <a
+                                href={fileUrl(historyLead.surveyReport.reportFile)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-primary btn-sm w-100"
+                                style={{ fontSize: '0.72rem' }}
+                              >
+                                <i className="fa-solid fa-download me-1"></i>Download
+                              </a>
+                            ) : (
+                              <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>Not uploaded</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Drawing PDF */}
+                        <div className="col-md-4 col-6">
+                          <div className="p-2 rounded text-center" style={{ background: '#fee2e2', border: '1px solid #fca5a5' }}>
+                            <i className="fa-solid fa-file-pdf fa-2x text-danger mb-2 d-block"></i>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', marginBottom: '6px' }}>
+                              Drawing
+                            </div>
+                            {fileUrl(historyLead.surveyReport?.drawingFile) ? (
+                              <a
+                                href={fileUrl(historyLead.surveyReport.drawingFile)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-danger btn-sm w-100"
+                                style={{ fontSize: '0.72rem' }}
+                              >
+                                <i className="fa-solid fa-download me-1"></i>Download
+                              </a>
+                            ) : (
+                              <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>Not uploaded</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* BOQ Excel */}
+                        <div className="col-md-4 col-6">
+                          <div className="p-2 rounded text-center" style={{ background: '#dcfce7', border: '1px solid #86efac' }}>
+                            <i className="fa-solid fa-file-excel fa-2x text-success mb-2 d-block"></i>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#166534', marginBottom: '6px' }}>
+                              BOQ
+                            </div>
+                            {fileUrl(historyLead.surveyReport?.boqFile) ? (
+                              <a
+                                href={fileUrl(historyLead.surveyReport.boqFile)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-success btn-sm w-100"
+                                style={{ fontSize: '0.72rem' }}
+                              >
+                                <i className="fa-solid fa-download me-1"></i>Download
+                              </a>
+                            ) : (
+                              <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>Not uploaded</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 d-flex align-items-center gap-2">
+                        <small className="text-muted">
+                          <i className="fa-solid fa-clock me-1"></i>
+                          Submitted: {formatDateTime(historyLead.surveyReport.submittedAt)}
+                        </small>
+                        <span className="badge bg-success">
+                          <i className="fa-solid fa-check me-1"></i>Completed
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cancellation info */}
+                {historyLead.surveyReport?.status === 'cancelled' && (
+                  <div className="mb-3">
+                    <h6 className="fw-bold mb-2 border-bottom pb-2">
+                      <i className="fa-solid fa-ban me-2 text-danger"></i>
+                      Cancellation Details
+                    </h6>
+                    <div className="p-3 rounded" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
+                      <div className="d-flex align-items-center gap-2 mb-2">
+                        <span className="badge bg-danger">Cancelled</span>
+                        <small className="text-muted">
+                          {formatDateTime(historyLead.surveyReport.submittedAt)}
+                        </small>
+                      </div>
+                      {historyLead.surveyReport.cancelReason && (
+                        <div style={{ fontSize: '0.85rem', color: '#7f1d1d', whiteSpace: 'pre-wrap' }}>
+                          <strong>Reason:</strong> {historyLead.surveyReport.cancelReason}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Action History */}
-                <h6 className="fw-bold mb-2 border-bottom pb-2">Action History</h6>
+                <h6 className="fw-bold mb-2 border-bottom pb-2">
+                  <i className="fa-solid fa-timeline me-2 text-primary"></i>
+                  Action History
+                </h6>
                 {historyLead.previousActions?.length > 0 ? (
                   <div className="table-responsive">
                     <table className="table table-sm table-striped">
@@ -391,7 +565,11 @@ const SurveyEngineerDashboard = () => {
                             <tr key={action._id || idx}>
                               <td>{idx + 1}</td>
                               <td>
-                                <span className={`badge ${action.status === 'Won' ? 'bg-success' : action.status === 'Lost' ? 'bg-danger' : action.status === 'Ongoing' ? 'bg-primary' : 'bg-warning text-dark'}`}>
+                                <span className={`badge ${
+                                  action.status === 'Won'     ? 'bg-success' :
+                                  action.status === 'Lost'    ? 'bg-danger'  :
+                                  action.status === 'Ongoing' ? 'bg-primary' : 'bg-warning text-dark'
+                                }`}>
                                   {action.status}
                                 </span>
                               </td>
@@ -411,45 +589,12 @@ const SurveyEngineerDashboard = () => {
                   </div>
                 )}
 
-                {/* Survey Report Info */}
-                {historyLead.surveyReport?.status && historyLead.surveyReport.status !== 'pending' && (
-                  <>
-                    <h6 className="fw-bold mb-2 border-bottom pb-2 mt-3">Survey Report</h6>
-                    <div className="p-2 rounded" style={{ background: '#f8f9fa' }}>
-                      <div className="row">
-                        <div className="col-6">
-                          <small className="text-muted">Status:</small>
-                          <div>{getSurveyReportStatusBadge(historyLead)}</div>
-                        </div>
-                        <div className="col-6">
-                          <small className="text-muted">Submitted At:</small>
-                          <div style={{ fontSize: '0.85rem' }}>{formatDateTime(historyLead.surveyReport.submittedAt)}</div>
-                        </div>
-                        {historyLead.surveyReport.cancelReason && (
-                          <div className="col-12 mt-2">
-                            <small className="text-muted">Cancel Reason:</small>
-                            <div className="text-danger" style={{ fontSize: '0.85rem' }}>{historyLead.surveyReport.cancelReason}</div>
-                          </div>
-                        )}
-                        {historyLead.surveyReport.reportFile && (
-                          <div className="col-12 mt-2 d-flex gap-2 flex-wrap">
-                            <a href={`${process.env.REACT_APP_API_URL}${historyLead.surveyReport.reportFile}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-primary"><i className="fa-solid fa-file-word me-1"></i>Survey Report</a>
-                            {historyLead.surveyReport.drawingFile && (
-                              <a href={`${process.env.REACT_APP_API_URL}${historyLead.surveyReport.drawingFile}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-danger"><i className="fa-solid fa-file-pdf me-1"></i>Drawing</a>
-                            )}
-                            {historyLead.surveyReport.boqFile && (
-                              <a href={`${process.env.REACT_APP_API_URL}${historyLead.surveyReport.boqFile}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-success"><i className="fa-solid fa-file-excel me-1"></i>BOQ</a>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-
               </div>
               <div className="modal-footer border-0">
-                <button className="btn btn-outline-secondary" onClick={() => { setShowHistoryPopup(false); setHistoryLead(null); }}>
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => { setShowHistoryPopup(false); setHistoryLead(null); }}
+                >
                   Close
                 </button>
               </div>
@@ -464,6 +609,7 @@ const SurveyEngineerDashboard = () => {
         .card { border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .btn-group .btn { padding: .25rem .5rem; font-size: .75rem; }
         .table-hover tbody tr:hover { background-color: rgba(0,0,0,0.05); }
+        .btn-xs { font-size: 0.7rem !important; padding: 2px 6px !important; }
       `}</style>
     </>
   );
