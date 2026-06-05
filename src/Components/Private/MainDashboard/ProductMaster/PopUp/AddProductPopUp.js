@@ -24,7 +24,7 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
   const [minQtyLevel, setMinQtyLevel] = useState("");
   const [discountType, setDiscountType] = useState("Zero Discount");
   const [discountValue, setDiscountValue] = useState("");
-  const [currentStockQty, setCurrentStockQty] = useState(""); // ✅ NEW
+  const [currentStockQty, setCurrentStockQty] = useState("");
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategory, setNewCategory] = useState("");
   const [showAddBrand, setShowAddBrand] = useState(false);
@@ -51,6 +51,7 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
   const [allBrands, setAllBrands] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
 
+  // ── Load brands & categories from localStorage ──
   useEffect(() => {
     const savedBrands = localStorage.getItem('productBrands');
     if (savedBrands) {
@@ -69,12 +70,18 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
     }
   }, [categories]);
 
+  // ── Persist brands to localStorage ──
   useEffect(() => {
-    localStorage.setItem('productBrands', JSON.stringify(allBrands));
+    if (allBrands.length > 0) {
+      localStorage.setItem('productBrands', JSON.stringify(allBrands));
+    }
   }, [allBrands]);
 
+  // ── Persist categories to localStorage ──
   useEffect(() => {
-    localStorage.setItem('productCategories', JSON.stringify(allCategories));
+    if (allCategories.length > 0) {
+      localStorage.setItem('productCategories', JSON.stringify(allCategories));
+    }
   }, [allCategories]);
 
   const handleProductAdd = async (event) => {
@@ -104,7 +111,7 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
       minQtyLevel: parseFloat(minQtyLevel) || 0,
       discountType,
       discountValue: discountType === "Zero Discount" ? 0 : parseFloat(discountValue) || 0,
-      currentStockQty: parseFloat(currentStockQty) || 0, // ✅ NEW
+      currentStockQty: parseFloat(currentStockQty) || 0,
       taxType,
       gstRate: taxType === "gst" ? parseFloat(gstRate) || 0 : 0,
       gstEffectiveDate: taxType === "gst" ? gstEffectiveDate : "",
@@ -122,7 +129,7 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
     if (minSalesPrice && isNaN(minSalesPrice)) return toast.error("Min Sales Price must be a valid number");
     if (minQtyLevel && isNaN(minQtyLevel)) return toast.error("Min Qty Level must be a valid number");
     if (uomConversion && isNaN(uomConversion)) return toast.error("UOM Conversion must be a valid number");
-    if (currentStockQty && isNaN(currentStockQty)) return toast.error("Current Stock Qty must be a valid number"); // ✅
+    if (currentStockQty && isNaN(currentStockQty)) return toast.error("Current Stock Qty must be a valid number");
 
     if (parseFloat(mrp) < parseFloat(salesPrice)) {
       return toast.error("MRP must be greater than or equal to sales price");
@@ -142,6 +149,18 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
 
     if (taxType === "cess" && (!cessPercentage || isNaN(cessPercentage)) && (!cessAmount || isNaN(cessAmount))) {
       return toast.error("Please enter either CESS Percentage or CESS Amount");
+    }
+
+    // ── FIX: Ensure selected brand is saved to localStorage for future updates ──
+    if (brandName && !allBrands.includes(brandName)) {
+      const updatedBrands = [...allBrands, brandName];
+      setAllBrands(updatedBrands);
+    }
+
+    // ── FIX: Ensure selected category is saved to localStorage for future updates ──
+    if (productCategory && !allCategories.includes(productCategory)) {
+      const updatedCategories = [...allCategories, productCategory];
+      setAllCategories(updatedCategories);
     }
 
     toast.loading("Creating Product...");
@@ -250,7 +269,6 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
     if (/^\d*\.?\d{0,4}$/.test(value)) setUomConversion(value);
   };
 
-  // ✅ NEW Handler
   const handleCurrentStockQtyChange = (e) => {
     const value = e.target.value;
     if (/^\d*\.?\d{0,4}$/.test(value)) setCurrentStockQty(value);
@@ -411,6 +429,7 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
                     </div>
                   </div>
 
+                  {/* ── Product Category ── */}
                   <div className="row mt-3">
                     <div className="col-12">
                       <label htmlFor="productCategory" className="form-label label_text">Product Category</label>
@@ -430,6 +449,13 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
                           <i className="fa-solid fa-plus"></i>
                         </button>
                       </div>
+                      {/* Show selected category hint */}
+                      {productCategory && (
+                        <small className="text-muted mt-1 d-block">
+                          <i className="fa fa-check-circle me-1 text-success"></i>
+                          Selected: <strong>{productCategory}</strong>
+                        </small>
+                      )}
                     </div>
                   </div>
 
@@ -500,7 +526,7 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
                     </div>
                   </div>
 
-                  {/* ✅ NEW: Current Stock Qty Field */}
+                  {/* Current Stock Qty Field */}
                   <div className="row mt-3">
                     <div className="col-12 col-md-6">
                       <label htmlFor="currentStockQty" className="form-label label_text">

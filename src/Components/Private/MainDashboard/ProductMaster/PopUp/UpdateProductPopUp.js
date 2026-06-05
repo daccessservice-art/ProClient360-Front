@@ -24,6 +24,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     { value: "work in progress", label: "Work in Progress" }
   ];
 
+  // ── Load brands & categories from localStorage ──
   useEffect(() => {
     const savedBrands = localStorage.getItem('productBrands');
     if (savedBrands) {
@@ -42,19 +43,50 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     }
   }, [categories]);
 
+  // ── Persist brands to localStorage ──
   useEffect(() => {
-    localStorage.setItem('productBrands', JSON.stringify(allBrands));
+    if (allBrands.length > 0) {
+      localStorage.setItem('productBrands', JSON.stringify(allBrands));
+    }
   }, [allBrands]);
 
+  // ── Persist categories to localStorage ──
   useEffect(() => {
-    localStorage.setItem('productCategories', JSON.stringify(allCategories));
+    if (allCategories.length > 0) {
+      localStorage.setItem('productCategories', JSON.stringify(allCategories));
+    }
   }, [allCategories]);
 
+  // ── Sync product state when selectedProduct changes ──
   useEffect(() => {
     if (selectedProduct) {
       setProduct(selectedProduct);
     }
   }, [selectedProduct]);
+
+  // ── FIX: Ensure saved productCategory is always in the dropdown list ──
+  useEffect(() => {
+    if (product?.productCategory && !allCategories.includes(product.productCategory)) {
+      setAllCategories(prev => {
+        if (!prev.includes(product.productCategory)) {
+          return [...prev, product.productCategory];
+        }
+        return prev;
+      });
+    }
+  }, [product?.productCategory, allCategories]);
+
+  // ── FIX: Ensure saved brandName is always in the dropdown list ──
+  useEffect(() => {
+    if (product?.brandName && !allBrands.includes(product.brandName)) {
+      setAllBrands(prev => {
+        if (!prev.includes(product.brandName)) {
+          return [...prev, product.brandName];
+        }
+        return prev;
+      });
+    }
+  }, [product?.brandName, allBrands]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -83,7 +115,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     if (product.minSalesPrice && isNaN(product.minSalesPrice)) { toast.error("Min Sales Price must be a valid number"); return; }
     if (product.minQtyLevel && isNaN(product.minQtyLevel)) { toast.error("Min Qty Level must be a valid number"); return; }
     if (product.uomConversion && isNaN(product.uomConversion)) { toast.error("UOM Conversion must be a valid number"); return; }
-    if (product.currentStockQty && isNaN(product.currentStockQty)) { toast.error("Current Stock Qty must be a valid number"); return; } // ✅
+    if (product.currentStockQty && isNaN(product.currentStockQty)) { toast.error("Current Stock Qty must be a valid number"); return; }
 
     if (parseFloat(product.mrp) < parseFloat(product.salesPrice)) {
       toast.error("MRP must be greater than or equal to sales price");
@@ -125,7 +157,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
       }
       const updatedCategories = [...allCategories, newCategory.trim()];
       setAllCategories(updatedCategories);
-      setProduct(prev => ({ ...prev, productCategory: newCategory }));
+      setProduct(prev => ({ ...prev, productCategory: newCategory.trim() }));
       setNewCategory("");
       setShowAddCategory(false);
       toast.success("New category added successfully");
@@ -142,7 +174,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
       }
       const updatedBrands = [...allBrands, newBrand.trim()];
       setAllBrands(updatedBrands);
-      setProduct(prev => ({ ...prev, brandName: newBrand }));
+      setProduct(prev => ({ ...prev, brandName: newBrand.trim() }));
       setNewBrand("");
       setShowAddBrand(false);
       toast.success("New brand added successfully");
@@ -236,6 +268,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                     </div>
                   </div>
 
+                  {/* ── Product Category ── FIX: Shows saved value properly ── */}
                   <div className="col-12 mt-3">
                     <div className="mb-3">
                       <label htmlFor="productCategory" className="form-label label_text">Product Category</label>
@@ -250,6 +283,13 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                           <i className="fa-solid fa-plus"></i>
                         </button>
                       </div>
+                      {/* Show currently saved category as hint if it exists */}
+                      {product.productCategory && (
+                        <small className="text-muted mt-1 d-block">
+                          <i className="fa fa-info-circle me-1"></i>
+                          Currently saved: <strong>{product.productCategory}</strong>
+                        </small>
+                      )}
                     </div>
                   </div>
 
@@ -284,7 +324,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                     </div>
                   </div>
 
-                  {/* ✅ NEW: Current Stock Qty Field */}
+                  {/* Current Stock Qty Field */}
                   <div className="col-12 mt-3">
                     <div className="mb-3">
                       <label htmlFor="currentStockQty" className="form-label label_text">
@@ -388,7 +428,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                         </div>
                       )}
 
-                      {/* ✅ Tax Details in Update */}
+                      {/* Tax Details in Update */}
                       <div className="col-12 mt-3">
                         <h6 className="mb-3">Tax Details</h6>
                         <div className="col-12 mb-3">

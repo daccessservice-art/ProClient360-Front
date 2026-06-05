@@ -12,6 +12,35 @@ const ViewProductPopUp = ({ closePopUp, selectedProduct }) => {
     product.cessAmount
   );
 
+  // ── Helper: Category badge color ──
+  const getCategoryBadge = (cat) => {
+    if (!cat) return "bg-secondary";
+    const map = {
+      'raw material': 'bg-primary',
+      'finish material': 'bg-success',
+      'finished goods': 'bg-info',
+      'scrap': 'bg-warning',
+      'repairing material': 'bg-danger',
+      'work in progress': 'bg-dark',
+    };
+    return map[cat.toLowerCase()] || 'bg-secondary';
+  };
+
+  // ── Helper: Format category label ──
+  const getCategoryLabel = (cat) => {
+    if (!cat) return "-";
+    return cat.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  };
+
+  // ── Helper: Format amount ──
+  const formatAmount = (val) => {
+    if (!val || val <= 0) return "-";
+    return "₹" + Number(val).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   return (
     <>
       <div
@@ -65,34 +94,51 @@ const ViewProductPopUp = ({ closePopUp, selectedProduct }) => {
                       <p className="fw-bold mt-3">HSN Code:</p>
                       {product?.hsnCode || "-"}
                     </h6>
+
+                    {/* ── FIX: Product Category shown clearly with badge ── */}
                     <h6>
                       <p className="fw-bold mt-3">Product Category:</p>
-                      {product?.productCategory || "-"}
+                      {product?.productCategory ? (
+                        <span className="badge bg-info" style={{ fontSize: "0.85rem" }}>
+                          {product.productCategory}
+                        </span>
+                      ) : (
+                        <span className="text-muted">-</span>
+                      )}
                     </h6>
                   </div>
                   <div className="col-sm- col-md col-lg">
                     <p className="fw-bold">Base UOM:</p>
                     {product?.baseUOM || "-"}
+
                     <p className="fw-bold mt-3">Alternate UOM:</p>
                     {product?.alternateUOM || "-"}
+
                     <p className="fw-bold mt-3">UOM Conversion:</p>
                     {product?.uomConversion || 1}
-                    <p className="fw-bold mt-3">Category:</p>
-                    <span className={`badge bg-primary`}>
-                      {product?.category || "-"}
+
+                    {/* ── FIX: Product Group shown with colored badge ── */}
+                    <p className="fw-bold mt-3">Product Group:</p>
+                    <span className={`badge ${getCategoryBadge(product?.category)}`}>
+                      {getCategoryLabel(product?.category)}
                     </span>
+
                     <p className="fw-bold mt-3">MRP:</p>
-                    {product?.mrp || "-"}
+                    {formatAmount(product?.mrp)}
+
                     <p className="fw-bold mt-3">Sales Price:</p>
-                    {product?.salesPrice || "-"}
+                    {formatAmount(product?.salesPrice)}
+
                     <p className="fw-bold mt-3">Purchase Price:</p>
-                    {product?.purchasePrice || "-"}
+                    {formatAmount(product?.purchasePrice)}
+
                     <p className="fw-bold mt-3">Min. Sales Price:</p>
-                    {product?.minSalesPrice || "-"}
+                    {formatAmount(product?.minSalesPrice)}
+
                     <p className="fw-bold mt-3">Min. Qty Level:</p>
                     {product?.minQtyLevel || "-"}
 
-                    {/* ✅ NEW: Current Stock Qty */}
+                    {/* Current Stock Qty */}
                     <p className="fw-bold mt-3">Current Stock Qty.:</p>
                     <span
                       style={{
@@ -122,10 +168,19 @@ const ViewProductPopUp = ({ closePopUp, selectedProduct }) => {
                     }`}>
                       {product?.discountType || "-"}
                     </span>
-                    <p className="fw-bold mt-3">Discount Value:</p>
-                    {product?.discountValue || 0}
+
+                    {product?.discountType !== "Zero Discount" && (
+                      <>
+                        <p className="fw-bold mt-3">Discount Value:</p>
+                        {product?.discountType === "In percentage" 
+                          ? `${product?.discountValue || 0}%` 
+                          : `₹${product?.discountValue || 0}`}
+                      </>
+                    )}
+
                     <p className="fw-bold mt-3">Created At:</p>
                     {product?.createdAt ? formatDate(product.createdAt) : "-"}
+
                     <p className="fw-bold mt-3">Updated At:</p>
                     {product?.updatedAt ? formatDate(product.updatedAt) : "-"}
                   </div>
