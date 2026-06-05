@@ -52,7 +52,6 @@ export const VendorMasterGrid = () => {
   };
 
   const handleAdd = () => {
-    // FIX: If closing the popup (state is currently true), reset to Page 1 to see the new vendor at the top
     if (AddPopUpShow) {
       setCurrentPage(1);
     }
@@ -171,7 +170,7 @@ export const VendorMasterGrid = () => {
     };
 
     fetchData();
-  }, [currentPage, deletePopUpShow, updatePopUpShow, search, showOnlyLinkRegistered]); // Removed AddPopUpShow to prevent double-fetch or unnecessary reset loop, page reset handled in handleAdd
+  }, [currentPage, deletePopUpShow, updatePopUpShow, search, showOnlyLinkRegistered]);
 
   const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
@@ -203,6 +202,18 @@ export const VendorMasterGrid = () => {
         ))}
       </div>
     );
+  };
+
+  const getMaterialCategoryBadge = (category) => {
+    const badgeMap = {
+      'Raw Material': 'bg-primary',
+      'Finished Goods': 'bg-success',
+      'Scrap Material': 'bg-warning',
+      'Service': 'bg-info',
+      'Logistics': 'bg-secondary',
+      'Other': 'bg-dark',
+    };
+    return badgeMap[category] || 'bg-secondary';
   };
 
   return (
@@ -241,7 +252,7 @@ export const VendorMasterGrid = () => {
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
                             className="form-control form-input bg-transparant"
-                            placeholder="Search ..."
+                            placeholder="Search Vendor Name, Email, Phone, Type, Category, GST..."
                           />
                           </form>
                         </div>
@@ -343,12 +354,10 @@ export const VendorMasterGrid = () => {
                                   )}
                                 </td>
                                 <td>
-                                  <span className={`badge ${
-                                    vendor.materialCategory === 'Raw Material' ? 'bg-primary' : 
-                                    vendor.materialCategory === 'Finished Goods' ? 'bg-success' :
-                                    'bg-warning'
-                                  }`}>
-                                    {vendor.materialCategory}
+                                  <span className={`badge ${getMaterialCategoryBadge(vendor.materialCategory)}`}>
+                                    {vendor.materialCategory === 'Other' && vendor.customMaterialCategory
+                                      ? vendor.customMaterialCategory
+                                      : vendor.materialCategory}
                                   </span>
                                 </td>
                                 <td>{renderStars(vendor.vendorRating)}</td>
@@ -362,9 +371,6 @@ export const VendorMasterGrid = () => {
                                     <i className="fa-solid fa-eye text-primary me-3 cursor-pointer"></i>
                                   </span>
 
-                                  {/* Only show update/delete buttons for vendors NOT registered via link */}
-                                  {/* Note: Per previous request, we allow updates for link vendors now. If you want to restrict again, uncomment the condition below. */}
-                                  {/* {!vendor.registeredFromLink && ( */}
                                   <>
                                     {user?.permissions?.includes("updateVendor") || user?.user==='company' ? (
                                       <span
@@ -394,7 +400,6 @@ export const VendorMasterGrid = () => {
                                       ""
                                     )}
                                   </>
-                                  {/* )} */}
                                 </td>
                               </tr>
                             ))

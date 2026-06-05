@@ -1,6 +1,18 @@
 import React from 'react';
 
 const ViewVendorPopUp = ({ vendor, handleViewClose }) => {
+  const getMaterialCategoryBadge = (category) => {
+    const badgeMap = {
+      'Raw Material': 'bg-primary',
+      'Finished Goods': 'bg-success',
+      'Scrap Material': 'bg-warning',
+      'Service': 'bg-info',
+      'Logistics': 'bg-secondary',
+      'Other': 'bg-dark',
+    };
+    return badgeMap[category] || 'bg-secondary';
+  };
+
   return (
     <div className="popup-overlay" style={{
       position: 'fixed',
@@ -96,13 +108,12 @@ const ViewVendorPopUp = ({ vendor, handleViewClose }) => {
                   <tr>
                     <td><strong>Material Category:</strong></td>
                     <td>
-                      <span className={`badge ${
-                        vendor.materialCategory === 'Raw Material' ? 'bg-primary' : 
-                        vendor.materialCategory === 'Finished Goods' ? 'bg-success' :
-                        'bg-warning'
-                      }`}>
+                      <span className={`badge ${getMaterialCategoryBadge(vendor.materialCategory)}`}>
                         {vendor.materialCategory}
                       </span>
+                      {vendor.materialCategory === 'Other' && vendor.customMaterialCategory && (
+                        <span className="ms-2 text-muted">({vendor.customMaterialCategory})</span>
+                      )}
                     </td>
                   </tr>
                   <tr>

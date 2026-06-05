@@ -8,6 +8,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
   const [vendorName, setVendorName] = useState("");
   const [typeOfVendor, setTypeOfVendor] = useState("");
   const [materialCategory, setMaterialCategory] = useState("");
+  const [customMaterialCategory, setCustomMaterialCategory] = useState("");
   const [vendorRating, setVendorRating] = useState(0);
   const [brandsWorkWith, setBrandsWorkWith] = useState("");
   const [phoneNumber1, setPhoneNumber1] = useState("");
@@ -96,6 +97,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
       vendorName,
       typeOfVendor,
       materialCategory,
+      customMaterialCategory: materialCategory === "Other" ? customMaterialCategory : "",
       vendorRating,
       brandsWorkWith: typeOfVendor === "B2B Material" ? brandsWorkWith : "",
       phoneNumber1,
@@ -116,6 +118,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
       !vendorName ||
       !typeOfVendor ||
       !materialCategory ||
+      (materialCategory === "Other" && !customMaterialCategory) ||
       !phoneNumber1 ||
       !email ||
       !GSTNo ||
@@ -231,14 +234,37 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                   <div className="col-12">
                     <div className="mb-3">
                       <label className="form-label label_text">Material Category <RequiredStar /></label>
-                      <select className="form-select rounded-0" value={materialCategory} onChange={(e) => setMaterialCategory(e.target.value)} required>
+                      <select className="form-select rounded-0" value={materialCategory} onChange={(e) => {
+                        setMaterialCategory(e.target.value);
+                        if (e.target.value !== "Other") setCustomMaterialCategory("");
+                      }} required>
                         <option value="">Select Material Category</option>
                         <option value="Raw Material">Raw Material</option>
                         <option value="Finished Goods">Finished Goods</option>
                         <option value="Scrap Material">Scrap Material</option>
+                        <option value="Service">Service</option>
+                        <option value="Logistics">Logistics</option>
+                        <option value="Other">Other</option>
                       </select>
                     </div>
                   </div>
+
+                  {/* Custom Material Category */}
+                  {materialCategory === "Other" && (
+                    <div className="col-12">
+                      <div className="mb-3">
+                        <label className="form-label label_text">Specify Material Category <RequiredStar /></label>
+                        <input
+                          type="text"
+                          className="form-control rounded-0"
+                          value={customMaterialCategory}
+                          onChange={(e) => setCustomMaterialCategory(e.target.value)}
+                          placeholder="Enter material category..."
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Type of Vendor */}
                   <div className="col-12">
@@ -330,7 +356,7 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                     </div>
                   </div>
 
-                  {/* Email - type="text", no format validation */}
+                  {/* Email */}
                   <div className="col-12 mt-3">
                     <div className="mb-3">
                       <label htmlFor="email" className="form-label label_text">Email <RequiredStar /></label>

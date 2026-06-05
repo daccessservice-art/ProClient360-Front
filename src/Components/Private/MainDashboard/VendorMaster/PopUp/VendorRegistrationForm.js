@@ -31,6 +31,7 @@ const VendorRegistrationForm = () => {
     },
     companyProfile: null,
     materialCategory: 'Raw Material',
+    customMaterialCategory: '',
     vendorRating: 0,
     brandsWorkWith: '',
     customVendorType: '',
@@ -126,6 +127,7 @@ const VendorRegistrationForm = () => {
             pincode: ''
           },
           materialCategory: data.vendor.materialCategory || 'Raw Material',
+          customMaterialCategory: data.vendor.customMaterialCategory || '',
           vendorRating: data.vendor.vendorRating || 0,
           brandsWorkWith: data.vendor.brandsWorkWith || '',
           customVendorType: data.vendor.customVendorType || '',
@@ -499,7 +501,12 @@ const VendorRegistrationForm = () => {
                 className="vendor-input mobile-input"
                 name="materialCategory"
                 value={formData.materialCategory}
-                onChange={handleChange}
+                onChange={(e) => {
+                  handleChange(e);
+                  if (e.target.value !== 'Other') {
+                    setFormData(prev => ({ ...prev, customMaterialCategory: '' }));
+                  }
+                }}
                 required
                 style={{
                   backgroundColor: '#ffffff',
@@ -515,8 +522,38 @@ const VendorRegistrationForm = () => {
                 <option value="Raw Material">Raw Material</option>
                 <option value="Finished Goods">Finished Goods</option>
                 <option value="Scrap Material">Scrap Material</option>
+                <option value="Service">Service</option>
+                <option value="Logistics">Logistics</option>
+                <option value="Other">Other</option>
               </select>
             </div>
+
+            {formData.materialCategory === 'Other' && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '13px', marginBottom: '5px', display: 'block' }}>
+                  Specify Material Category: <span style={{ color: '#ff9933' }}>*</span>
+                </label>
+                <input
+                  className="vendor-input mobile-input"
+                  type="text"
+                  name="customMaterialCategory"
+                  placeholder="Enter material category..."
+                  value={formData.customMaterialCategory}
+                  onChange={handleChange}
+                  required={formData.materialCategory === 'Other'}
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    border: '1px solid rgba(255, 255, 255, 0.4)',
+                    color: 'white',
+                    padding: '12px 15px',
+                    borderRadius: '4px',
+                    width: '67%',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            )}
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontSize: '13px', marginBottom: '5px', display: 'block' }}>

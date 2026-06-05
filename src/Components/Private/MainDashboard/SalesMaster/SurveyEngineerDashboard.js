@@ -18,6 +18,7 @@ const SurveyEngineerDashboard = () => {
   const [showHistoryPopup, setShowHistoryPopup] = useState(false);
   const [historyLead, setHistoryLead] = useState(null);
   const [activeCard, setActiveCard] = useState('pending');
+  const [downloadingFile, setDownloadingFile] = useState(null);
 
   const fetchMySurveyLeads = async () => {
     setLoading(true);
@@ -43,6 +44,40 @@ const SurveyEngineerDashboard = () => {
   useEffect(() => {
     fetchMySurveyLeads();
   }, []);
+
+  // ✅ KEY FIX: Download file through authenticated API route
+  // This works on Render/production because it goes through Express
+  // which reads the file from disk and streams it back.
+  const handleDownloadFile = async (leadId, fileType, fileName) => {
+    const key = `${leadId}_${fileType}`;
+    setDownloadingFile(key);
+    try {
+      const response = await axios.get(
+        `${process.env.REACT_APP_API_URL}/api/leads/survey-file/${leadId}/${fileType}`,
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          responseType: 'blob', // ← critical: get binary file data
+        }
+      );
+
+      // Create blob URL and trigger download
+      const blob = new Blob([response.data]);
+      const url  = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href  = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success(`${fileName} downloaded!`);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download file. Please try again.');
+    } finally {
+      setDownloadingFile(null);
+    }
+  };
 
   const handleSurveyWork = (lead) => {
     setSelectedLead(lead);
@@ -97,11 +132,62 @@ const SurveyEngineerDashboard = () => {
     return !s || s === 'pending';
   };
 
-  // ── Helper: build full URL for an uploaded file ──────────────────────────
-  const fileUrl = (filePath) => {
-    if (!filePath) return null;
-    if (filePath.startsWith('http')) return filePath;
-    return `${process.env.REACT_APP_API_URL}${filePath}`;
+  // ✅ Document buttons component — reused in table and history popup
+  const DocumentButtons = ({ lead, compact = false }) => {
+    if (lead.surveyReport?.status !== 'success') return null;
+
+    const files = [
+      {
+        type:     'reportFile',
+        label:    'Report',
+        fileName: 'Survey_Report.docx',
+        color:    'primary',
+        icon:     'fa-file-word',
+      },
+      {
+        type:     'drawingFile',
+        label:    'Drawing',
+        fileName: 'Drawing.pdf',
+        color:    'danger',
+        icon:     'fa-file-pdf',
+      },
+      {
+        type:     'boqFile',
+        label:    'BOQ',
+        fileName: 'BOQ.xlsx',
+        color:    'success',
+        icon:     'fa-file-excel',
+      },
+    ];
+
+    const hasAnyFile = files.some(f => lead.surveyReport?.[f.type]);
+    if (!hasAnyFile) return <small className="text-muted">No files</small>;
+
+    return (
+      <div className={`d-flex ${compact ? 'flex-column' : 'flex-wrap'} gap-1`}>
+        {files.map(f => {
+          if (!lead.surveyReport?.[f.type]) return null;
+          const key = `${lead._id}_${f.type}`;
+          const isDownloading = downloadingFile === key;
+          return (
+            <button
+              key={f.type}
+              className={`btn btn-${f.color} btn-sm`}
+              style={{ fontSize: compact ? '0.68rem' : '0.72rem', padding: compact ? '3px 7px' : '4px 10px' }}
+              onClick={() => handleDownloadFile(lead._id, f.type, f.fileName)}
+              disabled={isDownloading}
+              title={`Download ${f.label}`}
+            >
+              {isDownloading
+                ? <span className="spinner-border spinner-border-sm me-1" style={{ width: '10px', height: '10px' }}></span>
+                : <i className={`fa-solid ${f.icon} me-1`}></i>
+              }
+              {f.label}
+            </button>
+          );
+        })}
+      </div>
+    );
   };
 
   const counts = {
@@ -236,8 +322,7 @@ const SurveyEngineerDashboard = () => {
                               <th style={{ width: '100px' }}>Project Size</th>
                               <th style={{ width: '110px' }}>Survey Needed</th>
                               <th style={{ width: '110px' }}>Report Status</th>
-                              {/* ✅ NEW: Documents column */}
-                              <th style={{ width: '130px' }}>Documents</th>
+                              <th style={{ width: '160px' }}>Documents</th>
                               <th className="text-center" style={{ width: '120px' }}>Actions</th>
                             </tr>
                           </thead>
@@ -275,7 +360,8 @@ const SurveyEngineerDashboard = () => {
                                   {lead.projectSize ? (
                                     <span className={`badge ${
                                       lead.projectSize === 'big'    ? 'bg-danger' :
-                                      lead.projectSize === 'medium' ? 'bg-warning text-dark' : 'bg-info text-dark'
+                                      lead.projectSize === 'medium' ? 'bg-warning text-dark' :
+                                                                      'bg-info text-dark'
                                     }`}>
                                       {lead.projectSize.charAt(0).toUpperCase() + lead.projectSize.slice(1)}
                                     </span>
@@ -284,54 +370,14 @@ const SurveyEngineerDashboard = () => {
                                 <td>{getSurveyNeededBadge(lead)}</td>
                                 <td>{getSurveyReportStatusBadge(lead)}</td>
 
-                                {/* ✅ Documents column — always visible if files exist */}
+                                {/* ✅ Documents — download via API route */}
                                 <td>
-                                  {lead.surveyReport?.status === 'success' ? (
-                                    <div className="d-flex flex-column gap-1">
-                                      {fileUrl(lead.surveyReport?.reportFile) && (
-                                        <a
-                                          href={fileUrl(lead.surveyReport.reportFile)}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="btn btn-xs btn-outline-primary"
-                                          style={{ fontSize: '0.7rem', padding: '2px 6px' }}
-                                          title="Download Survey Report (Word)"
-                                        >
-                                          <i className="fa-solid fa-file-word me-1"></i>Report
-                                        </a>
-                                      )}
-                                      {fileUrl(lead.surveyReport?.drawingFile) && (
-                                        <a
-                                          href={fileUrl(lead.surveyReport.drawingFile)}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="btn btn-xs btn-outline-danger"
-                                          style={{ fontSize: '0.7rem', padding: '2px 6px' }}
-                                          title="Download Drawing (PDF)"
-                                        >
-                                          <i className="fa-solid fa-file-pdf me-1"></i>Drawing
-                                        </a>
-                                      )}
-                                      {fileUrl(lead.surveyReport?.boqFile) && (
-                                        <a
-                                          href={fileUrl(lead.surveyReport.boqFile)}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="btn btn-xs btn-outline-success"
-                                          style={{ fontSize: '0.7rem', padding: '2px 6px' }}
-                                          title="Download BOQ (Excel)"
-                                        >
-                                          <i className="fa-solid fa-file-excel me-1"></i>BOQ
-                                        </a>
-                                      )}
-                                    </div>
-                                  ) : lead.surveyReport?.status === 'cancelled' ? (
-                                    <small className="text-danger">
-                                      <i className="fa-solid fa-ban me-1"></i>Cancelled
-                                    </small>
-                                  ) : (
-                                    <small className="text-muted">—</small>
-                                  )}
+                                  {lead.surveyReport?.status === 'success'
+                                    ? <DocumentButtons lead={lead} compact={true} />
+                                    : lead.surveyReport?.status === 'cancelled'
+                                    ? <small className="text-danger"><i className="fa-solid fa-ban me-1"></i>Cancelled</small>
+                                    : <small className="text-muted">—</small>
+                                  }
                                 </td>
 
                                 <td className="text-center">
@@ -350,11 +396,11 @@ const SurveyEngineerDashboard = () => {
                                         <i className="fa-solid fa-clipboard-list me-1"></i>Submit
                                       </button>
                                     ) : lead.surveyReport?.status === 'success' ? (
-                                      <button className="btn btn-sm btn-success" disabled title="Already submitted">
+                                      <button className="btn btn-sm btn-success" disabled>
                                         <i className="fa-solid fa-check me-1"></i>Done
                                       </button>
                                     ) : (
-                                      <button className="btn btn-sm btn-secondary" disabled title="Cancelled">
+                                      <button className="btn btn-sm btn-secondary" disabled>
                                         <i className="fa-solid fa-ban me-1"></i>Cancelled
                                       </button>
                                     )}
@@ -384,7 +430,7 @@ const SurveyEngineerDashboard = () => {
         />
       )}
 
-      {/* ✅ History Popup — with full documents section */}
+      {/* History Popup */}
       {showHistoryPopup && historyLead && (
         <div className="modal fade show" style={{ display: 'flex', alignItems: 'center', backgroundColor: '#00000090', zIndex: 1080 }}>
           <div className="modal-dialog modal-lg">
@@ -424,7 +470,7 @@ const SurveyEngineerDashboard = () => {
                   </div>
                 </div>
 
-                {/* ✅ Survey Report Documents — always visible when files exist */}
+                {/* ✅ Documents section in history popup */}
                 {historyLead.surveyReport?.status === 'success' && (
                   <div className="mb-3">
                     <h6 className="fw-bold mb-2 border-bottom pb-2">
@@ -432,86 +478,11 @@ const SurveyEngineerDashboard = () => {
                       Survey Documents
                     </h6>
                     <div className="p-3 rounded" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-                      <div className="row g-2">
-                        {/* Survey Report Word */}
-                        <div className="col-md-4 col-6">
-                          <div className="p-2 rounded text-center" style={{ background: '#dbeafe', border: '1px solid #93c5fd' }}>
-                            <i className="fa-solid fa-file-word fa-2x text-primary mb-2 d-block"></i>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1e40af', marginBottom: '6px' }}>
-                              Survey Report
-                            </div>
-                            {fileUrl(historyLead.surveyReport?.reportFile) ? (
-                              <a
-                                href={fileUrl(historyLead.surveyReport.reportFile)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-primary btn-sm w-100"
-                                style={{ fontSize: '0.72rem' }}
-                              >
-                                <i className="fa-solid fa-download me-1"></i>Download
-                              </a>
-                            ) : (
-                              <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>Not uploaded</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Drawing PDF */}
-                        <div className="col-md-4 col-6">
-                          <div className="p-2 rounded text-center" style={{ background: '#fee2e2', border: '1px solid #fca5a5' }}>
-                            <i className="fa-solid fa-file-pdf fa-2x text-danger mb-2 d-block"></i>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#991b1b', marginBottom: '6px' }}>
-                              Drawing
-                            </div>
-                            {fileUrl(historyLead.surveyReport?.drawingFile) ? (
-                              <a
-                                href={fileUrl(historyLead.surveyReport.drawingFile)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-danger btn-sm w-100"
-                                style={{ fontSize: '0.72rem' }}
-                              >
-                                <i className="fa-solid fa-download me-1"></i>Download
-                              </a>
-                            ) : (
-                              <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>Not uploaded</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* BOQ Excel */}
-                        <div className="col-md-4 col-6">
-                          <div className="p-2 rounded text-center" style={{ background: '#dcfce7', border: '1px solid #86efac' }}>
-                            <i className="fa-solid fa-file-excel fa-2x text-success mb-2 d-block"></i>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#166534', marginBottom: '6px' }}>
-                              BOQ
-                            </div>
-                            {fileUrl(historyLead.surveyReport?.boqFile) ? (
-                              <a
-                                href={fileUrl(historyLead.surveyReport.boqFile)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-success btn-sm w-100"
-                                style={{ fontSize: '0.72rem' }}
-                              >
-                                <i className="fa-solid fa-download me-1"></i>Download
-                              </a>
-                            ) : (
-                              <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>Not uploaded</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 d-flex align-items-center gap-2">
-                        <small className="text-muted">
-                          <i className="fa-solid fa-clock me-1"></i>
-                          Submitted: {formatDateTime(historyLead.surveyReport.submittedAt)}
-                        </small>
-                        <span className="badge bg-success">
-                          <i className="fa-solid fa-check me-1"></i>Completed
-                        </span>
-                      </div>
+                      <DocumentButtons lead={historyLead} compact={false} />
+                      <small className="text-muted d-block mt-2">
+                        <i className="fa-solid fa-clock me-1"></i>
+                        Submitted: {formatDateTime(historyLead.surveyReport.submittedAt)}
+                      </small>
                     </div>
                   </div>
                 )}
@@ -526,9 +497,7 @@ const SurveyEngineerDashboard = () => {
                     <div className="p-3 rounded" style={{ background: '#fef2f2', border: '1px solid #fecaca' }}>
                       <div className="d-flex align-items-center gap-2 mb-2">
                         <span className="badge bg-danger">Cancelled</span>
-                        <small className="text-muted">
-                          {formatDateTime(historyLead.surveyReport.submittedAt)}
-                        </small>
+                        <small className="text-muted">{formatDateTime(historyLead.surveyReport.submittedAt)}</small>
                       </div>
                       {historyLead.surveyReport.cancelReason && (
                         <div style={{ fontSize: '0.85rem', color: '#7f1d1d', whiteSpace: 'pre-wrap' }}>
@@ -569,9 +538,7 @@ const SurveyEngineerDashboard = () => {
                                   action.status === 'Won'     ? 'bg-success' :
                                   action.status === 'Lost'    ? 'bg-danger'  :
                                   action.status === 'Ongoing' ? 'bg-primary' : 'bg-warning text-dark'
-                                }`}>
-                                  {action.status}
-                                </span>
+                                }`}>{action.status}</span>
                               </td>
                               <td style={{ fontSize: '0.8rem' }}>{action.step || '—'}</td>
                               <td>{action.completion || 0}%</td>
@@ -591,10 +558,8 @@ const SurveyEngineerDashboard = () => {
 
               </div>
               <div className="modal-footer border-0">
-                <button
-                  className="btn btn-outline-secondary"
-                  onClick={() => { setShowHistoryPopup(false); setHistoryLead(null); }}
-                >
+                <button className="btn btn-outline-secondary"
+                  onClick={() => { setShowHistoryPopup(false); setHistoryLead(null); }}>
                   Close
                 </button>
               </div>
@@ -606,10 +571,8 @@ const SurveyEngineerDashboard = () => {
       <style jsx>{`
         .table th { border-top: none; font-weight: 600; font-size: .875rem; white-space: nowrap; }
         .table td { vertical-align: middle; font-size: .875rem; }
-        .card { border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .card { border-radius: 10px; }
         .btn-group .btn { padding: .25rem .5rem; font-size: .75rem; }
-        .table-hover tbody tr:hover { background-color: rgba(0,0,0,0.05); }
-        .btn-xs { font-size: 0.7rem !important; padding: 2px 6px !important; }
       `}</style>
     </>
   );

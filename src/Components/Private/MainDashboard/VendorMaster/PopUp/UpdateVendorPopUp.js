@@ -8,6 +8,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
   const [vendor, setVendor] = useState(selectedVendor || {});
   const [typeOfVendor, setTypeOfVendor] = useState((selectedVendor?.typeOfVendor || "").trim());
   const [materialCategory, setMaterialCategory] = useState(selectedVendor?.materialCategory || "");
+  const [customMaterialCategory, setCustomMaterialCategory] = useState(selectedVendor?.customMaterialCategory || "");
   const [vendorRating, setVendorRating] = useState(selectedVendor?.vendorRating || 0);
   const [brandsWorkWith, setBrandsWorkWith] = useState(selectedVendor?.brandsWorkWith || "");
   const [customVendorType, setCustomVendorType] = useState(selectedVendor?.customVendorType || "");
@@ -61,6 +62,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
       setBillingAddress(selectedVendor.billingAddress || { add: "", city: "", state: "", country: "", pincode: "" });
       setTypeOfVendor((selectedVendor.typeOfVendor || "").trim());
       setMaterialCategory(selectedVendor.materialCategory || "");
+      setCustomMaterialCategory(selectedVendor.customMaterialCategory || "");
       setVendorRating(selectedVendor.vendorRating || 0);
       setBrandsWorkWith(selectedVendor.brandsWorkWith || "");
       setCustomVendorType(selectedVendor.customVendorType || "");
@@ -100,6 +102,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
       ...vendor,
       typeOfVendor,
       materialCategory,
+      customMaterialCategory: materialCategory === "Other" ? customMaterialCategory : "",
       vendorRating,
       brandsWorkWith: typeOfVendor === "B2B Material" ? brandsWorkWith : "",
       billingAddress: (typeOfVendor !== "Import" && typeOfVendor !== "Other")
@@ -114,6 +117,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
       isEmptyOrWhitespace(updatedVendor.vendorName) ||
       isEmptyOrWhitespace(updatedVendor.typeOfVendor) ||
       isEmptyOrWhitespace(updatedVendor.materialCategory) ||
+      (materialCategory === "Other" && isEmptyOrWhitespace(customMaterialCategory)) ||
       isEmptyOrWhitespace(updatedVendor.phoneNumber1) ||
       isEmptyOrWhitespace(updatedVendor.email) ||
       isEmptyOrWhitespace(updatedVendor.vendorContactPersonName1) ||
@@ -179,14 +183,37 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                   <div className="col-12">
                     <div className="mb-3">
                       <label className="form-label label_text">Material Category <RequiredStar /></label>
-                      <select className="form-select rounded-0" value={materialCategory} onChange={(e) => setMaterialCategory(e.target.value)} required>
+                      <select className="form-select rounded-0" value={materialCategory} onChange={(e) => {
+                        setMaterialCategory(e.target.value);
+                        if (e.target.value !== "Other") setCustomMaterialCategory("");
+                      }} required>
                         <option value="">Select Material Category</option>
                         <option value="Raw Material">Raw Material</option>
                         <option value="Finished Goods">Finished Goods</option>
                         <option value="Scrap Material">Scrap Material</option>
+                        <option value="Service">Service</option>
+                        <option value="Logistics">Logistics</option>
+                        <option value="Other">Other</option>
                       </select>
                     </div>
                   </div>
+
+                  {/* Custom Material Category */}
+                  {materialCategory === "Other" && (
+                    <div className="col-12">
+                      <div className="mb-3">
+                        <label className="form-label label_text">Specify Material Category <RequiredStar /></label>
+                        <input
+                          type="text"
+                          className="form-control rounded-0"
+                          value={customMaterialCategory}
+                          onChange={(e) => setCustomMaterialCategory(e.target.value)}
+                          placeholder="Enter material category..."
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="col-12">
                     <div className="mb-3">
@@ -274,7 +301,7 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                     </div>
                   </div>
 
-                  {/* Email - type="text", no format validation */}
+                  {/* Email */}
                   <div className="col-12 mt-3">
                     <div className="mb-3">
                       <label htmlFor="Email" className="form-label label_text">Email <RequiredStar /></label>
