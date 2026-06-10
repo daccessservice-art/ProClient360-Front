@@ -8,11 +8,11 @@ import { UserContext } from "../../../../../context/UserContext";
 
 const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
   const { user } = useContext(UserContext);
-  
+
   const orderDateTime = selectedPO?.orderDate ? new Date(selectedPO.orderDate) : new Date();
   const [orderDate, setOrderDate] = useState(orderDateTime.toISOString().split('T')[0]);
   const [orderTime, setOrderTime] = useState(orderDateTime.toTimeString().slice(0, 5));
-  
+
   const [orderNumber, setOrderNumber] = useState(selectedPO?.orderNumber || "");
   const [transactionType, setTransactionType] = useState(selectedPO?.transactionType || "");
   const [purchaseType, setPurchaseType] = useState(selectedPO?.purchaseType || "");
@@ -20,68 +20,66 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
   const [warehouseLocation, setWarehouseLocation] = useState(selectedPO?.warehouseLocation || "");
   const [remark, setRemark] = useState(selectedPO?.remark || "");
   const [status, setStatus] = useState(selectedPO?.status || "Pending");
-  
+
   const [advancePay, setAdvancePayment] = useState(selectedPO?.paymentTerms?.advance || 0);
   const [payAgainstDelivery, setPayAgainstDelivery] = useState(selectedPO?.paymentTerms?.payAgainstDelivery || 0);
   const [payAfterCompletion, setPayAfterCompletion] = useState(selectedPO?.paymentTerms?.payAfterCompletion || 0);
   const [retention, setRetention] = useState(0);
   const [creditPeriod, setCreditPeriod] = useState(selectedPO?.paymentTerms?.creditPeriod || 0);
-  
+
   const [deliveryDate, setDeliveryDate] = useState(
     selectedPO?.deliveryDate ? new Date(selectedPO.deliveryDate).toISOString().split('T')[0] : ""
   );
   const [materialFollowupDate, setMaterialFollowupDate] = useState(
     selectedPO?.materialFollowupDate ? new Date(selectedPO.materialFollowupDate).toISOString().split('T')[0] : ""
   );
-  
+
   const [deliveryAddress, setDeliveryAddress] = useState(selectedPO?.deliveryAddress || "");
   const [location, setLocation] = useState(selectedPO?.location || "");
   const [termsDocument, setTermsDocument] = useState(null);
-  
-  // NEW: Toggle state for default address
+
   const [useDefaultAddress, setUseDefaultAddress] = useState(false);
-  
+
   const [showCreditPopup, setShowCreditPopup] = useState(false);
   const [showPaymentTermsPopup, setShowPaymentTermsPopup] = useState(false);
-  
+
   const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [vendorSearch, setVendorSearch] = useState("");
-  
-  const [products, setProducts] = useState([]);
-  const [productSearch, setProductSearch] = useState("");
-  const [brands, setBrands] = useState([]);
-  const [allBrands, setAllBrands] = useState([]);
-  
-  const [items, setItems] = useState(selectedPO?.items || [{
-    brandName: "",
-    modelNo: "",
-    description: "",
-    unit: "",
-    baseUOM: "",
-    quantity: 1,
-    price: 0,
-    discountPercent: 0,
-    taxPercent: 0,
-    netValue: 0
-  }]);
 
-  // Default address constants
+  const [products, setProducts] = useState([]);
+  const [allBrands, setAllBrands] = useState([]);
+
+  const [items, setItems] = useState(
+    selectedPO?.items?.length > 0
+      ? selectedPO.items.map(item => ({ ...item, warranty: item.warranty || "" }))
+      : [{
+          brandName: "",
+          modelNo: "",
+          description: "",
+          unit: "",
+          baseUOM: "",
+          quantity: 1,
+          price: 0,
+          discountPercent: 0,
+          taxPercent: 0,
+          netValue: 0,
+          warranty: ""
+        }]
+  );
+
   const DEFAULT_DELIVERY_ADDRESS = "Office No. - 05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India";
   const DEFAULT_LOCATION = "Baner, Pune";
 
-  // NEW: Check if current address matches default
   useEffect(() => {
     if (deliveryAddress === DEFAULT_DELIVERY_ADDRESS && location === DEFAULT_LOCATION) {
       setUseDefaultAddress(true);
     }
   }, []);
 
-  // NEW: Handle toggle change
   const handleToggleDefaultAddress = () => {
     const newToggleState = !useDefaultAddress;
     setUseDefaultAddress(newToggleState);
-    
     if (newToggleState) {
       setDeliveryAddress(DEFAULT_DELIVERY_ADDRESS);
       setLocation(DEFAULT_LOCATION);
@@ -101,12 +99,9 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
           label: `${v.vendorName} - ${v.email}`
         }));
         setVendors(vendorOptions);
-        
         if (selectedPO?.vendor?._id) {
           const currentVendor = vendorOptions.find(v => v.value === selectedPO.vendor._id);
-          if (currentVendor) {
-            setSelectedVendor(currentVendor);
-          }
+          if (currentVendor) setSelectedVendor(currentVendor);
         }
       }
     };
@@ -117,61 +112,53 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
     const loadInitialData = async () => {
       const savedBrands = localStorage.getItem('productBrands');
       let brandsFromStorage = [];
-      
+
       if (savedBrands) {
         brandsFromStorage = JSON.parse(savedBrands);
-        setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
       } else {
         brandsFromStorage = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
-        setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
       }
-      
+      setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
+
       let allProducts = [];
       let currentPage = 1;
       const pageSize = 100;
       let hasMore = true;
-      
+
       try {
         while (hasMore) {
           const data = await getProducts(currentPage, pageSize, "");
-          
           if (data.success && data.products && data.products.length > 0) {
             allProducts = [...allProducts, ...data.products];
-            
-            if (data.products.length < pageSize) {
-              hasMore = false;
-            } else {
-              currentPage++;
-            }
+            if (data.products.length < pageSize) hasMore = false;
+            else currentPage++;
           } else {
             hasMore = false;
           }
         }
-        
         setProducts(allProducts);
-        
         const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
         const mergedBrands = [...new Set([...brandsFromStorage, ...productBrands])];
-        const brandOptions = mergedBrands.map(brand => ({ value: brand, label: brand }));
-        setBrands(brandOptions);
-        setAllBrands(brandOptions);
+        setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));
       } catch (error) {
         console.error("Error loading products:", error);
         toast.error("Failed to load products");
       }
     };
-    
     loadInitialData();
   }, []);
 
   useEffect(() => {
     if (selectedPO?.project?._id && projects.length > 0) {
       const currentProject = projects.find(p => p.value === selectedPO.project._id);
-      if (currentProject) {
-        setSelectedProject(currentProject);
-      }
+      if (currentProject) setSelectedProject(currentProject);
     }
   }, [selectedPO, projects]);
+
+  useEffect(() => {
+    const retentionValue = 100 - (Number(advancePay) + Number(payAgainstDelivery) + Number(payAfterCompletion));
+    setRetention(retentionValue >= 0 ? retentionValue : 0);
+  }, [advancePay, payAgainstDelivery, payAfterCompletion]);
 
   const calculateNetValue = (item) => {
     const baseAmount = item.quantity * item.price;
@@ -181,39 +168,37 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
     return amountAfterDiscount + taxAmount;
   };
 
-  // 1. Update handleAddItem — add warranty: ""
-const handleAddItem = () => {
-  setItems([...items, {
-    brandName: "",
-    modelNo: "",
-    description: "",
-    unit: "",
-    baseUOM: "",
-    quantity: 1,
-    price: 0,
-    discountPercent: 0,
-    taxPercent: 0,
-    netValue: 0,
-    warranty: ""        // ← ADD
-  }]);
-};
+  const handleAddItem = () => {
+    setItems([...items, {
+      brandName: "",
+      modelNo: "",
+      description: "",
+      unit: "",
+      baseUOM: "",
+      quantity: 1,
+      price: 0,
+      discountPercent: 0,
+      taxPercent: 0,
+      netValue: 0,
+      warranty: ""
+    }]);
+  };
 
   const handleRemoveItem = (index) => {
     if (items.length > 1) {
-      const newItems = items.filter((_, i) => i !== index);
-      setItems(newItems);
+      setItems(items.filter((_, i) => i !== index));
     }
   };
 
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
-    
+
     if (field === 'brandName') {
       newItems[index].modelNo = "";
       newItems[index].baseUOM = "";
     }
-    
+
     if (field === 'modelNo' && value && newItems[index].brandName) {
       const product = products.find(
         p => p.brandName === newItems[index].brandName && p.model === value
@@ -221,10 +206,10 @@ const handleAddItem = () => {
       if (product) {
         newItems[index].baseUOM = product.baseUOM;
         newItems[index].description = product.description || "";
-        newItems[index].unit = product.baseUOM; 
+        newItems[index].unit = product.baseUOM;
       }
     }
-    
+
     newItems[index].netValue = calculateNetValue(newItems[index]);
     setItems(newItems);
   };
@@ -243,32 +228,15 @@ const handleAddItem = () => {
       return sum + (amountAfterDiscount * (item.taxPercent / 100));
     }, 0);
 
-    const grandTotal = totalAmount + totalTax;
-
-    return { 
-      totalAmount, 
-      totalTax, 
-      grandTotal 
-    };
+    return { totalAmount, totalTax, grandTotal: totalAmount + totalTax };
   };
 
   const { totalAmount, totalTax, grandTotal } = calculateTotals();
 
-  useEffect(() => {
-    const retentionValue = 100 - (Number(advancePay) + Number(payAgainstDelivery) + Number(payAfterCompletion));
-    if (retentionValue >= 0) {
-      setRetention(retentionValue);
-    } else {
-      setRetention(0);
-    }
-  }, [advancePay, payAgainstDelivery, payAfterCompletion]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!selectedVendor) {
-      return toast.error("Please select a vendor");
-    }
+    if (!selectedVendor) return toast.error("Please select a vendor");
 
     for (let item of items) {
       if (item.quantity < 1 || item.price < 0) {
@@ -276,12 +244,12 @@ const handleAddItem = () => {
       }
     }
 
-    const orderDateTime = new Date(`${orderDate}T${orderTime}`);
+    const orderDateTimeVal = new Date(`${orderDate}T${orderTime}`);
 
     const poData = {
       _id: selectedPO._id,
       vendor: selectedVendor.value,
-      orderDate: orderDateTime,
+      orderDate: orderDateTimeVal,
       orderNumber,
       transactionType,
       purchaseType,
@@ -309,19 +277,16 @@ const handleAddItem = () => {
       const formData = new FormData();
       formData.append('file', termsDocument);
       formData.append('poData', JSON.stringify(poData));
-      
+
       toast.loading("Updating Purchase Order...");
       try {
         const response = await fetch(`${process.env.REACT_APP_API_URL}/api/purchaseOrder/upload/${selectedPO._id}`, {
           method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          },
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           body: formData
         });
         const data = await response.json();
         toast.dismiss();
-
         if (data.success) {
           toast.success(data.message);
           handleUpdate();
@@ -336,7 +301,6 @@ const handleAddItem = () => {
       toast.loading("Updating Purchase Order...");
       const data = await updatePurchaseOrder(poData);
       toast.dismiss();
-
       if (data.success) {
         toast.success(data.message);
         handleUpdate();
@@ -360,7 +324,8 @@ const handleAddItem = () => {
 
             <div className="modal-body">
               <div className="row modal_body_height">
-                
+
+                {/* Vendor */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Vendor Name</label>
@@ -377,6 +342,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Order Date */}
                 <div className="col-12 col-lg-3">
                   <div className="mb-3">
                     <label className="form-label label_text">Order Date</label>
@@ -389,6 +355,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Order Time */}
                 <div className="col-12 col-lg-3">
                   <div className="mb-3">
                     <label className="form-label label_text">Order Time</label>
@@ -401,6 +368,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Order Number */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Order Number</label>
@@ -415,6 +383,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Transaction Type */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Transaction Type</label>
@@ -432,6 +401,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Purchase Type */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Project Purchase / Stock</label>
@@ -447,6 +417,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Status */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Status</label>
@@ -464,6 +435,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Project Name */}
                 {purchaseType === "Project Purchase" && (
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
@@ -479,6 +451,7 @@ const handleAddItem = () => {
                   </div>
                 )}
 
+                {/* Warehouse Location */}
                 {purchaseType === "Stock" && (
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
@@ -495,7 +468,7 @@ const handleAddItem = () => {
                   </div>
                 )}
 
-                {/* NEW: Toggle Button Section */}
+                {/* Default Address Toggle */}
                 <div className="col-12 mb-3">
                   <div className="form-check form-switch">
                     <input
@@ -512,6 +485,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Delivery Address */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Delivery Address</label>
@@ -531,6 +505,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Location */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Location</label>
@@ -550,6 +525,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Terms Document */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Terms & Conditions Document</label>
@@ -567,6 +543,7 @@ const handleAddItem = () => {
                   </div>
                 </div>
 
+                {/* Item Details */}
                 <div className="col-12 mt-3">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <h6 className="fw-bold">Item Details</h6>
@@ -575,12 +552,194 @@ const handleAddItem = () => {
                     </button>
                   </div>
 
-                className="table-responsive
+                  <div className="table-responsive">
+                    <table className="table table-bordered">
+                      <thead>
+                        <tr>
+                          <th>Brand Name</th>
+                          <th>Model No</th>
+                          <th>Description</th>
+                          <th>Unit</th>
+                          <th>Base UOM</th>
+                          <th>Quantity</th>
+                          <th>Price (INR/USD)</th>
+                          <th>Discount %</th>
+                          <th>Tax %</th>
+                          <th>Warranty</th>
+                          <th>Net Value</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item, index) => {
+                          const brandProducts = products.filter(p => p.brandName === item.brandName);
+                          const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
+                          const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
+
+                          return (
+                            <tr key={index}>
+                              <td>
+                                <Select
+                                  value={allBrands.find(b => b.value === item.brandName) || null}
+                                  onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
+                                  options={allBrands}
+                                  placeholder="Select Brand..."
+                                  isClearable
+                                  className="react-select-container"
+                                  classNamePrefix="react-select"
+                                  menuPortalTarget={document.body}
+                                  styles={{
+                                    menuPortal: base => ({ ...base, zIndex: 9999 }),
+                                    container: base => ({ ...base, minWidth: '150px' })
+                                  }}
+                                />
+                              </td>
+                              <td>
+                                <Select
+                                  value={modelOptions.find(m => m.value === item.modelNo) || null}
+                                  onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
+                                  options={modelOptions}
+                                  placeholder="Select Model..."
+                                  isClearable
+                                  className="react-select-container"
+                                  classNamePrefix="react-select"
+                                  isDisabled={!item.brandName}
+                                  menuPortalTarget={document.body}
+                                  styles={{
+                                    menuPortal: base => ({ ...base, zIndex: 9999 }),
+                                    container: base => ({ ...base, minWidth: '150px' })
+                                  }}
+                                />
+                              </td>
+                              <td>
+                                <textarea
+                                  className="form-control form-control-sm"
+                                  style={{ width: "185px" }}
+                                  value={item.description}
+                                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                                  rows="1"
+                                  placeholder="Item description"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }}
+                                  value={item.unit}
+                                  onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }}
+                                  value={item.baseUOM}
+                                  onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)}
+                                  placeholder="Base UOM"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }}
+                                  value={item.quantity}
+                                  onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
+                                  min="1"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }}
+                                  value={item.price}
+                                  onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
+                                  min="0"
+                                  step="0.01"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }}
+                                  value={item.discountPercent}
+                                  onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))}
+                                  min="0"
+                                  max="100"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }}
+                                  value={item.taxPercent}
+                                  onChange={(e) => handleItemChange(index, 'taxPercent', Number(e.target.value))}
+                                  min="0"
+                                  max="100"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "120px" }}
+                                  value={item.warranty || ""}
+                                  onChange={(e) => handleItemChange(index, 'warranty', e.target.value)}
+                                  placeholder="e.g. 1 Year"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }}
+                                  value={item.netValue.toFixed(2)}
+                                  readOnly
+                                />
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => handleRemoveItem(index)}
+                                  disabled={items.length === 1}
+                                >
+                                  <i className="fa fa-trash"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan="10" className="text-end fw-bold">Total Amount</td>
+                          <td className="fw-bold">{totalAmount.toFixed(2)}</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td colSpan="10" className="text-end fw-bold">Total Tax</td>
+                          <td className="fw-bold">{totalTax.toFixed(2)}</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td colSpan="10" className="text-end fw-bold">Grand Total</td>
+                          <td className="fw-bold">{grandTotal.toFixed(2)}</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
 
+                {/* Terms and Conditions */}
                 <div className="col-12 mt-3">
                   <h6 className="fw-bold">Terms and Conditions</h6>
-                  
                   <div className="row">
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
@@ -629,191 +788,160 @@ const handleAddItem = () => {
                     </div>
 
                     <div className="col-12 col-lg-6">
-                      <div className="mb-3"> 
-                      <label className="form-label label_text">Delivery Date</label>
-                       <input type="date" className="form-control rounded-0" value=   {deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
-</div> 
-</div>
+                      <div className="mb-3">
+                        <label className="form-label label_text">Delivery Date</label>
+                        <input
+                          type="date"
+                          className="form-control rounded-0"
+                          value={deliveryDate}
+                          onChange={(e) => setDeliveryDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
 
-                <div className="col-12 col-lg-6">
+                    <div className="col-12 col-lg-6">
+                      <div className="mb-3">
+                        <label className="form-label label_text">Material Followup Date</label>
+                        <input
+                          type="date"
+                          className="form-control rounded-0"
+                          value={materialFollowupDate}
+                          onChange={(e) => setMaterialFollowupDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Remark */}
+                <div className="col-12 mt-3">
                   <div className="mb-3">
-                    <label className="form-label label_text">Material Followup Date</label>
-                    <input
-                      type="date"
+                    <label className="form-label label_text">Remark</label>
+                    <textarea
                       className="form-control rounded-0"
-                      value={materialFollowupDate}
-                      onChange={(e) => setMaterialFollowupDate(e.target.value)}
+                      rows="3"
+                      value={remark}
+                      onChange={(e) => setRemark(e.target.value)}
+                      maxLength={1000}
                     />
                   </div>
                 </div>
+
+                {/* Submit Buttons */}
+                <div className="col-12 pt-3 mt-2">
+                  <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
+                    Update
+                  </button>
+                  <button type="button" onClick={handleUpdate} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
+                    Cancel
+                  </button>
+                </div>
+
               </div>
             </div>
+          </form>
+        </div>
+      </div>
 
-            <div className="col-12 mt-3">
-              <div className="mb-3">
-                <label className="form-label label_text">Remark</label>
-                <textarea
-                  className="form-control rounded-0"
-                  rows="3"
-                  value={remark}
-                  onChange={(e) => setRemark(e.target.value)}
-                  maxLength={1000}
-                />
+      {/* Credit Period Popup */}
+      {showCreditPopup && (
+        <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 9999 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content p-3">
+              <div className="modal-header pt-0">
+                <h5 className="card-title fw-bold">Set Credit Period</h5>
+                <button onClick={() => setShowCreditPopup(false)} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label label_text">Credit Period (Days)</label>
+                  <input
+                    type="number"
+                    className="form-control rounded-0"
+                    value={creditPeriod}
+                    onChange={(e) => setCreditPeriod(Number(e.target.value))}
+                    min="0"
+                  />
+                </div>
+                <div className="d-flex justify-content-end">
+                  <button type="button" className="btn btn-secondary me-2" onClick={() => setShowCreditPopup(false)}>Cancel</button>
+                  <button type="button" className="btn btn-primary" onClick={() => setShowCreditPopup(false)}>Save</button>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
 
-            <div className="col-12 pt-3 mt-2">
-              <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
-                Update
-              </button>
-              <button type="button" onClick={handleUpdate} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
-                Cancel
-              </button>
+      {/* Payment Terms Popup */}
+      {showPaymentTermsPopup && (
+        <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 9999 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content p-3">
+              <div className="modal-header pt-0">
+                <h5 className="card-title fw-bold">Payment Terms</h5>
+                <button onClick={() => setShowPaymentTermsPopup(false)} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label label_text">Advance Payment (%)</label>
+                  <input
+                    type="number" step="0.01" min="0" max="100"
+                    className="form-control rounded-0"
+                    value={advancePay}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (/^\d*\.?\d*$/.test(value) && Number(value) <= 100) setAdvancePayment(value);
+                    }}
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label label_text">Pay Against Delivery (%)</label>
+                  <input
+                    type="number" step="0.01" min="0" max="100"
+                    className="form-control rounded-0"
+                    value={payAgainstDelivery}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) setPayAgainstDelivery(value);
+                    }}
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label label_text">Pay After Completion (%)</label>
+                  <input
+                    type="number" step="0.01" min="0" max="100"
+                    className="form-control rounded-0"
+                    value={payAfterCompletion}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) setPayAfterCompletion(value);
+                    }}
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label label_text">Retention (%)</label>
+                  <input
+                    type="number" className="form-control rounded-0"
+                    value={retention} readOnly
+                    style={{ backgroundColor: '#e9ecef' }}
+                  />
+                </div>
+                <div className="d-flex justify-content-end">
+                  <button type="button" className="btn btn-secondary me-2" onClick={() => setShowPaymentTermsPopup(false)}>Cancel</button>
+                  <button type="button" className="btn btn-primary" onClick={() => setShowPaymentTermsPopup(false)}>Save</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </form>
+      )}
     </div>
-  </div>
-
-  {showCreditPopup && (
-    <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 9999 }}>
-      <div className="modal-dialog modal-dialog-centered">
-        <div className="modal-content p-3">
-          <div className="modal-header pt-0">
-            <h5 className="card-title fw-bold">Set Credit Period</h5>
-            <button onClick={() => setShowCreditPopup(false)} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <div className="modal-body">
-            <div className="mb-3">
-              <label className="form-label label_text">Credit Period (Days)</label>
-              <input
-                type="number"
-                className="form-control rounded-0"
-                value={creditPeriod}
-                onChange={(e) => setCreditPeriod(Number(e.target.value))}
-                min="0"
-              />
-            </div>
-            <div className="d-flex justify-content-end">
-              <button
-                type="button"
-                className="btn btn-secondary me-2"
-                onClick={() => setShowCreditPopup(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setShowCreditPopup(false)}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-
-  {showPaymentTermsPopup && (
-    <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 9999 }}>
-      <div className="modal-dialog modal-dialog-centered">
-        <div className="modal-content p-3">
-          <div className="modal-header pt-0">
-            <h5 className="card-title fw-bold">Payment Terms</h5>
-            <button onClick={() => setShowPaymentTermsPopup(false)} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <div className="modal-body">
-            <div className="mb-3">
-              <label className="form-label label_text">Advance Payment (%)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                className="form-control rounded-0"
-                value={advancePay}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (/^\d*\.?\d*$/.test(value) && Number(value) <= 100) {
-                    setAdvancePayment(value);
-                  }
-                }}
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label label_text">Pay Against Delivery (%)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                className="form-control rounded-0"
-                value={payAgainstDelivery}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
-                    setPayAgainstDelivery(value);
-                  }
-                }}
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label label_text">Pay After Completion (%)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                className="form-control rounded-0"
-                value={payAfterCompletion}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
-                    setPayAfterCompletion(value);
-                  }
-                }}
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label label_text">Retention (%)</label>
-              <input
-                type="number"
-                className="form-control rounded-0"
-                value={retention}
-                readOnly
-                style={{ backgroundColor: '#e9ecef' }}
-              />
-            </div>
-            <div className="d-flex justify-content-end">
-              <button
-                type="button"
-                className="btn btn-secondary me-2"
-                onClick={() => setShowPaymentTermsPopup(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setShowPaymentTermsPopup(false)}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-</div>
-);
+  );
 };
 
 export default UpdatePurchaseOrderPopUp;
