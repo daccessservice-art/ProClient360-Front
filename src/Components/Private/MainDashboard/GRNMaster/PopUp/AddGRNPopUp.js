@@ -2,14 +2,136 @@ import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getVendors } from "../../../../../hooks/useVendor";
-import { getProducts } from "../../../../../hooks/useProduct";
+import { getProducts, createProduct } from "../../../../../hooks/useProduct";
 import { getPurchaseOrders } from "../../../../../hooks/usePurchaseOrder";
 import { createGRN } from "../../../../../hooks/useGRN";
 import axios from "axios";
 import Select from "react-select";
 
+// ─── Quick Add Product Modal ──────────────────────────────────────────────────
+const QuickAddProductModal = ({ onClose, onProductAdded }) => {
+  const [productName, setProductName] = useState("");
+  const [brandName, setBrandName] = useState("");
+  const [model, setModel] = useState("");
+  const [baseUOM, setBaseUOM] = useState("");
+  const [category, setCategory] = useState("");
+  const [currentStockQty, setCurrentStockQty] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const uomOptions = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton", "nos"];
+  const categoryOptions = [
+    { value: "raw material", label: "Raw Material" },
+    { value: "finish material", label: "Finish Material" },
+    { value: "finished goods", label: "Finished Goods" },
+    { value: "scrap", label: "Scrap" },
+    { value: "repairing material", label: "Repairing Material" },
+    { value: "work in progress", label: "Work in Progress" },
+  ];
+
+  const handleSave = async () => {
+    if (!productName.trim()) return toast.error("Product Name is required");
+    if (!brandName.trim()) return toast.error("Brand Name is required");
+    if (!model.trim()) return toast.error("Model is required");
+    if (!baseUOM) return toast.error("Base UOM is required");
+    if (!category) return toast.error("Product Group is required");
+
+    setSaving(true);
+    toast.loading("Creating product...");
+
+    const data = await createProduct({
+      productName: productName.trim(),
+      brandName: brandName.trim(),
+      model: model.trim(),
+      baseUOM,
+      category,
+      currentStockQty: parseFloat(currentStockQty) || 0,
+      discountType: "Zero Discount",
+      taxType: "none",
+      uomConversion: 1,
+    });
+
+    toast.dismiss();
+    setSaving(false);
+
+    if (data?.success) {
+      // Persist brand/category to localStorage so Product Master picks it up
+      try {
+        const savedBrands = JSON.parse(localStorage.getItem("productBrands") || "[]");
+        if (!savedBrands.includes(brandName.trim())) {
+          localStorage.setItem("productBrands", JSON.stringify([...savedBrands, brandName.trim()]));
+        }
+      } catch (_) {}
+
+      toast.success("Product created successfully!");
+      onProductAdded(data.product || { brandName: brandName.trim(), model: model.trim(), baseUOM, currentStockQty: parseFloat(currentStockQty) || 0 });
+      onClose();
+    } else {
+      toast.error(data?.error || "Failed to create product");
+    }
+  };
+
+  return (
+    <div
+      className="modal fade show"
+      style={{ display: "flex", alignItems: "center", backgroundColor: "#00000070", position: "fixed", top: 0, left: 0, width: "100%", height: "100%", zIndex: 10000 }}
+    >
+      <div className="modal-dialog modal-md" style={{ margin: "auto" }}>
+        <div className="modal-content p-3">
+          <div className="modal-header pt-0">
+            <h6 className="fw-bold mb-0">Quick Add Product</h6>
+            <button type="button" className="close px-3" onClick={onClose} style={{ marginLeft: "auto" }}>
+              <span>&times;</span>
+            </button>
+          </div>
+          <div className="modal-body">
+            <div className="row g-2">
+              <div className="col-12">
+                <label className="form-label label_text">Product Name <RequiredStar /></label>
+                <input type="text" className="form-control rounded-0" value={productName} onChange={e => setProductName(e.target.value)} placeholder="Enter product name" maxLength={100} />
+              </div>
+              <div className="col-6">
+                <label className="form-label label_text">Brand Name <RequiredStar /></label>
+                <input type="text" className="form-control rounded-0" value={brandName} onChange={e => setBrandName(e.target.value)} placeholder="e.g. Samsung" maxLength={100} />
+              </div>
+              <div className="col-6">
+                <label className="form-label label_text">Model <RequiredStar /></label>
+                <input type="text" className="form-control rounded-0" value={model} onChange={e => setModel(e.target.value)} placeholder="e.g. Galaxy S24" maxLength={100} />
+              </div>
+              <div className="col-6">
+                <label className="form-label label_text">Base UOM <RequiredStar /></label>
+                <select className="form-select rounded-0" value={baseUOM} onChange={e => setBaseUOM(e.target.value)}>
+                  <option value="">Select UOM</option>
+                  {uomOptions.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+              <div className="col-6">
+                <label className="form-label label_text">Product Group <RequiredStar /></label>
+                <select className="form-select rounded-0" value={category} onChange={e => setCategory(e.target.value)}>
+                  <option value="">Select Group</option>
+                  {categoryOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div className="col-6">
+                <label className="form-label label_text">Current Stock Qty</label>
+                <input type="number" className="form-control rounded-0" value={currentStockQty} onChange={e => setCurrentStockQty(e.target.value)} placeholder="0" min="0" />
+              </div>
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save Product"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main AddGRNPopUp ─────────────────────────────────────────────────────────
 const AddGRNPopUp = ({ handleAdd, projects }) => {
-  const [grnDate, setGrnDate] = useState(new Date().toISOString().split('T')[0]);
+  const [grnDate, setGrnDate] = useState(new Date().toISOString().split("T")[0]);
   const [choice, setChoice] = useState("");
   const [selectedPO, setSelectedPO] = useState(null);
   const [transactionType, setTransactionType] = useState("");
@@ -21,316 +143,229 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
   const [location, setLocation] = useState("");
   const [termsDocument, setTermsDocument] = useState(null);
   const [uploading, setUploading] = useState(false);
-  
+
   const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [vendorSearch, setVendorSearch] = useState("");
-  
+
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [poSearch, setPoSearch] = useState("");
   const [filteredPOs, setFilteredPOs] = useState([]);
-  
+
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [brands, setBrands] = useState([]);
-  const [models, setModels] = useState([]);
-  
-  const [items, setItems] = useState([{
-    brandName: "",
-    modelNo: "",
-    description: "",
-    unit: "",
-    baseUOM: "",
-    orderedQuantity: 0,
-    receivedQuantity: 0,
-    price: 0,
-    discountPercent: 0,
-    taxPercent: 0,
-    netValue: 0
-  }]);
 
-  // Load vendors
+  // Quick Add Product modal
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+
+  const [items, setItems] = useState([
+    {
+      brandName: "",
+      modelNo: "",
+      description: "",
+      unit: "",
+      baseUOM: "",
+      orderedQuantity: 0,
+      receivedQuantity: 0,
+      price: 0,
+      discountPercent: 0,
+      taxPercent: 0,
+      netValue: 0,
+      // display-only — not sent to backend
+      _currStockQty: 0,
+    },
+  ]);
+
+  // ── Load vendors ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const loadVendors = async () => {
       const data = await getVendors(1, 100, vendorSearch);
       if (data.success) {
-        const vendorOptions = data.vendors.map(v => ({
-          value: v._id,
-          label: `${v.vendorName} - ${v.email}`
-        }));
-        setVendors(vendorOptions);
+        setVendors(data.vendors.map(v => ({ value: v._id, label: `${v.vendorName} - ${v.email}` })));
       }
     };
     loadVendors();
   }, [vendorSearch]);
 
-  // Load all purchase orders with filtering for incomplete POs
+  // ── Load purchase orders ──────────────────────────────────────────────────────
   useEffect(() => {
     const loadPurchaseOrders = async () => {
       const data = await getPurchaseOrders(1, 100, poSearch);
       if (data.success) {
-        // Filter out completed POs
-        const incompletePOs = [];
-        
-        for (const po of data.purchaseOrders) {
-          // Check if this PO is fully received
-          let isFullyReceived = false;
-          
-          // Check if the PO status is already marked as "Received"
-          if (po.status === 'Received') {
-            isFullyReceived = true;
-          } else {
-            // Calculate if all items are fully received
-            let allItemsReceived = true;
-            
-            for (const item of po.items) {
-              // Get total received quantity for this item from all GRNs
-              const totalReceived = item.receivedQuantity || 0;
-              
-              if (totalReceived < item.quantity) {
-                allItemsReceived = false;
-                break;
-              }
-            }
-            
-            isFullyReceived = allItemsReceived;
-          }
-          
-          // Only include POs that are not fully received
-          if (!isFullyReceived) {
-            incompletePOs.push({
-              value: po._id,
-              label: `${po.orderNumber} - ${po.vendor?.vendorName}`,
-              po: po,
-              vendorId: po.vendor?._id
-            });
-          }
-        }
-        
+        const incompletePOs = data.purchaseOrders
+          .filter(po => {
+            if (po.status === "Received") return false;
+            return po.items.some(item => (item.receivedQuantity || 0) < item.quantity);
+          })
+          .map(po => ({
+            value: po._id,
+            label: `${po.orderNumber} - ${po.vendor?.vendorName}`,
+            po,
+            vendorId: po.vendor?._id,
+          }));
         setPurchaseOrders(incompletePOs);
       }
     };
-    if (choice === "Against PO") {
-      loadPurchaseOrders();
-    }
+    if (choice === "Against PO") loadPurchaseOrders();
   }, [poSearch, choice]);
 
-  // Filter POs based on selected vendor
+  // ── Filter POs by vendor ──────────────────────────────────────────────────────
   useEffect(() => {
     if (selectedVendor) {
       const filtered = purchaseOrders.filter(po => po.vendorId === selectedVendor.value);
       setFilteredPOs(filtered);
-      
-      // Clear selected PO if it doesn't belong to the selected vendor
-      if (selectedPO && selectedPO.vendorId !== selectedVendor.value) {
-        setSelectedPO(null);
-      }
+      if (selectedPO && selectedPO.vendorId !== selectedVendor.value) setSelectedPO(null);
     } else {
       setFilteredPOs([]);
     }
   }, [selectedVendor, purchaseOrders]);
 
-  // Load products
-  useEffect(() => {
-    const loadProducts = async () => {
-      const data = await getProducts(1, 1000, productSearch);
-      if (data.success) {
-        setProducts(data.products);
-        const uniqueBrands = [...new Set(data.products.map(p => p.brandName).filter(Boolean))];
-        setBrands(uniqueBrands.map(brand => ({ value: brand, label: brand })));
-      }
-    };
-    if (choice === "Direct Material") {
-      loadProducts();
+  // ── Load products (for Direct Material) ──────────────────────────────────────
+  const loadProductsData = async () => {
+    const data = await getProducts(1, 1000, productSearch);
+    if (data.success) {
+      setProducts(data.products);
+      const uniqueBrands = [...new Set(data.products.map(p => p.brandName).filter(Boolean))];
+      setBrands(uniqueBrands.map(brand => ({ value: brand, label: brand })));
     }
+  };
+
+  useEffect(() => {
+    if (choice === "Direct Material") loadProductsData();
   }, [productSearch, choice]);
 
-  // Handle vendor change
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+  const getModelsForBrand = (brandName) => {
+    const brandProducts = products.filter(p => p.brandName === brandName);
+    const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
+    return uniqueModels.map(m => ({ value: m, label: m }));
+  };
+
+  const getStockForBrandModel = (brandName, modelNo) => {
+    const product = products.find(p => p.brandName === brandName && p.model === modelNo);
+    return product ? (product.currentStockQty ?? 0) : 0;
+  };
+
+  const calculateNetValue = (item) => {
+    const base = item.receivedQuantity * item.price;
+    const afterDiscount = base - base * (item.discountPercent / 100);
+    return afterDiscount + afterDiscount * (item.taxPercent / 100);
+  };
+
+  // ── Item change handler ───────────────────────────────────────────────────────
+  const handleItemChange = (index, field, value) => {
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], [field]: value };
+
+    if (field === "brandName") {
+      newItems[index].modelNo = "";
+      newItems[index].baseUOM = "";
+      newItems[index].unit = "";
+      newItems[index]._currStockQty = 0;
+    }
+
+    if (field === "modelNo" && value && newItems[index].brandName) {
+      const product = products.find(
+        p => p.brandName === newItems[index].brandName && p.model === value
+      );
+      if (product) {
+        newItems[index].baseUOM = product.baseUOM || "";
+        newItems[index].unit = product.baseUOM || "";
+        newItems[index].description = product.description || "";
+        newItems[index]._currStockQty = product.currentStockQty ?? 0;
+      }
+    }
+
+    newItems[index].netValue = calculateNetValue(newItems[index]);
+    setItems(newItems);
+  };
+
+  const handleAddItem = () => {
+    setItems([
+      ...items,
+      { brandName: "", modelNo: "", description: "", unit: "", baseUOM: "", orderedQuantity: 0, receivedQuantity: 0, price: 0, discountPercent: 0, taxPercent: 0, netValue: 0, _currStockQty: 0 },
+    ]);
+  };
+
+  const handleRemoveItem = (index) => {
+    if (items.length > 1) setItems(items.filter((_, i) => i !== index));
+  };
+
+  // ── PO selection ──────────────────────────────────────────────────────────────
   const handleVendorChange = (selected) => {
     setSelectedVendor(selected);
-    // Clear selected PO when vendor changes
     setSelectedPO(null);
-    
-    // Reset form fields that depend on PO
     setTransactionType("");
     setPurchaseType("");
     setSelectedProject(null);
     setWarehouseLocation("");
     setDeliveryAddress("");
     setLocation("");
-    setItems([{
-      brandName: "",
-      modelNo: "",
-      description: "",
-      unit: "",
-      baseUOM: "",
-      orderedQuantity: 0,
-      receivedQuantity: 0,
-      price: 0,
-      discountPercent: 0,
-      taxPercent: 0,
-      netValue: 0
-    }]);
+    setItems([{ brandName: "", modelNo: "", description: "", unit: "", baseUOM: "", orderedQuantity: 0, receivedQuantity: 0, price: 0, discountPercent: 0, taxPercent: 0, netValue: 0, _currStockQty: 0 }]);
   };
 
-  // Handle PO Selection
   const handlePOChange = (selected) => {
     setSelectedPO(selected);
-    if (selected && selected.po) {
+    if (selected?.po) {
       const po = selected.po;
       setTransactionType(po.transactionType);
       setPurchaseType(po.purchaseType);
       setDeliveryAddress(po.deliveryAddress || "");
       setLocation(po.location || "");
       setWarehouseLocation(po.warehouseLocation || "");
-      
-      if (po.project) {
-        setSelectedProject(projects.find(p => p.value === po.project._id));
-      }
-      
-      // Map PO items to GRN items
+      if (po.project) setSelectedProject(projects.find(p => p.value === po.project._id));
+
       const grnItems = po.items.map(item => {
-        // Calculate how much has already been received and how much is remaining
         const alreadyReceived = item.receivedQuantity || 0;
-        const remainingQuantity = item.quantity - alreadyReceived;
-        
+        const remaining = item.quantity - alreadyReceived;
         return {
           brandName: item.brandName,
           modelNo: item.modelNo,
           description: item.description || "",
           unit: item.unit || item.baseUOM,
           baseUOM: item.baseUOM || "",
-          orderedQuantity: item.quantity, // Always show the original ordered quantity
-          receivedQuantity: remainingQuantity, // Default to remaining quantity
+          orderedQuantity: item.quantity,
+          receivedQuantity: remaining,
           price: item.price,
           discountPercent: item.discountPercent,
           taxPercent: item.taxPercent,
-          netValue: calculateNetValue({
-            receivedQuantity: remainingQuantity, // Use remaining quantity for calculation
-            price: item.price,
-            discountPercent: item.discountPercent,
-            taxPercent: item.taxPercent
-          })
+          netValue: calculateNetValue({ receivedQuantity: remaining, price: item.price, discountPercent: item.discountPercent, taxPercent: item.taxPercent }),
+          _currStockQty: getStockForBrandModel(item.brandName, item.modelNo),
         };
       });
       setItems(grnItems);
     }
   };
 
-  const calculateNetValue = (item) => {
-    const baseAmount = item.receivedQuantity * item.price;
-    const discountAmount = baseAmount * (item.discountPercent / 100);
-    const amountAfterDiscount = baseAmount - discountAmount;
-    const taxAmount = amountAfterDiscount * (item.taxPercent / 100);
-    return amountAfterDiscount + taxAmount;
-  };
-
-  const handleAddItem = () => {
-    setItems([...items, {
-      brandName: "",
-      modelNo: "",
-      description: "",
-      unit: "",
-      baseUOM: "",
-      orderedQuantity: 0,
-      receivedQuantity: 0,
-      price: 0,
-      discountPercent: 0,
-      taxPercent: 0,
-      netValue: 0
-    }]);
-    setModels([]);
-  };
-
-  const handleRemoveItem = (index) => {
-    if (items.length > 1) {
-      const newItems = items.filter((_, i) => i !== index);
-      setItems(newItems);
-    }
-  };
-
-  // Updated handleItemChange function to automatically set baseUOM
-  const handleItemChange = (index, field, value) => {
-    const newItems = [...items];
-    newItems[index][field] = value;
-    
-    // If brand is changed, update models list and clear model and baseUOM
-    if (field === 'brandName') {
-      if (value) {
-        const brandProducts = products.filter(p => p.brandName === value);
-        const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
-        setModels(uniqueModels.map(model => ({ value: model, label: model })));
-      } else {
-        setModels([]);
-      }
-      // Clear model and baseUOM when brand changes
-      newItems[index].modelNo = "";
-      newItems[index].baseUOM = "";
-      newItems[index].unit = "";
-    }
-    
-    // If model is changed, find the product and set baseUOM
-    if (field === 'modelNo' && value && newItems[index].brandName) {
-      const product = products.find(
-        p => p.brandName === newItems[index].brandName && p.model === value
-      );
-      if (product) {
-        newItems[index].baseUOM = product.baseUOM;
-        newItems[index].unit = product.baseUOM;
-        newItems[index].description = product.description || "";
-      }
-    }
-    
-    newItems[index].netValue = calculateNetValue(newItems[index]);
-    setItems(newItems);
+  // ── After quick-add product ───────────────────────────────────────────────────
+  const handleProductAdded = (newProduct) => {
+    // Reload products list so the new brand/model appear immediately
+    loadProductsData();
   };
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const maxSize = 5 * 1024 * 1024; // 5MB
-      
-      if (file.size > maxSize) {
-        toast.error("File size exceeds 5MB limit");
-        return;
-      }
-      
-      setTermsDocument(file);
-    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("File size exceeds 5MB limit"); return; }
+    setTermsDocument(file);
   };
 
+  // ── Submit ────────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!choice) {
-      return toast.error("Please select choice (Against PO or Direct Material)");
-    }
-
-    if (choice === "Against PO" && !selectedPO) {
-      return toast.error("Please select a purchase order");
-    }
-
-    if (!selectedVendor) {
-      return toast.error("Please select a vendor");
-    }
-
-    if (!transactionType || !purchaseType) {
-      return toast.error("Please fill all required fields");
-    }
-
-    if (purchaseType === "Project Purchase" && !selectedProject) {
-      return toast.error("Please select a project");
-    }
-
-    if (purchaseType === "Stock" && !warehouseLocation) {
-      return toast.error("Please enter warehouse location");
-    }
-
+    if (!choice) return toast.error("Please select choice (Against PO or Direct Material)");
+    if (choice === "Against PO" && !selectedPO) return toast.error("Please select a purchase order");
+    if (!selectedVendor) return toast.error("Please select a vendor");
+    if (!transactionType || !purchaseType) return toast.error("Please fill all required fields");
+    if (purchaseType === "Project Purchase" && !selectedProject) return toast.error("Please select a project");
+    if (purchaseType === "Stock" && !warehouseLocation) return toast.error("Please enter warehouse location");
     for (let item of items) {
-      if (!item.brandName || !item.modelNo || item.receivedQuantity < 0) {
-        return toast.error("Please fill all item details correctly");
-      }
+      if (!item.brandName || !item.modelNo || item.receivedQuantity < 0) return toast.error("Please fill all item details correctly");
     }
+
+    // Strip display-only fields before sending
+    const cleanItems = items.map(({ _currStockQty, ...rest }) => rest);
 
     const grnData = {
       grnDate: new Date(grnDate),
@@ -343,46 +378,26 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
       warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined,
       deliveryAddress,
       location,
-      items,
+      items: cleanItems,
       remark,
     };
 
     if (termsDocument) {
       const formData = new FormData();
-      formData.append('file', termsDocument);
-      formData.append('grnData', JSON.stringify(grnData));
-      
+      formData.append("file", termsDocument);
+      formData.append("grnData", JSON.stringify(grnData));
       setUploading(true);
       toast.loading("Creating GRN...");
       try {
         const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/grn/with-document`, formData, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
-        
         toast.dismiss();
-        const data = response.data;
-
-        if (data.success) {
-          toast.success(data.message);
-          handleAdd();
-        } else {
-          toast.error(data.error || "Failed to create GRN");
-        }
+        if (response.data.success) { toast.success(response.data.message); handleAdd(); }
+        else toast.error(response.data.error || "Failed to create GRN");
       } catch (error) {
         toast.dismiss();
-        console.error('Upload error:', error);
-        if (error.response) {
-          // Server responded with error status
-          toast.error(`Server error: ${error.response.status} - ${error.response.data.error || error.response.data.message}`);
-        } else if (error.request) {
-          // Request made but no response received
-          toast.error('Network error: No response from server. Please check your connection.');
-        } else {
-          // Error in request setup
-          toast.error('Request error: ' + error.message);
-        }
+        toast.error(error.response ? `Server error: ${error.response.status}` : "Network error");
       } finally {
         setUploading(false);
       }
@@ -390,444 +405,350 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
       toast.loading("Creating GRN...");
       const data = await createGRN(grnData);
       toast.dismiss();
-
-      if (data.success) {
-        toast.success(data.message);
-        handleAdd();
-      } else {
-        toast.error(data.error || "Failed to create GRN");
-      }
+      if (data.success) { toast.success(data.message); handleAdd(); }
+      else toast.error(data.error || "Failed to create GRN");
     }
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split("T")[0];
 
   return (
-    <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
-      <div className="modal-dialog modal-xl">
-        <div className="modal-content p-3">
-          <form onSubmit={handleSubmit}>
-            <div className="modal-header pt-0">
-              <h5 className="card-title fw-bold">Create New GRN (Goods Receipt Note)</h5>
-              <button onClick={handleAdd} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
-                <span aria-hidden="true">&times;</span>
-              </button>
-            </div>
+    <>
+      {/* Quick Add Product Modal */}
+      {showQuickAdd && (
+        <QuickAddProductModal
+          onClose={() => setShowQuickAdd(false)}
+          onProductAdded={handleProductAdded}
+        />
+      )}
 
-            <div className="modal-body">
-              <div className="row modal_body_height">
-                
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Choice <RequiredStar /></label>
-                    <select
-                      className="form-select rounded-0"
-                      value={choice}
-                      onChange={(e) => setChoice(e.target.value)}
-                      required
-                    >
-                      <option value="">Select Choice</option>
-                      <option value="Against PO">Against PO</option>
-                      <option value="Direct Material">Direct Material</option>
-                    </select>
+      <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
+        <div className="modal-dialog modal-xl">
+          <div className="modal-content p-3">
+            <form onSubmit={handleSubmit}>
+              <div className="modal-header pt-0">
+                <h5 className="card-title fw-bold">Create New GRN (Goods Receipt Note)</h5>
+                <button onClick={handleAdd} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="row modal_body_height">
+
+                  {/* ── Choice & Date ── */}
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label className="form-label label_text">Choice <RequiredStar /></label>
+                      <select className="form-select rounded-0" value={choice} onChange={e => setChoice(e.target.value)} required>
+                        <option value="">Select Choice</option>
+                        <option value="Against PO">Against PO</option>
+                        <option value="Direct Material">Direct Material</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
 
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">GRN Date <RequiredStar /></label>
-                    <input
-                      type="date"
-                      className="form-control rounded-0"
-                      value={grnDate}
-                      onChange={(e) => {
-                        const selectedDate = new Date(e.target.value);
-                        const currentDate = new Date();
-                        currentDate.setHours(0, 0, 0, 0);
-                        
-                        if (selectedDate <= currentDate) {
-                          setGrnDate(e.target.value);
-                        } else {
-                          setGrnDate(today);
-                          toast.error("Future dates are not allowed");
-                        }
-                      }}
-                      max={today}
-                      required
-                    />
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label className="form-label label_text">GRN Date <RequiredStar /></label>
+                      <input
+                        type="date" className="form-control rounded-0" value={grnDate} max={today} required
+                        onChange={e => {
+                          if (new Date(e.target.value) <= new Date()) setGrnDate(e.target.value);
+                          else { setGrnDate(today); toast.error("Future dates are not allowed"); }
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {choice === "Against PO" && (
-                  <>
+                  {/* ── Against PO: Vendor + PO ── */}
+                  {choice === "Against PO" && (
+                    <>
+                      <div className="col-12 col-lg-6">
+                        <div className="mb-3">
+                          <label className="form-label label_text">Vendor Name <RequiredStar /></label>
+                          <Select value={selectedVendor} onChange={handleVendorChange} onInputChange={setVendorSearch} options={vendors} placeholder="Select Vendor..." isClearable className="react-select-container" classNamePrefix="react-select" required />
+                        </div>
+                      </div>
+                      <div className="col-12 col-lg-6">
+                        <div className="mb-3">
+                          <label className="form-label label_text">PO No. <RequiredStar /></label>
+                          <Select value={selectedPO} onChange={handlePOChange} onInputChange={setPoSearch} options={filteredPOs} placeholder={selectedVendor ? "Select Purchase Order..." : "Please select a vendor first"} isClearable isDisabled={!selectedVendor} className="react-select-container" classNamePrefix="react-select" required />
+                          {selectedVendor && filteredPOs.length === 0 && (
+                            <small className="text-muted d-block mt-1">No incomplete purchase orders found for this vendor</small>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── Direct Material: Vendor ── */}
+                  {choice === "Direct Material" && (
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
                         <label className="form-label label_text">Vendor Name <RequiredStar /></label>
-                        <Select
-                          value={selectedVendor}
-                          onChange={handleVendorChange}
-                          onInputChange={setVendorSearch}
-                          options={vendors}
-                          placeholder="Select Vendor..."
-                          isClearable
-                          className="react-select-container"
-                          classNamePrefix="react-select"
-                          required
-                        />
+                        <Select value={selectedVendor} onChange={setSelectedVendor} onInputChange={setVendorSearch} options={vendors} placeholder="Select Vendor..." isClearable className="react-select-container" classNamePrefix="react-select" required />
                       </div>
                     </div>
+                  )}
 
+                  {/* ── Transaction & Purchase Type ── */}
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label className="form-label label_text">Transaction Type <RequiredStar /></label>
+                      <select className="form-select rounded-0" value={transactionType} onChange={e => setTransactionType(e.target.value)} disabled={choice === "Against PO"} required>
+                        <option value="">Select Transaction Type</option>
+                        <option value="B2B">B2B</option>
+                        <option value="SEZ">SEZ</option>
+                        <option value="Import">Import</option>
+                        <option value="Asset">Asset</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label className="form-label label_text">Project Purchase / Stock <RequiredStar /></label>
+                      <select className="form-select rounded-0" value={purchaseType} onChange={e => setPurchaseType(e.target.value)} disabled={choice === "Against PO"} required>
+                        <option value="">Select Type</option>
+                        <option value="Project Purchase">Project Purchase</option>
+                        <option value="Stock">Stock</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {purchaseType === "Project Purchase" && (
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
-                        <label className="form-label label_text">PO No. <RequiredStar /></label>
-                        <Select
-                          value={selectedPO}
-                          onChange={handlePOChange}
-                          onInputChange={setPoSearch}
-                          options={filteredPOs}
-                          placeholder={selectedVendor ? "Select Purchase Order..." : "Please select a vendor first"}
-                          isClearable
-                          isDisabled={!selectedVendor}
-                          className="react-select-container"
-                          classNamePrefix="react-select"
-                          required
-                        />
-                        {selectedVendor && filteredPOs.length === 0 && (
-                          <small className="text-muted d-block mt-1">
-                            No incomplete purchase orders found for this vendor
-                          </small>
+                        <label className="form-label label_text">Project Name <RequiredStar /></label>
+                        <Select value={selectedProject} onChange={setSelectedProject} options={projects} placeholder="Select Project..." isClearable isDisabled={choice === "Against PO"} required />
+                      </div>
+                    </div>
+                  )}
+
+                  {purchaseType === "Stock" && (
+                    <div className="col-12 col-lg-6">
+                      <div className="mb-3">
+                        <label className="form-label label_text">Warehouse Location <RequiredStar /></label>
+                        <input type="text" className="form-control rounded-0" value={warehouseLocation} onChange={e => setWarehouseLocation(e.target.value)} placeholder="Ex: Baner / Amazon / Mumbai" maxLength={200} disabled={choice === "Against PO"} required />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label className="form-label label_text">Delivery Address</label>
+                      <textarea className="form-control rounded-0" rows="2" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} maxLength={500} disabled={choice === "Against PO"} />
+                    </div>
+                  </div>
+
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label className="form-label label_text">Location</label>
+                      <input type="text" className="form-control rounded-0" value={location} onChange={e => setLocation(e.target.value)} maxLength={200} disabled={choice === "Against PO"} />
+                    </div>
+                  </div>
+
+                  <div className="col-12 col-lg-6">
+                    <div className="mb-3">
+                      <label className="form-label label_text">Document</label>
+                      <input type="file" className="form-control rounded-0" onChange={handleFileChange} accept=".pdf,.doc,.docx" />
+                      {termsDocument && <small className="text-success d-block mt-1">Selected: {termsDocument.name}</small>}
+                    </div>
+                  </div>
+
+                  {/* ── Item Details ── */}
+                  <div className="col-12 mt-3">
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <h6 className="fw-bold mb-0">Item Details</h6>
+                      <div className="d-flex gap-2">
+                        {/* ✅ Quick Add Product Button */}
+                        {choice === "Direct Material" && (
+                          <button type="button" className="btn btn-sm btn-outline-success" onClick={() => setShowQuickAdd(true)} title="Add new product to Product Master">
+                            <i className="fa fa-plus me-1"></i> Add Product
+                          </button>
+                        )}
+                        {choice === "Direct Material" && (
+                          <button type="button" className="btn btn-sm btn-primary" onClick={handleAddItem}>
+                            <i className="fa fa-plus me-1"></i> Add Row
+                          </button>
                         )}
                       </div>
                     </div>
-                  </>
-                )}
 
-                {choice === "Direct Material" && (
-                  <div className="col-12 col-lg-6">
-                    <div className="mb-3">
-                      <label className="form-label label_text">Vendor Name <RequiredStar /></label>
-                      <Select
-                        value={selectedVendor}
-                        onChange={setSelectedVendor}
-                        onInputChange={setVendorSearch}
-                        options={vendors}
-                        placeholder="Select Vendor..."
-                        isClearable
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
+                    <div className="table-responsive">
+                      <table className="table table-bordered table-sm">
+                        <thead className="table-dark">
+                          <tr>
+                            <th style={{ minWidth: 160 }}>Brand Name</th>
+                            <th style={{ minWidth: 160 }}>Model No</th>
+                            <th style={{ minWidth: 80 }}>Unit</th>
+                            <th style={{ minWidth: 90 }}>Ordered Qty</th>
+                            {choice === "Against PO" && <th style={{ minWidth: 100 }}>Already Rcvd</th>}
+                            <th style={{ minWidth: 90 }}>Received Qty</th>
+                            {/* ✅ NEW COLUMNS */}
+                            <th style={{ minWidth: 100 }} className="text-warning">Curr. Stock</th>
+                            <th style={{ minWidth: 100 }} className="text-info">Balance Qty</th>
+                            <th style={{ minWidth: 80 }}>Remark</th>
+                            {choice === "Direct Material" && <th style={{ minWidth: 60 }}>Del</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item, index) => {
+                            const modelOptions = choice === "Direct Material" ? getModelsForBrand(item.brandName) : [];
 
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Transaction Type <RequiredStar /></label>
-                    <select
-                      className="form-select rounded-0"
-                      value={transactionType}
-                      onChange={(e) => setTransactionType(e.target.value)}
-                      disabled={choice === "Against PO"}
-                      required
-                    >
-                      <option value="">Select Transaction Type</option>
-                      <option value="B2B">B2B</option>
-                      <option value="SEZ">SEZ</option>
-                      <option value="Import">Import</option>
-                      <option value="Asset">Asset</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Project Purchase / Stock <RequiredStar /></label>
-                    <select
-                      className="form-select rounded-0"
-                      value={purchaseType}
-                      onChange={(e) => setPurchaseType(e.target.value)}
-                      disabled={choice === "Against PO"}
-                      required
-                    >
-                      <option value="">Select Type</option>
-                      <option value="Project Purchase">Project Purchase</option>
-                      <option value="Stock">Stock</option>
-                    </select>
-                  </div>
-                </div>
-
-                {purchaseType === "Project Purchase" && (
-                  <div className="col-12 col-lg-6">
-                    <div className="mb-3">
-                      <label className="form-label label_text">Project Name <RequiredStar /></label>
-                      <Select
-                        value={selectedProject}
-                        onChange={setSelectedProject}
-                        options={projects}
-                        placeholder="Select Project..."
-                        isClearable
-                        isDisabled={choice === "Against PO"}
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {purchaseType === "Stock" && (
-                  <div className="col-12 col-lg-6">
-                    <div className="mb-3">
-                      <label className="form-label label_text">Warehouse Location <RequiredStar /></label>
-                      <input
-                        type="text"
-                        className="form-control rounded-0"
-                        value={warehouseLocation}
-                        onChange={(e) => setWarehouseLocation(e.target.value)}
-                        placeholder="Ex: Baner / Amazon / Mumbai / Bhosari"
-                        maxLength={200}
-                        disabled={choice === "Against PO"}
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Delivery Address</label>
-                    <textarea
-                      className="form-control rounded-0"
-                      rows="2"
-                      value={deliveryAddress}
-                      onChange={(e) => setDeliveryAddress(e.target.value)}
-                      placeholder="Enter delivery address"
-                      maxLength={500}
-                      disabled={choice === "Against PO"}
-                    />
-                  </div>
-                </div>
-
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Location</label>
-                    <input
-                      type="text"
-                      className="form-control rounded-0"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="Enter location"
-                      maxLength={200}
-                      disabled={choice === "Against PO"}
-                    />
-                  </div>
-                </div>
-
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Document</label>
-                    <input
-                      type="file"
-                      className="form-control rounded-0"
-                      onChange={handleFileChange}
-                      accept=".pdf,.doc,.docx"
-                    />
-                    {termsDocument && (
-                      <small className="text-success d-block mt-1">
-                        Selected file: {termsDocument.name}
-                      </small>
-                    )}
-                  </div>
-                </div>
-
-                <div className="col-12 mt-3">
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <h6 className="fw-bold">Item Details</h6>
-                    {choice === "Direct Material" && (
-                      <button type="button" className="btn btn-sm btn-primary" onClick={handleAddItem}>
-                        <i className="fa fa-plus"></i> Add Item
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="table-responsive">
-                    <table className="table table-bordered">
-                      <thead>
-                        <tr>
-                          <th>Brand Name</th>
-                          <th>Model No</th>
-                          <th>Unit</th>
-                          <th>Ordered Qty</th>
-                          {choice === "Against PO" && <th>Already Received</th>}
-                          <th>Received Qty</th>
-                          <th>Remark</th>
-                          {choice === "Direct Material" && <th>Action</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((item, index) => {
-                          const brandProducts = products.filter(p => p.brandName === item.brandName);
-                          const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
-                          const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
-                          
-                          // Calculate already received and remaining quantities for PO items
-                          let alreadyReceived = 0;
-                          let remainingQuantity = item.orderedQuantity;
-                          
-                          if (choice === "Against PO" && selectedPO && selectedPO.po) {
-                            const poItem = selectedPO.po.items.find(i => 
-                              i.brandName === item.brandName && i.modelNo === item.modelNo
-                            );
-                            if (poItem) {
-                              alreadyReceived = poItem.receivedQuantity || 0;
-                              remainingQuantity = poItem.quantity - alreadyReceived;
+                            // For PO: read alreadyReceived from PO data
+                            let alreadyReceived = 0;
+                            let remainingQty = item.orderedQuantity;
+                            if (choice === "Against PO" && selectedPO?.po) {
+                              const poItem = selectedPO.po.items.find(i => i.brandName === item.brandName && i.modelNo === item.modelNo);
+                              if (poItem) {
+                                alreadyReceived = poItem.receivedQuantity || 0;
+                                remainingQty = poItem.quantity - alreadyReceived;
+                              }
                             }
-                          }
-                          
-                          return (
-                            <tr key={index}>
-                              <td>
-                                {choice === "Against PO" ? (
-                                  <input type="text" className="form-control form-control-sm" value={item.brandName} readOnly />
-                                ) : (
-                                  <Select
-                                    value={brands.find(b => b.value === item.brandName) || null}
-                                    onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
-                                    options={brands}
-                                    placeholder="Select Brand..."
-                                    isClearable
-                                    required
-                                  />
+
+                            // ✅ Curr. Stock & Balance Qty
+                            // Balance = existing stock + ordered qty - received qty
+                            // e.g. stock=150, ordered=10, received=5 → balance=155
+                            const currStock = item._currStockQty ?? 0;
+                            const orderedQty = parseFloat(item.orderedQuantity) || 0;
+                            const receivedQty = parseFloat(item.receivedQuantity) || 0;
+                            const balanceQty = currStock + orderedQty - receivedQty;
+                            const balanceColor = balanceQty > currStock ? "#15803d" : balanceQty === currStock ? "#6b7280" : "#1e40af";
+
+                            return (
+                              <tr key={index}>
+                                {/* Brand */}
+                                <td>
+                                  {choice === "Against PO" ? (
+                                    <input type="text" className="form-control form-control-sm rounded-0" value={item.brandName} readOnly />
+                                  ) : (
+                                    <Select
+                                      value={brands.find(b => b.value === item.brandName) || null}
+                                      onChange={sel => handleItemChange(index, "brandName", sel ? sel.value : "")}
+                                      options={brands}
+                                      placeholder="Brand..."
+                                      isClearable
+                                      menuPortalTarget={document.body}
+                                      styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                                    />
+                                  )}
+                                </td>
+
+                                {/* Model */}
+                                <td>
+                                  {choice === "Against PO" ? (
+                                    <input type="text" className="form-control form-control-sm rounded-0" value={item.modelNo} readOnly />
+                                  ) : (
+                                    <Select
+                                      value={modelOptions.find(m => m.value === item.modelNo) || null}
+                                      onChange={sel => handleItemChange(index, "modelNo", sel ? sel.value : "")}
+                                      options={modelOptions}
+                                      placeholder={item.brandName ? "Model..." : "Select brand first"}
+                                      isClearable
+                                      isDisabled={!item.brandName}
+                                      menuPortalTarget={document.body}
+                                      styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                                    />
+                                  )}
+                                </td>
+
+                                {/* Unit */}
+                                <td>
+                                  {choice === "Against PO" ? (
+                                    <input type="text" className="form-control form-control-sm rounded-0" value={item.unit} readOnly />
+                                  ) : (
+                                    <input type="text" className="form-control form-control-sm rounded-0" value={item.unit} onChange={e => handleItemChange(index, "unit", e.target.value)} />
+                                  )}
+                                </td>
+
+                                {/* Ordered Qty */}
+                                <td>
+                                  <input type="number" className="form-control form-control-sm rounded-0" value={item.orderedQuantity} onChange={e => handleItemChange(index, "orderedQuantity", Number(e.target.value))} min="0" disabled={choice === "Against PO"} />
+                                </td>
+
+                                {/* Already Received (PO only) */}
+                                {choice === "Against PO" && (
+                                  <td>
+                                    <input type="number" className="form-control form-control-sm rounded-0" value={alreadyReceived} readOnly />
+                                  </td>
                                 )}
-                              </td>
-                              <td>
-                                {choice === "Against PO" ? (
-                                  <input type="text" className="form-control form-control-sm" value={item.modelNo} readOnly />
-                                ) : (
-                                  <Select
-                                    value={modelOptions.find(m => m.value === item.modelNo) || null}
-                                    onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
-                                    options={modelOptions}
-                                    placeholder="Select Model..."
-                                    isClearable
-                                    isDisabled={!item.brandName}
-                                    required
-                                  />
-                                )}
-                              </td>
-                              
-                              <td>
-                                {choice === "Against PO" ? (
-                                  <input type="text" className="form-control form-control-sm" value={item.unit} readOnly />
-                                ) : (
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    value={item.unit}
-                                    onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                                    placeholder="Unit"
-                                    required
-                                  />
-                                )}
-                              </td>
-                              
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.orderedQuantity}
-                                  onChange={(e) => handleItemChange(index, 'orderedQuantity', Number(e.target.value))}
-                                  min="0"
-                                  disabled={choice === "Against PO"}
-                                />
-                              </td>
-                              
-                              {choice === "Against PO" && (
+
+                                {/* Received Qty */}
                                 <td>
                                   <input
                                     type="number"
-                                    className="form-control form-control-sm"
-                                    value={alreadyReceived}
-                                    readOnly
+                                    className="form-control form-control-sm rounded-0"
+                                    value={item.receivedQuantity}
+                                    onChange={e => handleItemChange(index, "receivedQuantity", Number(e.target.value))}
+                                    min="0"
+                                    max={choice === "Against PO" ? remainingQty : undefined}
+                                    required
                                   />
+                                  {choice === "Against PO" && <small className="text-muted">Max: {remainingQty}</small>}
                                 </td>
-                              )}
-                              
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.receivedQuantity}
-                                  onChange={(e) => handleItemChange(index, 'receivedQuantity', Number(e.target.value))}
-                                  min="0"
-                                  max={choice === "Against PO" ? remainingQuantity : undefined}
-                                  required
-                                />
-                                {choice === "Against PO" && (
-                                  <small className="text-muted d-block">
-                                    Max: {remainingQuantity}
-                                  </small>
-                                )}
-                              </td>
-                              <td>
-                                <textarea
-                                  className="form-control form-control-sm"
-                                  value={item.description}
-                                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                                  rows="1"
-                                  disabled={choice === "Against PO"}
-                                />
-                              </td>
-                              {choice === "Direct Material" && (
+
+                                {/* ✅ Curr. Stock Qty */}
+                                <td className="text-center align-middle">
+                                  <span style={{ fontWeight: 700, fontSize: "0.85rem", color: currStock > 0 ? "#1e40af" : "#6b7280" }}>
+                                    {currStock}
+                                    {item.unit && <small style={{ fontWeight: 400, fontSize: "0.7rem", marginLeft: 2 }}>{item.unit}</small>}
+                                  </span>
+                                </td>
+
+                                {/* ✅ Balance Qty */}
+                                <td className="text-center align-middle">
+                                  <span style={{ fontWeight: 700, fontSize: "0.85rem", color: balanceColor }}>
+                                    {balanceQty}
+                                    {item.unit && <small style={{ fontWeight: 400, fontSize: "0.7rem", marginLeft: 2 }}>{item.unit}</small>}
+                                  </span>
+                                  {balanceQty < currStock && receivedQty > 0 && (
+                                    <small className="d-block text-muted" style={{ fontSize: "0.65rem" }}>After receiving</small>
+                                  )}
+                                </td>
+
+                                {/* Remark */}
                                 <td>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-danger"
-                                    onClick={() => handleRemoveItem(index)}
-                                    disabled={items.length === 1}
-                                  >
-                                    <i className="fa fa-trash"></i>
-                                  </button>
+                                  <textarea className="form-control form-control-sm rounded-0" value={item.description} onChange={e => handleItemChange(index, "description", e.target.value)} rows="1" disabled={choice === "Against PO"} />
                                 </td>
-                              )}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
 
-                <div className="col-12 mt-3">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Remark</label>
-                    <textarea
-                      className="form-control rounded-0"
-                      rows="3"
-                      value={remark}
-                      onChange={(e) => setRemark(e.target.value)}
-                      maxLength={1000}
-                    />
+                                {/* Delete (Direct Material only) */}
+                                {choice === "Direct Material" && (
+                                  <td className="text-center align-middle">
+                                    <button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveItem(index)} disabled={items.length === 1}>
+                                      <i className="fa fa-trash"></i>
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
 
-                <div className="col-12 pt-3 mt-2">
-                  <button 
-                    type="submit" 
-                    className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
-                    disabled={uploading}
-                  >
-                    Add
-                  </button>
-                  <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
-                    Cancel
-                  </button>
+                  {/* ── Remark ── */}
+                  <div className="col-12 mt-3">
+                    <div className="mb-3">
+                      <label className="form-label label_text">Remark</label>
+                      <textarea className="form-control rounded-0" rows="3" value={remark} onChange={e => setRemark(e.target.value)} maxLength={1000} />
+                    </div>
+                  </div>
+
+                  <div className="col-12 pt-3 mt-2">
+                    <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4" disabled={uploading}>Add</button>
+                    <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">Cancel</button>
+                  </div>
+
                 </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

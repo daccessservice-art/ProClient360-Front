@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getProducts } from "../../../../../hooks/useProduct";
-import { getGRNNumbers, getGRNByNumber } from "../../../../../hooks/useGRN";
+import { getGRNs, getGRNByNumber } from "../../../../../hooks/useGRN";
 import { createQualityInspection } from "../../../../../hooks/useQC";
 import Select from "react-select";
 
@@ -14,12 +14,12 @@ const AddQCPopUp = ({ handleAdd }) => {
   const [grnOptions, setGrnOptions] = useState([]);
   const [grnSearch, setGrnSearch] = useState("");
   const [isLoadingGRNs, setIsLoadingGRNs] = useState(true);
-  
+
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [brands, setBrands] = useState([]);
   const [models, setModels] = useState([]);
-  
+
   const [items, setItems] = useState([{
     brandName: "",
     modelNo: "",
@@ -33,34 +33,35 @@ const AddQCPopUp = ({ handleAdd }) => {
     serviceWarrantyMonths: 0,
   }]);
 
-  // Load GRN numbers for dropdown
+  // Load GRNs with vendor name for dropdown
   useEffect(() => {
-    const loadGRNNumbers = async () => {
+    const loadGRNs = async () => {
       setIsLoadingGRNs(true);
       try {
-        const data = await getGRNNumbers();
-        
-        if (data.success) {
+        // Fetch all GRNs (large limit to get all) — includes populated vendor
+        const data = await getGRNs(1, 500, null);
+
+        if (data && data.success) {
           const options = data.grns.map(grn => ({
             value: grn.grnNumber,
-            label: grn.grnNumber,
+            label: `${grn.grnNumber}${grn.vendor?.vendorName ? ` - ${grn.vendor.vendorName}` : ""}`,
             id: grn._id
           }));
           setGrnOptions(options);
-          
+
           if (options.length === 0) {
             toast.info("No GRNs found. Please create a GRN first.");
           }
         } else {
-          toast.error(data.error || "Failed to load GRN numbers");
+          toast.error(data?.error || "Failed to load GRNs");
         }
       } catch (error) {
-        toast.error("Failed to load GRN numbers");
+        toast.error("Failed to load GRNs");
       } finally {
         setIsLoadingGRNs(false);
       }
     };
-    loadGRNNumbers();
+    loadGRNs();
   }, []);
 
   // Load products
@@ -98,10 +99,10 @@ const AddQCPopUp = ({ handleAdd }) => {
     setIsGRNLoading(true);
     try {
       const data = await getGRNByNumber(selected.value);
-      
+
       if (data.success) {
         setSelectedGRN(data.grn);
-        
+
         const qcItems = data.grn.items.map(item => ({
           brandName: item.brandName,
           modelNo: item.modelNo,
@@ -114,7 +115,7 @@ const AddQCPopUp = ({ handleAdd }) => {
           itemsPerBox: 1,
           serviceWarrantyMonths: 0,
         }));
-        
+
         setItems(qcItems);
       } else {
         toast.error(data.error || "GRN not found");
@@ -132,7 +133,7 @@ const AddQCPopUp = ({ handleAdd }) => {
     if (items.length > 0) {
       const lastIndex = items.length - 1;
       const currentBrand = items[lastIndex].brandName;
-      
+
       if (currentBrand) {
         const brandProducts = products.filter(p => p.brandName === currentBrand);
         const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
@@ -168,7 +169,7 @@ const AddQCPopUp = ({ handleAdd }) => {
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
-    
+
     if (field === 'brandName') {
       if (value) {
         const brandProducts = products.filter(p => p.brandName === value);
@@ -180,7 +181,7 @@ const AddQCPopUp = ({ handleAdd }) => {
       newItems[index].modelNo = "";
       newItems[index].baseUOM = "";
     }
-    
+
     if (field === 'modelNo' && value && newItems[index].brandName) {
       const product = products.find(
         p => p.brandName === newItems[index].brandName && p.model === value
@@ -190,23 +191,22 @@ const AddQCPopUp = ({ handleAdd }) => {
         newItems[index].unit = product.baseUOM;
       }
     }
-    
+
     if (field === 'qcOkQuantity') {
       const qcOk = Number(value) || 0;
       const received = newItems[index].receivedQuantity;
       newItems[index].faultyQuantity = Math.max(0, received - qcOk);
     }
-    
+
     if (field === 'faultyQuantity') {
       const faulty = Number(value) || 0;
       const received = newItems[index].receivedQuantity;
       newItems[index].qcOkQuantity = Math.max(0, received - faulty);
     }
-    
+
     setItems(newItems);
   };
 
-  // FIX: Added 'const' here to fix the no-undef error
   const calculateAssetCount = (item) => {
     const qcOk = item.qcOkQuantity || 0;
     const itemsPerBox = item.itemsPerBox || 1;
@@ -227,7 +227,7 @@ const AddQCPopUp = ({ handleAdd }) => {
       if (!item.brandName || !item.modelNo || item.receivedQuantity <= 0) {
         return toast.error("Please fill all item details correctly");
       }
-      
+
       const total = item.qcOkQuantity + item.faultyQuantity;
       if (total !== item.receivedQuantity) {
         return toast.error(`QC OK + Faulty must equal received quantity for ${item.brandName} ${item.modelNo}`);
@@ -259,7 +259,6 @@ const AddQCPopUp = ({ handleAdd }) => {
 
   const today = new Date().toISOString().split('T')[0];
 
-  // Warranty period options
   const warrantyOptions = [
     { value: 0, label: "No Warranty" },
     { value: 1, label: "1 Month" },
@@ -290,7 +289,7 @@ const AddQCPopUp = ({ handleAdd }) => {
 
             <div className="modal-body">
               <div className="row modal_body_height">
-                
+
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">GRN No. <RequiredStar /></label>
@@ -303,7 +302,10 @@ const AddQCPopUp = ({ handleAdd }) => {
                       </div>
                     ) : (
                       <Select
-                        value={selectedGRN ? { value: selectedGRN.grnNumber, label: selectedGRN.grnNumber } : null}
+                        value={selectedGRN ? {
+                          value: selectedGRN.grnNumber,
+                          label: `${selectedGRN.grnNumber}${selectedGRN.vendor?.vendorName ? ` - ${selectedGRN.vendor.vendorName}` : ""}`
+                        } : null}
                         onChange={handleGRNChange}
                         onInputChange={setGrnSearch}
                         options={grnOptions}
@@ -330,7 +332,7 @@ const AddQCPopUp = ({ handleAdd }) => {
                         const selectedDate = new Date(e.target.value);
                         const currentDate = new Date();
                         currentDate.setHours(0, 0, 0, 0);
-                        
+
                         if (selectedDate <= currentDate) {
                           setQcDate(e.target.value);
                         } else {
@@ -391,11 +393,11 @@ const AddQCPopUp = ({ handleAdd }) => {
                       <thead className="table-light">
                         <tr>
                           <th>Brand Name</th>
-                          <th>Model no</th>
+                          <th>Model No</th>
                           <th>GRN QTY</th>
                           <th>Unit</th>
-                          <th>QC OK qty</th>
-                          <th>Faulty qty</th>
+                          <th>QC OK Qty</th>
+                          <th>Faulty Qty</th>
                           <th>Items/Box</th>
                           <th>Warranty</th>
                           <th>Assets</th>
@@ -408,18 +410,18 @@ const AddQCPopUp = ({ handleAdd }) => {
                           const brandProducts = products.filter(p => p.brandName === item.brandName);
                           const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
                           const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
-                          
+
                           const assetCount = calculateAssetCount(item);
 
                           return (
                             <tr key={index}>
                               <td>
                                 {selectedGRN ? (
-                                  <input 
-                                    type="text" 
-                                    className="form-control form-control-sm" 
-                                    value={item.brandName} 
-                                    readOnly 
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={item.brandName}
+                                    readOnly
                                   />
                                 ) : (
                                   <Select
@@ -436,11 +438,11 @@ const AddQCPopUp = ({ handleAdd }) => {
                               </td>
                               <td>
                                 {selectedGRN ? (
-                                  <input 
-                                    type="text" 
-                                    className="form-control form-control-sm" 
-                                    value={item.modelNo} 
-                                    readOnly 
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={item.modelNo}
+                                    readOnly
                                   />
                                 ) : (
                                   <Select
@@ -578,7 +580,7 @@ const AddQCPopUp = ({ handleAdd }) => {
                             <strong>Total Boxes:</strong> {items.reduce((sum, item) => sum + Math.ceil((item.qcOkQuantity || 0) / (item.itemsPerBox || 1)), 0)}
                           </div>
                         </div>
-                        <hr className="my-2"/>
+                        <hr className="my-2" />
                         <small className="mb-0">
                           Each asset will have a unique QR code. QR code contains: Asset ID, Material Info, In-Date, Warranty Details, Box Number (if multiple per box).
                         </small>
