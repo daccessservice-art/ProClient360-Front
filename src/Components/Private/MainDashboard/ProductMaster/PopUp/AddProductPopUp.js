@@ -209,24 +209,30 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
     }
   };
 
+  // ── UPDATED: Allow special characters in Product Name ──
+  // Allows: letters, numbers, spaces, and common special chars: - _ . & / ( ) @ # % + , ' " ! ; : * [ ] { } < > = ~ ` | \ $
   const handleProductNameChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z0-9\s]*$/.test(value)) setProductName(value);
+    // Only block control characters (tab, newline, etc.) — allow all printable special characters
+    if (/^[^\x00-\x1F\x7F]*$/.test(value)) setProductName(value);
   };
 
+  // ── UPDATED: Allow special characters in Print Name ──
   const handlePrintNameChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z0-9\s]*$/.test(value)) setPrintName(value);
+    if (/^[^\x00-\x1F\x7F]*$/.test(value)) setPrintName(value);
   };
 
+  // ── UPDATED: Allow special characters in Alias Name ──
   const handleAliasNameChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z0-9\s]*$/.test(value)) setAliasName(value);
+    if (/^[^\x00-\x1F\x7F]*$/.test(value)) setAliasName(value);
   };
 
+  // ── UPDATED: Allow special characters in Model ──
   const handleModelChange = (e) => {
     const value = e.target.value;
-    if (/^[a-zA-Z0-9\s]*$/.test(value)) setModel(value);
+    if (/^[^\x00-\x1F\x7F]*$/.test(value)) setModel(value);
   };
 
   const handleHsnCodeChange = (e) => {

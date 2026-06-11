@@ -88,8 +88,26 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     }
   }, [product?.brandName, allBrands]);
 
+  // ── UPDATED: Allow special characters for text fields (productName, model, printName, aliasName) ──
+  // Only blocks control characters — allows all printable special characters
   const handleChange = (event) => {
     const { name, value } = event.target;
+
+    // For text fields that should allow special characters
+    const specialCharFields = ["productName", "model", "printName", "aliasName", "description"];
+    if (specialCharFields.includes(name)) {
+      // Allow all printable characters (block only control characters)
+      if (/^[^\x00-\x1F\x7F]*$/.test(value) || name === "description") {
+        // description allows newlines too
+        setProduct((prevProduct) => ({
+          ...prevProduct,
+          [name]: value,
+        }));
+      }
+      return;
+    }
+
+    // For all other fields, use direct set (selects, numbers, etc.)
     setProduct((prevProduct) => ({
       ...prevProduct,
       [name]: value,
