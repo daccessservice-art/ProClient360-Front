@@ -52,8 +52,14 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
 
   const [items, setItems] = useState(
     selectedPO?.items?.length > 0
-      ? selectedPO.items.map(item => ({ ...item, warranty: item.warranty || "" }))
+      ? selectedPO.items.map(item => ({
+          ...item,
+          warranty: item.warranty || "",
+          productName: item.productName || "",
+          hsnSac: item.hsnSac || ""
+        }))
       : [{
+          productName: "",
           brandName: "",
           modelNo: "",
           description: "",
@@ -63,12 +69,13 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
           price: 0,
           discountPercent: 0,
           taxPercent: 0,
+          hsnSac: "",
           netValue: 0,
           warranty: ""
         }]
   );
 
-  const DEFAULT_DELIVERY_ADDRESS = "Office No. - 05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India";
+  const DEFAULT_DELIVERY_ADDRESS = "Office No.05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India";
   const DEFAULT_LOCATION = "Baner, Pune";
 
   useEffect(() => {
@@ -170,6 +177,7 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
 
   const handleAddItem = () => {
     setItems([...items, {
+      productName: "",
       brandName: "",
       modelNo: "",
       description: "",
@@ -179,6 +187,7 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
       price: 0,
       discountPercent: 0,
       taxPercent: 0,
+      hsnSac: "",
       netValue: 0,
       warranty: ""
     }]);
@@ -207,6 +216,8 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
         newItems[index].baseUOM = product.baseUOM;
         newItems[index].description = product.description || "";
         newItems[index].unit = product.baseUOM;
+        newItems[index].productName = product.productName || "";
+        newItems[index].hsnSac = product.hsnCode || "";
       }
     }
 
@@ -558,6 +569,8 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                         <tr>
                           <th>Brand Name</th>
                           <th>Model No</th>
+                          <th>Product Name</th>
+                          <th>HSN/SAC</th>
                           <th>Description</th>
                           <th>Unit</th>
                           <th>Base UOM</th>
@@ -609,6 +622,26 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                                     menuPortal: base => ({ ...base, zIndex: 9999 }),
                                     container: base => ({ ...base, minWidth: '150px' })
                                   }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "150px" }}
+                                  value={item.productName || ""}
+                                  onChange={(e) => handleItemChange(index, 'productName', e.target.value)}
+                                  placeholder="Product Name"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  style={{ minWidth: "90px" }}
+                                  value={item.hsnSac || ""}
+                                  onChange={(e) => handleItemChange(index, 'hsnSac', e.target.value)}
+                                  placeholder="HSN/SAC"
                                 />
                               </td>
                               <td>
@@ -718,17 +751,17 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                       </tbody>
                       <tfoot>
                         <tr>
-                          <td colSpan="10" className="text-end fw-bold">Total Amount</td>
+                          <td colSpan="12" className="text-end fw-bold">Total Amount</td>
                           <td className="fw-bold">{totalAmount.toFixed(2)}</td>
                           <td></td>
                         </tr>
                         <tr>
-                          <td colSpan="10" className="text-end fw-bold">Total Tax</td>
+                          <td colSpan="12" className="text-end fw-bold">Total Tax</td>
                           <td className="fw-bold">{totalTax.toFixed(2)}</td>
                           <td></td>
                         </tr>
                         <tr>
-                          <td colSpan="10" className="text-end fw-bold">Grand Total</td>
+                          <td colSpan="12" className="text-end fw-bold">Grand Total</td>
                           <td className="fw-bold">{grandTotal.toFixed(2)}</td>
                           <td></td>
                         </tr>

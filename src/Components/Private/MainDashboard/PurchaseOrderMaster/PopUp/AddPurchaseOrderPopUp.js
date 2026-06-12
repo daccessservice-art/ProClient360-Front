@@ -54,18 +54,20 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const [brandModelsMap, setBrandModelsMap] = useState(new Map());
   
   const [items, setItems] = useState([{
-  brandName: "",
-  modelNo: "",
-  description: "",
-  unit: "",
-  baseUOM: "",
-  quantity: 1,
-  price: 0,
-  discountPercent: 0,
-  taxPercent: 0,
-  netValue: 0,
-  warranty: ""        // ← ADD
-}]);
+    productName: "",
+    brandName: "",
+    modelNo: "",
+    description: "",
+    unit: "",
+    baseUOM: "",
+    quantity: 1,
+    price: 0,
+    discountPercent: 0,
+    taxPercent: 0,
+    hsnSac: "",
+    netValue: 0,
+    warranty: ""
+  }]);
 
   // Default address constants
   const DEFAULT_DELIVERY_ADDRESS = "Office No. - 05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India";
@@ -218,21 +220,23 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   };
 
   const handleAddBlankItem = () => {
-  setItems([...items, {
-    brandName: "",
-    modelNo: "",
-    description: "",
-    unit: "",
-    baseUOM: "",
-    quantity: 1,
-    price: 0,
-    discountPercent: 0,
-    taxPercent: 0,
-    netValue: 0,
-    warranty: ""        // ← ADD
-  }]);
-  setModels([]);
-};
+    setItems([...items, {
+      productName: "",
+      brandName: "",
+      modelNo: "",
+      description: "",
+      unit: "",
+      baseUOM: "",
+      quantity: 1,
+      price: 0,
+      discountPercent: 0,
+      taxPercent: 0,
+      hsnSac: "",
+      netValue: 0,
+      warranty: ""
+    }]);
+    setModels([]);
+  };
 
 
   const handleAddItemFromInventory = () => {
@@ -240,24 +244,26 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   };
 
   const handleAddProductFromInventory = (productData) => {
-  const newItem = {
-    brandName: productData.brandName || "",
-    modelNo: productData.model || "",
-    description: productData.description || productData.materialName || "",
-    unit: productData.baseUOM || "",
-    baseUOM: productData.baseUOM || "",
-    quantity: 1,
-    price: productData.purchasePrice || productData.unitPrice || 0,
-    discountPercent: 0,
-    taxPercent: productData.gstPercentage || productData.gstRate || 0,
-    netValue: 0,
-    warranty: ""        // ← ADD
+    const newItem = {
+      productName: productData.productName || "",
+      brandName: productData.brandName || "",
+      modelNo: productData.model || "",
+      description: productData.description || productData.materialName || "",
+      unit: productData.baseUOM || "",
+      baseUOM: productData.baseUOM || "",
+      quantity: 1,
+      price: productData.purchasePrice || productData.unitPrice || 0,
+      discountPercent: 0,
+      taxPercent: productData.gstPercentage || productData.gstRate || 0,
+      hsnSac: productData.hsnCode || "",
+      netValue: 0,
+      warranty: ""
+    };
+    newItem.netValue = calculateNetValue(newItem);
+    setItems([...items, newItem]);
+    setShowAddProductPopup(false);
+    toast.success("Product added to purchase order");
   };
-  newItem.netValue = calculateNetValue(newItem);
-  setItems([...items, newItem]);
-  setShowAddProductPopup(false);
-  toast.success("Product added to purchase order");
-};
 
   const handleRemoveItem = (index) => {
     if (items.length > 1) {
@@ -294,6 +300,8 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
         newItems[index].baseUOM = product.baseUOM;
         newItems[index].description = product.description || "";
         newItems[index].unit = product.baseUOM;
+        newItems[index].productName = product.productName || "";
+        newItems[index].hsnSac = product.hsnCode || "";
       }
     }
     
@@ -726,6 +734,8 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       <tr>
         <th>Brand Name</th>
         <th>Model</th>
+        <th>Product Name</th>
+        <th>HSN/SAC</th>
         <th>Description</th>
         <th>Base UOM</th>
         <th>Quantity</th>
@@ -777,6 +787,26 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                   menuPortal: base => ({ ...base, zIndex: 9999 }),
                   container: base => ({ ...base, minWidth: '150px' })
                 }}
+              />
+            </td>
+            <td>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ minWidth: "150px" }}
+                value={item.productName}
+                onChange={(e) => handleItemChange(index, 'productName', e.target.value)}
+                placeholder="Product Name"
+              />
+            </td>
+            <td>
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ minWidth: "90px" }}
+                value={item.hsnSac}
+                onChange={(e) => handleItemChange(index, 'hsnSac', e.target.value)}
+                placeholder="HSN/SAC"
               />
             </td>
             <td>
@@ -876,17 +906,17 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     </tbody>
     <tfoot>
       <tr>
-        <td colSpan="9" className="text-end fw-bold">Total Amount</td>
+        <td colSpan="11" className="text-end fw-bold">Total Amount</td>
         <td className="fw-bold">{totalAmount.toFixed(2)}</td>
         <td></td>
       </tr>
       <tr>
-        <td colSpan="9" className="text-end fw-bold">Total Tax</td>
+        <td colSpan="11" className="text-end fw-bold">Total Tax</td>
         <td className="fw-bold">{totalTax.toFixed(2)}</td>
         <td></td>
       </tr>
       <tr>
-        <td colSpan="9" className="text-end fw-bold">Grand Total</td>
+        <td colSpan="11" className="text-end fw-bold">Grand Total</td>
         <td className="fw-bold">{grandTotal.toFixed(2)}</td>
         <td></td>
       </tr>

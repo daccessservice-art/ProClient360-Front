@@ -18,7 +18,7 @@ const COMPANY_INFO = {
   gstin: "GSTIN : 27AACCD7325G1ZR",
 };
 
-// ─── PDF Generator (pure browser, no library needed) ────────────────────────
+// ─── PDF Generator ───────────────────────────────────────────────────────────
 const generatePDF = (products) => {
   const formatINR = (val) => {
     if (!val || val <= 0) return "-";
@@ -29,7 +29,6 @@ const generatePDF = (products) => {
   const dateStr = now.toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" });
   const timeStr = now.toLocaleTimeString("en-IN");
 
-  // Build HTML for print
   const rows = products
     .map(
       (p, i) => `
@@ -54,7 +53,6 @@ const generatePDF = (products) => {
     )
     .join("");
 
-  // Summary calculations
   const totalStock = products.reduce((sum, p) => sum + (parseFloat(p.currentStockQty) || 0), 0);
   const totalStockValue = products.reduce(
     (sum, p) => sum + (parseFloat(p.currentStockQty) || 0) * (parseFloat(p.purchasePrice) || 0),
@@ -91,10 +89,7 @@ const generatePDF = (products) => {
         .summary-card .label { font-size: 9px; color: #555; }
         .summary-card .value { font-size: 13px; font-weight: bold; color: #1e3a5f; margin-top: 2px; }
         .footer { margin-top: 20px; text-align: center; font-size: 8px; color: #aaa; border-top: 1px solid #eee; padding-top: 8px; }
-        @media print {
-          body { padding: 5px; }
-          .no-print { display: none; }
-        }
+        @media print { body { padding: 5px; } .no-print { display: none; } }
       </style>
     </head>
     <body>
@@ -105,12 +100,10 @@ const generatePDF = (products) => {
         <div class="company-sub">${COMPANY_INFO.gstin}</div>
         <div class="report-title">PRODUCT MASTER REPORT</div>
       </div>
-
       <div class="meta-row">
         <span>Total Products: <strong>${products.length}</strong></span>
         <span>Date: <strong>${dateStr}</strong> &nbsp; Time: <strong>${timeStr}</strong></span>
       </div>
-
       <table>
         <thead>
           <tr>
@@ -132,11 +125,8 @@ const generatePDF = (products) => {
             <th>Tax</th>
           </tr>
         </thead>
-        <tbody>
-          ${rows}
-        </tbody>
+        <tbody>${rows}</tbody>
       </table>
-
       <div class="summary-section">
         <div class="summary-grid">
           <div class="summary-card">
@@ -157,14 +147,10 @@ const generatePDF = (products) => {
           </div>
         </div>
       </div>
-
       <div class="footer">
         This is a system-generated report. &nbsp;|&nbsp; Printed on ${dateStr} at ${timeStr}
       </div>
-
-      <script>
-        window.onload = function() { window.print(); }
-      </script>
+      <script>window.onload = function() { window.print(); }</script>
     </body>
     </html>
   `;
@@ -184,7 +170,6 @@ const generateExcel = (products) => {
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-IN");
 
-  // Header rows
   const companyRows = [
     [COMPANY_INFO.name],
     [COMPANY_INFO.address],
@@ -197,80 +182,40 @@ const generateExcel = (products) => {
   ];
 
   const headers = [
-    "Sr. No",
-    "Product Name",
-    "Brand Name",
-    "Model",
-    "Print Name",
-    "Alias Name",
-    "HSN Code",
-    "Description",
-    "Product Category",
-    "Base UOM",
-    "Alternate UOM",
-    "UOM Conversion",
-    "Product Group",
-    "MRP (Rs.)",
-    "Sales Price (Rs.)",
-    "Purchase Price (Rs.)",
-    "Min. Sales Price (Rs.)",
-    "Min. Qty Level",
-    "Current Stock Qty.",
-    "Stock Value (Purchase Rs.)",
-    "Discount Type",
-    "Discount Value",
-    "Tax Type",
-    "GST Rate (%)",
-    "CESS % ",
-    "CESS Amount (Rs.)",
+    "Sr. No", "Product Name", "Brand Name", "Model", "Print Name", "Alias Name",
+    "HSN Code", "Description", "Product Category", "Base UOM", "Alternate UOM",
+    "UOM Conversion", "Product Group", "MRP (Rs.)", "Sales Price (Rs.)",
+    "Purchase Price (Rs.)", "Min. Sales Price (Rs.)", "Min. Qty Level",
+    "Current Stock Qty.", "Stock Value (Purchase Rs.)", "Discount Type",
+    "Discount Value", "Tax Type", "GST Rate (%)", "CESS %", "CESS Amount (Rs.)",
   ];
 
   const dataRows = products.map((p, i) => {
     const stockVal = (parseFloat(p.currentStockQty) || 0) * (parseFloat(p.purchasePrice) || 0);
     return [
-      i + 1,
-      p.productName || "",
-      p.brandName || "",
-      p.model || "",
-      p.printName || "",
-      p.aliasName || "",
-      p.hsnCode || "",
-      p.description || "",
-      p.productCategory || "",
-      p.baseUOM || "",
-      p.alternateUOM || "",
-      p.uomConversion || 1,
-      p.category || "",
-      formatVal(p.mrp),
-      formatVal(p.salesPrice),
-      formatVal(p.purchasePrice),
-      formatVal(p.minSalesPrice),
-      p.minQtyLevel || 0,
-      p.currentStockQty != null ? p.currentStockQty : 0,
-      stockVal.toFixed(2),
-      p.discountType || "Zero Discount",
-      p.discountValue || 0,
-      p.taxType || "none",
-      p.taxType === "gst" ? p.gstRate || 0 : "",
+      i + 1, p.productName || "", p.brandName || "", p.model || "",
+      p.printName || "", p.aliasName || "", p.hsnCode || "", p.description || "",
+      p.productCategory || "", p.baseUOM || "", p.alternateUOM || "",
+      p.uomConversion || 1, p.category || "", formatVal(p.mrp),
+      formatVal(p.salesPrice), formatVal(p.purchasePrice), formatVal(p.minSalesPrice),
+      p.minQtyLevel || 0, p.currentStockQty != null ? p.currentStockQty : 0,
+      stockVal.toFixed(2), p.discountType || "Zero Discount", p.discountValue || 0,
+      p.taxType || "none", p.taxType === "gst" ? p.gstRate || 0 : "",
       p.taxType === "cess" ? p.cessPercentage || 0 : "",
       p.taxType === "cess" ? p.cessAmount || 0 : "",
     ];
   });
 
-  // Summary rows
   const totalStock = products.reduce((sum, p) => sum + (parseFloat(p.currentStockQty) || 0), 0);
   const totalStockValue = products.reduce(
-    (sum, p) => sum + (parseFloat(p.currentStockQty) || 0) * (parseFloat(p.purchasePrice) || 0),
-    0
+    (sum, p) => sum + (parseFloat(p.currentStockQty) || 0) * (parseFloat(p.purchasePrice) || 0), 0
   );
   const totalMRPValue = products.reduce(
-    (sum, p) => sum + (parseFloat(p.currentStockQty) || 0) * (parseFloat(p.mrp) || 0),
-    0
+    (sum, p) => sum + (parseFloat(p.currentStockQty) || 0) * (parseFloat(p.mrp) || 0), 0
   );
 
   const summaryRows = [
-    [],
-    ["SUMMARY"],
+    [], ["SUMMARY"],
     ["Total Products", products.length],
     ["Total Stock Units", totalStock],
     ["Total Stock Value (Purchase Price)", totalStockValue.toFixed(2)],
@@ -285,13 +230,7 @@ const generateExcel = (products) => {
     return str;
   };
 
-  const allRows = [
-    ...companyRows,
-    headers,
-    ...dataRows,
-    ...summaryRows,
-  ];
-
+  const allRows = [...companyRows, headers, ...dataRows, ...summaryRows];
   const csv = "\uFEFF" + allRows.map((row) => row.map(escape).join(",")).join("\r\n");
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -339,7 +278,6 @@ export const ProductMasterGrid = () => {
   });
 
   const itemsPerPage = 20;
-
   const [productCategories, setProductCategories] = useState([]);
 
   useEffect(() => {
@@ -352,7 +290,6 @@ export const ProductMasterGrid = () => {
   }, []);
 
   const handlePageChange = (page) => setCurrentPage(page);
-
   const handleAdd = () => setAddPopUpShow(!AddPopUpShow);
 
   const handleUpdate = (product) => {
@@ -390,12 +327,8 @@ export const ProductMasterGrid = () => {
           setProducts(data.products || []);
           setPagination(
             data.pagination || {
-              currentPage: 1,
-              totalPages: 0,
-              totalProducts: 0,
-              limit: itemsPerPage,
-              hasNextPage: false,
-              hasPrevPage: false,
+              currentPage: 1, totalPages: 0, totalProducts: 0,
+              limit: itemsPerPage, hasNextPage: false, hasPrevPage: false,
             }
           );
         } else {
@@ -407,11 +340,9 @@ export const ProductMasterGrid = () => {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search]);
 
-  // ✅ PDF Download Handler
   const handleDownloadPDF = async () => {
     try {
       setReportLoading(true);
@@ -431,7 +362,6 @@ export const ProductMasterGrid = () => {
     }
   };
 
-  // ✅ Excel Download Handler
   const handleDownloadExcel = async () => {
     try {
       setReportLoading(true);
@@ -472,13 +402,7 @@ export const ProductMasterGrid = () => {
 
   const formatAmount = (val) => {
     if (!val || val <= 0) return null;
-    return (
-      "₹" +
-      Number(val).toLocaleString("en-IN", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-    );
+    return "₹" + Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   return (
@@ -507,10 +431,8 @@ export const ProductMasterGrid = () => {
                   <div className="col-12 col-lg-3">
                     <h5 className="text-white py-2 mb-0">Product Master</h5>
                   </div>
-
                   <div className="col-12 col-lg-9">
                     <div className="d-flex flex-wrap align-items-center justify-content-end gap-2">
-                      {/* Search */}
                       <div className="form" style={{ minWidth: "200px" }}>
                         <i className="fa fa-search"></i>
                         <form onSubmit={handleOnSearchSubmit}>
@@ -524,7 +446,6 @@ export const ProductMasterGrid = () => {
                         </form>
                       </div>
 
-                      {/* ✅ PDF Button */}
                       {(user?.permissions?.includes("viewProduct") || user?.user === "company") && (
                         <button
                           onClick={handleDownloadPDF}
@@ -537,7 +458,6 @@ export const ProductMasterGrid = () => {
                         </button>
                       )}
 
-                      {/* ✅ Excel Button */}
                       {(user?.permissions?.includes("viewProduct") || user?.user === "company") && (
                         <button
                           onClick={handleDownloadExcel}
@@ -550,7 +470,6 @@ export const ProductMasterGrid = () => {
                         </button>
                       )}
 
-                      {/* Add Button */}
                       {(user?.permissions?.includes("createProduct") || user?.user === "company") && (
                         <button onClick={handleAdd} type="button" className="btn adbtn btn-dark">
                           <i className="fa-solid fa-plus"></i> Add
@@ -575,7 +494,6 @@ export const ProductMasterGrid = () => {
                             <th>Base UOM</th>
                             <th>Category</th>
                             <th className="text-end">Purchase Price</th>
-                            {/* ✅ NEW COLUMN */}
                             <th className="text-end">Curr. Stock Qty</th>
                             <th>Discount Type</th>
                             <th>Action</th>
@@ -602,8 +520,10 @@ export const ProductMasterGrid = () => {
                                 <td>
                                   <span className="badge bg-primary">{product.category}</span>
                                 </td>
+
+                                {/* ✅ FIXED: was showing product.mrp, now correctly shows product.purchasePrice */}
                                 <td className="text-end">
-                                  {product.mrp > 0 ? (
+                                  {product.purchasePrice > 0 ? (
                                     <span
                                       style={{
                                         color: "#15803d",
@@ -612,13 +532,14 @@ export const ProductMasterGrid = () => {
                                         whiteSpace: "nowrap",
                                       }}
                                     >
-                                      {formatAmount(product.mrp)}
+                                      {formatAmount(product.purchasePrice)}
                                     </span>
                                   ) : (
                                     <span style={{ color: "#cbd5e1", fontSize: "0.8rem" }}>—</span>
                                   )}
                                 </td>
-                                {/* ✅ NEW: Current Stock Qty cell */}
+
+                                {/* Current Stock Qty */}
                                 <td className="text-end">
                                   <span
                                     style={{
@@ -639,6 +560,7 @@ export const ProductMasterGrid = () => {
                                     </small>
                                   </span>
                                 </td>
+
                                 <td>
                                   <span
                                     className={`badge ${
@@ -653,46 +575,29 @@ export const ProductMasterGrid = () => {
                                   </span>
                                 </td>
                                 <td>
-                                  {user?.permissions?.includes("viewProduct") ||
-                                  user?.user === "company" ? (
+                                  {user?.permissions?.includes("viewProduct") || user?.user === "company" ? (
                                     <span onClick={() => handleView(product)} className="view">
                                       <i className="fa-solid fa-eye text-primary me-3 cursor-pointer"></i>
                                     </span>
-                                  ) : (
-                                    ""
-                                  )}
+                                  ) : ""}
 
-                                  {user?.permissions?.includes("updateProduct") ||
-                                  user?.user === "company" ? (
-                                    <span
-                                      onClick={() => handleUpdate(product)}
-                                      className="update"
-                                    >
+                                  {user?.permissions?.includes("updateProduct") || user?.user === "company" ? (
+                                    <span onClick={() => handleUpdate(product)} className="update">
                                       <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
                                     </span>
-                                  ) : (
-                                    ""
-                                  )}
+                                  ) : ""}
 
-                                  {user?.permissions?.includes("deleteProduct") ||
-                                  user?.user === "company" ? (
-                                    <span
-                                      onClick={() => handelDeleteClosePopUpClick(product._id)}
-                                      className="delete"
-                                    >
+                                  {user?.permissions?.includes("deleteProduct") || user?.user === "company" ? (
+                                    <span onClick={() => handelDeleteClosePopUpClick(product._id)} className="delete">
                                       <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
                                     </span>
-                                  ) : (
-                                    ""
-                                  )}
+                                  ) : ""}
                                 </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="11" className="text-center">
-                                No data found
-                              </td>
+                              <td colSpan="11" className="text-center">No data found</td>
                             </tr>
                           )}
                         </tbody>
@@ -703,47 +608,21 @@ export const ProductMasterGrid = () => {
 
                 {/* ── Pagination ── */}
                 <div className="pagination-container text-center my-3 sm">
-                  <button
-                    disabled={!pagination.hasPrevPage}
-                    onClick={() => handlePageChange(1)}
-                    className="btn btn-dark btn-sm me-2"
-                  >
-                    First
-                  </button>
-                  <button
-                    disabled={!pagination.hasPrevPage}
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    className="btn btn-dark btn-sm me-2"
-                  >
-                    Previous
-                  </button>
+                  <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">First</button>
+                  <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">Previous</button>
                   {startPage > 1 && <span className="mx-2">...</span>}
                   {pageButtons.map((page) => (
                     <button
                       key={page}
                       onClick={() => handlePageChange(page)}
-                      className={`btn btn-sm me-1 ${
-                        pagination.currentPage === page ? "btn-primary" : "btn-dark"
-                      }`}
+                      className={`btn btn-sm me-1 ${pagination.currentPage === page ? "btn-primary" : "btn-dark"}`}
                     >
                       {page}
                     </button>
                   ))}
                   {endPage < pagination.totalPages && <span className="mx-2">...</span>}
-                  <button
-                    disabled={!pagination.hasNextPage}
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    className="btn btn-dark btn-sm me-2"
-                  >
-                    Next
-                  </button>
-                  <button
-                    disabled={!pagination.hasNextPage}
-                    onClick={() => handlePageChange(pagination.totalPages)}
-                    className="btn btn-dark btn-sm"
-                  >
-                    Last
-                  </button>
+                  <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">Next</button>
+                  <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">Last</button>
                 </div>
               </div>
             </div>

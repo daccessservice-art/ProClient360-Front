@@ -192,9 +192,9 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                   {getVendorAddress() && (
                     <div className="text-muted mt-1">{getVendorAddress()}</div>
                   )}
-                  {po.vendor?.gstin && (
-                    <div className="mt-1"><strong>GSTIN/UIN:</strong> {po.vendor.gstin}</div>
-                  )}
+                  <div className="mt-1">
+                  <strong>GSTIN/UIN:</strong> {po.vendor?.GSTNo || 'N/A'}
+                  </div>
                 </div>
               </div>
               <div className="col-6">
@@ -249,8 +249,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                       <tr key={idx} className="align-middle">
                         <td className="text-center">{idx + 1}</td>
                         <td>
-                          <div className="fw-semibold">{item.brandName || ''}</div>
-                          <div className="text-muted" style={{ fontSize: '10px' }}>{item.description || item.modelNo || ''}</div>
+                          <div className="fw-semibold">{item.productName || item.brandName || '-'}</div>
+                          <div className="text-muted" style={{ fontSize: '10px' }}>
+                            {[item.brandName, item.modelNo, item.description].filter(Boolean).join(' • ')}
+                          </div>
                         </td>
                         <td className="text-center">{item.hsnSac || '-'}</td>
                         <td className="text-center">{item.baseUOM || item.unit || '-'}</td>
