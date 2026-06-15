@@ -289,7 +289,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
     if (items.length > 1) setItems(items.filter((_, i) => i !== index));
   };
 
-  // ── PO selection ──────────────────────────────────────────────────────────────
+  // ── Vendor change ─────────────────────────────────────────────────────────────
   const handleVendorChange = (selected) => {
     setSelectedVendor(selected);
     setSelectedPO(null);
@@ -302,6 +302,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
     setItems([{ brandName: "", modelNo: "", description: "", unit: "", baseUOM: "", orderedQuantity: 0, receivedQuantity: 0, price: 0, discountPercent: 0, taxPercent: 0, netValue: 0, _currStockQty: 0 }]);
   };
 
+  // ── PO change ─────────────────────────────────────────────────────────────────
   const handlePOChange = (selected) => {
     setSelectedPO(selected);
     if (selected?.po) {
@@ -335,8 +336,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
     }
   };
 
-  // ── After quick-add product ───────────────────────────────────────────────────
-  const handleProductAdded = (newProduct) => {
+  const handleProductAdded = () => {
     loadProductsData();
   };
 
@@ -350,14 +350,30 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
   // ── Submit ────────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!choice) return toast.error("Please select choice (Against PO or Direct Material)");
-    if (choice === "Against PO" && !selectedPO) return toast.error("Please select a purchase order");
     if (!selectedVendor) return toast.error("Please select a vendor");
     if (!transactionType || !purchaseType) return toast.error("Please fill all required fields");
-    // ✅ REMOVED: project validation — project is now optional
     if (purchaseType === "Stock" && !warehouseLocation) return toast.error("Please enter warehouse location");
-    for (let item of items) {
-      if (!item.brandName || !item.modelNo || item.receivedQuantity < 0) return toast.error("Please fill all item details correctly");
+
+    // ✅ Fixed item validation — only check brandName & modelNo for Direct Material
+    // For Against PO items are pre-filled so skip brandName/modelNo check
+    if (choice === "Direct Material") {
+      for (let item of items) {
+        if (!item.brandName || !item.modelNo) {
+          return toast.error("Please select Brand Name and Model No for all items");
+        }
+        if (item.receivedQuantity < 0) {
+          return toast.error("Received quantity cannot be negative");
+        }
+      }
+    } else {
+      // Against PO — only check receivedQuantity
+      for (let item of items) {
+        if (item.receivedQuantity < 0) {
+          return toast.error("Received quantity cannot be negative");
+        }
+      }
     }
 
     // Strip display-only fields before sending
@@ -366,10 +382,12 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
     const grnData = {
       grnDate: new Date(grnDate),
       choice,
-      purchaseOrder: choice === "Against PO" ? selectedPO.value : undefined,
+      // ✅ PO is now optional
+      purchaseOrder: choice === "Against PO" ? (selectedPO?.value || undefined) : undefined,
       vendor: selectedVendor.value,
       transactionType,
       purchaseType,
+      // ✅ Project is now optional
       project: purchaseType === "Project Purchase" ? (selectedProject?.value || undefined) : undefined,
       warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined,
       deliveryAddress,
@@ -462,13 +480,33 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                       <div className="col-12 col-lg-6">
                         <div className="mb-3">
                           <label className="form-label label_text">Vendor Name <RequiredStar /></label>
-                          <Select value={selectedVendor} onChange={handleVendorChange} onInputChange={setVendorSearch} options={vendors} placeholder="Select Vendor..." isClearable className="react-select-container" classNamePrefix="react-select" required />
+                          <Select
+                            value={selectedVendor}
+                            onChange={handleVendorChange}
+                            onInputChange={setVendorSearch}
+                            options={vendors}
+                            placeholder="Select Vendor..."
+                            isClearable
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                          />
                         </div>
                       </div>
                       <div className="col-12 col-lg-6">
                         <div className="mb-3">
-                          <label className="form-label label_text">PO No. <RequiredStar /></label>
-                          <Select value={selectedPO} onChange={handlePOChange} onInputChange={setPoSearch} options={filteredPOs} placeholder={selectedVendor ? "Select Purchase Order..." : "Please select a vendor first"} isClearable isDisabled={!selectedVendor} className="react-select-container" classNamePrefix="react-select" required />
+                          {/* ✅ PO is now optional — removed RequiredStar */}
+                          <label className="form-label label_text">PO No.</label>
+                          <Select
+                            value={selectedPO}
+                            onChange={handlePOChange}
+                            onInputChange={setPoSearch}
+                            options={filteredPOs}
+                            placeholder={selectedVendor ? "Select Purchase Order (Optional)..." : "Please select a vendor first"}
+                            isClearable
+                            isDisabled={!selectedVendor}
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                          />
                           {selectedVendor && filteredPOs.length === 0 && (
                             <small className="text-muted d-block mt-1">No incomplete purchase orders found for this vendor</small>
                           )}
@@ -482,7 +520,16 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
                         <label className="form-label label_text">Vendor Name <RequiredStar /></label>
-                        <Select value={selectedVendor} onChange={setSelectedVendor} onInputChange={setVendorSearch} options={vendors} placeholder="Select Vendor..." isClearable className="react-select-container" classNamePrefix="react-select" required />
+                        <Select
+                          value={selectedVendor}
+                          onChange={setSelectedVendor}
+                          onInputChange={setVendorSearch}
+                          options={vendors}
+                          placeholder="Select Vendor..."
+                          isClearable
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                        />
                       </div>
                     </div>
                   )}
@@ -512,7 +559,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                     </div>
                   </div>
 
-                  {/* ── Project Name (optional) ── */}
+                  {/* ✅ Project Name — optional */}
                   {purchaseType === "Project Purchase" && (
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
