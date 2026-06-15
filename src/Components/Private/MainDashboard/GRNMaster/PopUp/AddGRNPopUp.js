@@ -178,7 +178,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
   useEffect(() => {
     const loadVendors = async () => {
       const data = await getVendors(1, 100, vendorSearch);
-      if (data.success) {
+      if (data && data.success) {
         setVendors(data.vendors.map(v => ({ value: v._id, label: `${v.vendorName} - ${v.email}` })));
       }
     };
@@ -189,7 +189,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
   useEffect(() => {
     const loadPurchaseOrders = async () => {
       const data = await getPurchaseOrders(1, 100, poSearch);
-      if (data.success) {
+      if (data && data.success) {
         const incompletePOs = data.purchaseOrders
           .filter(po => {
             if (po.status === "Received") return false;
@@ -221,7 +221,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
   // ── Load products (for Direct Material) ──────────────────────────────────────
   const loadProductsData = async () => {
     const data = await getProducts(1, 1000, productSearch);
-    if (data.success) {
+    if (data && data.success) {
       setProducts(data.products);
       const uniqueBrands = [...new Set(data.products.map(p => p.brandName).filter(Boolean))];
       setBrands(uniqueBrands.map(brand => ({ value: brand, label: brand })));
@@ -259,6 +259,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
       newItems[index].modelNo = "";
       newItems[index].baseUOM = "";
       newItems[index].unit = "";
+      newItems[index].price = 0;
       newItems[index]._currStockQty = 0;
     }
 
@@ -270,6 +271,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
         newItems[index].baseUOM = product.baseUOM || "";
         newItems[index].unit = product.baseUOM || "";
         newItems[index].description = product.description || "";
+        newItems[index].price = product.price || 0;
         newItems[index]._currStockQty = product.currentStockQty ?? 0;
       }
     }
@@ -325,10 +327,10 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
           baseUOM: item.baseUOM || "",
           orderedQuantity: item.quantity,
           receivedQuantity: remaining,
-          price: item.price,
-          discountPercent: item.discountPercent,
-          taxPercent: item.taxPercent,
-          netValue: calculateNetValue({ receivedQuantity: remaining, price: item.price, discountPercent: item.discountPercent, taxPercent: item.taxPercent }),
+          price: item.price || 0,
+          discountPercent: item.discountPercent || 0,
+          taxPercent: item.taxPercent || 0,
+          netValue: calculateNetValue({ receivedQuantity: remaining, price: item.price || 0, discountPercent: item.discountPercent || 0, taxPercent: item.taxPercent || 0 }),
           _currStockQty: getStockForBrandModel(item.brandName, item.modelNo),
         };
       });
@@ -356,8 +358,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
     if (!transactionType || !purchaseType) return toast.error("Please fill all required fields");
     if (purchaseType === "Stock" && !warehouseLocation) return toast.error("Please enter warehouse location");
 
-    // ✅ Fixed item validation — only check brandName & modelNo for Direct Material
-    // For Against PO items are pre-filled so skip brandName/modelNo check
     if (choice === "Direct Material") {
       for (let item of items) {
         if (!item.brandName || !item.modelNo) {
@@ -368,7 +368,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
         }
       }
     } else {
-      // Against PO — only check receivedQuantity
       for (let item of items) {
         if (item.receivedQuantity < 0) {
           return toast.error("Received quantity cannot be negative");
@@ -376,18 +375,15 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
       }
     }
 
-    // Strip display-only fields before sending
     const cleanItems = items.map(({ _currStockQty, ...rest }) => rest);
 
     const grnData = {
       grnDate: new Date(grnDate),
       choice,
-      // ✅ PO is now optional
       purchaseOrder: choice === "Against PO" ? (selectedPO?.value || undefined) : undefined,
       vendor: selectedVendor.value,
       transactionType,
       purchaseType,
-      // ✅ Project is now optional
       project: purchaseType === "Project Purchase" ? (selectedProject?.value || undefined) : undefined,
       warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined,
       deliveryAddress,
@@ -419,12 +415,15 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
       toast.loading("Creating GRN...");
       const data = await createGRN(grnData);
       toast.dismiss();
-      if (data.success) { toast.success(data.message); handleAdd(); }
-      else toast.error(data.error || "Failed to create GRN");
+      if (data && data.success) { toast.success(data.message); handleAdd(); }
+      else toast.error(data?.error || "Failed to create GRN");
     }
   };
 
   const today = new Date().toISOString().split("T")[0];
+
+  // ── Grand Total ──────────────────────────────────────────────────────────────
+  const grandTotal = items.reduce((sum, item) => sum + (Number(item.netValue) || 0), 0);
 
   return (
     <>
@@ -494,7 +493,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                       </div>
                       <div className="col-12 col-lg-6">
                         <div className="mb-3">
-                          {/* ✅ PO is now optional — removed RequiredStar */}
                           <label className="form-label label_text">PO No.</label>
                           <Select
                             value={selectedPO}
@@ -559,7 +557,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                     </div>
                   </div>
 
-                  {/* ✅ Project Name — optional */}
                   {purchaseType === "Project Purchase" && (
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
@@ -635,6 +632,10 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                             <th style={{ minWidth: 90 }}>Ordered Qty</th>
                             {choice === "Against PO" && <th style={{ minWidth: 100 }}>Already Rcvd</th>}
                             <th style={{ minWidth: 90 }}>Received Qty</th>
+                            <th style={{ minWidth: 100 }}>Price</th>
+                            <th style={{ minWidth: 80 }}>Discount %</th>
+                            <th style={{ minWidth: 80 }}>Tax %</th>
+                            <th style={{ minWidth: 110 }}>Net Value</th>
                             <th style={{ minWidth: 100 }} className="text-warning">Curr. Stock</th>
                             <th style={{ minWidth: 100 }} className="text-info">Balance Qty</th>
                             <th style={{ minWidth: 80 }}>Remark</th>
@@ -733,6 +734,50 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                                   {choice === "Against PO" && <small className="text-muted">Max: {remainingQty}</small>}
                                 </td>
 
+                                {/* Price */}
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm rounded-0"
+                                    value={item.price}
+                                    onChange={e => handleItemChange(index, "price", Number(e.target.value))}
+                                    min="0"
+                                    step="0.01"
+                                    readOnly={choice === "Against PO"}
+                                  />
+                                </td>
+
+                                {/* Discount % */}
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm rounded-0"
+                                    value={item.discountPercent}
+                                    onChange={e => handleItemChange(index, "discountPercent", Number(e.target.value))}
+                                    min="0"
+                                    max="100"
+                                    readOnly={choice === "Against PO"}
+                                  />
+                                </td>
+
+                                {/* Tax % */}
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm rounded-0"
+                                    value={item.taxPercent}
+                                    onChange={e => handleItemChange(index, "taxPercent", Number(e.target.value))}
+                                    min="0"
+                                    max="100"
+                                    readOnly={choice === "Against PO"}
+                                  />
+                                </td>
+
+                                {/* Net Value */}
+                                <td className="text-end align-middle fw-bold">
+                                  {item.netValue != null ? Number(item.netValue).toFixed(2) : "0.00"}
+                                </td>
+
                                 {/* Curr. Stock Qty */}
                                 <td className="text-center align-middle">
                                   <span style={{ fontWeight: 700, fontSize: "0.85rem", color: currStock > 0 ? "#1e40af" : "#6b7280" }}>
@@ -769,6 +814,13 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                             );
                           })}
                         </tbody>
+                        <tfoot>
+                          <tr className="fw-bold table-secondary">
+                            <td colSpan={choice === "Against PO" ? 9 : 9} className="text-end">Grand Total:</td>
+                            <td className="text-end">{grandTotal.toFixed(2)}</td>
+                            <td colSpan={choice === "Direct Material" ? 4 : 3}></td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>
