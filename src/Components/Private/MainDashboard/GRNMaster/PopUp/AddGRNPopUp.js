@@ -54,7 +54,6 @@ const QuickAddProductModal = ({ onClose, onProductAdded }) => {
     setSaving(false);
 
     if (data?.success) {
-      // Persist brand/category to localStorage so Product Master picks it up
       try {
         const savedBrands = JSON.parse(localStorage.getItem("productBrands") || "[]");
         if (!savedBrands.includes(brandName.trim())) {
@@ -156,7 +155,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
   const [productSearch, setProductSearch] = useState("");
   const [brands, setBrands] = useState([]);
 
-  // Quick Add Product modal
   const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   const [items, setItems] = useState([
@@ -172,7 +170,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
       discountPercent: 0,
       taxPercent: 0,
       netValue: 0,
-      // display-only — not sent to backend
       _currStockQty: 0,
     },
   ]);
@@ -340,7 +337,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
 
   // ── After quick-add product ───────────────────────────────────────────────────
   const handleProductAdded = (newProduct) => {
-    // Reload products list so the new brand/model appear immediately
     loadProductsData();
   };
 
@@ -358,7 +354,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
     if (choice === "Against PO" && !selectedPO) return toast.error("Please select a purchase order");
     if (!selectedVendor) return toast.error("Please select a vendor");
     if (!transactionType || !purchaseType) return toast.error("Please fill all required fields");
-    if (purchaseType === "Project Purchase" && !selectedProject) return toast.error("Please select a project");
+    // ✅ REMOVED: project validation — project is now optional
     if (purchaseType === "Stock" && !warehouseLocation) return toast.error("Please enter warehouse location");
     for (let item of items) {
       if (!item.brandName || !item.modelNo || item.receivedQuantity < 0) return toast.error("Please fill all item details correctly");
@@ -374,7 +370,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
       vendor: selectedVendor.value,
       transactionType,
       purchaseType,
-      project: purchaseType === "Project Purchase" ? selectedProject?.value : undefined,
+      project: purchaseType === "Project Purchase" ? (selectedProject?.value || undefined) : undefined,
       warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined,
       deliveryAddress,
       location,
@@ -414,7 +410,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
 
   return (
     <>
-      {/* Quick Add Product Modal */}
       {showQuickAdd && (
         <QuickAddProductModal
           onClose={() => setShowQuickAdd(false)}
@@ -517,11 +512,19 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                     </div>
                   </div>
 
+                  {/* ── Project Name (optional) ── */}
                   {purchaseType === "Project Purchase" && (
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
-                        <label className="form-label label_text">Project Name <RequiredStar /></label>
-                        <Select value={selectedProject} onChange={setSelectedProject} options={projects} placeholder="Select Project..." isClearable isDisabled={choice === "Against PO"} required />
+                        <label className="form-label label_text">Project Name</label>
+                        <Select
+                          value={selectedProject}
+                          onChange={setSelectedProject}
+                          options={projects}
+                          placeholder="Select Project (Optional)..."
+                          isClearable
+                          isDisabled={choice === "Against PO"}
+                        />
                       </div>
                     </div>
                   )}
@@ -562,7 +565,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <h6 className="fw-bold mb-0">Item Details</h6>
                       <div className="d-flex gap-2">
-                        {/* ✅ Quick Add Product Button */}
                         {choice === "Direct Material" && (
                           <button type="button" className="btn btn-sm btn-outline-success" onClick={() => setShowQuickAdd(true)} title="Add new product to Product Master">
                             <i className="fa fa-plus me-1"></i> Add Product
@@ -586,7 +588,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                             <th style={{ minWidth: 90 }}>Ordered Qty</th>
                             {choice === "Against PO" && <th style={{ minWidth: 100 }}>Already Rcvd</th>}
                             <th style={{ minWidth: 90 }}>Received Qty</th>
-                            {/* ✅ NEW COLUMNS */}
                             <th style={{ minWidth: 100 }} className="text-warning">Curr. Stock</th>
                             <th style={{ minWidth: 100 }} className="text-info">Balance Qty</th>
                             <th style={{ minWidth: 80 }}>Remark</th>
@@ -597,7 +598,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                           {items.map((item, index) => {
                             const modelOptions = choice === "Direct Material" ? getModelsForBrand(item.brandName) : [];
 
-                            // For PO: read alreadyReceived from PO data
                             let alreadyReceived = 0;
                             let remainingQty = item.orderedQuantity;
                             if (choice === "Against PO" && selectedPO?.po) {
@@ -608,9 +608,6 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                               }
                             }
 
-                            // ✅ Curr. Stock & Balance Qty
-                            // Balance = existing stock + ordered qty - received qty
-                            // e.g. stock=150, ordered=10, received=5 → balance=155
                             const currStock = item._currStockQty ?? 0;
                             const orderedQty = parseFloat(item.orderedQuantity) || 0;
                             const receivedQty = parseFloat(item.receivedQuantity) || 0;
@@ -689,7 +686,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                                   {choice === "Against PO" && <small className="text-muted">Max: {remainingQty}</small>}
                                 </td>
 
-                                {/* ✅ Curr. Stock Qty */}
+                                {/* Curr. Stock Qty */}
                                 <td className="text-center align-middle">
                                   <span style={{ fontWeight: 700, fontSize: "0.85rem", color: currStock > 0 ? "#1e40af" : "#6b7280" }}>
                                     {currStock}
@@ -697,7 +694,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                                   </span>
                                 </td>
 
-                                {/* ✅ Balance Qty */}
+                                {/* Balance Qty */}
                                 <td className="text-center align-middle">
                                   <span style={{ fontWeight: 700, fontSize: "0.85rem", color: balanceColor }}>
                                     {balanceQty}
