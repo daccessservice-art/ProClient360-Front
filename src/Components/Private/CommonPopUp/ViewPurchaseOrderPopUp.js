@@ -245,14 +245,28 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                     const lineAmt = qty * rate * (1 - disc / 100);
                     const taxAmt  = lineAmt * taxPct / 100;
                     const netVal  = lineAmt + taxAmt;
+
+                    // ── FIX: show Brand Name & Model as clearly labeled,
+                    // always-visible sub-line (previously these were only
+                    // shown as unlabeled text mixed in with description,
+                    // and easy to miss). Item name / description logic and
+                    // all other columns, widths, and styling are unchanged.
+                    const itemName = item.productName || item.brandName || '-';
+                    const subParts = [];
+                    if (item.brandName) subParts.push(`Brand: ${item.brandName}`);
+                    if (item.modelNo) subParts.push(`Model: ${item.modelNo}`);
+                    if (item.description) subParts.push(item.description);
+
                     return (
                       <tr key={idx} className="align-middle">
                         <td className="text-center">{idx + 1}</td>
                         <td>
-                          <div className="fw-semibold">{item.productName || item.brandName || '-'}</div>
-                          <div className="text-muted" style={{ fontSize: '10px' }}>
-                            {[item.brandName, item.modelNo, item.description].filter(Boolean).join(' • ')}
-                          </div>
+                          <div className="fw-semibold">{itemName}</div>
+                          {subParts.length > 0 && (
+                            <div className="text-muted" style={{ fontSize: '10px' }}>
+                              {subParts.join(' • ')}
+                            </div>
+                          )}
                         </td>
                         <td className="text-center">{item.hsnSac || '-'}</td>
                         <td className="text-center">{item.baseUOM || item.unit || '-'}</td>

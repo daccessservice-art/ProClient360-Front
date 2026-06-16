@@ -74,6 +74,9 @@ export const PurchaseOrderMasterGrid = () => {
   };
 
   const handlePageChange = (page) => {
+    // ── FIX: guard against invalid / out-of-range page numbers,
+    // same as ProductMasterGrid. Pure logic change, no UI impact. ──
+    if (page < 1 || (pagination.totalPages > 0 && page > pagination.totalPages)) return;
     setCurrentPage(page);
   };
 
@@ -141,16 +144,30 @@ export const PurchaseOrderMasterGrid = () => {
             hasPrevPage: false,
           });
         } else {
-          toast(data.error);
+          // ── FIX: clear stale rows + pagination on "no results" instead of
+          // leaving the previous page's data on screen (same fix as
+          // ProductMasterGrid; backend returns this shape on 404). ──
+          setPurchaseOrders([]);
+          setPagination({
+            currentPage: 1,
+            totalPages: 0,
+            totalPurchaseOrders: 0,
+            limit: itemsPerPage,
+            hasNextPage: false,
+            hasPrevPage: false,
+          });
+          if (data?.error) toast(data.error);
         }
       } catch (error) {
         console.error("Error fetching purchase orders:", error);
+        setPurchaseOrders([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search]);
 
   const maxPageButtons = 5;
@@ -164,7 +181,23 @@ export const PurchaseOrderMasterGrid = () => {
 
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
-    setSearch(searchText);
+    // ── FIX: reset to page 1 on every new search submit, so the frontend's
+    // currentPage stays in sync with the backend (which always forces page=1
+    // when a search query `q` is present). Same fix as ProductMasterGrid. ──
+    setCurrentPage(1);
+    setSearch(searchText.trim());
+  };
+
+  // ── FIX: also reset to page 1 when the search box is cleared back to
+  // empty, so clearing search doesn't leave pagination stuck on a page
+  // number that no longer matches the full result set. ──
+  const handleSearchTextChange = (e) => {
+    const value = e.target.value;
+    setSearchText(value);
+    if (value.trim() === "" && search !== "") {
+      setCurrentPage(1);
+      setSearch("");
+    }
   };
 
   const pageButtons = [];
@@ -217,7 +250,7 @@ export const PurchaseOrderMasterGrid = () => {
                             <input
                               type="text"
                               value={searchText}
-                              onChange={(e) => setSearchText(e.target.value)}
+                              onChange={handleSearchTextChange}
                               className="form-control form-input bg-transparant"
                               placeholder="Search ..."
                             />
