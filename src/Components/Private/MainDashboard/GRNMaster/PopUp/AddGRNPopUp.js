@@ -638,7 +638,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                             <th style={{ minWidth: 110 }}>Net Value</th>
                             <th style={{ minWidth: 100 }} className="text-warning">Curr. Stock</th>
                             <th style={{ minWidth: 100 }} className="text-info">Balance Qty</th>
-                            <th style={{ minWidth: 80 }}>Remark</th>
+                            <th style={{ minWidth: 550 }}>Remark</th>
                             {choice === "Direct Material" && <th style={{ minWidth: 60 }}>Del</th>}
                           </tr>
                         </thead>
