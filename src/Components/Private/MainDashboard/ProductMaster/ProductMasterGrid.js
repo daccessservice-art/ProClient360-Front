@@ -289,7 +289,12 @@ export const ProductMasterGrid = () => {
     }
   }, []);
 
-  const handlePageChange = (page) => setCurrentPage(page);
+  const handlePageChange = (page) => {
+    // ── FIX: guard against invalid / out-of-range page numbers ──
+    if (page < 1 || (pagination.totalPages > 0 && page > pagination.totalPages)) return;
+    setCurrentPage(page);
+  };
+
   const handleAdd = () => setAddPopUpShow(!AddPopUpShow);
 
   const handleUpdate = (product) => {
@@ -332,15 +337,24 @@ export const ProductMasterGrid = () => {
             }
           );
         } else {
-          toast(data.error);
+          // ── FIX: clear stale rows + pagination instead of leaving old data on screen
+          // when a search returns "No products found" (backend 404 case)
+          setProducts([]);
+          setPagination({
+            currentPage: 1, totalPages: 0, totalProducts: 0,
+            limit: itemsPerPage, hasNextPage: false, hasPrevPage: false,
+          });
+          if (data?.error) toast(data.error);
         }
       } catch (error) {
         console.error("Error fetching products:", error);
+        setProducts([]);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search]);
 
   const handleDownloadPDF = async () => {
@@ -392,7 +406,23 @@ export const ProductMasterGrid = () => {
 
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
-    setSearch(searchText);
+    // ── FIX: reset to page 1 whenever a new search is submitted.
+    // Backend already forces page=1 internally when `q` is present,
+    // but the frontend's `currentPage` state must match it, otherwise
+    // Next/Prev/page-number buttons go out of sync with what's displayed.
+    setCurrentPage(1);
+    setSearch(searchText.trim());
+  };
+
+  // ── FIX: also reset to page 1 when the search box is cleared back to empty,
+  // so clearing search doesn't leave you stuck on a page that no longer has results ──
+  const handleSearchTextChange = (e) => {
+    const value = e.target.value;
+    setSearchText(value);
+    if (value.trim() === "" && search !== "") {
+      setCurrentPage(1);
+      setSearch("");
+    }
   };
 
   const pageButtons = [];
@@ -439,7 +469,7 @@ export const ProductMasterGrid = () => {
                           <input
                             type="text"
                             value={searchText}
-                            onChange={(e) => setSearchText(e.target.value)}
+                            onChange={handleSearchTextChange}
                             className="form-control form-input bg-transparant"
                             placeholder="Search ..."
                           />
@@ -521,7 +551,6 @@ export const ProductMasterGrid = () => {
                                   <span className="badge bg-primary">{product.category}</span>
                                 </td>
 
-                                {/* ✅ FIXED: was showing product.mrp, now correctly shows product.purchasePrice */}
                                 <td className="text-end">
                                   {product.purchasePrice > 0 ? (
                                     <span
@@ -607,23 +636,25 @@ export const ProductMasterGrid = () => {
                 </div>
 
                 {/* ── Pagination ── */}
-                <div className="pagination-container text-center my-3 sm">
-                  <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">First</button>
-                  <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">Previous</button>
-                  {startPage > 1 && <span className="mx-2">...</span>}
-                  {pageButtons.map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(page)}
-                      className={`btn btn-sm me-1 ${pagination.currentPage === page ? "btn-primary" : "btn-dark"}`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  {endPage < pagination.totalPages && <span className="mx-2">...</span>}
-                  <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">Next</button>
-                  <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">Last</button>
-                </div>
+                {pagination.totalPages > 1 && (
+                  <div className="pagination-container text-center my-3 sm">
+                    <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">First</button>
+                    <button disabled={!pagination.hasPrevPage} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">Previous</button>
+                    {startPage > 1 && <span className="mx-2">...</span>}
+                    {pageButtons.map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`btn btn-sm me-1 ${pagination.currentPage === page ? "btn-primary" : "btn-dark"}`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    {endPage < pagination.totalPages && <span className="mx-2">...</span>}
+                    <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">Next</button>
+                    <button disabled={!pagination.hasNextPage} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">Last</button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

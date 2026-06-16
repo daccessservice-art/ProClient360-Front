@@ -3,9 +3,14 @@ import axios from 'axios';
 const baseUrl = process.env.REACT_APP_API_URL;
 const url = baseUrl + "/api/product";
 
-const getProducts = async (page = 1, limit = 20, search = null) => {
+const getProducts = async (page = 1, limit = 20, search = "") => {
   try {
-    const response = await axios.get(`${url}?q=${search}&page=${page}&limit=${limit}`, {
+    // ── FIX: previously `search` could be `null`/`undefined` and got
+    // interpolated straight into the URL as the literal text "null" or
+    // "undefined" (?q=null). encodeURIComponent + defaulting to "" avoids
+    // that and also makes special characters in search terms URL-safe.
+    const q = encodeURIComponent(search ?? "");
+    const response = await axios.get(`${url}?q=${q}&page=${page}&limit=${limit}`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
@@ -78,10 +83,12 @@ const deleteProduct = async (Id) => {
   }
 };
 
-// ✅ NEW: Fetch ALL products for report (no pagination)
-const getAllProductsForReport = async (search = null) => {
+// ✅ Fetch ALL products for report (no pagination)
+const getAllProductsForReport = async (search = "") => {
   try {
-    const response = await axios.get(`${url}/report/all?q=${search}`, {
+    // ── FIX: same null/undefined-as-string issue as getProducts ──
+    const q = encodeURIComponent(search ?? "");
+    const response = await axios.get(`${url}/report/all?q=${q}`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       }
