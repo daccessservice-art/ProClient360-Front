@@ -39,14 +39,16 @@ const AddDCPopUp = ({ handleAdd, projects }) => {
   const [productSearch, setProductSearch] = useState("");
   const [brands, setBrands] = useState([]);
 
+  // ── NEW: added productName so it can be displayed/sent alongside brand+model ──
   const [items, setItems] = useState([{
+    productName: "",
     brandName: "",
     modelNo: "",
     quantity: 1,
     unit: "",
     baseUOM: "",
-    currStockQty: null,   // ← new: for display only
-    productId: null       // ← new: to track which product
+    currStockQty: null,   // ← for display only
+    productId: null
   }]);
 
   // ── Load customers ──────────────────────────────────────────────────────────
@@ -134,7 +136,7 @@ const AddDCPopUp = ({ handleAdd, projects }) => {
   // ── Item helpers ────────────────────────────────────────────────────────────
   const handleAddItem = () => {
     setItems([...items, {
-      brandName: "", modelNo: "", quantity: 1,
+      productName: "", brandName: "", modelNo: "", quantity: 1,
       unit: "", baseUOM: "", currStockQty: null, productId: null
     }]);
   };
@@ -152,6 +154,7 @@ const AddDCPopUp = ({ handleAdd, projects }) => {
       newItems[index].baseUOM = "";
       newItems[index].currStockQty = null;
       newItems[index].productId = null;
+      newItems[index].productName = ""; // ── NEW: clear product name when brand changes ──
     }
 
     if (field === 'modelNo' && value && newItems[index].brandName) {
@@ -161,9 +164,9 @@ const AddDCPopUp = ({ handleAdd, projects }) => {
       if (product) {
         newItems[index].baseUOM = product.baseUOM;
         newItems[index].unit = product.baseUOM;
-        // ← store current stock for display & validation
         newItems[index].currStockQty = product.currentStockQty ?? 0;
         newItems[index].productId = product._id;
+        newItems[index].productName = product.productName || ""; // ── NEW: show product name ──
       }
     }
 
@@ -210,7 +213,6 @@ const AddDCPopUp = ({ handleAdd, projects }) => {
       if (!item.brandName || !item.modelNo || item.quantity < 1)
         return toast.error("Please fill all item details correctly");
 
-      // ← validate against available stock
       if (item.currStockQty !== null && item.quantity > item.currStockQty) {
         return toast.error(
           `Quantity (${item.quantity}) for ${item.brandName} - ${item.modelNo} exceeds available stock (${item.currStockQty})`
@@ -231,7 +233,7 @@ const AddDCPopUp = ({ handleAdd, projects }) => {
       warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined,
       deliveryAddress,
       location,
-      // send productId alongside each item so backend can update stock
+      // strip display-only field; productName now travels with each item
       items: items.map(({ currStockQty, ...rest }) => rest),
       remark,
       attachments: attachments.map(att => ({
@@ -480,6 +482,7 @@ const AddDCPopUp = ({ handleAdd, projects }) => {
                     <table className="table table-bordered">
                       <thead>
                         <tr>
+                          <th style={{ minWidth: "160px" }}>Product Name</th>
                           <th>Brand Name</th>
                           <th>Model No</th>
                           <th style={{ minWidth: "110px" }}>Curr. Stock Qty</th>
@@ -505,6 +508,15 @@ const AddDCPopUp = ({ handleAdd, projects }) => {
 
                           return (
                             <tr key={index}>
+                              {/* ── NEW: Product Name (auto-filled, read-only) ── */}
+                              <td className="align-middle">
+                                {item.productName ? (
+                                  <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>{item.productName}</span>
+                                ) : (
+                                  <span style={{ color: "#cbd5e1", fontSize: "0.8rem" }}>—</span>
+                                )}
+                              </td>
+
                               {/* Brand */}
                               <td>
                                 <Select

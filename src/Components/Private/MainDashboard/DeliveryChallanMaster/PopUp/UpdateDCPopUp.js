@@ -36,11 +36,16 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
   const [products, setProducts] = useState([]);
   const [brands, setBrands] = useState([]);
 
-  // Initialise items — enrich existing items with currStockQty later once products load
+  // ── NEW: carry productName through (existing items may not have it yet, so default "") ──
   const [items, setItems] = useState(
     (selectedDC?.items || [{
-      brandName: "", modelNo: "", quantity: 1, unit: "", baseUOM: ""
-    }]).map(item => ({ ...item, currStockQty: null, productId: item.productId || null }))
+      productName: "", brandName: "", modelNo: "", quantity: 1, unit: "", baseUOM: ""
+    }]).map(item => ({
+      ...item,
+      currStockQty: null,
+      productId: item.productId || null,
+      productName: item.productName || ""
+    }))
   );
 
   // ── Load customers ──────────────────────────────────────────────────────────
@@ -87,7 +92,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
         const uniqueBrands = [...new Set(data.products.map(p => p.brandName).filter(Boolean))];
         setBrands(uniqueBrands.map(brand => ({ value: brand, label: brand })));
 
-        // Enrich existing items with live currStockQty from the loaded product list
+        // Enrich existing items with live currStockQty + productName from the loaded product list
         setItems(prev => prev.map(item => {
           if (item.brandName && item.modelNo) {
             const product = data.products.find(
@@ -98,6 +103,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
                 ...item,
                 currStockQty: product.currentStockQty ?? 0,
                 productId: product._id,
+                productName: item.productName || product.productName || "", // ── NEW ──
                 baseUOM: item.baseUOM || product.baseUOM,
                 unit: item.unit || product.baseUOM,
               };
@@ -121,7 +127,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
   // ── Item helpers ────────────────────────────────────────────────────────────
   const handleAddItem = () => {
     setItems([...items, {
-      brandName: "", modelNo: "", quantity: 1,
+      productName: "", brandName: "", modelNo: "", quantity: 1,
       unit: "", baseUOM: "", currStockQty: null, productId: null
     }]);
   };
@@ -139,6 +145,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
       newItems[index].baseUOM = "";
       newItems[index].currStockQty = null;
       newItems[index].productId = null;
+      newItems[index].productName = ""; // ── NEW ──
     }
 
     if (field === 'modelNo' && value && newItems[index].brandName) {
@@ -153,9 +160,9 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
           oi => oi.brandName === newItems[index].brandName && oi.modelNo === value
         );
         const alreadyAllocated = originalItem ? (originalItem.quantity || 0) : 0;
-        // effective available = product stock + what was previously taken (since backend will restore it)
         newItems[index].currStockQty = (product.currentStockQty ?? 0) + alreadyAllocated;
         newItems[index].productId = product._id;
+        newItems[index].productName = product.productName || ""; // ── NEW ──
       }
     }
 
@@ -223,7 +230,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
       warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined,
       deliveryAddress,
       location,
-      // strip display-only fields before sending
+      // strip display-only field; productName now travels with each item
       items: items.map(({ currStockQty, ...rest }) => rest),
       remark,
       status,
@@ -468,6 +475,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
                     <table className="table table-bordered">
                       <thead>
                         <tr>
+                          <th style={{ minWidth: "160px" }}>Product Name</th>
                           <th>Brand Name</th>
                           <th>Model No</th>
                           <th style={{ minWidth: "120px" }}>Curr. Stock Qty</th>
@@ -493,6 +501,15 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
 
                           return (
                             <tr key={index}>
+                              {/* ── NEW: Product Name (auto-filled, read-only) ── */}
+                              <td className="align-middle">
+                                {item.productName ? (
+                                  <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>{item.productName}</span>
+                                ) : (
+                                  <span style={{ color: "#cbd5e1", fontSize: "0.8rem" }}>—</span>
+                                )}
+                              </td>
+
                               {/* Brand */}
                               <td>
                                 <Select

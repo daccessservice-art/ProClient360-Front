@@ -38,6 +38,7 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
         (item, i) => `
         <tr>
           <td style="padding:7px 8px;border:1px solid #e2e8f0;text-align:center;color:#64748b;">${i + 1}</td>
+          <td style="padding:7px 8px;border:1px solid #e2e8f0;">${item.productName || "—"}</td>
           <td style="padding:7px 8px;border:1px solid #e2e8f0;">${item.brandName || "—"}</td>
           <td style="padding:7px 8px;border:1px solid #e2e8f0;">${item.modelNo || "—"}</td>
           <td style="padding:7px 8px;border:1px solid #e2e8f0;text-align:center;font-weight:700;">${item.quantity ?? "—"}</td>
@@ -56,45 +57,44 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; background: #fff; padding: 20px; }
 
-    .top-band {
-      display: flex;
-      align-items: stretch;
-      border: 2px solid #1e3a5f;
-      border-radius: 6px;
-      overflow: hidden;
-      margin-bottom: 14px;
-    }
-    .company-block {
-      flex: 1;
+    .outer-border { border: 2px solid #1e3a5f; border-radius: 6px; overflow: hidden; }
+
+    .company-header {
       padding: 12px 16px;
       background: #f8fafc;
-      border-right: 2px solid #1e3a5f;
+      border-bottom: 2px solid #1e3a5f;
+      text-align: center;
     }
-    .company-name { font-size: 15px; font-weight: 800; color: #1e3a5f; }
+    .company-name { font-size: 16px; font-weight: 800; color: #1e3a5f; }
     .company-sub  { font-size: 9.5px; color: #64748b; margin-top: 2px; }
 
-    .dc-info-block {
-      min-width: 230px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 14px 20px;
+    .dc-title-bar {
       background: #1e3a5f;
-      gap: 7px;
+      color: #fff;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 8px 0;
+      border-bottom: 2px solid #1e3a5f;
     }
-    .dc-title      { font-size: 13px; font-weight: 800; color: #fff; letter-spacing: 1px; text-transform: uppercase; }
-    .choice-badge  { display: inline-block; padding: 4px 16px; border-radius: 20px; font-size: 11px; font-weight: 700; background: ${cStyle.bg}; color: ${cStyle.color}; }
-    .dc-number-lbl { font-size: 12px; font-weight: 700; color: #bfdbfe; }
-    .dc-date-lbl   { font-size: 10px; color: #93c5fd; }
 
-    .section-card  { border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 12px; overflow: hidden; }
-    .section-title { background: #1e3a5f; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; padding: 5px 12px; }
-    .section-body  { padding: 10px 12px; }
+    .info-row { display: flex; border-bottom: 2px solid #1e3a5f; }
+    .customer-box {
+      flex: 1.3;
+      padding: 12px 16px;
+      border-right: 2px solid #1e3a5f;
+    }
+    .box-label { font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    .cust-name { font-size: 12.5px; font-weight: 800; color: #1e293b; margin-bottom: 3px; }
+    .cust-line { font-size: 10px; color: #475569; margin-bottom: 1px; }
 
-    .detail-grid   { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; }
-    .detail-label  { font-size: 8.5px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
-    .detail-value  { font-size: 10.5px; font-weight: 600; color: #1e293b; }
+    .dc-info-box { flex: 1; }
+    .dc-info-box table { width: 100%; border-collapse: collapse; }
+    .dc-info-box td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }
+    .dc-info-box td:first-child { font-weight: 700; color: #64748b; width: 45%; background: #f8fafc; }
+    .dc-info-box tr:last-child td { border-bottom: none; }
 
     .badge-pdf { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 9.5px; font-weight: 700; }
 
@@ -103,165 +103,87 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
     .items-table thead th { padding: 7px 8px; font-size: 9.5px; font-weight: 700; border: 1px solid #1e3a5f; text-align: left; }
     .items-table tbody tr:nth-child(even) { background: #f8fafc; }
 
-    .signature-row { display: flex; justify-content: space-between; margin-top: 32px; padding: 0 10px; }
+    .note-row { padding: 8px 16px; border-top: 2px solid #1e3a5f; font-size: 10px; color: #475569; }
+    .note-row b { color: #1e293b; }
+
+    .signature-row { display: flex; justify-content: space-between; margin-top: 28px; padding: 0 16px 16px; }
     .sig-box { text-align: center; width: 150px; border-top: 1px solid #94a3b8; padding-top: 4px; font-size: 9px; color: #64748b; }
 
-    .footer { margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; }
+    .footer { padding: 8px 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; }
 
     @media print { body { padding: 8px; } }
   </style>
 </head>
 <body>
 
-  <!-- TOP HEADER BAND: company left, Choice + DC info right -->
-  <div class="top-band">
-    <div class="company-block">
+  <div class="outer-border">
+
+    <div class="company-header">
       <div class="company-name">DAccess Security Systems Pvt. Ltd.</div>
       <div class="company-sub">Office No 5, 3rd Floor, Revati Arcade - II, Opp Kapil Malhar Society, Baner</div>
       <div class="company-sub">Pune, 27-Maharashtra &nbsp;|&nbsp; Pincode - 411045</div>
       <div class="company-sub">GSTIN : 27AACCD7325G1ZR</div>
     </div>
-    <div class="dc-info-block">
-      <div class="dc-title">Delivery Challan</div>
-      <div class="choice-badge">${dc?.choice || "—"}</div>
-      <div class="dc-number-lbl">${dc?.dcNumber || "—"}</div>
-      <div class="dc-date-lbl">Date: ${formatDatePDF(dc?.dcDate)}</div>
-    </div>
-  </div>
 
-  <!-- CHALLAN DETAILS -->
-  <div class="section-card">
-    <div class="section-title">Challan Details</div>
-    <div class="section-body">
-      <div class="detail-grid">
-        <div>
-          <div class="detail-label">DC Number</div>
-          <div class="detail-value">${dc?.dcNumber || "—"}</div>
-        </div>
-        <div>
-          <div class="detail-label">DC Date</div>
-          <div class="detail-value">${formatDatePDF(dc?.dcDate)}</div>
-        </div>
-        <div>
-          <div class="detail-label">Choice</div>
-          <div class="detail-value">
-            <span class="badge-pdf" style="background:${cStyle.bg};color:${cStyle.color};">${dc?.choice || "—"}</span>
-          </div>
-        </div>
-        <div>
-          <div class="detail-label">Transaction Type</div>
-          <div class="detail-value">
-            <span class="badge-pdf" style="background:${txStyle.bg};color:${txStyle.color};">${dc?.transactionType || "—"}</span>
-          </div>
-        </div>
-        <div>
-          <div class="detail-label">Purchase Type</div>
-          <div class="detail-value">${dc?.purchaseType || "—"}</div>
-        </div>
-        <div>
-          <div class="detail-label">Status</div>
-          <div class="detail-value">
-            <span class="badge-pdf" style="background:${sStyle.bg};color:${sStyle.color};">${dc?.status || "—"}</span>
-          </div>
-        </div>
-        <div>
-          <div class="detail-label">PO Number</div>
-          <div class="detail-value">${dc?.poNumber || "—"}</div>
-        </div>
-        <div>
-          <div class="detail-label">Project PO Number</div>
-          <div class="detail-value">${dc?.projectPurchaseOrderNumber || "—"}</div>
-        </div>
-        ${dc?.project?.name ? `
-        <div>
-          <div class="detail-label">Project</div>
-          <div class="detail-value">${dc.project.name}</div>
-        </div>` : ""}
-        ${dc?.warehouseLocation ? `
-        <div>
-          <div class="detail-label">Warehouse Location</div>
-          <div class="detail-value">${dc.warehouseLocation}</div>
-        </div>` : ""}
-        <div>
-          <div class="detail-label">Created By</div>
-          <div class="detail-value">${dc?.createdBy?.name || "—"}</div>
-        </div>
-        <div>
-          <div class="detail-label">Created At</div>
-          <div class="detail-value">${formatDatePDF(dc?.createdAt)}</div>
-        </div>
+    <div class="dc-title-bar">Delivery Challan</div>
+
+    <div class="info-row">
+      <div class="customer-box">
+        <div class="box-label">Customer &amp; Delivery</div>
+        <div class="cust-name">${dc?.customer?.custName || "—"}</div>
+        ${dc?.deliveryAddress ? `<div class="cust-line">${dc.deliveryAddress}</div>` : ""}
+        ${dc?.location ? `<div class="cust-line">Location: ${dc.location}</div>` : ""}
+      </div>
+      <div class="dc-info-box">
+        <table>
+          <tr><td>DC No</td><td>${dc?.dcNumber || "—"}</td></tr>
+          <tr><td>DC Date</td><td>${formatDatePDF(dc?.dcDate)}</td></tr>
+          <tr><td>PO Number</td><td>${dc?.poNumber || "—"}</td></tr>
+          <tr><td>Choice</td><td><span class="badge-pdf" style="background:${cStyle.bg};color:${cStyle.color};">${dc?.choice || "—"}</span></td></tr>
+          <tr><td>Transaction Type</td><td><span class="badge-pdf" style="background:${txStyle.bg};color:${txStyle.color};">${dc?.transactionType || "—"}</span></td></tr>
+          <tr><td>Status</td><td><span class="badge-pdf" style="background:${sStyle.bg};color:${sStyle.color};">${dc?.status || "—"}</span></td></tr>
+          ${dc?.projectPurchaseOrderNumber ? `<tr><td>Project PO No</td><td>${dc.projectPurchaseOrderNumber}</td></tr>` : ""}
+          ${dc?.project?.name ? `<tr><td>Project</td><td>${dc.project.name}</td></tr>` : ""}
+          ${dc?.warehouseLocation ? `<tr><td>Warehouse</td><td>${dc.warehouseLocation}</td></tr>` : ""}
+        </table>
       </div>
     </div>
-  </div>
 
-  <!-- CUSTOMER & DELIVERY -->
-  <div class="section-card">
-    <div class="section-title">Customer &amp; Delivery</div>
-    <div class="section-body">
-      <div class="detail-grid">
-        <div>
-          <div class="detail-label">Customer Name</div>
-          <div class="detail-value">${dc?.customer?.custName || "—"}</div>
-        </div>
-        <div style="grid-column: span 2;">
-          <div class="detail-label">Delivery Address</div>
-          <div class="detail-value">${dc?.deliveryAddress || "—"}</div>
-        </div>
-        <div>
-          <div class="detail-label">Location</div>
-          <div class="detail-value">${dc?.location || "—"}</div>
-        </div>
-      </div>
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width:36px;text-align:center;">#</th>
+          <th>Product Name</th>
+          <th>Brand Name</th>
+          <th>Model No</th>
+          <th style="width:70px;text-align:center;">Qty</th>
+          <th style="width:70px;text-align:center;">Unit</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows || `<tr><td colspan="6" style="text-align:center;padding:12px;color:#94a3b8;">No items</td></tr>`}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align:right;padding:7px 8px;border:1px solid #e2e8f0;font-weight:700;background:#f1f5f9;">Total Items:</td>
+          <td style="text-align:center;padding:7px 8px;border:1px solid #e2e8f0;font-weight:700;background:#f1f5f9;">${dc?.items?.length || 0}</td>
+          <td style="border:1px solid #e2e8f0;background:#f1f5f9;"></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    ${dc?.remark ? `<div class="note-row"><b>Note:</b> ${dc.remark}</div>` : ""}
+
+    <div class="signature-row">
+      <div class="sig-box">Prepared By</div>
+      <div class="sig-box">Checked By</div>
+      <div class="sig-box">Authorised Signatory</div>
     </div>
-  </div>
 
-  <!-- ITEMS TABLE -->
-  <div class="section-card">
-    <div class="section-title">Item Details (${(dc?.items || []).length} item${(dc?.items || []).length !== 1 ? "s" : ""})</div>
-    <div class="section-body" style="padding:0;">
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th style="width:40px;text-align:center;">#</th>
-            <th>Brand Name</th>
-            <th>Model No</th>
-            <th style="width:80px;text-align:center;">Quantity</th>
-            <th style="width:80px;text-align:center;">Unit</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemRows || `<tr><td colspan="5" style="text-align:center;padding:12px;color:#94a3b8;">No items</td></tr>`}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colspan="3" style="text-align:right;padding:7px 8px;border:1px solid #e2e8f0;font-weight:700;background:#f1f5f9;">Total Items:</td>
-            <td style="text-align:center;padding:7px 8px;border:1px solid #e2e8f0;font-weight:700;background:#f1f5f9;">${dc?.items?.length || 0}</td>
-            <td style="border:1px solid #e2e8f0;background:#f1f5f9;"></td>
-          </tr>
-        </tfoot>
-      </table>
+    <div class="footer">
+      <span>This is a system-generated document.</span>
+      <span>Printed on: ${new Date().toLocaleDateString("en-GB")} ${new Date().toLocaleTimeString("en-IN")}</span>
     </div>
-  </div>
-
-  ${dc?.remark ? `
-  <div class="section-card">
-    <div class="section-title">Remark</div>
-    <div class="section-body">
-      <div style="font-size:10.5px;color:#475569;">${dc.remark}</div>
-    </div>
-  </div>` : ""}
-
-  <!-- SIGNATURE -->
-  <div class="signature-row">
-    <div class="sig-box">Prepared By</div>
-    <div class="sig-box">Checked By</div>
-    <div class="sig-box">Authorised Signatory</div>
-  </div>
-
-  <!-- FOOTER -->
-  <div class="footer">
-    <span>This is a system-generated document.</span>
-    <span>Printed on: ${new Date().toLocaleDateString("en-GB")} ${new Date().toLocaleTimeString("en-IN")}</span>
   </div>
 
   <script>window.onload = function(){ window.print(); }</script>
@@ -410,7 +332,7 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
                   </div>
                 )}
 
-                {/* Items Section */}
+                {/* Items Section — Product Name column added */}
                 <div className="row mt-3">
                   <div className="col-12">
                     <h6 className="fw-bold">Items:</h6>
@@ -418,6 +340,7 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
                       <table className="table table-bordered">
                         <thead>
                           <tr>
+                            <th>Product Name</th>
                             <th>Brand Name</th>
                             <th>Model No</th>
                             <th>Quantity</th>
@@ -428,6 +351,7 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
                         <tbody>
                           {dc?.items?.map((item, index) => (
                             <tr key={index}>
+                              <td>{item.productName || "-"}</td>
                               <td>{item.brandName}</td>
                               <td>{item.modelNo}</td>
                               <td>
@@ -442,7 +366,7 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
                         </tbody>
                         <tfoot>
                           <tr className="fw-bold">
-                            <td colSpan="2" className="text-end">Total Items:</td>
+                            <td colSpan="3" className="text-end">Total Items:</td>
                             <td>{dc?.items?.length || 0}</td>
                             <td></td>
                             <td></td>
@@ -453,45 +377,29 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
                   </div>
                 </div>
 
-                {/* Attachments Section */}
+                {/* Attachments Section — <a> tag kept on a single line */}
                 {dc?.attachments && dc.attachments.length > 0 && (
                   <div className="row mt-3">
                     <div className="col-12">
                       <h6 className="fw-bold">Attachments:</h6>
                       <div className="d-flex flex-wrap">
-                        {dc.attachments.map((attachment, index) => (
-                          <div key={index} className="mb-2 me-2">
-                            {attachment.dataUrl ? (
-                              <a
-                                href={attachment.dataUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn btn-sm btn-outline-primary"
-                              >
-                                <i className={`fa-solid ${
-                                  attachment.type.includes('pdf') ? 'fa-file-pdf' :
-                                  attachment.type.includes('image') ? 'fa-file-image' :
-                                  'fa-file'
-                                } me-2`}></i>
+                        {dc.attachments.map((attachment, index) => {
+                          const href = attachment.dataUrl || attachment.url || attachment;
+                          const fileType = attachment.type || "";
+                          const icon = fileType.includes('pdf')
+                            ? 'fa-file-pdf'
+                            : fileType.includes('image')
+                              ? 'fa-file-image'
+                              : 'fa-file';
+                          return (
+                            <div key={index} className="mb-2 me-2">
+                              <a href={href} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
+                                <i className={`fa-solid ${icon} me-2`}></i>
                                 {attachment.name || `Document ${index + 1}`}
                               </a>
-                            ) : (
-                              <a
-                                href={attachment.url || attachment}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn btn-sm btn-outline-primary"
-                              >
-                                <i className={`fa-solid ${
-                                  attachment.type?.includes('pdf') ? 'fa-file-pdf' :
-                                  attachment.type?.includes('image') ? 'fa-file-image' :
-                                  'fa-file'
-                                } me-2`}></i>
-                                {attachment.name || `Document ${index + 1}`}
-                              </a>
-                            )}
-                          </div>
-                        ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
