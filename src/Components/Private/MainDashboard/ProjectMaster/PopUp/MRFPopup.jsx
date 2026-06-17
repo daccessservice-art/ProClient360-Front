@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
+import { getProducts } from "../../../../../hooks/useProduct";
+import { createMRF } from "../../../../../hooks/useMRF";
 
 // ─── Warranty Radio Group ─────────────────────────────────────────────────────
 const WarrantyRadio = ({ label, value, onChange }) => {
@@ -37,37 +39,46 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
     const today = new Date().toISOString().split("T")[0];
 
     // ── Header fields ──
-    const [mrfNo,       setMrfNo]       = useState("");
-    const [date,        setDate]        = useState(today);
-    const [nameOfSite,  setNameOfSite]  = useState("");
-    const [supplyType,  setSupplyType]  = useState("Project");  // Project | Dealer
+    const [mrfNo, setMrfNo] = useState("");
+    const [date, setDate] = useState(today);
+    const [nameOfSite, setNameOfSite] = useState("");
+    const [supplyType, setSupplyType] = useState("Project");
 
     // ── Contact panels (4 panels) ──
-    // 1. Customer's GRN Team Contact Details
     const [grnName,    setGrnName]    = useState("");
     const [grnContact, setGrnContact] = useState("");
     const [grnEmail,   setGrnEmail]   = useState("");
 
-    // 2. Customer Project Team Details
     const [cptName,    setCptName]    = useState("");
     const [cptContact, setCptContact] = useState("");
     const [cptEmail,   setCptEmail]   = useState("");
 
-    // 3. Customer's Project Team Contact Details  (NEW 3rd panel)
     const [cptcName,    setCptcName]    = useState("");
     const [cptcContact, setCptcContact] = useState("");
     const [cptcEmail,   setCptcEmail]   = useState("");
 
-    // 4. Project Created By (auto-filled from project.createdBy)
     const createdByName = selectedProject?.createdBy?.name || "—";
 
-    // ── Material rows  ── simplified columns: Sr, PartNo, Make, ModelNo, Description, Qty, Del
-    const emptyRow = () => ({
-        srNo: 1, partNo: "", make: "", modelNo: "",
-        materialDescription: "", qty: "",
+    // ── Material rows (schema-aligned with mrfModel.js → mrfItemSchema) ──
+    const emptyRow = (srNo = 1) => ({
+        srNo,
+        productName: "",
+        brandName: "",
+        modelNo: "",
+        materialDescription: "",
+        qty: "",
+        remark: "",
+        _unit: "No.",
+        _rate: 0,
     });
-    const [rows,       setRows]       = useState([emptyRow()]);
-    const [matSearch,  setMatSearch]  = useState("");
+    const [rows, setRows] = useState([emptyRow(1)]);
+    const [matSearch, setMatSearch] = useState("");
+
+    // ── Product search state (hits /api/product) ──
+    const [productResults, setProductResults] = useState([]);
+    const [showProductDropdown, setShowProductDropdown] = useState(false);
+    const [productLoading, setProductLoading] = useState(false);
+    const [activeRowIndex, setActiveRowIndex] = useState(0);
 
     // ── Customer MOM description ──
     const [momDescription, setMomDescription] = useState("");
@@ -89,19 +100,82 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
         ? [addr.add, addr.city, addr.state, addr.country, addr.pincode].filter(Boolean).join(", ")
         : "";
 
-    // ── Filtered rows for search ──
+    // ── In-table display filter ──
     const filteredRows = useMemo(() => {
         if (!matSearch.trim()) return rows;
         const q = matSearch.toLowerCase();
         return rows.filter(r =>
-            r.materialDescription.toLowerCase().includes(q) ||
-            r.partNo.toLowerCase().includes(q) ||
-            r.make.toLowerCase().includes(q) ||
-            r.modelNo.toLowerCase().includes(q)
+            (r.productName || "").toLowerCase().includes(q) ||
+            (r.brandName  || "").toLowerCase().includes(q) ||
+            (r.modelNo    || "").toLowerCase().includes(q) ||
+            (r.materialDescription || "").toLowerCase().includes(q)
         );
     }, [rows, matSearch]);
 
-    // ── Row handlers ──
+    // ── Debounced product search via getProducts() ──
+    useEffect(() => {
+        const term = matSearch.trim();
+        if (term.length < 1) {
+            setProductResults([]);
+            setShowProductDropdown(false);
+            return;
+        }
+        let cancelled = false;
+        const t = setTimeout(async () => {
+            setProductLoading(true);
+            try {
+                const data = await getProducts(1, 50, term);
+                if (!cancelled) {
+                    if (data?.success && Array.isArray(data.products)) {
+                        setProductResults(data.products);
+                        setShowProductDropdown(data.products.length > 0);
+                    } else {
+                        setProductResults([]);
+                        setShowProductDropdown(false);
+                    }
+                }
+            } catch (e) {
+                if (!cancelled) {
+                    setProductResults([]);
+                    setShowProductDropdown(false);
+                }
+            } finally {
+                if (!cancelled) setProductLoading(false);
+            }
+        }, 350);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [matSearch]);
+
+    // ── Add a product to a specific row (or append a new row) ──
+    const addProductToRow = (product, rowIndex) => {
+        const targetIdx = rowIndex == null ? rows.length - 1 : rowIndex;
+        const builtRow = {
+            srNo: targetIdx + 1,
+            productName: product.productName || "",
+            brandName: product.brandName || "",
+            modelNo: product.model || "",
+            materialDescription: product.description ||
+                `${product.productName || ""} ${product.brandName || ""} ${product.model || ""}`.trim(),
+            qty: "1",
+            remark: "",
+            _unit: product.baseUOM || "No.",
+            _rate: parseFloat(product.salesPrice) || 0,
+        };
+        setRows(prev => {
+            const target = prev[targetIdx];
+            if (target && !target.productName && !target.brandName && !target.modelNo) {
+                const updated = [...prev];
+                updated[targetIdx] = builtRow;
+                return updated;
+            }
+            return [...prev, { ...builtRow, srNo: prev.length + 1 }];
+        });
+        setMatSearch("");
+        setShowProductDropdown(false);
+        setProductResults([]);
+        toast.success(`Added: ${builtRow.productName} (${builtRow.brandName} - ${builtRow.modelNo})`);
+    };
+
     const handleRowChange = (index, field, value) => {
         setRows(prev => {
             const updated = [...prev];
@@ -111,35 +185,87 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
     };
 
     const addRow = () => {
-        setRows(prev => [...prev, { ...emptyRow(), srNo: prev.length + 1 }]);
+        setRows(prev => [...prev, emptyRow(prev.length + 1)]);
+        setActiveRowIndex(rows.length);
     };
 
     const removeRow = (index) => {
         if (rows.length === 1) return toast.error("At least one row is required.");
-        setRows(prev => prev.filter((_, i) => i !== index).map((r, i) => ({ ...r, srNo: i + 1 })));
+        setRows(prev => prev
+            .filter((_, i) => i !== index)
+            .map((r, i) => ({ ...r, srNo: i + 1 })));
     };
 
-    // ── Submit ──
+    // ── Submit — saves a real MRF document via POST /api/mrf ──
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!mrfNo.trim())  return toast.error("MRF Number is required");
-        if (!date)          return toast.error("Date is required");
-        if (rows.some(r => !r.materialDescription.trim()))
-            return toast.error("Material Description is required for all rows");
+        if (!mrfNo.trim()) return toast.error("MRF Number is required");
+        if (!date)         return toast.error("Date is required");
+
+        if (rows.some(r => !r.productName.trim() && !r.materialDescription.trim()))
+            return toast.error("Product Name / Material Description is required for all rows");
+        if (rows.some(r => !r.qty || Number(r.qty) <= 0))
+            return toast.error("Quantity must be greater than 0 for all rows");
+
+        if (!selectedProject?._id)         return toast.error("Project is missing — cannot create MRF");
+        if (!selectedProject?.custId?._id) return toast.error("Customer is missing — cannot create MRF");
 
         setLoading(true);
         try {
-            // TODO: call createMRF API
-            // await createMRF({ mrfNo, date, nameOfSite, supplyType, projectId: selectedProject._id,
-            //   grnTeam:{grnName,grnContact,grnEmail}, customerProjectTeam:{cptName,cptContact},
-            //   customerProjectTeamContact:{cptcName,cptcContact,cptcEmail}, createdBy: createdByName,
-            //   rows, momDescription,
-            //   scopeOfWorks:{ cablingWarranty, civilWarranty, chimbyPicksWarranty, fabricationWarranty }
-            // });
-            toast.success("MRF Created Successfully!");
-            handleMRF();
-        } catch {
-            toast.error("Failed to create MRF");
+            // Map rows → mrfItemSchema shape so Mongoose validation passes
+            const items = rows.map(r => {
+                const qty   = parseInt(r.qty) || 1;
+                const rate  = Number(r._rate) || 0;
+                const total = qty * rate;
+                return {
+                    brandName: r.brandName || "N/A",
+                    modelNo:   r.modelNo   || "N/A",
+                    quantity:  qty,
+                    unit:      r._unit || "No.",
+                    rate,
+                    discount:  0,
+                    tax:       0,
+                    total,
+                    remark:    r.remark || r.materialDescription || "",
+                };
+            });
+
+            const subtotal       = items.reduce((s, i) => s + i.total, 0);
+            const totalTax       = 0;
+            const transportCost  = 0;
+            const transportTax   = 0;
+            const grandTotal     = subtotal + totalTax + transportCost + transportTax;
+
+            const mrfPayload = {
+                choice:          "MRF Material Request",
+                poNumber:        customerPONo || "",
+                customer:        selectedProject.custId._id,
+                project:         selectedProject._id,
+                mrfDate:         date,
+                transactionType: "B2B",
+                purchaseType:    "Project Purchase",
+                type:            "project",
+                deliveryAddress: billingAddress,
+                location:        nameOfSite,
+                items,
+                remark:          momDescription,
+                subtotal,
+                totalTax,
+                transportCost,
+                transportTax,
+                grandTotal,
+            };
+
+            const data = await createMRF(mrfPayload);
+            if (data?.success) {
+                toast.success(data.message || "MRF Created Successfully!");
+                handleMRF();
+            } else {
+                toast.error(data?.error || "Failed to create MRF");
+            }
+        } catch (err) {
+            console.error("MRF create error:", err);
+            toast.error("Failed to create MRF: " + (err?.message || "Unknown error"));
         } finally {
             setLoading(false);
         }
@@ -201,41 +327,33 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                             {/* ════ SECTION 1 : MRF Header Info ════ */}
                             <div style={{ border: "2px solid #2c3e50", borderRadius: "6px", marginBottom: "14px", overflow: "hidden" }}>
 
-                                {/* Row A: MRF fields + Supply Only */}
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 130px", borderBottom: "1px solid #dee2e6" }}>
                                     <div style={{ padding: "10px 14px" }}>
                                         <div className="row g-2">
-                                            {/* MRF No */}
                                             <div className="col-6 col-md-3">
                                                 <label style={lbl}>MRF No <span style={{color:"red"}}>*</span></label>
                                                 <input style={inp} value={mrfNo} onChange={e=>setMrfNo(e.target.value)} placeholder="MRF-001" required />
                                             </div>
-                                            {/* Date */}
                                             <div className="col-6 col-md-3">
                                                 <label style={lbl}>Date <span style={{color:"red"}}>*</span></label>
                                                 <input type="date" style={inp} value={date} onChange={e=>setDate(e.target.value)} required />
                                             </div>
-                                            {/* Customer Name – auto */}
                                             <div className="col-6 col-md-3">
                                                 <label style={lbl}>Name of Customer</label>
                                                 <input style={{...inp, background:"#e9ecef", cursor:"not-allowed"}} value={customerName} readOnly />
                                             </div>
-                                            {/* Customer PO No – auto */}
                                             <div className="col-6 col-md-3">
                                                 <label style={lbl}>Customer PO No</label>
                                                 <input style={{...inp, background:"#e9ecef", cursor:"not-allowed"}} value={customerPONo} readOnly />
                                             </div>
-                                            {/* Created By – auto from project */}
                                             <div className="col-6 col-md-3">
                                                 <label style={lbl}>Created By</label>
                                                 <input style={{...inp, background:"#e9ecef", cursor:"not-allowed"}} value={createdByName} readOnly />
                                             </div>
-                                            {/* Name of Site */}
                                             <div className="col-6 col-md-3">
                                                 <label style={lbl}>Name of Site</label>
                                                 <input style={inp} value={nameOfSite} onChange={e=>setNameOfSite(e.target.value)} placeholder="Site name" />
                                             </div>
-                                            {/* Billing Address – auto */}
                                             <div className="col-12 col-md-6">
                                                 <label style={lbl}>Billing Address</label>
                                                 <input style={{...inp, background:"#e9ecef", cursor:"not-allowed"}} value={billingAddress} readOnly />
@@ -243,7 +361,6 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                         </div>
                                     </div>
 
-                                    {/* Supply Only box */}
                                     <div style={{
                                         borderLeft: "2px solid #2c3e50", padding: "10px 12px",
                                         display: "flex", flexDirection: "column", gap: "6px",
@@ -270,10 +387,7 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                     </div>
                                 </div>
 
-                                {/* Row B: 4 Contact Panels */}
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderTop: "1px solid #dee2e6" }}>
-
-                                    {/* Panel 1 – Customer's GRN Team */}
                                     <div style={{ padding: "8px 10px", borderRight: "1px solid #dee2e6" }}>
                                         <div style={panelHead("#fff3cd")}>Customer's Store Team Contact Details</div>
                                         <div style={{ padding: "6px 0 0" }}>
@@ -286,7 +400,6 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                         </div>
                                     </div>
 
-                                    {/* Panel 2 – Customer Project Team Details */}
                                     <div style={{ padding: "8px 10px", borderRight: "1px solid #dee2e6" }}>
                                         <div style={panelHead("#e3f2fd")}>Customer Project Team Contact Details</div>
                                         <div style={{ padding: "6px 0 0" }}>
@@ -299,7 +412,6 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                         </div>
                                     </div>
 
-                                    {/* Panel 3 – Customer's Project Team Contact Details (NEW) */}
                                     <div style={{ padding: "8px 10px", borderRight: "1px solid #dee2e6" }}>
                                         <div style={panelHead("#e8f5e9")}>Customer's Accounts & Finance Team Contact Details</div>
                                         <div style={{ padding: "6px 0 0" }}>
@@ -312,7 +424,6 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                         </div>
                                     </div>
 
-                                    {/* Panel 4 – Created By (auto from project) */}
                                     <div style={{ padding: "8px 10px" }}>
                                         <div style={panelHead("#fce4ec")}>Project Created By Sales Person</div>
                                         <div style={{ padding: "8px 0 0" }}>
@@ -338,27 +449,115 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
 
                             {/* ════ SECTION 2 : Material Table ════ */}
                             <div style={{ marginBottom: "14px" }}>
-                                {/* Table Header bar with search */}
                                 <div style={{
                                     background: "#2c3e50", padding: "8px 14px", borderRadius: "6px 6px 0 0",
                                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap",
+                                    position: "relative",
                                 }}>
                                     <span style={{ color: "#fff", fontWeight: 700, fontSize: "12px" }}>
                                         📦 Material List as per Purchase Order
                                     </span>
-                                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                                        {/* Search bar */}
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", position: "relative" }}>
                                         <div style={{ position: "relative" }}>
                                             <input
                                                 style={{
-                                                    ...inp, width: "220px", paddingLeft: "26px",
+                                                    ...inp, width: "320px", paddingLeft: "26px",
                                                     background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.3)",
                                                     color: "#fff", borderRadius: "20px",
                                                 }}
-                                                placeholder="🔍 Search material..."
+                                                placeholder="🔍 Search Product Name / Brand / Model..."
                                                 value={matSearch}
-                                                onChange={e => setMatSearch(e.target.value)}
+                                                onChange={e => {
+                                                    setMatSearch(e.target.value);
+                                                    setShowProductDropdown(true);
+                                                    setActiveRowIndex(rows.length - 1);
+                                                }}
+                                                onFocus={() => {
+                                                    if (productResults.length > 0) setShowProductDropdown(true);
+                                                }}
                                             />
+                                            {productLoading && (
+                                                <span style={{
+                                                    position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)",
+                                                    color: "#fff", fontSize: "10px",
+                                                }}>...</span>
+                                            )}
+
+                                            {showProductDropdown && matSearch.trim().length > 0 && (
+                                                <div style={{
+                                                    position: "absolute", top: "100%", right: 0, marginTop: "4px",
+                                                    background: "#fff", color: "#2c3e50",
+                                                    borderRadius: "6px", boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+                                                    width: "560px", maxHeight: "340px", overflowY: "auto",
+                                                    zIndex: 9999, border: "1px solid #dee2e6",
+                                                }}>
+                                                    <div style={{
+                                                        padding: "6px 10px", background: "#f1f3f5",
+                                                        fontSize: "10px", fontWeight: "700", color: "#495057",
+                                                        borderBottom: "1px solid #dee2e6",
+                                                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                                                    }}>
+                                                        <span>SEARCH RESULTS · Product Name / Brand / Model</span>
+                                                        <span style={{ cursor: "pointer" }} onClick={() => setShowProductDropdown(false)}>✕</span>
+                                                    </div>
+                                                    {productResults.length === 0 ? (
+                                                        <div style={{ padding: "14px", fontSize: "11px", color: "#888", textAlign: "center" }}>
+                                                            {productLoading ? "Searching..." : `No products match "${matSearch}"`}
+                                                        </div>
+                                                    ) : productResults.map(p => (
+                                                        <div
+                                                            key={p._id}
+                                                            onClick={() => addProductToRow(p, activeRowIndex)}
+                                                            style={{
+                                                                padding: "8px 10px", borderBottom: "1px solid #f1f3f5",
+                                                                cursor: "pointer", display: "flex", gap: "10px", alignItems: "center",
+                                                                transition: "background 0.15s",
+                                                            }}
+                                                            onMouseEnter={e => e.currentTarget.style.background = "#eaf4fb"}
+                                                            onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                                                        >
+                                                            <div style={{
+                                                                width: "32px", height: "32px", borderRadius: "4px",
+                                                                background: "linear-gradient(135deg,#1a252f 0%,#2c3e50 100%)",
+                                                                color: "#fff", fontSize: "11px", fontWeight: "700",
+                                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                                flexShrink: 0,
+                                                            }}>
+                                                                {(p.productName || "?").charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div style={{ fontSize: "12px", fontWeight: "700", color: "#2c3e50" }}>
+                                                                    {p.productName || "N/A"}
+                                                                </div>
+                                                                <div style={{ fontSize: "10px", color: "#6c757d", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                                                    {p.brandName && <span>🏷️ {p.brandName}</span>}
+                                                                    {p.model    && <span>📋 {p.model}</span>}
+                                                                    {p.hsnCode  && <span>🔢 {p.hsnCode}</span>}
+                                                                    {p.baseUOM  && <span>📐 {p.baseUOM}</span>}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                                                {p.salesPrice != null && (
+                                                                    <div style={{ fontSize: "12px", fontWeight: "700", color: "#27ae60" }}>
+                                                                        ₹{Number(p.salesPrice).toLocaleString()}
+                                                                    </div>
+                                                                )}
+                                                                {p.currentStockQty != null && (
+                                                                    <div style={{ fontSize: "9px", color: p.currentStockQty > 0 ? "#27ae60" : "#e74c3c" }}>
+                                                                        Stock: {p.currentStockQty} {p.baseUOM || ""}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div style={{
+                                                                background: "#27ae60", color: "#fff", fontSize: "10px", fontWeight: "700",
+                                                                padding: "3px 8px", borderRadius: "3px", flexShrink: 0,
+                                                            }}>
+                                                                + ADD
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <button type="button" onClick={addRow} style={{
                                             background: "#27ae60", border: "none", color: "#fff",
@@ -371,39 +570,38 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                 </div>
 
                                 <div style={{ overflowX: "auto", border: "2px solid #2c3e50", borderTop: "none", borderRadius: "0 0 6px 6px" }}>
-                                    <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "11px", minWidth: "700px" }}>
+                                    <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "11px", minWidth: "900px" }}>
                                         <thead>
                                             <tr>
                                                 <th style={{ ...th, width: "40px" }}>Sr. No</th>
-                                                <th style={{ ...th, minWidth: "80px" }}>Product Name</th>
-                                                <th style={{ ...th, minWidth: "90px" }}>Brand Name</th>
-                                                <th style={{ ...th, minWidth: "100px" }}>Model Name</th>
-                                                <th style={{ ...th, minWidth: "260px" }}>Material Description with Specification</th>
+                                                <th style={{ ...th, minWidth: "140px" }}>Product Name</th>
+                                                <th style={{ ...th, minWidth: "100px" }}>Brand Name</th>
+                                                <th style={{ ...th, minWidth: "120px" }}>Model Name</th>
+                                                <th style={{ ...th, minWidth: "220px" }}>Material Description with Specification</th>
                                                 <th style={{ ...th, width: "70px" }}>Qty</th>
-                                                <th style={{ ...th, minWidth: "260px" }}>Remark</th>
+                                                <th style={{ ...th, minWidth: "180px" }}>Remark</th>
                                                 <th style={{ ...th, width: "42px" }}>Del</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {filteredRows.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={7} style={{ ...td, textAlign: "center", color: "#888", padding: "14px" }}>
-                                                        No material found for "{matSearch}"
+                                                    <td colSpan={8} style={{ ...td, textAlign: "center", color: "#888", padding: "14px" }}>
+                                                        {matSearch ? `No material found for "${matSearch}"` : "No rows yet. Click '+ Add Row' or search products above."}
                                                     </td>
                                                 </tr>
-                                            ) : filteredRows.map((row, index) => {
-                                                // find real index in rows array
+                                            ) : filteredRows.map((row) => {
                                                 const realIdx = rows.findIndex(r => r === row);
                                                 return (
                                                     <tr key={realIdx} style={{ background: realIdx % 2 === 0 ? "#fff" : "#f8f9fa" }}>
                                                         <td style={{ ...td, textAlign: "center", fontWeight: "700" }}>{row.srNo}</td>
                                                         <td style={td}>
-                                                            <input style={inp} value={row.partNo}
-                                                                onChange={e => handleRowChange(realIdx, "partNo", e.target.value)} />
+                                                            <input style={inp} value={row.productName}
+                                                                onChange={e => handleRowChange(realIdx, "productName", e.target.value)} />
                                                         </td>
                                                         <td style={td}>
-                                                            <input style={inp} value={row.make}
-                                                                onChange={e => handleRowChange(realIdx, "make", e.target.value)} />
+                                                            <input style={inp} value={row.brandName}
+                                                                onChange={e => handleRowChange(realIdx, "brandName", e.target.value)} />
                                                         </td>
                                                         <td style={td}>
                                                             <input style={inp} value={row.modelNo}
@@ -414,7 +612,7 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                                                 style={{ ...inp, resize: "vertical", minHeight: "34px" }}
                                                                 value={row.materialDescription}
                                                                 onChange={e => handleRowChange(realIdx, "materialDescription", e.target.value)}
-                                                                rows={2} required
+                                                                rows={2}
                                                             />
                                                         </td>
                                                         <td style={td}>
@@ -425,9 +623,9 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                                         <td style={td}>
                                                             <textarea
                                                                 style={{ ...inp, resize: "vertical", minHeight: "34px" }}
-                                                                value={row.materialDescription}
-                                                                onChange={e => handleRowChange(realIdx, "materialDescription", e.target.value)}
-                                                                rows={2} required
+                                                                value={row.remark}
+                                                                onChange={e => handleRowChange(realIdx, "remark", e.target.value)}
+                                                                rows={2}
                                                             />
                                                         </td>
                                                         <td style={{ ...td, textAlign: "center" }}>
@@ -444,7 +642,6 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                     </table>
                                 </div>
 
-                                {/* Summary strip */}
                                 <div style={{
                                     background: "#eaf4fb", border: "1px solid #aed6f1", borderTop: "none",
                                     borderRadius: "0 0 6px 6px", padding: "5px 14px",
@@ -498,7 +695,6 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                     🔧 Scope of Works
                                 </div>
 
-                                {/* Column headers */}
                                 <div style={{
                                     display: "flex", alignItems: "center", gap: "10px",
                                     padding: "6px 12px", background: "#f1f3f5",
@@ -508,29 +704,13 @@ const MRFPopup = ({ selectedProject, handleMRF }) => {
                                     <span>Responsibility</span>
                                 </div>
 
-                                <WarrantyRadio
-                                    label="1. Cabling Warranty"
-                                    value={cablingWarranty}
-                                    onChange={setCablingWarranty}
-                                />
-                                <WarrantyRadio
-                                    label="2. Civil Warranty"
-                                    value={civilWarranty}
-                                    onChange={setCivilWarranty}
-                                />
-                                <WarrantyRadio
-                                    label="3. Chimby Picks Ladder"
-                                    value={chimbyPicksWarranty}
-                                    onChange={setChimbyPicksWarranty}
-                                />
-                                <WarrantyRadio
-                                    label="4. Fabrication Warranty"
-                                    value={fabricationWarranty}
-                                    onChange={setFabricationWarranty}
-                                />
+                                <WarrantyRadio label="1. Cabling Warranty"     value={cablingWarranty}     onChange={setCablingWarranty} />
+                                <WarrantyRadio label="2. Civil Warranty"       value={civilWarranty}       onChange={setCivilWarranty} />
+                                <WarrantyRadio label="3. Chimby Picks Ladder"  value={chimbyPicksWarranty} onChange={setChimbyPicksWarranty} />
+                                <WarrantyRadio label="4. Fabrication Warranty" value={fabricationWarranty} onChange={setFabricationWarranty} />
                             </div>
 
-                        </div>{/* end scrollable body */}
+                        </div>
 
                         {/* ════ FOOTER ════ */}
                         <div style={{
