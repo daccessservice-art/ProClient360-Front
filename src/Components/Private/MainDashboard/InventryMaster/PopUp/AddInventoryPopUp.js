@@ -219,8 +219,17 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
-  const handleProductNameChange = (e) => { if (/^[a-zA-Z0-9\s]*$/.test(e.target.value)) setProductName(e.target.value); };
-  const handleModelChange = (e) => setModel(e.target.value);
+
+  // ✅ FIXED: Allow all characters including special characters (&, -, /, (, ), ., etc.)
+  const handleProductNameChange = (e) => {
+    setProductName(e.target.value);
+  };
+
+  // ✅ FIXED: Allow all characters including special characters
+  const handleModelChange = (e) => {
+    setModel(e.target.value);
+  };
+
   const handleHsnCodeChange = (e) => { if (/^\d{0,8}$/.test(e.target.value)) setHsnCode(e.target.value); };
   const handleMrpChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setMrp(e.target.value); };
   const handleSalesPriceChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setSalesPrice(e.target.value); };
@@ -264,7 +273,7 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
               <div className="modal-body" style={{ maxHeight: 'calc(80vh - 240px)', overflowY: 'auto' }}>
                 <div className="row g-3">
 
-                  {/* ── Product Master Search (NEW) ── */}
+                  {/* ── Product Master Search ── */}
                   <div className="col-12">
                     <div className="border rounded p-3 mb-2" style={{ backgroundColor: '#f0f7ff', borderColor: '#93c5fd !important' }}>
                       <label className="form-label fw-bold text-primary mb-2">
@@ -601,7 +610,7 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                     />
                   </div>
 
-                  {/* Opening Stock — shows Product Master's currentStockQty when auto-filled */}
+                  {/* Opening Stock */}
                   <div className="col-md-6">
                     <label htmlFor="currentStock" className="form-label">
                       Opening Stock
