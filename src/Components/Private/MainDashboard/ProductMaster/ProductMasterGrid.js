@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect, useMemo } from "react";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
@@ -247,6 +247,29 @@ const generateExcel = (products) => {
   URL.revokeObjectURL(url);
 };
 
+// ─── Duplicate detection helper ──────────────────────────────────────────────
+// A product is treated as a duplicate of another if productName + brandName + model
+// all match (case-insensitive, trimmed). This only flags rows on the CURRENT page —
+// true cross-page duplicate detection needs the backend (see notes below the file).
+const buildDuplicateKey = (p) =>
+  [p.productName, p.brandName, p.model]
+    .map((v) => (v || "").toString().trim().toLowerCase())
+    .join("|");
+
+const getDuplicateIdSet = (products) => {
+  const counts = new Map();
+  products.forEach((p) => {
+    const key = buildDuplicateKey(p);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  const dupIds = new Set();
+  products.forEach((p) => {
+    const key = buildDuplicateKey(p);
+    if (counts.get(key) > 1) dupIds.add(p._id);
+  });
+  return dupIds;
+};
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 export const ProductMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
@@ -276,6 +299,13 @@ export const ProductMasterGrid = () => {
     hasNextPage: false,
     hasPrevPage: false,
   });
+
+  // ── FIX: track which delete request is in-flight so a stale response
+  // can never overwrite a newer one (this was the source of the
+  // "delete 1 -> looks like everything got deleted" bug). Every fetch
+  // gets a ticket number; only the most recent ticket is allowed to
+  // commit its result to state. ──
+  const [fetchTicket, setFetchTicket] = useState(0);
 
   const itemsPerPage = 20;
   const [productCategories, setProductCategories] = useState([]);
@@ -318,16 +348,44 @@ export const ProductMasterGrid = () => {
       toast.success(data?.message);
     } else {
       toast.error(data?.error);
+      setdeletePopUpShow(false);
+      return; // ── FIX: don't touch pagination/state if the delete actually failed ──
     }
+
     setdeletePopUpShow(false);
-    setCurrentPage(1);
+
+    // ── FIX: this used to ALWAYS jump back to page 1 after every delete.
+    // That's what made deleting a duplicate on (say) page 7 suddenly show
+    // you page 1's data, which LOOKED like every row had vanished even
+    // though only one document was actually removed.
+    //
+    // New behavior:
+    //   - If we just deleted the only/last remaining row on this page
+    //     (and we're not already on page 1), step back one page.
+    //   - Otherwise, stay on the same page and just re-fetch it, so the
+    //     next row slides up into the gap exactly the way you'd expect.
+    const wasLastRowOnPage = products.length === 1;
+    if (wasLastRowOnPage && currentPage > 1) {
+      setCurrentPage((prev) => prev - 1);
+    } else {
+      // same page number -> currentPage state doesn't change, so the
+      // fetch effect (which depends on deletePopUpShow) still re-runs
+      // and pulls a fresh copy of this exact page.
+    }
   };
 
   useEffect(() => {
+    let isCurrent = true; // ── FIX: per-effect-run cancellation flag ──
     const fetchData = async () => {
       try {
         setLoading(true);
         const data = await getProducts(currentPage, itemsPerPage, search);
+
+        // ── FIX: if a newer fetch has started since this one began
+        // (e.g. user changed page/search again, or another delete fired),
+        // throw this result away instead of letting it clobber state. ──
+        if (!isCurrent) return;
+
         if (data?.success) {
           setProducts(data.products || []);
           setPagination(
@@ -336,6 +394,15 @@ export const ProductMasterGrid = () => {
               limit: itemsPerPage, hasNextPage: false, hasPrevPage: false,
             }
           );
+
+          // ── FIX: if the page we asked for no longer exists (e.g. we were
+          // on the last page, deleted the last row on it, and the backend's
+          // totalPages shrank), snap back to the new last page instead of
+          // showing an empty table. ──
+          const newTotalPages = data.pagination?.totalPages ?? 0;
+          if (newTotalPages > 0 && currentPage > newTotalPages) {
+            setCurrentPage(newTotalPages);
+          }
         } else {
           // ── FIX: clear stale rows + pagination instead of leaving old data on screen
           // when a search returns "No products found" (backend 404 case)
@@ -348,14 +415,23 @@ export const ProductMasterGrid = () => {
         }
       } catch (error) {
         console.error("Error fetching products:", error);
-        setProducts([]);
+        if (isCurrent) setProducts([]);
       } finally {
-        setLoading(false);
+        if (isCurrent) setLoading(false);
       }
     };
     fetchData();
+    return () => {
+      isCurrent = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, deletePopUpShow, AddPopUpShow, updatePopUpShow, search]);
+
+  // ── Duplicate detection across the currently-loaded page ──
+  // Highlights rows whose Product Name + Brand + Model combination repeats
+  // on this page. For a full cross-page duplicate sweep, use the
+  // "Find Duplicates (All Pages)" report button added below.
+  const duplicateIdsOnPage = useMemo(() => getDuplicateIdSet(products), [products]);
 
   const handleDownloadPDF = async () => {
     try {
@@ -391,6 +467,77 @@ export const ProductMasterGrid = () => {
     } catch (err) {
       toast.dismiss();
       toast.error("Failed to generate Excel report");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  // ── NEW: scan ALL products (every page) and download a CSV listing
+  // every duplicate group, with each duplicate's _id so you know exactly
+  // which row is which when you go delete the extras. ──
+  const handleFindAllDuplicates = async () => {
+    try {
+      setReportLoading(true);
+      toast.loading("Scanning all products for duplicates...");
+      const data = await getAllProductsForReport("");
+      toast.dismiss();
+
+      if (!data?.success || !data.products?.length) {
+        toast.error("No products found to scan");
+        return;
+      }
+
+      const groups = new Map();
+      data.products.forEach((p) => {
+        const key = buildDuplicateKey(p);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(p);
+      });
+
+      const dupGroups = [...groups.values()].filter((g) => g.length > 1);
+
+      if (dupGroups.length === 0) {
+        toast.success("No duplicates found across all pages!");
+        return;
+      }
+
+      const rows = [["Group #", "_id", "Product Name", "Brand Name", "Model", "Curr. Stock Qty", "Created At"]];
+      dupGroups.forEach((group, gIndex) => {
+        group.forEach((p) => {
+          rows.push([
+            gIndex + 1,
+            p._id,
+            p.productName || "",
+            p.brandName || "",
+            p.model || "",
+            p.currentStockQty ?? 0,
+            p.createdAt || "",
+          ]);
+        });
+      });
+
+      const escape = (val) => {
+        const str = String(val == null ? "" : val);
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+      const csv = "\uFEFF" + rows.map((row) => row.map(escape).join(",")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", "Duplicate_Products.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Found ${dupGroups.length} duplicate group(s). CSV downloaded.`);
+    } catch (err) {
+      toast.dismiss();
+      toast.error("Failed to scan for duplicates");
     } finally {
       setReportLoading(false);
     }
@@ -478,6 +625,18 @@ export const ProductMasterGrid = () => {
 
                       {(user?.permissions?.includes("viewProduct") || user?.user === "company") && (
                         <button
+                          onClick={handleFindAllDuplicates}
+                          type="button"
+                          className="btn btn-warning btn-sm"
+                          title="Scan all pages for duplicate products and download a CSV list"
+                          disabled={reportLoading}
+                        >
+                          <i className="fa-solid fa-clone me-1"></i> Find Duplicates
+                        </button>
+                      )}
+
+                      {(user?.permissions?.includes("viewProduct") || user?.user === "company") && (
+                        <button
                           onClick={handleDownloadPDF}
                           type="button"
                           className="btn btn-danger btn-sm"
@@ -512,6 +671,12 @@ export const ProductMasterGrid = () => {
                 {/* ── Table ── */}
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
+                    {duplicateIdsOnPage.size > 0 && (
+                      <div className="alert alert-warning py-2 px-3 mb-2">
+                        <i className="fa-solid fa-triangle-exclamation me-2"></i>
+                        {duplicateIdsOnPage.size} row(s) on this page match another row's Product Name + Brand + Model (highlighted below).
+                      </div>
+                    )}
                     <div className="table-responsive">
                       <table className="table table-striped table-class" id="table-id">
                         <thead>
@@ -531,99 +696,113 @@ export const ProductMasterGrid = () => {
                         </thead>
                         <tbody>
                           {products.length > 0 ? (
-                            products.map((product, index) => (
-                              <tr className="border my-4" key={product._id}>
-                                <td className="w-10">
-                                  {index + 1 + (currentPage - 1) * itemsPerPage}
-                                </td>
-                                <td className="align_left_td td_width wrap-text-of-col">
-                                  {product.productName}
-                                </td>
-                                <td className="align_left_td td_width wrap-text-of-col">
-                                  {product.brandName}
-                                </td>
-                                <td className="align_left_td td_width wrap-text-of-col">
-                                  {product.model}
-                                </td>
-                                <td className="wrap-text-of-col">{product.productCategory}</td>
-                                <td>{product.baseUOM}</td>
-                                <td>
-                                  <span className="badge bg-primary">{product.category}</span>
-                                </td>
+                            products.map((product, index) => {
+                              const isDup = duplicateIdsOnPage.has(product._id);
+                              return (
+                                <tr
+                                  className="border my-4"
+                                  key={product._id}
+                                  style={isDup ? { backgroundColor: "#fff3cd" } : undefined}
+                                  title={isDup ? "Possible duplicate: same Product Name + Brand + Model as another row" : undefined}
+                                >
+                                  <td className="w-10">
+                                    {index + 1 + (currentPage - 1) * itemsPerPage}
+                                    {isDup && (
+                                      <i
+                                        className="fa-solid fa-triangle-exclamation text-warning ms-1"
+                                        title="Duplicate"
+                                      ></i>
+                                    )}
+                                  </td>
+                                  <td className="align_left_td td_width wrap-text-of-col">
+                                    {product.productName}
+                                  </td>
+                                  <td className="align_left_td td_width wrap-text-of-col">
+                                    {product.brandName}
+                                  </td>
+                                  <td className="align_left_td td_width wrap-text-of-col">
+                                    {product.model}
+                                  </td>
+                                  <td className="wrap-text-of-col">{product.productCategory}</td>
+                                  <td>{product.baseUOM}</td>
+                                  <td>
+                                    <span className="badge bg-primary">{product.category}</span>
+                                  </td>
 
-                                <td className="text-end">
-                                  {product.purchasePrice > 0 ? (
+                                  <td className="text-end">
+                                    {product.purchasePrice > 0 ? (
+                                      <span
+                                        style={{
+                                          color: "#15803d",
+                                          fontWeight: 700,
+                                          fontSize: "0.84rem",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        {formatAmount(product.purchasePrice)}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: "#cbd5e1", fontSize: "0.8rem" }}>—</span>
+                                    )}
+                                  </td>
+
+                                  {/* Current Stock Qty */}
+                                  <td className="text-end">
                                     <span
                                       style={{
-                                        color: "#15803d",
                                         fontWeight: 700,
                                         fontSize: "0.84rem",
-                                        whiteSpace: "nowrap",
+                                        color:
+                                          product.currentStockQty > 0
+                                            ? "#1e40af"
+                                            : product.minQtyLevel > 0 &&
+                                              product.currentStockQty <= product.minQtyLevel
+                                            ? "#dc2626"
+                                            : "#6b7280",
                                       }}
                                     >
-                                      {formatAmount(product.purchasePrice)}
+                                      {product.currentStockQty != null ? product.currentStockQty : 0}{" "}
+                                      <small style={{ fontWeight: 400, fontSize: "0.7rem" }}>
+                                        {product.baseUOM}
+                                      </small>
                                     </span>
-                                  ) : (
-                                    <span style={{ color: "#cbd5e1", fontSize: "0.8rem" }}>—</span>
-                                  )}
-                                </td>
+                                  </td>
 
-                                {/* Current Stock Qty */}
-                                <td className="text-end">
-                                  <span
-                                    style={{
-                                      fontWeight: 700,
-                                      fontSize: "0.84rem",
-                                      color:
-                                        product.currentStockQty > 0
-                                          ? "#1e40af"
-                                          : product.minQtyLevel > 0 &&
-                                            product.currentStockQty <= product.minQtyLevel
-                                          ? "#dc2626"
-                                          : "#6b7280",
-                                    }}
-                                  >
-                                    {product.currentStockQty != null ? product.currentStockQty : 0}{" "}
-                                    <small style={{ fontWeight: 400, fontSize: "0.7rem" }}>
-                                      {product.baseUOM}
-                                    </small>
-                                  </span>
-                                </td>
-
-                                <td>
-                                  <span
-                                    className={`badge ${
-                                      product.discountType === "Zero Discount"
-                                        ? "bg-secondary"
-                                        : product.discountType === "In percentage"
-                                        ? "bg-info"
-                                        : "bg-warning"
-                                    }`}
-                                  >
-                                    {product.discountType}
-                                  </span>
-                                </td>
-                                <td>
-                                  {user?.permissions?.includes("viewProduct") || user?.user === "company" ? (
-                                    <span onClick={() => handleView(product)} className="view">
-                                      <i className="fa-solid fa-eye text-primary me-3 cursor-pointer"></i>
+                                  <td>
+                                    <span
+                                      className={`badge ${
+                                        product.discountType === "Zero Discount"
+                                          ? "bg-secondary"
+                                          : product.discountType === "In percentage"
+                                          ? "bg-info"
+                                          : "bg-warning"
+                                      }`}
+                                    >
+                                      {product.discountType}
                                     </span>
-                                  ) : ""}
+                                  </td>
+                                  <td>
+                                    {user?.permissions?.includes("viewProduct") || user?.user === "company" ? (
+                                      <span onClick={() => handleView(product)} className="view">
+                                        <i className="fa-solid fa-eye text-primary me-3 cursor-pointer"></i>
+                                      </span>
+                                    ) : ""}
 
-                                  {user?.permissions?.includes("updateProduct") || user?.user === "company" ? (
-                                    <span onClick={() => handleUpdate(product)} className="update">
-                                      <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
-                                    </span>
-                                  ) : ""}
+                                    {user?.permissions?.includes("updateProduct") || user?.user === "company" ? (
+                                      <span onClick={() => handleUpdate(product)} className="update">
+                                        <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
+                                      </span>
+                                    ) : ""}
 
-                                  {user?.permissions?.includes("deleteProduct") || user?.user === "company" ? (
-                                    <span onClick={() => handelDeleteClosePopUpClick(product._id)} className="delete">
-                                      <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                    </span>
-                                  ) : ""}
-                                </td>
-                              </tr>
-                            ))
+                                    {user?.permissions?.includes("deleteProduct") || user?.user === "company" ? (
+                                      <span onClick={() => handelDeleteClosePopUpClick(product._id)} className="delete">
+                                        <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
+                                      </span>
+                                    ) : ""}
+                                  </td>
+                                </tr>
+                              );
+                            })
                           ) : (
                             <tr>
                               <td colSpan="11" className="text-center">No data found</td>
