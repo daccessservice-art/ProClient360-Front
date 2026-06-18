@@ -6,6 +6,9 @@ import { loginUser } from "../../hooks/useAuth";
 import { UserContext } from "../../context/UserContext";
 import { requestForToken } from '../../firebase';
 
+// ✅ NEW: Customer Support Modal
+import CustomerTicketModal from "./CustomerTicketModal";
+
 export const LogIn = () => {
   const navigation = useNavigate();
 
@@ -13,6 +16,11 @@ export const LogIn = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // ✅ NEW: Customer Support modal state
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const openCustomerSupport = () => setIsCustomerModalOpen(true);
+  const closeCustomerSupport = () => setIsCustomerModalOpen(false);
 
   const { setUser } = useContext(UserContext);
 
@@ -173,6 +181,17 @@ export const LogIn = () => {
                 <span className="login-divider">|</span>
                 <span>Terms &amp; Conditions</span>
               </div>
+
+              {/* ✅ NEW — Customer Support Link (small, below footer) */}
+              <div className="customer-support-link-row">
+                <button
+                  type="button"
+                  className="customer-support-link-btn"
+                  onClick={openCustomerSupport}
+                >
+                  🎧 Customer? Raise a Complaint
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -184,14 +203,20 @@ export const LogIn = () => {
             alt="Project management illustration"
             className="login-illustration-img"
             onError={(e) => {
-              // Fallback: render inline SVG placeholder if image missing
               e.target.style.display = 'none';
             }}
           />
-          {/* Fallback gradient background shows if image fails */}
         </div>
 
       </div>
+
+      {/* ✅ NEW — Customer Ticket Modal */}
+      {isCustomerModalOpen && (
+        <CustomerTicketModal onClose={closeCustomerSupport} />
+      )}
     </div>
-  );
+  );  
 };
+
+// ✅ Keep default export too (in case any file imports it default)
+export default LogIn;

@@ -305,3 +305,31 @@
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* =============================================
+   ✅ NEW — Customer Support Link Button
+   Small, subtle — appears below footer links
+   ============================================= */
+.customer-support-link-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.customer-support-link-btn {
+  background: #CEC8FA;
+  border: none;
+  color: #6b7280;
+  font-size: 12.5px;
+  font-family: "Poppins", sans-serif;
+  cursor: pointer;
+  padding: 6px 10px;
+  transition: color 0.2s, background 0.2s;
+  border-radius: 6px;
+}
+
+.customer-support-link-btn:hover {
+  color: #6366f1;
+  background: #f3f4ff;
+  text-decoration: underline;
+}
