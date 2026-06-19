@@ -317,19 +317,20 @@
 }
 
 .customer-support-link-btn {
-  background: #CEC8FA;
+  background: #6a77db;
   border: none;
-  color: #6b7280;
+  color: #fbfcfd;
   font-size: 12.5px;
   font-family: "Poppins", sans-serif;
   cursor: pointer;
+  width: 300px;
   padding: 6px 10px;
   transition: color 0.2s, background 0.2s;
   border-radius: 6px;
 }
 
 .customer-support-link-btn:hover {
-  color: #6366f1;
-  background: #f3f4ff;
+  color: #fdfcfd;
+  background: #949bfb;
   text-decoration: underline;
 }

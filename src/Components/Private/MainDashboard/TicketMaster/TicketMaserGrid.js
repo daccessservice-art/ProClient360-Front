@@ -266,8 +266,8 @@ export const TicketMasterGrid = () => {
                             </th>
                             <th>Product</th>
                             <th>Ticket ID</th>
+                            <th>Complaint Source</th>
                             <th>Registered by</th>
-                          
                             <th>Assign</th>
                             <th>Action</th>
                           </tr>
