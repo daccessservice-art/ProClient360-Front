@@ -3,8 +3,8 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import "./CustomerTicketModal.css";
 
-// ✅ CRITICAL: Ensure this matches your server port (5443)
-const API_BASE = "http://localhost:5443"; 
+// ✅ FIX 1: Use env variable, not hardcoded localhost
+const API_BASE = process.env.REACT_APP_API_URL || "";
 
 const CustomerTicketModal = ({ onClose }) => {
   const [step, setStep] = useState(1);
@@ -16,13 +16,46 @@ const CustomerTicketModal = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [ticketId, setTicketId] = useState("");
 
+  // ✅ FIX 2: Products must exactly match ticketSchema enum values
   const products = [
-    "Hardware",
-    "Software",
-    "Network",
-    "Printer",
-    "Server",
-    "Other",
+    "Surveillance System",
+    "CCTV System",
+    "TA System",
+    "Hajeri",
+    "SmartFace",
+    "ZKBioSecurity",
+    "Access Control System",
+    "Turnkey Project",
+    "Alleviz",
+    "CafeLive",
+    "WorksJoy",
+    "WorksJoy Blu",
+    "Fire Alarm System",
+    "Fire Hydrant System",
+    "IDS",
+    "AI Face Machines",
+    "Entrance Automation",
+    "Guard Tour System",
+    "Home Automation",
+    "IP PA and Communication System",
+    "CRM",
+    "KMS",
+    "VMS",
+    "PMS",
+    "Boom Barrier System",
+    "Tripod System",
+    "Flap Barrier System",
+    "EPBX System",
+    "CMS",
+    "Lift Eliviter System",
+    "AV6",
+    "Walky Talky System",
+    "Device Management System",
+    "VisionIQ",
+    "CineMind",
+    "Extracto",
+    "Virtual Agent",
+    "LAN Cabling Activity",
   ];
 
   const handleSendOtp = async () => {
@@ -37,14 +70,16 @@ const CustomerTicketModal = ({ onClose }) => {
         { mobile }
       );
       if (res.data.success) {
-        toast.success("OTP sent to your mobile number");
+        toast.success("OTP sent to your registered Email");
         setStep(2);
       } else {
         toast.error(res.data.message || "Mobile number not found");
       }
     } catch (err) {
       console.error(err);
-      toast.error("Failed to send OTP. Check console for details.");
+      toast.error(
+        err?.response?.data?.message || "Failed to send OTP. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -66,11 +101,13 @@ const CustomerTicketModal = ({ onClose }) => {
         setStep(3);
         toast.success("OTP verified");
       } else {
-        toast.error("Incorrect OTP. Please contact with proclient360.com");
+        toast.error(res.data.message || "Incorrect OTP");
       }
     } catch (err) {
       console.error(err);
-      toast.error("Connection Error");
+      toast.error(
+        err?.response?.data?.message || "Connection Error"
+      );
     } finally {
       setLoading(false);
     }
@@ -89,11 +126,7 @@ const CustomerTicketModal = ({ onClose }) => {
     try {
       const res = await axios.post(
         `${API_BASE}/api/customer-ticket/raise-ticket`,
-        {
-          mobile,
-          product,
-          complaint,
-        }
+        { mobile, product, complaint }
       );
       if (res.data.success) {
         setTicketId(res.data.ticketId);
@@ -104,7 +137,9 @@ const CustomerTicketModal = ({ onClose }) => {
       }
     } catch (err) {
       console.error(err);
-      toast.error("Failed to raise ticket. Try again.");
+      toast.error(
+        err?.response?.data?.message || "Failed to raise ticket. Try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -124,9 +159,7 @@ const CustomerTicketModal = ({ onClose }) => {
   return (
     <div className="ctm-overlay" onClick={handleClose}>
       <div className="ctm-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="ctm-close-btn" onClick={handleClose}>
-          ×
-        </button>
+        <button className="ctm-close-btn" onClick={handleClose}>×</button>
 
         <div className="ctm-progress">
           <div className={`ctm-dot ${step >= 1 ? "active" : ""}`}>1</div>
@@ -148,17 +181,11 @@ const CustomerTicketModal = ({ onClose }) => {
               type="text"
               maxLength="10"
               value={mobile}
-              onChange={(e) =>
-                setMobile(e.target.value.replace(/\D/g, ""))
-              }
+              onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
               placeholder="10-digit mobile number"
               className="ctm-input"
             />
-            <button
-              className="ctm-btn"
-              onClick={handleSendOtp}
-              disabled={loading}
-            >
+            <button className="ctm-btn" onClick={handleSendOtp} disabled={loading}>
               {loading ? "Sending OTP..." : "Send OTP"}
             </button>
           </div>
@@ -168,7 +195,7 @@ const CustomerTicketModal = ({ onClose }) => {
           <div className="ctm-step">
             <h2>Verify OTP</h2>
             <p className="ctm-subtitle">
-              We sent a 6-digit OTP to <b>{mobile}</b>
+              We sent a 6-digit OTP to your registered <b>Email</b>
             </p>
             <input
               type="text"
@@ -179,22 +206,15 @@ const CustomerTicketModal = ({ onClose }) => {
               className="ctm-input ctm-otp-input"
             />
             <p className="ctm-hint">
-              Wrong OTP? Please contact with{" "}
-              <a href="mailto:info@proclient360.com">proclient360.com</a>
+              Not received? Contact{" "}
+              <a href="mailto:info@proclient360.com">info@proclient360.com</a>
             </p>
-            <button
-              className="ctm-btn"
-              onClick={handleVerifyOtp}
-              disabled={loading}
-            >
+            <button className="ctm-btn" onClick={handleVerifyOtp} disabled={loading}>
               {loading ? "Verifying..." : "Verify OTP"}
             </button>
             <button
               className="ctm-back-btn"
-              onClick={() => {
-                setStep(1);
-                setOtp("");
-              }}
+              onClick={() => { setStep(1); setOtp(""); }}
             >
               ← Back
             </button>
@@ -207,9 +227,7 @@ const CustomerTicketModal = ({ onClose }) => {
             <div className="ctm-customer-info">
               <p><b>Name:</b> {customer.custName}</p>
               <p><b>Email:</b> {customer.email}</p>
-              {customer.address && (
-                <p><b>Address:</b> {customer.address}</p>
-              )}
+              {customer.address && <p><b>Address:</b> {customer.address}</p>}
             </div>
 
             <label>Product *</label>
@@ -220,9 +238,7 @@ const CustomerTicketModal = ({ onClose }) => {
             >
               <option value="">-- Select Product --</option>
               {products.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
+                <option key={p} value={p}>{p}</option>
               ))}
             </select>
 
@@ -234,12 +250,7 @@ const CustomerTicketModal = ({ onClose }) => {
               rows={4}
               className="ctm-input ctm-textarea"
             />
-
-            <button
-              className="ctm-btn"
-              onClick={handleSubmitTicket}
-              disabled={loading}
-            >
+            <button className="ctm-btn" onClick={handleSubmitTicket} disabled={loading}>
               {loading ? "Submitting..." : "Submit Complaint"}
             </button>
           </div>
@@ -254,12 +265,9 @@ const CustomerTicketModal = ({ onClose }) => {
               Ticket ID: <b>{ticketId}</b>
             </div>
             <p className="ctm-hint">
-              Our team will contact you shortly. Please note your Ticket ID for
-              future reference.
+              Our team will contact you shortly. Please note your Ticket ID.
             </p>
-            <button className="ctm-btn" onClick={handleClose}>
-              Close
-            </button>
+            <button className="ctm-btn" onClick={handleClose}>Close</button>
           </div>
         )}
       </div>
