@@ -265,6 +265,7 @@ export const TicketMasterGrid = () => {
                               Complaint Details
                             </th>
                             <th>Product</th>
+                            <th>Ticket ID</th>
                             <th>Registered by</th>
                           
                             <th>Assign</th>
@@ -275,48 +276,73 @@ export const TicketMasterGrid = () => {
                           {tickets.length > 0 ? (
                             tickets.map((ticket, index) => (
                               <tr className="border my-4" key={ticket._id}>
-                                <td>
-                                  {index +
-                                    1 +
-                                    (pagination.currentPage - 1) * itemsPerPage}
-                                </td>
-                                <td className="align_left_td">
-                                  {ticket?.client?.custName || "N/A"}
-                                </td>
-                                <td className="align_left_td width_tdd wrap-text-of-col">
-                                  {ticket?.details}
-                                </td>
-                                <td>{ticket?.product}</td>
-                                <td>{ticket?.registerBy?.name || "N/A"}</td>
-                                <td>                        
-                                  {user?.permissions?.includes("createService")?(
-                                  <span
-                                    onClick={() => handleAddService(ticket._id)}
-                                    title="Assign Service"
-                                  >
-                                    <i className="fa-solid fa-share cursor-pointer"></i>
-                                  </span>
-                                  ):""}
-                                </td>
-                                <td>
-                                  <span
-                                    onClick={() => handleUpdate(ticket)}
-                                    className="update"
-                                    title="Edit Ticket"
-                                  >
-                                    <i className="fa-solid fa-pen text-success cursor-pointer me-3"></i>
-                                  </span>
-                                  <span
-                                    onClick={() =>
-                                      handelDeleteClosePopUpClick(ticket._id)
-                                    }
-                                    className="delete"
-                                    title="Delete Ticket"
-                                  >
-                                    <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                  </span>
-                                </td>
-                              </tr>
+  <td>
+    {index + 1 + (pagination.currentPage - 1) * itemsPerPage}
+  </td>
+  <td className="align_left_td">
+    {ticket?.client?.custName || "N/A"}
+  </td>
+  <td className="align_left_td width_tdd wrap-text-of-col">
+    {ticket?.details}
+  </td>
+  <td>{ticket?.product}</td>
+
+  {/* ✅ NEW — Ticket ID column */}
+  <td>
+    {ticket?.uniqueTicketId ? (
+      <span style={{
+        background: "#e3f2fd",
+        color: "#1565c0",
+        padding: "3px 8px",
+        borderRadius: "4px",
+        fontWeight: "600",
+        fontSize: "12px",
+        whiteSpace: "nowrap"
+      }}>
+        {ticket.uniqueTicketId}
+      </span>
+    ) : (
+      <span style={{ color: "#999", fontSize: "12px" }}>—</span>
+    )}
+  </td>
+
+  {/* ✅ NEW — Source column (shows "Customer Portal" badge) */}
+  <td>
+    {ticket?.source === "Customer Portal" ? (
+      <span style={{
+        background: "#e8f5e9",
+        color: "#2e7d32",
+        padding: "3px 8px",
+        borderRadius: "4px",
+        fontWeight: "600",
+        fontSize: "11px",
+        whiteSpace: "nowrap"
+      }}>
+        🌐 Customer Portal
+      </span>
+    ) : (
+      <span style={{ fontSize: "12px" }}>{ticket?.source || "N/A"}</span>
+    )}
+  </td>
+
+  <td>{ticket?.registerBy?.name || "Self"}</td>
+
+  <td>
+    {user?.permissions?.includes("createService") ? (
+      <span onClick={() => handleAddService(ticket._id)} title="Assign Service">
+        <i className="fa-solid fa-share cursor-pointer"></i>
+      </span>
+    ) : ""}
+  </td>
+  <td>
+    <span onClick={() => handleUpdate(ticket)} className="update" title="Edit Ticket">
+      <i className="fa-solid fa-pen text-success cursor-pointer me-3"></i>
+    </span>
+    <span onClick={() => handelDeleteClosePopUpClick(ticket._id)} className="delete" title="Delete Ticket">
+      <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
+    </span>
+  </td>
+</tr>
                             ))
                           ) : (
                             <tr>
