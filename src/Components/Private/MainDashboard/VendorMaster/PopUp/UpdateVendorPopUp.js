@@ -17,6 +17,8 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
   const [localBrands, setLocalBrands] = useState([]);
   const [remarks, setRemarks] = useState(selectedVendor?.remarks || "");
   const [manualAddress, setManualAddress] = useState(selectedVendor?.manualAddress || "");
+  // ✅ NEW FIELD
+  const [vendorProducts, setVendorProducts] = useState(selectedVendor?.vendorProducts || "");
 
   const [billingAddress, setBillingAddress] = useState({
     add: selectedVendor?.billingAddress?.add || "",
@@ -68,6 +70,8 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
       setCustomVendorType(selectedVendor.customVendorType || "");
       setRemarks(selectedVendor.remarks || "");
       setManualAddress(selectedVendor.manualAddress || "");
+      // ✅ NEW FIELD
+      setVendorProducts(selectedVendor.vendorProducts || "");
       setVendor(selectedVendor);
     }
   }, [selectedVendor]);
@@ -111,6 +115,8 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
       customVendorType: typeOfVendor === "Other" ? customVendorType : "",
       remarks,
       manualAddress: typeOfVendor === "Import" ? manualAddress : "",
+      // ✅ NEW FIELD
+      vendorProducts,
     };
 
     if (
@@ -513,6 +519,25 @@ const UpdateVendorPopUp = ({ handleUpdate, selectedVendor, brands, addBrand }) =
                         value={vendor?.GSTNo || ""}
                         required
                       />
+                    </div>
+                  </div>
+
+                  {/* ✅ NEW: Vendor Products Field */}
+                  <div className="col-12 mt-3">
+                    <div className="mb-3">
+                      <label htmlFor="vendorProductsUpdate" className="form-label label_text">
+                        Vendor Products / Services
+                      </label>
+                      <textarea
+                        className="form-control rounded-0"
+                        id="vendorProductsUpdate"
+                        rows="3"
+                        maxLength={1000}
+                        placeholder="Enter products or services offered by this vendor (e.g. Steel Rods, Cement, Electrical Fittings...)"
+                        value={vendorProducts}
+                        onChange={(e) => setVendorProducts(e.target.value)}
+                      ></textarea>
+                      <small className="text-muted">List the main products/services this vendor supplies</small>
                     </div>
                   </div>
 

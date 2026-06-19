@@ -24,6 +24,8 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
   const [localBrands, setLocalBrands] = useState([]);
   const [remarks, setRemarks] = useState("");
   const [manualAddress, setManualAddress] = useState("");
+  // ✅ NEW FIELD
+  const [vendorProducts, setVendorProducts] = useState("");
 
   const [billingAddress, setBillingAddress] = useState({
     pincode: "",
@@ -112,6 +114,8 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
       customVendorType: typeOfVendor === "Other" ? customVendorType : "",
       remarks,
       manualAddress: typeOfVendor === "Import" ? manualAddress : "",
+      // ✅ NEW FIELD
+      vendorProducts,
     };
 
     if (
@@ -574,6 +578,25 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                         placeholder="Enter GST Number"
                         minLength={2}
                       />
+                    </div>
+                  </div>
+
+                  {/* ✅ NEW: Vendor Products Field */}
+                  <div className="col-12 mt-3">
+                    <div className="mb-3">
+                      <label htmlFor="vendorProducts" className="form-label label_text">
+                        Vendor Products / Services
+                      </label>
+                      <textarea
+                        className="form-control rounded-0"
+                        id="vendorProducts"
+                        rows="3"
+                        maxLength={1000}
+                        placeholder="Enter products or services offered by this vendor (e.g. Steel Rods, Cement, Electrical Fittings...)"
+                        value={vendorProducts}
+                        onChange={(e) => setVendorProducts(e.target.value)}
+                      ></textarea>
+                      <small className="text-muted">List the main products/services this vendor supplies</small>
                     </div>
                   </div>
 

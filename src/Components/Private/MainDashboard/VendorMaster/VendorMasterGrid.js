@@ -10,6 +10,94 @@ import { getVendors, deleteVendor } from "../../../../hooks/useVendor";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
 
+// ─── Vendor Type Cards Config ───────────────────────────────────────────────
+const VENDOR_TYPE_CONFIG = [
+  { type: "Import",             icon: "fa-globe",        color: "#0d6efd", bg: "#e7f0ff" },
+  { type: "B2B Material",       icon: "fa-handshake",    color: "#198754", bg: "#e6f4ee" },
+  { type: "Labour Contractor",  icon: "fa-hard-hat",     color: "#fd7e14", bg: "#fff3e6" },
+  { type: "Turnkey Contractor", icon: "fa-tools",        color: "#6f42c1", bg: "#f0ebff" },
+  { type: "Logistics",          icon: "fa-truck",        color: "#0dcaf0", bg: "#e0f8fc" },
+  { type: "Service",            icon: "fa-cogs",         color: "#20c997", bg: "#e3faf4" },
+  { type: "Freelancer",         icon: "fa-user-tie",     color: "#e83e8c", bg: "#fce4f1" },
+  { type: "Other",              icon: "fa-ellipsis-h",   color: "#6c757d", bg: "#f0f0f0" },
+];
+
+const VendorTypeCards = ({ vendors = [], totalVendors = 0 }) => {
+  // Count from current page vendors — for accurate totals we use totalVendors from pagination
+  const countByType = {};
+  vendors.forEach((v) => {
+    const t = (v.typeOfVendor || "Other").trim();
+    countByType[t] = (countByType[t] || 0) + 1;
+  });
+
+  return (
+    <div className="row px-2 mb-2">
+      <div className="col-12">
+        {/* Total Banner */}
+        <div
+          className="d-flex align-items-center justify-content-between px-3 py-2 mb-2 rounded"
+          style={{ background: "#1a237e", border: "1px solid #283593" }}
+        >
+          <span className="fw-bold text-white" style={{ fontSize: "0.9rem" }}>
+            <i className="fa fa-building me-2" style={{ color: "#90caf9" }}></i>
+            Total Registered Vendors
+          </span>
+          <span
+            className="badge rounded-pill px-3 py-2"
+            style={{ background: "#2196f3", fontSize: "0.95rem" }}
+          >
+            {totalVendors}
+          </span>
+        </div>
+
+        {/* Type-wise Cards */}
+        <div className="row g-2">
+          {VENDOR_TYPE_CONFIG.map(({ type, icon, color, bg }) => {
+            const count = countByType[type] || 0;
+            return (
+              <div className="col-6 col-sm-4 col-md-3 col-xl-3" key={type}>
+                <div
+                  className="d-flex align-items-center gap-2 p-2 rounded"
+                  style={{
+                    background: bg,
+                    border: `1px solid ${color}40`,
+                    minHeight: "58px",
+                  }}
+                >
+                  <div
+                    className="d-flex align-items-center justify-content-center rounded flex-shrink-0"
+                    style={{ width: "34px", height: "34px", background: color }}
+                  >
+                    <i className={`fa ${icon} text-white`} style={{ fontSize: "0.8rem" }}></i>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: "0.65rem",
+                        color: "#555",
+                        lineHeight: 1.2,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {type}
+                    </div>
+                    <div className="fw-bold" style={{ fontSize: "1.15rem", color, lineHeight: 1.2 }}>
+                      {count}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+// ────────────────────────────────────────────────────────────────────────────
+
 export const VendorMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -39,10 +127,10 @@ export const VendorMasterGrid = () => {
     hasNextPage: false,
     hasPrevPage: false,
   });
-  
+
   // State to toggle between all vendors and link-registered vendors
   const [showOnlyLinkRegistered, setShowOnlyLinkRegistered] = useState(false);
-  
+
   const [brands, setBrands] = useState([]);
 
   const itemsPerPage = 20;
@@ -96,7 +184,7 @@ export const VendorMasterGrid = () => {
     try {
       const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2);
       const linkUrl = `${window.location.origin}/vendor-registration/${uniqueId}`;
-      
+
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/vendor/generate-link`, {
         method: 'POST',
         headers: {
@@ -105,9 +193,9 @@ export const VendorMasterGrid = () => {
         },
         body: JSON.stringify({ linkId: uniqueId, linkUrl })
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setGeneratedVendorLink(linkUrl);
       } else {
@@ -125,7 +213,6 @@ export const VendorMasterGrid = () => {
     }
   };
 
-  // Toggle function
   const handleToggleView = () => {
     setShowOnlyLinkRegistered(!showOnlyLinkRegistered);
     setCurrentPage(1);
@@ -141,26 +228,25 @@ export const VendorMasterGrid = () => {
           if (showOnlyLinkRegistered) {
             filteredVendors = filteredVendors.filter(vendor => vendor.registeredFromLink === true);
           }
-          
+
           setVendors(filteredVendors);
-          
-          const totalFilteredVendors = showOnlyLinkRegistered 
-            ? filteredVendors.length 
+
+          const totalFilteredVendors = showOnlyLinkRegistered
+            ? filteredVendors.length
             : data.pagination.totalVendors;
-          
+
           setPagination({
             ...data.pagination,
             totalVendors: totalFilteredVendors,
             totalPages: Math.ceil(totalFilteredVendors / itemsPerPage)
           });
-          
+
           const uniqueBrands = [...new Set(data.vendors
             .filter(vendor => vendor.typeOfVendor === 'B2B Material' && vendor.brandsWorkWith)
             .map(vendor => vendor.brandsWorkWith))];
           setBrands(uniqueBrands);
-        }
-        else {
-          toast(data.error)
+        } else {
+          toast(data.error);
         }
       } catch (error) {
         console.error("Error fetching vendors:", error);
@@ -237,6 +323,8 @@ export const VendorMasterGrid = () => {
               }}
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
+
+                {/* ── Top Bar ── */}
                 <div className="row px-2 py-1">
                   <div className="col-12 col-lg-6">
                     <h5 className="text-white py-2">Vendor Master</h5>
@@ -247,18 +335,18 @@ export const VendorMasterGrid = () => {
                         <div className="form">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
-                          <input
-                            type="text"
-                            value={searchText}
-                            onChange={(e) => setSearchText(e.target.value)}
-                            className="form-control form-input bg-transparant"
-                            placeholder="Search Vendor Name, Email, Phone, Type, Category, GST..."
-                          />
+                            <input
+                              type="text"
+                              value={searchText}
+                              onChange={(e) => setSearchText(e.target.value)}
+                              className="form-control form-input bg-transparant"
+                              placeholder="Search Vendor Name, Email, Phone, Type, Category, GST..."
+                            />
                           </form>
                         </div>
                       </div>
-                      
-                      {/* Toggle Button for Link Registered Vendors */}
+
+                      {/* Toggle Link Registered */}
                       <div className="col-4 col-lg-2 text-end">
                         <button
                           onClick={handleToggleView}
@@ -270,27 +358,18 @@ export const VendorMasterGrid = () => {
                           {showOnlyLinkRegistered ? ' All' : ' Link'}
                         </button>
                       </div>
-                      
-                      {user?.permissions && user?.permissions?.includes("createVendor") || user.user==='company' ? ( 
-                      <div className="col-6 col-lg-2 text-end">
-                          <button
-                            onClick={handleAdd}
-                            type="button"
-                            className="btn adbtn btn-dark btn-sm"
-                          >
+
+                      {user?.permissions && user?.permissions?.includes("createVendor") || user.user === 'company' ? (
+                        <div className="col-6 col-lg-2 text-end">
+                          <button onClick={handleAdd} type="button" className="btn adbtn btn-dark btn-sm">
                             <i className="fa-solid fa-plus"></i> Add
                           </button>
-                      </div>
-                        ) : (
-                          null
-                        )}
-                      {user?.permissions && user?.permissions?.includes("createVendor") || user.user==='company' ? (
+                        </div>
+                      ) : null}
+
+                      {user?.permissions && user?.permissions?.includes("createVendor") || user.user === 'company' ? (
                         <div className="col-6 col-lg-3 text-end">
-                          <button
-                            onClick={handleVendorLink}
-                            type="button"
-                            className="btn btn-sm btn-info"
-                          >
+                          <button onClick={handleVendorLink} type="button" className="btn btn-sm btn-info">
                             <i className="fa-solid fa-link"></i> Vendor Link
                           </button>
                         </div>
@@ -299,7 +378,13 @@ export const VendorMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* Display filter status */}
+                {/* ── Vendor Type Summary Cards ── */}
+                <VendorTypeCards
+                  vendors={vendors}
+                  totalVendors={pagination.totalVendors}
+                />
+
+                {/* Link filter alert */}
                 {showOnlyLinkRegistered && (
                   <div className="row px-2">
                     <div className="col-12">
@@ -311,6 +396,7 @@ export const VendorMasterGrid = () => {
                   </div>
                 )}
 
+                {/* ── Table ── */}
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
                     <div className="table-responsive">
@@ -338,7 +424,7 @@ export const VendorMasterGrid = () => {
                                 <td>{vendor.phoneNumber1}</td>
                                 <td>
                                   <span className={`badge ${
-                                    vendor.typeOfVendor === 'Import' ? 'bg-primary' : 
+                                    vendor.typeOfVendor === 'Import' ? 'bg-primary' :
                                     vendor.typeOfVendor === 'B2B Material' ? 'bg-success' :
                                     vendor.typeOfVendor === 'Labour Contractor' ? 'bg-info' :
                                     vendor.typeOfVendor === 'Turnkey Contractor' ? 'bg-warning' :
@@ -371,43 +457,33 @@ export const VendorMasterGrid = () => {
                                     <i className="fa-solid fa-eye text-primary me-3 cursor-pointer"></i>
                                   </span>
 
-                                  <>
-                                    {user?.permissions?.includes("updateVendor") || user?.user==='company' ? (
-                                      <span
-                                        onClick={() => handleUpdate(vendor)}
-                                        className="update"
-                                        title="Update Vendor"
-                                      >
-                                        <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
-                                      </span>
-                                    ) : (
-                                      ""
-                                    )}
+                                  {user?.permissions?.includes("updateVendor") || user?.user === 'company' ? (
+                                    <span
+                                      onClick={() => handleUpdate(vendor)}
+                                      className="update"
+                                      title="Update Vendor"
+                                    >
+                                      <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
+                                    </span>
+                                  ) : ""}
 
-                                    {user?.permissions?.includes("deleteVendor") || user?.user==='company'? (
-                                      <span
-                                        onClick={() =>
-                                          handelDeleteClosePopUpClick(
-                                            vendor._id
-                                          )
-                                        }
-                                        className="delete"
-                                        title="Delete Vendor"
-                                      >
-                                        <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                      </span>
-                                    ) : (
-                                      ""
-                                    )}
-                                  </>
+                                  {user?.permissions?.includes("deleteVendor") || user?.user === 'company' ? (
+                                    <span
+                                      onClick={() => handelDeleteClosePopUpClick(vendor._id)}
+                                      className="delete"
+                                      title="Delete Vendor"
+                                    >
+                                      <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
+                                    </span>
+                                  ) : ""}
                                 </td>
                               </tr>
                             ))
                           ) : (
                             <tr>
                               <td colSpan="9" className="text-center">
-                                {showOnlyLinkRegistered 
-                                  ? "No vendors registered through link found" 
+                                {showOnlyLinkRegistered
+                                  ? "No vendors registered through link found"
                                   : "No data found"}
                               </td>
                             </tr>
@@ -418,6 +494,7 @@ export const VendorMasterGrid = () => {
                   </div>
                 </div>
 
+                {/* ── Pagination ── */}
                 <div className="pagination-container text-center my-3 sm">
                   <button
                     disabled={!pagination.hasPrevPage}
@@ -439,7 +516,7 @@ export const VendorMasterGrid = () => {
                     <button
                       key={page}
                       onClick={() => handlePageChange(page)}
-                      className={`btn btn-sm me-1 ${ 
+                      className={`btn btn-sm me-1 ${
                         pagination.currentPage === page ? "btn-primary" : "btn-dark"
                       }`}
                     >
@@ -463,6 +540,7 @@ export const VendorMasterGrid = () => {
                     Last
                   </button>
                 </div>
+
               </div>
             </div>
           </div>
@@ -490,7 +568,7 @@ export const VendorMasterGrid = () => {
       )}
 
       {vendorLinkPopUpShow && (
-        <VendorLinkPopUp 
+        <VendorLinkPopUp
           handleVendorLink={handleVendorLink}
           generatedVendorLink={generatedVendorLink}
           generateVendorLink={generateVendorLink}
@@ -499,7 +577,7 @@ export const VendorMasterGrid = () => {
       )}
 
       {viewPopUpShow && (
-        <ViewVendorPopUp 
+        <ViewVendorPopUp
           vendor={selectedVendor}
           handleViewClose={handleViewClose}
         />
