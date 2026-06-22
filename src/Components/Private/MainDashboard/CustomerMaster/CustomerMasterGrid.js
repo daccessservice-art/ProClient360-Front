@@ -5,6 +5,7 @@ import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddCustomerPopUp from "./PopUp/AddCustomerPopUp";
 import UpdateCustomerPopUp from "./PopUp/UpdateCustomerPopUp";
 import ReassignOwnedByPopUp from "./PopUp/ReassignOwnedByPopUp";
+import RaiseTicketPopUp from "./PopUp/RaiseTicketPopUp";
 import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel, getEmployees } from "../../../../hooks/useCustomer";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
@@ -38,8 +39,11 @@ export const CustomerMasterGrid = () => {
   const [AddPopUpShow, setAddPopUpShow] = useState(false);
   const [deletePopUpShow, setdeletePopUpShow] = useState(false);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
-
   const [reassignPopUpShow, setReassignPopUpShow] = useState(false);
+
+  // ✅ NEW: Raise Ticket state
+  const [raiseTicketShow, setRaiseTicketShow] = useState(false);
+  const [raiseTicketCustomer, setRaiseTicketCustomer] = useState(null);
 
   const [selectedId, setSelecteId] = useState(null);
   const [customers, setCustomers] = useState([]);
@@ -52,10 +56,7 @@ export const CustomerMasterGrid = () => {
     limit: 40, hasNextPage: false, hasPrevPage: false,
   });
 
-  // ── Filtered counts (respects active filters) ──
   const [totalCounts, setTotalCounts] = useState({ main: 0, branch: 0 });
-
-  // ── ALL-TIME total counts (always unfiltered — shown in header badges) ──
   const [allTotalCounts, setAllTotalCounts] = useState({ main: 0, branch: 0, total: 0 });
 
   const [createdByFilter, setCreatedByFilter] = useState("");
@@ -113,6 +114,17 @@ export const CustomerMasterGrid = () => {
   const handleAdd = () => { setAddPopUpShow(!AddPopUpShow); };
   const handleUpdate = (customer) => { setSelectedCust(customer); setUpdatePopUpShow(!updatePopUpShow); };
   const handelDeleteClosePopUpClick = (id) => { setSelecteId(id); setdeletePopUpShow(!deletePopUpShow); };
+
+  // ✅ NEW: Raise Ticket handlers
+  const handleRaiseTicket = (customer) => {
+    setRaiseTicketCustomer(customer);
+    setRaiseTicketShow(true);
+  };
+  const handleRaiseTicketClose = () => {
+    setRaiseTicketShow(false);
+    setRaiseTicketCustomer(null);
+    setRefetchTrigger((n) => n + 1);
+  };
 
   const handelDeleteClick = async () => {
     const data = await deleteCustomer(selectedId);
@@ -225,12 +237,10 @@ export const CustomerMasterGrid = () => {
             limit: itemsPerPage, hasNextPage: false, hasPrevPage: false,
           });
 
-          // ── Filtered counts (matches active filters) ──
           if (data.counts) {
             setTotalCounts({ main: data.counts.main || 0, branch: data.counts.branch || 0 });
           }
 
-          // ── Always-total counts (ignores all filters — shown in header) ──
           if (data.allCounts) {
             setAllTotalCounts({ main: data.allCounts.main || 0, branch: data.allCounts.branch || 0, total: data.allCounts.total || 0, });
           }
@@ -315,74 +325,37 @@ export const CustomerMasterGrid = () => {
 
                 {/* ── Top bar ── */}
                 <div className="row px-2 py-1 align-items-center">
-
-                  {/* ── Heading: always shows TOTAL Main / Branch across ALL customers (unfiltered) ── */}
                   <div className="col-12 col-lg-3">
                     <h5 className="text-white py-2 mb-0 d-flex align-items-center flex-wrap gap-2">
-  Customer Master
-  {!loading && (
-    <>
-      {/* Total Count Badge */}
-      <span
-        className="badge bg-light text-dark"
-        title="Total customers (all)"
-        style={{ fontSize: "11px", fontWeight: "600" }}
-      >
-        <i className="fa-solid fa-users me-1"></i>
-        {allTotalCounts.total} Total
-      </span>
-
-      {/* Total Main — always full count regardless of filters */}
-      <span
-        className="badge bg-primary"
-        title="Total Main customers (all customers, ignores filters)"
-        style={{ fontSize: "11px", fontWeight: "500" }}
-      >
-        <i className="fa-solid fa-building me-1"></i>
-        {allTotalCounts.main} Main
-      </span>
-
-      {/* Total Branch — always full count regardless of filters */}
-      <span
-        className="badge bg-info text-dark"
-        title="Total Branch customers (all customers, ignores filters)"
-        style={{ fontSize: "11px", fontWeight: "500" }}
-      >
-        <i className="fa-solid fa-code-branch me-1"></i>
-        {allTotalCounts.branch} Branch
-      </span>
-
-      {/* If filters are active, also show filtered sub-counts */}
-      {isFilterActive && (
-        <span
-          className="badge bg-secondary"
-          title="Filtered result counts"
-          style={{ fontSize: "10px", fontWeight: "400" }}
-        >
-          (Filtered: {totalCounts.main}M / {totalCounts.branch}B)
-        </span>
-      )}
-    </>
-  )}
-</h5>
+                      Customer Master
+                      {!loading && (
+                        <>
+                          <span className="badge bg-light text-dark" title="Total customers (all)" style={{ fontSize: "11px", fontWeight: "600" }}>
+                            <i className="fa-solid fa-users me-1"></i>{allTotalCounts.total} Total
+                          </span>
+                          <span className="badge bg-primary" title="Total Main customers (all customers, ignores filters)" style={{ fontSize: "11px", fontWeight: "500" }}>
+                            <i className="fa-solid fa-building me-1"></i>{allTotalCounts.main} Main
+                          </span>
+                          <span className="badge bg-info text-dark" title="Total Branch customers (all customers, ignores filters)" style={{ fontSize: "11px", fontWeight: "500" }}>
+                            <i className="fa-solid fa-code-branch me-1"></i>{allTotalCounts.branch} Branch
+                          </span>
+                          {isFilterActive && (
+                            <span className="badge bg-secondary" title="Filtered result counts" style={{ fontSize: "10px", fontWeight: "400" }}>
+                              (Filtered: {totalCounts.main}M / {totalCounts.branch}B)
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </h5>
                   </div>
 
-                  {/* ── Controls ── */}
                   <div className="col-12 col-lg-9">
                     <div className="row g-2 align-items-end justify-content-end">
-
-                      {/* ── Search bar ── */}
                       <div className="col-12 col-sm-6 col-lg-3">
                         <div className="form">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
-                            <input
-                              type="text"
-                              value={searchText}
-                              onChange={(e) => setSearchText(e.target.value)}
-                              className="form-control form-input bg-transparant"
-                              placeholder="Search ..."
-                            />
+                            <input type="text" value={searchText} onChange={(e) => setSearchText(e.target.value)} className="form-control form-input bg-transparant" placeholder="Search ..." />
                           </form>
                         </div>
                       </div>
@@ -400,9 +373,7 @@ export const CustomerMasterGrid = () => {
                         <label className="text-white-50 d-block mb-1" style={{ fontSize: "11px" }}>All Created By</label>
                         <select className="form-select form-select-sm" value={createdByFilter} onChange={handleCreatedByFilter}>
                           <option value="">Select Created By</option>
-                          {filterEmployees.map((emp) => (
-                            <option key={emp._id} value={emp.name}>{emp.name}</option>
-                          ))}
+                          {filterEmployees.map((emp) => (<option key={emp._id} value={emp.name}>{emp.name}</option>))}
                         </select>
                       </div>
 
@@ -411,9 +382,7 @@ export const CustomerMasterGrid = () => {
                         <select className="form-select form-select-sm" value={ownedByFilter} onChange={handleOwnedByFilter}>
                           <option value="">Owned By</option>
                           <option value="NA">NA / None</option>
-                          {filterEmployees.map((emp) => (
-                            <option key={emp._id} value={emp.name}>{emp.name}</option>
-                          ))}
+                          {filterEmployees.map((emp) => (<option key={emp._id} value={emp.name}>{emp.name}</option>))}
                         </select>
                       </div>
 
@@ -433,15 +402,12 @@ export const CustomerMasterGrid = () => {
                         <select className="form-select form-select-sm" value={industryTypeFilter} onChange={handleIndustryTypeFilter}>
                           <option value="">Industry</option>
                           <option value="NA">NA</option>
-                          {industryOptions.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
+                          {industryOptions.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
                         </select>
                       </div>
 
                       <div className="col-12 col-sm-6 col-lg-2 text-end">
                         <div className="btn-group flex-wrap" role="group">
-
                           {isFilterActive && (
                             <button onClick={handleResetFilters} type="button" className="btn btn-sm btn-outline-light me-1" title="Clear all filters">
                               <i className="fa-solid fa-xmark"></i>
@@ -449,39 +415,21 @@ export const CustomerMasterGrid = () => {
                           )}
 
                           {canReassign && (
-                            <button
-                              onClick={handleOpenReassign}
-                              type="button"
-                              className="btn btn-sm btn-outline-info me-1"
-                              title="Reassign Customer Ownership"
-                              disabled={loading || bulkDeleteMode}
-                            >
-                              <i className="fa-solid fa-arrows-rotate me-1"></i>
-                              Reassign
+                            <button onClick={handleOpenReassign} type="button" className="btn btn-sm btn-outline-info me-1" title="Reassign Customer Ownership" disabled={loading || bulkDeleteMode}>
+                              <i className="fa-solid fa-arrows-rotate me-1"></i>Reassign
                             </button>
                           )}
 
                           {canBulkDelete && (
-                            <button
-                              onClick={handleToggleBulkDeleteMode}
-                              type="button"
-                              className={`btn btn-sm me-1 ${bulkDeleteMode ? "btn-warning" : "btn-outline-warning"}`}
-                              title={bulkDeleteMode ? "Exit Bulk Delete Mode" : "Enable Bulk Delete"}
-                              disabled={loading}
-                            >
-                              <i className={`fa-solid ${bulkDeleteMode ? "fa-xmark" : "fa-trash-can"} me-1`}></i>
-                              {bulkDeleteMode ? "Exit" : "Bulk"}
+                            <button onClick={handleToggleBulkDeleteMode} type="button" className={`btn btn-sm me-1 ${bulkDeleteMode ? "btn-warning" : "btn-outline-warning"}`} title={bulkDeleteMode ? "Exit Bulk Delete Mode" : "Enable Bulk Delete"} disabled={loading}>
+                              <i className={`fa-solid ${bulkDeleteMode ? "fa-xmark" : "fa-trash-can"} me-1`}></i>{bulkDeleteMode ? "Exit" : "Bulk"}
                             </button>
                           )}
 
                           {canExport && (
                             <>
-                              <button onClick={handleExportPDF} type="button" className="btn btn-sm btn-danger me-1" title="Export to PDF" disabled={loading}>
-                                <i className="fa-solid fa-file-pdf"></i>
-                              </button>
-                              <button onClick={handleExportExcel} type="button" className="btn btn-sm btn-success me-1" title="Export to Excel" disabled={loading}>
-                                <i className="fa-solid fa-file-excel"></i>
-                              </button>
+                              <button onClick={handleExportPDF} type="button" className="btn btn-sm btn-danger me-1" title="Export to PDF" disabled={loading}><i className="fa-solid fa-file-pdf"></i></button>
+                              <button onClick={handleExportExcel} type="button" className="btn btn-sm btn-success me-1" title="Export to Excel" disabled={loading}><i className="fa-solid fa-file-excel"></i></button>
                             </>
                           )}
 
@@ -490,10 +438,8 @@ export const CustomerMasterGrid = () => {
                               <i className="fa-solid fa-plus"></i> Add
                             </button>
                           ) : null}
-
                         </div>
                       </div>
-
                     </div>
                   </div>
                 </div>
@@ -502,57 +448,17 @@ export const CustomerMasterGrid = () => {
                 {bulkDeleteMode && (
                   <div className="row px-2 pb-1">
                     <div className="col-12">
-                      <div
-                        className="d-flex align-items-center flex-wrap gap-2 px-3 py-2 rounded"
-                        style={{ backgroundColor: "#fff3cd", border: "1px solid #ffc107" }}
-                      >
+                      <div className="d-flex align-items-center flex-wrap gap-2 px-3 py-2 rounded" style={{ backgroundColor: "#fff3cd", border: "1px solid #ffc107" }}>
                         <div className="form-check mb-0 me-2">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            id="selectAllChk"
-                            checked={allCurrentPageSelected}
-                            ref={(el) => { if (el) el.indeterminate = someSelected; }}
-                            onChange={handleSelectAll}
-                            style={{ width: "18px", height: "18px", cursor: "pointer" }}
-                          />
-                          <label className="form-check-label fw-semibold ms-1" htmlFor="selectAllChk" style={{ cursor: "pointer", fontSize: "13px" }}>
-                            {allCurrentPageSelected ? "Deselect All" : "Select All"} (this page)
-                          </label>
+                          <input className="form-check-input" type="checkbox" id="selectAllChk" checked={allCurrentPageSelected} ref={(el) => { if (el) el.indeterminate = someSelected; }} onChange={handleSelectAll} style={{ width: "18px", height: "18px", cursor: "pointer" }} />
+                          <label className="form-check-label fw-semibold ms-1" htmlFor="selectAllChk" style={{ cursor: "pointer", fontSize: "13px" }}>{allCurrentPageSelected ? "Deselect All" : "Select All"} (this page)</label>
                         </div>
-
                         <span className="text-muted" style={{ fontSize: "13px" }}>|</span>
-
-                        <span style={{ fontSize: "13px" }}>
-                          <i className="fa-solid fa-check-square me-1 text-warning"></i>
-                          <strong>{selectedIds.length}</strong> customer{selectedIds.length !== 1 ? "s" : ""} selected
-                        </span>
-
+                        <span style={{ fontSize: "13px" }}><i className="fa-solid fa-check-square me-1 text-warning"></i><strong>{selectedIds.length}</strong> customer{selectedIds.length !== 1 ? "s" : ""} selected</span>
                         <span className="text-muted" style={{ fontSize: "13px" }}>|</span>
-
-                        <button
-                          type="button"
-                          className="btn btn-danger btn-sm"
-                          onClick={handleBulkDeleteConfirm}
-                          disabled={selectedIds.length === 0 || loading}
-                        >
-                          <i className="fa-solid fa-trash me-1"></i>
-                          Delete Selected ({selectedIds.length})
-                        </button>
-
-                        <button
-                          type="button"
-                          className="btn btn-outline-secondary btn-sm ms-auto"
-                          onClick={() => setSelectedIds([])}
-                          disabled={selectedIds.length === 0}
-                        >
-                          <i className="fa-solid fa-xmark me-1"></i>Clear Selection
-                        </button>
-
-                        <small className="text-muted w-100" style={{ fontSize: "11px" }}>
-                          <i className="fa-solid fa-circle-info me-1 text-warning"></i>
-                          Bulk delete mode is active. Customers with linked branches or projects cannot be deleted. Selection resets on page change.
-                        </small>
+                        <button type="button" className="btn btn-danger btn-sm" onClick={handleBulkDeleteConfirm} disabled={selectedIds.length === 0 || loading}><i className="fa-solid fa-trash me-1"></i>Delete Selected ({selectedIds.length})</button>
+                        <button type="button" className="btn btn-outline-secondary btn-sm ms-auto" onClick={() => setSelectedIds([])} disabled={selectedIds.length === 0}><i className="fa-solid fa-xmark me-1"></i>Clear Selection</button>
+                        <small className="text-muted w-100" style={{ fontSize: "11px" }}><i className="fa-solid fa-circle-info me-1 text-warning"></i>Bulk delete mode is active. Customers with linked branches or projects cannot be deleted. Selection resets on page change.</small>
                       </div>
                     </div>
                   </div>
@@ -563,55 +469,13 @@ export const CustomerMasterGrid = () => {
                   <div className="row px-2 pb-1">
                     <div className="col-12 d-flex align-items-center flex-wrap gap-1">
                       <small className="text-white-50 me-1">Filters:</small>
-
-                      {search && (
-                        <span className="badge bg-info text-dark me-1">
-                          Search: {search}
-                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
-                            onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}></i>
-                        </span>
-                      )}
-                      {customerTypeFilter && (
-                        <span className="badge bg-primary me-1">
-                          Type: {customerTypeFilter === "main" ? "Main" : "Branch"}
-                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
-                            onClick={() => { setCustomerTypeFilter(""); setCurrentPage(1); }}></i>
-                        </span>
-                      )}
-                      {createdByFilter && (
-                        <span className="badge bg-secondary me-1">
-                          Created: {createdByFilter}
-                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
-                            onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}></i>
-                        </span>
-                      )}
-                      {ownedByFilter && (
-                        <span className="badge bg-secondary me-1">
-                          Owned: {ownedByFilter}
-                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
-                            onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}></i>
-                        </span>
-                      )}
-                      {priorityFilter && (
-                        <span className="badge bg-warning text-dark me-1">
-                          Priority: {priorityFilter}
-                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
-                            onClick={() => { setPriorityFilter(""); setCurrentPage(1); }}></i>
-                        </span>
-                      )}
-                      {industryTypeFilter && (
-                        <span className="badge bg-dark me-1">
-                          Industry: {industryTypeFilter}
-                          <i className="fa fa-times ms-1" style={{ cursor: "pointer" }}
-                            onClick={() => { setIndustryTypeFilter(""); setCurrentPage(1); }}></i>
-                        </span>
-                      )}
-                      {!loading && (
-                        <small className="text-white-50 ms-2">
-                          Showing {customers.length}
-                          {pagination.totalCustomers > 0 && ` of ${pagination.totalCustomers}`}
-                        </small>
-                      )}
+                      {search && (<span className="badge bg-info text-dark me-1">Search: {search}<i className="fa fa-times ms-1" style={{ cursor: "pointer" }} onClick={() => { setSearch(""); setSearchText(""); setCurrentPage(1); }}></i></span>)}
+                      {customerTypeFilter && (<span className="badge bg-primary me-1">Type: {customerTypeFilter === "main" ? "Main" : "Branch"}<i className="fa fa-times ms-1" style={{ cursor: "pointer" }} onClick={() => { setCustomerTypeFilter(""); setCurrentPage(1); }}></i></span>)}
+                      {createdByFilter && (<span className="badge bg-secondary me-1">Created: {createdByFilter}<i className="fa fa-times ms-1" style={{ cursor: "pointer" }} onClick={() => { setCreatedByFilter(""); setCurrentPage(1); }}></i></span>)}
+                      {ownedByFilter && (<span className="badge bg-secondary me-1">Owned: {ownedByFilter}<i className="fa fa-times ms-1" style={{ cursor: "pointer" }} onClick={() => { setOwnedByFilter(""); setCurrentPage(1); }}></i></span>)}
+                      {priorityFilter && (<span className="badge bg-warning text-dark me-1">Priority: {priorityFilter}<i className="fa fa-times ms-1" style={{ cursor: "pointer" }} onClick={() => { setPriorityFilter(""); setCurrentPage(1); }}></i></span>)}
+                      {industryTypeFilter && (<span className="badge bg-dark me-1">Industry: {industryTypeFilter}<i className="fa fa-times ms-1" style={{ cursor: "pointer" }} onClick={() => { setIndustryTypeFilter(""); setCurrentPage(1); }}></i></span>)}
+                      {!loading && (<small className="text-white-50 ms-2">Showing {customers.length}{pagination.totalCustomers > 0 && ` of ${pagination.totalCustomers}`}</small>)}
                     </div>
                   </div>
                 )}
@@ -623,19 +487,7 @@ export const CustomerMasterGrid = () => {
                       <table className="table table-striped table-class" id="table-id">
                         <thead>
                           <tr className="th_border">
-                            {bulkDeleteMode && (
-                              <th className="text-center align-middle" style={{ width: "42px" }}>
-                                <input
-                                  type="checkbox"
-                                  className="form-check-input"
-                                  checked={allCurrentPageSelected}
-                                  ref={(el) => { if (el) el.indeterminate = someSelected; }}
-                                  onChange={handleSelectAll}
-                                  style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                                  title="Select / Deselect all on this page"
-                                />
-                              </th>
-                            )}
+                            {bulkDeleteMode && (<th className="text-center align-middle" style={{ width: "42px" }}><input type="checkbox" className="form-check-input" checked={allCurrentPageSelected} ref={(el) => { if (el) el.indeterminate = someSelected; }} onChange={handleSelectAll} style={{ width: "16px", height: "16px", cursor: "pointer" }} title="Select / Deselect all on this page" /></th>)}
                             <th className="text-center align-middle">Sr. No</th>
                             <th className="align_left_td td_width align-middle">Customer Name</th>
                             <th className="text-center align-middle">Type</th>
@@ -653,73 +505,39 @@ export const CustomerMasterGrid = () => {
                             customers.map((customer, index) => {
                               const isSelected = selectedIds.includes(customer._id);
                               return (
-                                <tr
-                                  className="border my-4"
-                                  key={customer._id}
-                                  style={
-                                    bulkDeleteMode && isSelected
-                                      ? { backgroundColor: "#fff3cd", outline: "2px solid #ffc107" }
-                                      : {}
-                                  }
-                                >
+                                <tr className="border my-4" key={customer._id} style={bulkDeleteMode && isSelected ? { backgroundColor: "#fff3cd", outline: "2px solid #ffc107" } : {}}>
                                   {bulkDeleteMode && (
                                     <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                      <input
-                                        type="checkbox"
-                                        className="form-check-input"
-                                        checked={isSelected}
-                                        onChange={() => handleSelectOne(customer._id)}
-                                        style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                                      />
+                                      <input type="checkbox" className="form-check-input" checked={isSelected} onChange={() => handleSelectOne(customer._id)} style={{ width: "16px", height: "16px", cursor: "pointer" }} />
                                     </td>
                                   )}
-
-                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                    {index + 1 + (currentPage - 1) * itemsPerPage}
-                                  </td>
-
-                                  <td className="align_left_td td_width wrap-text-of-col" style={{ verticalAlign: "middle" }}>
-                                    {customer.custName}
-                                  </td>
-
-                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                    {getCustomerTypeBadge(customer.customerType)}
-                                  </td>
-
-                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                    {customer.GSTNo}
-                                  </td>
-
-                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                    <span className="badge bg-secondary">{getIndustryDisplay(customer)}</span>
-                                  </td>
-
-                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                    <span className={getPriorityBadgeClass(customer.customerPriority)}>
-                                      {customer.customerPriority || "N/A"}
-                                    </span>
-                                  </td>
-
-                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                    {customer.createdBy?.name || "N/A"}
-                                  </td>
-
-                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>
-                                    {customer.ownedBy || "N/A"}
-                                  </td>
-
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>{index + 1 + (currentPage - 1) * itemsPerPage}</td>
+                                  <td className="align_left_td td_width wrap-text-of-col" style={{ verticalAlign: "middle" }}>{customer.custName}</td>
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>{getCustomerTypeBadge(customer.customerType)}</td>
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>{customer.GSTNo}</td>
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}><span className="badge bg-secondary">{getIndustryDisplay(customer)}</span></td>
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}><span className={getPriorityBadgeClass(customer.customerPriority)}>{customer.customerPriority || "N/A"}</span></td>
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>{customer.createdBy?.name || "N/A"}</td>
+                                  <td style={{ verticalAlign: "middle", textAlign: "center" }}>{customer.ownedBy || "N/A"}</td>
                                   <td style={{ verticalAlign: "middle", textAlign: "center", width: "45px" }}>
-                                    {customer.isChecked && (
-                                      <i className="fa-solid fa-check text-success" style={{ fontSize: "20px" }} title="Verified"></i>
-                                    )}
+                                    {customer.isChecked && (<i className="fa-solid fa-check text-success" style={{ fontSize: "20px" }} title="Verified"></i>)}
                                   </td>
-
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     {!bulkDeleteMode && (
                                       <>
+                                        {/* ✅ NEW: Raise Ticket Button */}
+                                        <span
+                                          onClick={() => handleRaiseTicket(customer)}
+                                          className="me-2"
+                                          title="Raise Ticket — Add Contact Info"
+                                          style={{ cursor: "pointer" }}
+                                        >
+                                          <i className="fa-solid fa-ticket text-info" style={{ fontSize: "16px" }}></i>
+                                        </span>
+
                                         {user?.permissions?.includes("updateCustomer") || user?.user === "company" ? (
-                                          <span onClick={() => handleUpdate(customer)} className="update">
-                                            <i className="fa-solid fa-pen text-success me-3 cursor-pointer"></i>
+                                          <span onClick={() => handleUpdate(customer)} className="update me-2">
+                                            <i className="fa-solid fa-pen text-success cursor-pointer"></i>
                                           </span>
                                         ) : ""}
                                         {user?.permissions?.includes("deleteCustomer") || user?.user === "company" ? (
@@ -730,15 +548,8 @@ export const CustomerMasterGrid = () => {
                                       </>
                                     )}
                                     {bulkDeleteMode && (
-                                      <span
-                                        style={{ cursor: "pointer" }}
-                                        onClick={() => handleSelectOne(customer._id)}
-                                        title={isSelected ? "Deselect" : "Select for deletion"}
-                                      >
-                                        <i
-                                          className={`fa-solid ${isSelected ? "fa-circle-check text-warning" : "fa-circle text-secondary"}`}
-                                          style={{ fontSize: "18px" }}
-                                        ></i>
+                                      <span style={{ cursor: "pointer" }} onClick={() => handleSelectOne(customer._id)} title={isSelected ? "Deselect" : "Select for deletion"}>
+                                        <i className={`fa-solid ${isSelected ? "fa-circle-check text-warning" : "fa-circle text-secondary"}`} style={{ fontSize: "18px" }}></i>
                                       </span>
                                     )}
                                   </td>
@@ -746,11 +557,7 @@ export const CustomerMasterGrid = () => {
                               );
                             })
                           ) : (
-                            <tr>
-                              <td colSpan={bulkDeleteMode ? "12" : "11"} style={{ textAlign: "center", verticalAlign: "middle" }}>
-                                No data found
-                              </td>
-                            </tr>
+                            <tr><td colSpan={bulkDeleteMode ? "12" : "11"} style={{ textAlign: "center", verticalAlign: "middle" }}>No data found</td></tr>
                           )}
                         </tbody>
                       </table>
@@ -763,26 +570,15 @@ export const CustomerMasterGrid = () => {
                   <div className="pagination-container text-center my-3 sm">
                     <button disabled={!pagination.hasPrevPage || loading} onClick={() => handlePageChange(1)} className="btn btn-dark btn-sm me-2">First</button>
                     <button disabled={!pagination.hasPrevPage || loading} onClick={() => handlePageChange(currentPage - 1)} className="btn btn-dark btn-sm me-2">Previous</button>
-
                     {startPage > 1 && <span className="mx-2 text-white">...</span>}
-
                     {pageButtons.map((page) => (
-                      <button key={page} onClick={() => handlePageChange(page)} disabled={loading}
-                        className={`btn btn-sm me-1 ${currentPage === page ? "btn-primary" : "btn-dark"}`}>
-                        {page}
-                      </button>
+                      <button key={page} onClick={() => handlePageChange(page)} disabled={loading} className={`btn btn-sm me-1 ${currentPage === page ? "btn-primary" : "btn-dark"}`}>{page}</button>
                     ))}
-
                     {endPage < pagination.totalPages && <span className="mx-2 text-white">...</span>}
-
                     <button disabled={!pagination.hasNextPage || loading} onClick={() => handlePageChange(currentPage + 1)} className="btn btn-dark btn-sm me-2">Next</button>
                     <button disabled={!pagination.hasNextPage || loading} onClick={() => handlePageChange(pagination.totalPages)} className="btn btn-dark btn-sm">Last</button>
-
                     <div className="mt-1">
-                      <small className="text-white-50">
-                        Page {pagination.currentPage} of {pagination.totalPages}
-                        &nbsp;({pagination.totalCustomers} total customers)
-                      </small>
+                      <small className="text-white-50">Page {pagination.currentPage} of {pagination.totalPages} &nbsp;({pagination.totalCustomers} total customers)</small>
                     </div>
                   </div>
                 )}
@@ -793,7 +589,7 @@ export const CustomerMasterGrid = () => {
         </div>
       </div>
 
-      {/* ── Single Delete Popup ── */}
+      {/* ── Popups ── */}
       {deletePopUpShow && (
         <DeletePopUP
           message={"Are you sure! Do you want to Delete ?"}
@@ -803,7 +599,6 @@ export const CustomerMasterGrid = () => {
         />
       )}
 
-      {/* ── Bulk Delete Confirm Popup ── */}
       {bulkDeleteConfirmShow && (
         <DeletePopUP
           message={`Are you sure you want to delete ${selectedIds.length} selected customer${selectedIds.length > 1 ? "s" : ""}? This action cannot be undone. Customers with linked branches or projects will not be deleted.`}
@@ -815,16 +610,13 @@ export const CustomerMasterGrid = () => {
 
       {AddPopUpShow && <AddCustomerPopUp handleAdd={handleAdd} />}
 
-      {updatePopUpShow && (
-        <UpdateCustomerPopUp selectedCust={selectedCust} handleUpdate={handleUpdate} />
-      )}
+      {updatePopUpShow && <UpdateCustomerPopUp selectedCust={selectedCust} handleUpdate={handleUpdate} />}
 
-      {/* ── Reassign Ownership Popup ── */}
-      {reassignPopUpShow && (
-        <ReassignOwnedByPopUp
-          onClose={() => setReassignPopUpShow(false)}
-          onDone={handleReassignDone}
-        />
+      {reassignPopUpShow && <ReassignOwnedByPopUp onClose={() => setReassignPopUpShow(false)} onDone={handleReassignDone} />}
+
+      {/* ✅ NEW: Raise Ticket Popup */}
+      {raiseTicketShow && raiseTicketCustomer && (
+        <RaiseTicketPopUp customer={raiseTicketCustomer} onClose={handleRaiseTicketClose} />
       )}
     </>
   );
