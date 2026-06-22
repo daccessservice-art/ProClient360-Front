@@ -224,3 +224,38 @@
   font-size: 18px;
   letter-spacing: 1px;
 }
+
+/* ✅ Toggle Row — Mobile / Email switcher */
+.ctm-toggle-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.ctm-toggle-btn {
+  flex: 1;
+  padding: 10px 8px;
+  border: 2px solid #dde3f0;
+  border-radius: 8px;
+  background: #f5f7ff;
+  color: #555;
+  font-size: 13px;
+  font-family: "Poppins", sans-serif;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.ctm-toggle-btn:hover {
+  border-color: #6270d9;
+  color: #6270d9;
+  background: #eef0ff;
+}
+
+.ctm-toggle-btn.active {
+  background: #6270d9;
+  border-color: #6270d9;
+  color: #fff;
+  font-weight: 600;
+}

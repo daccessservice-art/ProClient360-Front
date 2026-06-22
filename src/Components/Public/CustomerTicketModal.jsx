@@ -3,12 +3,13 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import "./CustomerTicketModal.css";
 
-// ✅ FIX 1: Use env variable, not hardcoded localhost
 const API_BASE = process.env.REACT_APP_API_URL || "";
 
 const CustomerTicketModal = ({ onClose }) => {
   const [step, setStep] = useState(1);
+  const [inputType, setInputType] = useState("mobile"); // "mobile" or "email"
   const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [customer, setCustomer] = useState(null);
   const [product, setProduct] = useState("");
@@ -16,64 +17,47 @@ const CustomerTicketModal = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [ticketId, setTicketId] = useState("");
 
-  // ✅ FIX 2: Products must exactly match ticketSchema enum values
   const products = [
-    "Surveillance System",
-    "CCTV System",
-    "TA System",
-    "Hajeri",
-    "SmartFace",
-    "ZKBioSecurity",
-    "Access Control System",
-    "Turnkey Project",
-    "Alleviz",
-    "CafeLive",
-    "WorksJoy",
-    "WorksJoy Blu",
-    "Fire Alarm System",
-    "Fire Hydrant System",
-    "IDS",
-    "AI Face Machines",
-    "Entrance Automation",
-    "Guard Tour System",
-    "Home Automation",
-    "IP PA and Communication System",
-    "CRM",
-    "KMS",
-    "VMS",
-    "PMS",
-    "Boom Barrier System",
-    "Tripod System",
-    "Flap Barrier System",
-    "EPBX System",
-    "CMS",
-    "Lift Eliviter System",
-    "AV6",
-    "Walky Talky System",
-    "Device Management System",
-    "VisionIQ",
-    "CineMind",
-    "Extracto",
-    "Virtual Agent",
-    "LAN Cabling Activity",
+    "Surveillance System", "CCTV System", "TA System", "Hajeri",
+    "SmartFace", "ZKBioSecurity", "Access Control System", "Turnkey Project",
+    "Alleviz", "CafeLive", "WorksJoy", "WorksJoy Blu", "Fire Alarm System",
+    "Fire Hydrant System", "IDS", "AI Face Machines", "Entrance Automation",
+    "Guard Tour System", "Home Automation", "IP PA and Communication System",
+    "CRM", "KMS", "VMS", "PMS", "Boom Barrier System", "Tripod System",
+    "Flap Barrier System", "EPBX System", "CMS", "Lift Eliviter System",
+    "AV6", "Walky Talky System", "Device Management System", "VisionIQ",
+    "CineMind", "Extracto", "Virtual Agent", "LAN Cabling Activity",
   ];
 
   const handleSendOtp = async () => {
-    if (!/^\d{10}$/.test(mobile)) {
-      toast.error("Please enter a valid 10-digit mobile number");
-      return;
+    // Validate input
+    if (inputType === "mobile") {
+      if (!/^\d{10}$/.test(mobile)) {
+        toast.error("Please enter a valid 10-digit mobile number");
+        return;
+      }
+    } else {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        toast.error("Please enter a valid email address");
+        return;
+      }
     }
+
     setLoading(true);
     try {
+      const payload = inputType === "mobile"
+        ? { mobile }
+        : { email };
+
       const res = await axios.post(
         `${API_BASE}/api/customer-ticket/send-otp`,
-        { mobile }
+        payload
       );
       if (res.data.success) {
         toast.success("OTP sent to your registered Email");
         setStep(2);
       } else {
-        toast.error(res.data.message || "Mobile number not found");
+        toast.error(res.data.message || "Not found in our records");
       }
     } catch (err) {
       console.error(err);
@@ -92,9 +76,13 @@ const CustomerTicketModal = ({ onClose }) => {
     }
     setLoading(true);
     try {
+      const payload = inputType === "mobile"
+        ? { mobile, otp }
+        : { email, otp };
+
       const res = await axios.post(
         `${API_BASE}/api/customer-ticket/verify-otp`,
-        { mobile, otp }
+        payload
       );
       if (res.data.success) {
         setCustomer(res.data.customer);
@@ -105,9 +93,7 @@ const CustomerTicketModal = ({ onClose }) => {
       }
     } catch (err) {
       console.error(err);
-      toast.error(
-        err?.response?.data?.message || "Connection Error"
-      );
+      toast.error(err?.response?.data?.message || "Connection Error");
     } finally {
       setLoading(false);
     }
@@ -124,9 +110,13 @@ const CustomerTicketModal = ({ onClose }) => {
     }
     setLoading(true);
     try {
+      const payload = inputType === "mobile"
+        ? { mobile, product, complaint }
+        : { email, product, complaint };
+
       const res = await axios.post(
         `${API_BASE}/api/customer-ticket/raise-ticket`,
-        { mobile, product, complaint }
+        payload
       );
       if (res.data.success) {
         setTicketId(res.data.ticketId);
@@ -137,9 +127,7 @@ const CustomerTicketModal = ({ onClose }) => {
       }
     } catch (err) {
       console.error(err);
-      toast.error(
-        err?.response?.data?.message || "Failed to raise ticket. Try again."
-      );
+      toast.error(err?.response?.data?.message || "Failed to raise ticket. Try again.");
     } finally {
       setLoading(false);
     }
@@ -148,11 +136,13 @@ const CustomerTicketModal = ({ onClose }) => {
   const handleClose = () => {
     setStep(1);
     setMobile("");
+    setEmail("");
     setOtp("");
     setCustomer(null);
     setProduct("");
     setComplaint("");
     setTicketId("");
+    setInputType("mobile");
     onClose();
   };
 
@@ -175,17 +165,51 @@ const CustomerTicketModal = ({ onClose }) => {
           <div className="ctm-step">
             <h2>Customer Support</h2>
             <p className="ctm-subtitle">
-              Enter your registered mobile number to raise a complaint
+              Enter your registered mobile number or email to raise a complaint
             </p>
-            <input
-              type="text"
-              maxLength="10"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
-              placeholder="10-digit mobile number"
-              className="ctm-input"
-            />
-            <button className="ctm-btn" onClick={handleSendOtp} disabled={loading}>
+
+            {/* ✅ Toggle: Mobile / Email */}
+            <div className="ctm-toggle-row">
+              <button
+                className={`ctm-toggle-btn ${inputType === "mobile" ? "active" : ""}`}
+                onClick={() => { setInputType("mobile"); setEmail(""); }}
+                type="button"
+              >
+                📱 Mobile Number
+              </button>
+              <button
+                className={`ctm-toggle-btn ${inputType === "email" ? "active" : ""}`}
+                onClick={() => { setInputType("email"); setMobile(""); }}
+                type="button"
+              >
+                📧 Email Address
+              </button>
+            </div>
+
+            {inputType === "mobile" ? (
+              <input
+                type="text"
+                maxLength="10"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter 10-digit mobile number"
+                className="ctm-input"
+              />
+            ) : (
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your registered email address"
+                className="ctm-input"
+              />
+            )}
+
+            <button
+              className="ctm-btn"
+              onClick={handleSendOtp}
+              disabled={loading}
+            >
               {loading ? "Sending OTP..." : "Send OTP"}
             </button>
           </div>
