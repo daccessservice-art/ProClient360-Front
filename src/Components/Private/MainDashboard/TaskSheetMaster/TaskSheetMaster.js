@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
 import { Header } from "../Header/Header";
@@ -44,13 +44,16 @@ export const TaskSheetMaster = () => {
   const [tasks, setTasks] = React.useState(initTasks());
   const [isChecked, setIsChecked] = React.useState(true);
 
-  const [taskName, setTaskName] = useState("");
+  // ✅ CHANGED: taskName (string) → selectedTasks (array of {value, label})
+  const [selectedTasks, setSelectedTasks] = useState([]);
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskDropDown, setTaskDropDown] = useState([]);
+
   const [subtaskName, setSubtaskName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [remark, setRemark] = useState("");
   const [priority, setPriority] = useState("medium");
-  const [taskDropDown, setTaskDropDown] = useState([]);
 
   const [employeeOptions, setEmployeeOptions] = useState([]);
   const [selectedEmployees, setSelectedEmployees] = useState([]);
@@ -71,9 +74,16 @@ export const TaskSheetMaster = () => {
 
   const [employeeTaskAssignments, setEmployeeTaskAssignments] = useState([]);
   const [selectedRowId, setSelectedRowId] = useState(null);
-
-  // ✅ NEW: Track which tasks are being deleted (for button spinner)
   const [deletingTaskIds, setDeletingTaskIds] = useState(new Set());
+
+  // ✅ NEW: Filtered task options based on search text
+  const filteredTaskOptions = useMemo(() => {
+    if (!taskDropDown || taskDropDown.length === 0) return [];
+    const searchLower = taskSearch.toLowerCase().trim();
+    return taskDropDown
+      .filter(t => !searchLower || t.name.toLowerCase().includes(searchLower))
+      .map(t => ({ value: t._id, label: t.name }));
+  }, [taskDropDown, taskSearch]);
 
   const sendCompletionNotification = useCallback(async (taskId, assignedById, employeeId, taskNameStr) => {
     try {
@@ -120,15 +130,22 @@ export const TaskSheetMaster = () => {
     await handleTaskAdd();
   };
 
+  // ✅ UPDATED: No longer needed for select, only called after AddTaskPopUp creates a task
   const handleTaskSelection = (value) => {
-    if (value === "AddNewTask") {
-      setTaskAddPopUpShow(!taskAddPopUpShow);
-    } else {
-      setTaskName(value);
+    if (value && value !== "AddNewTask") {
+      // After new task is created, add it to selected tasks if not already there
+      const exists = selectedTasks.find(t => t.value === value);
+      if (!exists) {
+        const newTask = taskDropDown.find(t => t._id === value);
+        if (newTask) {
+          setSelectedTasks(prev => [...prev, { value: newTask._id, label: newTask.name }]);
+        }
+      }
     }
+    setTaskAddPopUpShow(false);
   };
 
-  const handleTaskCancel = () => setTaskAddPopUpShow(!taskAddPopUpShow);
+  const handleTaskCancel = () => setTaskAddPopUpShow(false);
 
   const forActionShow = useCallback(async (taskId, rowId) => {
     try {
@@ -172,7 +189,6 @@ export const TaskSheetMaster = () => {
     setShowRemarkPopup(true);
   };
 
-  // ✅ UPDATED: Gantt chart delete — also removes from employee table
   const handleTaskDelete = (task) => {
     confirmAlert({
       title: 'Confirm to Delete',
@@ -186,9 +202,7 @@ export const TaskSheetMaster = () => {
               const data = await deleteTaskSheet(task.id);
               if (data?.success) {
                 toast.success(data?.message || "Task deleted successfully");
-                // Remove from Gantt
                 setTasks(prev => prev.filter((t) => t.id !== task.id));
-                // Remove from employee table
                 setEmployeeTaskAssignments(prev =>
                   prev
                     .map(assignment => ({
@@ -216,7 +230,6 @@ export const TaskSheetMaster = () => {
     });
   };
 
-  // ✅ NEW: Delete from employee table row — removes from BOTH Gantt AND table
   const handleEmployeeTaskDelete = (taskId, taskNameStr) => {
     confirmAlert({
       title: 'Delete Task Assignment',
@@ -230,9 +243,7 @@ export const TaskSheetMaster = () => {
               const data = await deleteTaskSheet(taskId);
               if (data?.success) {
                 toast.success(data?.message || "Task deleted successfully");
-                // Remove from Gantt chart
                 setTasks(prev => prev.filter((t) => t.id !== taskId));
-                // Remove from employee task assignments table
                 setEmployeeTaskAssignments(prev =>
                   prev
                     .map(assignment => ({
@@ -414,38 +425,83 @@ export const TaskSheetMaster = () => {
     return [projectTask, ...taskList];
   };
 
+  // ✅ UPDATED: Loop through each selected task and create one task sheet per task
   const handleTaskAdd = async () => {
     if (submitting) return;
 
     const employeeIds = selectedEmployees.map(emp => emp.value);
-    const data = { project: id, employees: employeeIds, taskName, subtaskName, startDate, endDate, remark, priority };
+    const taskIds = selectedTasks.map(t => t.value);
 
-    if (!selectedEmployees.length || !taskName || !startDate || !endDate) {
-      return toast.error("Please fill all required fields");
+    if (taskIds.length === 0) {
+      return toast.error("Please select at least one task");
     }
-    if (remark.length > 2000) return toast.error("Remark cannot exceed 2000 characters");
-    if (new Date(endDate) < new Date(startDate)) return toast.error("End date cannot be before start date");
+    if (!selectedEmployees.length) {
+      return toast.error("Please select at least one employee");
+    }
+    if (!startDate || !endDate) {
+      return toast.error("Please select start date and end date");
+    }
+    if (new Date(endDate) < new Date(startDate)) {
+      return toast.error("End date cannot be before start date");
+    }
+    if (remark.length > 2000) {
+      return toast.error("Remark cannot exceed 2000 characters");
+    }
 
     try {
       setSubmitting(true);
-      const result = await createTaskSheet(data);
-      if (result?.success) {
-        toast.success("Task assigned successfully");
-        setRenderPage(!renderPage);
+
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+
+      for (const taskId of taskIds) {
+        const data = {
+          project: id,
+          employees: employeeIds,
+          taskName: taskId,
+          subtaskName,
+          startDate,
+          endDate,
+          remark,
+          priority,
+        };
+
+        try {
+          const result = await createTaskSheet(data);
+          if (result?.success) {
+            successCount++;
+          } else {
+            failCount++;
+            errors.push(result?.error || "Unknown error");
+          }
+        } catch (err) {
+          failCount++;
+          errors.push(err?.message || "Request failed");
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} task(s) assigned successfully`);
+        setRenderPage(prev => !prev);
         clearForm();
-      } else {
-        toast.error(result?.error || "Failed to assign task");
+      }
+
+      if (failCount > 0) {
+        const uniqueErrors = [...new Set(errors)];
+        toast.error(`${failCount} task(s) failed: ${uniqueErrors.join(', ')}`);
       }
     } catch (error) {
-      console.error("Error creating task:", error);
-      toast.error("Error assigning task");
+      console.error("Error creating tasks:", error);
+      toast.error("Error assigning tasks");
     } finally {
       setSubmitting(false);
     }
   };
 
   const clearForm = () => {
-    setTaskName("");
+    setSelectedTasks([]);  // ✅ Clear multi-select
+    setTaskSearch("");
     setSubtaskName("");
     setStartDate("");
     setEndDate("");
@@ -457,6 +513,51 @@ export const TaskSheetMaster = () => {
   useEffect(() => {
     if (startDate && endDate && new Date(endDate) < new Date(startDate)) setEndDate("");
   }, [startDate, endDate]);
+
+  // ✅ Shared react-select styles
+  const selectStyles = {
+    control: (provided) => ({
+      ...provided,
+      borderRadius: 0,
+      borderColor: '#ced4da',
+      fontSize: '16px',
+      minHeight: '38px',
+    }),
+    option: (provided, state) => ({
+      ...provided,
+      backgroundColor: state.isSelected
+        ? '#007bff'
+        : state.isFocused
+          ? '#e9ecef'
+          : 'white',
+      color: state.isSelected ? 'white' : '#212529',
+      padding: '8px 12px',
+    }),
+    multiValue: (provided) => ({
+      ...provided,
+      backgroundColor: '#e7f1ff',
+      border: '1px solid #b6d4fe',
+      borderRadius: '4px',
+    }),
+    multiValueLabel: (provided) => ({
+      ...provided,
+      color: '#0d6efd',
+      fontWeight: '500',
+      fontSize: '14px',
+    }),
+    multiValueRemove: (provided) => ({
+      ...provided,
+      color: '#0d6efd',
+      ':hover': {
+        backgroundColor: '#0d6efd',
+        color: 'white',
+      },
+    }),
+    placeholder: (provided) => ({
+      ...provided,
+      color: '#6c757d',
+    }),
+  };
 
   return (
     <>
@@ -564,7 +665,6 @@ export const TaskSheetMaster = () => {
                                         <td className="align-middle">{formatTaskDate(task.endDate)}</td>
                                         <td className="align-middle text-center">
                                           <div className="d-flex align-items-center justify-content-center gap-2">
-                                            {/* View Actions Button */}
                                             <button
                                               type="button"
                                               className="btn btn-sm px-3 py-1 d-inline-flex align-items-center justify-content-center"
@@ -599,7 +699,6 @@ export const TaskSheetMaster = () => {
                                               <i className="fa-solid fa-list-check me-1"></i> View
                                             </button>
 
-                                            {/* ✅ NEW: Delete Button */}
                                             <button
                                               type="button"
                                               className="btn btn-sm px-2 py-1 d-inline-flex align-items-center justify-content-center"
@@ -654,16 +753,56 @@ export const TaskSheetMaster = () => {
                   {/* ── Task Assignment Form ── */}
                   <div className="row bg-white p-2 m-1 border rounded">
 
-                    <div className="col-12 col-md-6 col-lg-3">
+                    {/* ✅ CHANGED: Task Name → Multi-select react-select with search + Add New button */}
+                    <div className="col-12 col-md-6 col-lg-4">
                       <div className="mb-3">
                         <label htmlFor="taskName" className="form-label label_text">Task Name <RequiredStar /></label>
-                        <select className="form-select rounded-0" onChange={(e) => handleTaskSelection(e.target.value)} value={taskName} required disabled={submitting}>
-                          <option value="">-- Select Task Name --</option>
-                          {taskDropDown && taskDropDown.map((task) => (
-                            <option key={task._id} value={task._id}>{task.name}</option>
-                          ))}
-                          <option value="AddNewTask">-- Add New Task --</option>
-                        </select>
+                        <div className="d-flex gap-2">
+                          <div className="flex-grow-1">
+                            <Select
+                              id="taskName"
+                              options={filteredTaskOptions}
+                              value={selectedTasks}
+                              isMulti
+                              onChange={opts => setSelectedTasks(opts || [])}
+                              onInputChange={val => setTaskSearch(val)}
+                              placeholder="Search & select tasks..."
+                              isClearable
+                              isDisabled={submitting}
+                              isLoading={loading}
+                              styles={selectStyles}
+                              noOptionsMessage={() => taskSearch ? `No task found for "${taskSearch}"` : "No tasks available"}
+                              closeMenuOnSelect={false}
+                              hideSelectedOptions={false}
+                              components={{
+                                MultiValueLabel: ({ data }) => (
+                                  <div style={{ padding: '2px 6px' }}>{data.label}</div>
+                                ),
+                              }}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary d-flex align-items-center justify-content-center"
+                            onClick={() => setTaskAddPopUpShow(true)}
+                            disabled={submitting}
+                            title="Add New Task"
+                            style={{
+                              borderRadius: 0,
+                              minWidth: "42px",
+                              height: "38px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <i className="fa-solid fa-plus"></i>
+                          </button>
+                        </div>
+                        {selectedTasks.length > 0 && (
+                          <small className="text-muted mt-1 d-block">
+                            <i className="fa-solid fa-circle-info me-1"></i>
+                            {selectedTasks.length} task{selectedTasks.length > 1 ? 's' : ''} selected — will create {selectedTasks.length} assignment{selectedTasks.length > 1 ? 's' : ''}
+                          </small>
+                        )}
                       </div>
                     </div>
 
@@ -682,7 +821,7 @@ export const TaskSheetMaster = () => {
                       </div>
                     </div>
 
-                    <div className="col-12 col-md-6 col-lg-3">
+                    <div className="col-12 col-md-6 col-lg-2">
                       <div className="mb-3">
                         <label htmlFor="priority" className="form-label label_text">Priority <RequiredStar /></label>
                         <select className="form-select rounded-0" id="priority" onChange={(e) => setPriority(e.target.value)} value={priority} required disabled={submitting}>
@@ -728,15 +867,8 @@ export const TaskSheetMaster = () => {
                           isClearable
                           isLoading={employeeLoading}
                           isDisabled={submitting}
-                          styles={{
-                            control: (provided) => ({ ...provided, borderRadius: 0, borderColor: '#ced4da', fontSize: '16px' }),
-                            option: (provided, state) => ({
-                              ...provided,
-                              backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#f8f9fa' : 'white',
-                              color: state.isSelected ? 'white' : '#212529',
-                            }),
-                          }}
-                          noOptionsMessage={() => employeeLoading ? 'Loading...' : 'No employees'}
+                          styles={selectStyles}
+                          noOptionsMessage={() => employeeLoading ? 'Loading...' : 'No employees found'}
                           closeMenuOnSelect={false}
                         />
                       </div>
@@ -752,7 +884,16 @@ export const TaskSheetMaster = () => {
 
                     <div className="col-12 col-lg-3 pt-3 mt-3">
                       <button type="submit" className="btn adbtn btn-success px-4 me-lg-4 mx-auto" disabled={submitting}>
-                        {submitting ? <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Assigning...</> : <><i className="fa-solid fa-plus"></i> Add</>}
+                        {submitting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Assigning {selectedTasks.length > 1 ? `(${selectedTasks.length})` : ''}...
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-plus"></i> Add
+                          </>
+                        )}
                       </button>
                       <button onClick={clearForm} type="button" className="btn adbtn btn-danger px-4 mx-auto" disabled={submitting}>
                         <i className="fa-solid fa-xmark"></i> Clear
