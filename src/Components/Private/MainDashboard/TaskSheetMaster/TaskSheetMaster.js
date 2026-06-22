@@ -45,7 +45,7 @@ export const TaskSheetMaster = () => {
   const [isChecked, setIsChecked] = React.useState(true);
 
   const [taskName, setTaskName] = useState("");
-  const [subtaskName, setSubtaskName] = useState(""); // ✅ New State
+  const [subtaskName, setSubtaskName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [remark, setRemark] = useState("");
@@ -71,6 +71,9 @@ export const TaskSheetMaster = () => {
 
   const [employeeTaskAssignments, setEmployeeTaskAssignments] = useState([]);
   const [selectedRowId, setSelectedRowId] = useState(null);
+
+  // ✅ NEW: Track which tasks are being deleted (for button spinner)
+  const [deletingTaskIds, setDeletingTaskIds] = useState(new Set());
 
   const sendCompletionNotification = useCallback(async (taskId, assignedById, employeeId, taskNameStr) => {
     try {
@@ -169,28 +172,91 @@ export const TaskSheetMaster = () => {
     setShowRemarkPopup(true);
   };
 
+  // ✅ UPDATED: Gantt chart delete — also removes from employee table
   const handleTaskDelete = (task) => {
     confirmAlert({
       title: 'Confirm to Delete',
-      message: `Are you sure to delete ${task.name}?`,
+      message: `Are you sure to delete "${task.name}"? This task will be removed for all assigned employees.`,
       buttons: [
         {
-          label: 'Yes',
+          label: 'Yes, Delete',
           onClick: async () => {
             try {
-              setLoading(true);
+              setDeletingTaskIds(prev => new Set(prev).add(task.id));
               const data = await deleteTaskSheet(task.id);
-              setTasks(tasks.filter((t) => t.id !== task.id));
-              if (data?.success) toast.success(data?.message || "Task deleted successfully");
-              else toast.error(data?.error || "Failed to delete task");
+              if (data?.success) {
+                toast.success(data?.message || "Task deleted successfully");
+                // Remove from Gantt
+                setTasks(prev => prev.filter((t) => t.id !== task.id));
+                // Remove from employee table
+                setEmployeeTaskAssignments(prev =>
+                  prev
+                    .map(assignment => ({
+                      ...assignment,
+                      tasks: assignment.tasks.filter(t => t.taskId !== task.id)
+                    }))
+                    .filter(assignment => assignment.tasks.length > 0)
+                );
+              } else {
+                toast.error(data?.error || "Failed to delete task");
+              }
             } catch {
               toast.error("Error deleting task");
             } finally {
-              setLoading(false);
+              setDeletingTaskIds(prev => {
+                const next = new Set(prev);
+                next.delete(task.id);
+                return next;
+              });
             }
           }
         },
-        { label: 'No', onClick: () => {} }
+        { label: 'Cancel', onClick: () => {} }
+      ]
+    });
+  };
+
+  // ✅ NEW: Delete from employee table row — removes from BOTH Gantt AND table
+  const handleEmployeeTaskDelete = (taskId, taskNameStr) => {
+    confirmAlert({
+      title: 'Delete Task Assignment',
+      message: `Are you sure you want to delete "${taskNameStr}"?\n\nThis will permanently remove the task for ALL assigned employees on this page.`,
+      buttons: [
+        {
+          label: 'Yes, Delete',
+          onClick: async () => {
+            try {
+              setDeletingTaskIds(prev => new Set(prev).add(taskId));
+              const data = await deleteTaskSheet(taskId);
+              if (data?.success) {
+                toast.success(data?.message || "Task deleted successfully");
+                // Remove from Gantt chart
+                setTasks(prev => prev.filter((t) => t.id !== taskId));
+                // Remove from employee task assignments table
+                setEmployeeTaskAssignments(prev =>
+                  prev
+                    .map(assignment => ({
+                      ...assignment,
+                      tasks: assignment.tasks.filter(t => t.taskId !== taskId)
+                    }))
+                    .filter(assignment => assignment.tasks.length > 0)
+                );
+              } else {
+                toast.error(data?.error || "Failed to delete task");
+              }
+            } catch (error) {
+              console.error("Error deleting task:", error);
+              toast.error("Error deleting task");
+            } finally {
+              setDeletingTaskIds(prev => {
+                const next = new Set(prev);
+                next.delete(taskId);
+                return next;
+              });
+            }
+          }
+        },
+        { label: 'Cancel', onClick: () => {} }
       ]
     });
   };
@@ -250,7 +316,7 @@ export const TaskSheetMaster = () => {
                       employeeName: employeeMap[empId].name,
                       taskId: task._id,
                       taskName: task.taskName?.name || 'Unknown Task',
-                      subtaskName: task.subtaskName || "", // ✅ Bind Subtask
+                      subtaskName: task.subtaskName || "",
                       startDate: task.startDate,
                       endDate: task.endDate,
                       priority: task.priority || 'medium',
@@ -276,7 +342,7 @@ export const TaskSheetMaster = () => {
               groupedAssignments[assignment.employeeId].tasks.push({
                 taskId: assignment.taskId,
                 taskName: assignment.taskName,
-                subtaskName: assignment.subtaskName, // ✅ Bind Subtask
+                subtaskName: assignment.subtaskName,
                 startDate: assignment.startDate,
                 endDate: assignment.endDate,
                 priority: assignment.priority,
@@ -352,7 +418,7 @@ export const TaskSheetMaster = () => {
     if (submitting) return;
 
     const employeeIds = selectedEmployees.map(emp => emp.value);
-    const data = { project: id, employees: employeeIds, taskName, subtaskName, startDate, endDate, remark, priority }; // ✅ Added subtaskName
+    const data = { project: id, employees: employeeIds, taskName, subtaskName, startDate, endDate, remark, priority };
 
     if (!selectedEmployees.length || !taskName || !startDate || !endDate) {
       return toast.error("Please fill all required fields");
@@ -380,7 +446,7 @@ export const TaskSheetMaster = () => {
 
   const clearForm = () => {
     setTaskName("");
-    setSubtaskName(""); // ✅ Clear Subtask
+    setSubtaskName("");
     setStartDate("");
     setEndDate("");
     setRemark("");
@@ -444,10 +510,10 @@ export const TaskSheetMaster = () => {
                                   <th>Assign To</th>
                                   <th>Priority</th>
                                   <th>Task Name</th>
-                                  <th>Subtask Name</th> {/* ✅ New Column */}
+                                  <th>Subtask Name</th>
                                   <th>Start Date</th>
                                   <th>End Date</th>
-                                  <th className="text-center">Actions</th>
+                                  <th className="text-center" style={{ minWidth: "140px" }}>Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -456,9 +522,11 @@ export const TaskSheetMaster = () => {
                                     const rowId = `${assignment.employeeId}-${task.taskId}-${index}`;
                                     const isSelected = selectedRowId === rowId;
                                     const isCompleted = task.taskLevel === 100;
+                                    const isDeleting = deletingTaskIds.has(task.taskId);
 
                                     let rowBg = "transparent";
-                                    if (isCompleted) rowBg = "#d4edda";
+                                    if (isDeleting) rowBg = "#fff3cd";
+                                    else if (isCompleted) rowBg = "#d4edda";
                                     else if (isSelected) rowBg = "#e7f1ff";
 
                                     return (
@@ -466,8 +534,9 @@ export const TaskSheetMaster = () => {
                                         key={rowId}
                                         style={{
                                           backgroundColor: rowBg,
-                                          borderLeft: isSelected ? "4px solid #0d6efd" : isCompleted ? "4px solid #28a745" : "none",
+                                          borderLeft: isDeleting ? "4px solid #ffc107" : isSelected ? "4px solid #0d6efd" : isCompleted ? "4px solid #28a745" : "none",
                                           transition: "all 0.3s ease",
+                                          opacity: isDeleting ? 0.7 : 1,
                                         }}
                                       >
                                         <td className="align-middle"><span className="fw-bold">{task.assignedBy}</span></td>
@@ -488,45 +557,85 @@ export const TaskSheetMaster = () => {
                                             )}
                                           </span>
                                         </td>
-                                        {/* ✅ Display Subtask */}
                                         <td className="align-middle text-start">
                                           <span className="text-muted">{task.subtaskName || "-"}</span>
                                         </td>
                                         <td className="align-middle">{formatTaskDate(task.startDate)}</td>
                                         <td className="align-middle">{formatTaskDate(task.endDate)}</td>
                                         <td className="align-middle text-center">
-                                          <button
-                                            type="button"
-                                            className="btn btn-sm px-3 py-1 d-inline-flex align-items-center justify-content-center"
-                                            onClick={() => forActionShow(task.taskId, rowId)}
-                                            title="View Actions"
-                                            style={{
-                                              backgroundColor: isSelected ? "#0d6efd" : "#e7f1ff",
-                                              border: "2px solid #0d6efd",
-                                              borderRadius: "6px",
-                                              color: isSelected ? "#ffffff" : "#0d6efd",
-                                              fontWeight: "600",
-                                              fontSize: "13px",
-                                              transition: "all 0.3s ease",
-                                              cursor: "pointer",
-                                            }}
-                                            onMouseEnter={(e) => {
-                                              if (!isSelected) {
-                                                e.currentTarget.style.backgroundColor = "#0d6efd";
-                                                e.currentTarget.style.color = "#ffffff";
-                                                e.currentTarget.style.transform = "scale(1.05)";
-                                              }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                              if (!isSelected) {
-                                                e.currentTarget.style.backgroundColor = "#e7f1ff";
-                                                e.currentTarget.style.color = "#0d6efd";
+                                          <div className="d-flex align-items-center justify-content-center gap-2">
+                                            {/* View Actions Button */}
+                                            <button
+                                              type="button"
+                                              className="btn btn-sm px-3 py-1 d-inline-flex align-items-center justify-content-center"
+                                              onClick={() => forActionShow(task.taskId, rowId)}
+                                              disabled={isDeleting}
+                                              title="View Actions"
+                                              style={{
+                                                backgroundColor: isSelected ? "#0d6efd" : "#e7f1ff",
+                                                border: "2px solid #0d6efd",
+                                                borderRadius: "6px",
+                                                color: isSelected ? "#ffffff" : "#0d6efd",
+                                                fontWeight: "600",
+                                                fontSize: "13px",
+                                                transition: "all 0.3s ease",
+                                                cursor: isDeleting ? "not-allowed" : "pointer",
+                                              }}
+                                              onMouseEnter={(e) => {
+                                                if (!isSelected && !isDeleting) {
+                                                  e.currentTarget.style.backgroundColor = "#0d6efd";
+                                                  e.currentTarget.style.color = "#ffffff";
+                                                  e.currentTarget.style.transform = "scale(1.05)";
+                                                }
+                                              }}
+                                              onMouseLeave={(e) => {
+                                                if (!isSelected) {
+                                                  e.currentTarget.style.backgroundColor = "#e7f1ff";
+                                                  e.currentTarget.style.color = "#0d6efd";
+                                                  e.currentTarget.style.transform = "scale(1)";
+                                                }
+                                              }}
+                                            >
+                                              <i className="fa-solid fa-list-check me-1"></i> View
+                                            </button>
+
+                                            {/* ✅ NEW: Delete Button */}
+                                            <button
+                                              type="button"
+                                              className="btn btn-sm px-2 py-1 d-inline-flex align-items-center justify-content-center"
+                                              onClick={() => handleEmployeeTaskDelete(task.taskId, task.taskName)}
+                                              disabled={isDeleting}
+                                              title="Delete Task"
+                                              style={{
+                                                backgroundColor: isDeleting ? "#f8d7da" : "#fff0f0",
+                                                border: "2px solid #dc3545",
+                                                borderRadius: "6px",
+                                                color: "#dc3545",
+                                                fontWeight: "600",
+                                                fontSize: "13px",
+                                                transition: "all 0.3s ease",
+                                                cursor: isDeleting ? "not-allowed" : "pointer",
+                                              }}
+                                              onMouseEnter={(e) => {
+                                                if (!isDeleting) {
+                                                  e.currentTarget.style.backgroundColor = "#dc3545";
+                                                  e.currentTarget.style.color = "#ffffff";
+                                                  e.currentTarget.style.transform = "scale(1.05)";
+                                                }
+                                              }}
+                                              onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = isDeleting ? "#f8d7da" : "#fff0f0";
+                                                e.currentTarget.style.color = "#dc3545";
                                                 e.currentTarget.style.transform = "scale(1)";
-                                              }
-                                            }}
-                                          >
-                                            <i className="fa-solid fa-list-check me-1"></i> View
-                                          </button>
+                                              }}
+                                            >
+                                              {isDeleting ? (
+                                                <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                              ) : (
+                                                <i className="fa-solid fa-trash-can"></i>
+                                              )}
+                                            </button>
+                                          </div>
                                         </td>
                                       </tr>
                                     );
@@ -558,7 +667,6 @@ export const TaskSheetMaster = () => {
                       </div>
                     </div>
 
-                    {/* ✅ New Subtask Name Input Field */}
                     <div className="col-12 col-md-6 col-lg-3">
                       <div className="mb-3">
                         <label htmlFor="subtaskName" className="form-label label_text">Subtask Name</label>
@@ -760,4 +868,4 @@ export const TaskSheetMaster = () => {
       )}
     </>
   );
-}; 
+};
