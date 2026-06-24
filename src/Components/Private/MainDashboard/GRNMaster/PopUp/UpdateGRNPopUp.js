@@ -34,378 +34,169 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
   const [filteredPOs, setFilteredPOs] = useState([]);
   
   const [products, setProducts] = useState([]);
-  const [productSearch, setProductSearch] = useState("");
-  const [brands, setBrands] = useState([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [productsMatched, setProductsMatched] = useState(false);
   
-  const [items, setItems] = useState(selectedGRN?.items || [{
-    brandName: "",
-    modelNo: "",
-    description: "",
-    unit: "",
-    baseUOM: "",
-    orderedQuantity: 0,
-    receivedQuantity: 0,
-    price: 0,
-    discountPercent: 0,
-    taxPercent: 0,
-    netValue: 0
-  }]);
+  const emptyItem = () => ({
+    _selectedProductId: "", productName: "", brandName: "", modelNo: "",
+    description: "", unit: "", baseUOM: "", orderedQuantity: 0,
+    receivedQuantity: 0, price: 0, discountPercent: 0, taxPercent: 0,
+    netValue: 0, _currStockQty: 0,
+  });
 
-  // Load vendors
+  const [items, setItems] = useState(selectedGRN?.items?.map(item => ({
+    ...item, productName: item.productName || "", _selectedProductId: "", _currStockQty: 0,
+  })) || [emptyItem()]);
+
+  const productOptions = products.map(p => ({
+    value: p._id,
+    label: `${p.productName || ""}${p.brandName ? " - " + p.brandName : ""}${p.model ? " - " + p.model : ""}`
+  }));
+
+  const productFilterOption = (candidate, input) => {
+    if (!input) return true;
+    const s = input.toLowerCase();
+    const prod = products.find(p => p._id === candidate.value);
+    if (!prod) return candidate.label.toLowerCase().includes(s);
+    return (
+      (prod.productName || "").toLowerCase().includes(s) ||
+      (prod.brandName || "").toLowerCase().includes(s) ||
+      (prod.model || "").toLowerCase().includes(s) ||
+      (prod.hsnCode || "").toLowerCase().includes(s) ||
+      candidate.label.toLowerCase().includes(s)
+    );
+  };
+
   useEffect(() => {
     const loadVendors = async () => {
       const data = await getVendors(1, 100, vendorSearch);
-      if (data.success) {
-        const vendorOptions = data.vendors.map(v => ({
-          value: v._id,
-          label: `${v.vendorName} - ${v.email}`
-        }));
+      if (data?.success) {
+        const vendorOptions = data.vendors.map(v => ({ value: v._id, label: `${v.vendorName} - ${v.email}` }));
         setVendors(vendorOptions);
-        
-        if (selectedGRN?.vendor?._id) {
-          const currentVendor = vendorOptions.find(v => v.value === selectedGRN.vendor._id);
-          if (currentVendor) {
-            setSelectedVendor(currentVendor);
-          }
-        }
+        if (selectedGRN?.vendor?._id) { const v = vendorOptions.find(x => x.value === selectedGRN.vendor._id); if (v) setSelectedVendor(v); }
       }
     };
     loadVendors();
   }, [vendorSearch, selectedGRN]);
 
-  // Load all purchase orders with filtering for incomplete POs
+  // ── Load ALL products once ──
   useEffect(() => {
-    const loadPurchaseOrders = async () => {
+    const loadAll = async () => {
+      if (productsLoaded) return;
+      let all = [], page = 1, hasMore = true;
+      while (hasMore) {
+        const data = await getProducts(page, 200, "");
+        if (data?.success && data.products?.length > 0) { all = [...all, ...data.products]; if (data.products.length < 200) hasMore = false; else page++; }
+        else hasMore = false;
+      }
+      setProducts(all); setProductsLoaded(true);
+    };
+    if (choice === "Direct Material") loadAll();
+  }, [choice, productsLoaded]);
+
+  // ── Match existing items to products once ──
+  useEffect(() => {
+    if (products.length > 0 && !productsMatched && selectedGRN?.items) {
+      setItems(prev => prev.map(item => {
+        if (item._selectedProductId) return item;
+        const match = products.find(p => p.brandName === item.brandName && p.model === item.modelNo);
+        if (match) return { ...item, _selectedProductId: match._id, _currStockQty: match.currentStockQty ?? 0, productName: item.productName || match.productName || "" };
+        return item;
+      }));
+      setProductsMatched(true);
+    }
+  }, [products, productsMatched, selectedGRN]);
+
+  useEffect(() => {
+    const load = async () => {
       const data = await getPurchaseOrders(1, 100, poSearch);
-      if (data.success) {
-        // Filter out completed POs
-        const incompletePOs = [];
-        
+      if (data?.success) {
+        const inc = [];
         for (const po of data.purchaseOrders) {
-          // Check if this PO is fully received
-          let isFullyReceived = false;
-          
-          // Check if the PO status is already marked as "Received"
-          if (po.status === 'Received') {
-            isFullyReceived = true;
-          } else {
-            // Calculate if all items are fully received
-            let allItemsReceived = true;
-            
-            for (const item of po.items) {
-              // Get total received quantity for this item from all GRNs
-              const totalReceived = item.receivedQuantity || 0;
-              
-              if (totalReceived < item.quantity) {
-                allItemsReceived = false;
-                break;
-              }
-            }
-            
-            isFullyReceived = allItemsReceived;
-          }
-          
-          // Only include POs that are not fully received
-          if (!isFullyReceived) {
-            incompletePOs.push({
-              value: po._id,
-              label: `${po.orderNumber} - ${po.vendor?.vendorName}`,
-              po: po,
-              vendorId: po.vendor?._id
-            });
-          }
+          let full = po.status === 'Received';
+          if (!full) { let all = true; for (const i of po.items) { if ((i.receivedQuantity || 0) < i.quantity) { all = false; break; } } full = all; }
+          if (!full) inc.push({ value: po._id, label: `${po.orderNumber} - ${po.vendor?.vendorName}`, po, vendorId: po.vendor?._id });
         }
-        
-        setPurchaseOrders(incompletePOs);
-        
-        // Set the current PO if it's still incomplete
-        if (selectedGRN?.purchaseOrder?._id) {
-          const currentPO = incompletePOs.find(p => p.value === selectedGRN.purchaseOrder._id);
-          if (currentPO) {
-            setSelectedPO(currentPO);
-          }
-        }
+        setPurchaseOrders(inc);
+        if (selectedGRN?.purchaseOrder?._id) { const c = inc.find(p => p.value === selectedGRN.purchaseOrder._id); if (c) setSelectedPO(c); }
       }
     };
-    if (choice === "Against PO") {
-      loadPurchaseOrders();
-    }
+    if (choice === "Against PO") load();
   }, [poSearch, choice, selectedGRN]);
 
-  // Filter POs based on selected vendor
   useEffect(() => {
-    if (selectedVendor) {
-      const filtered = purchaseOrders.filter(po => po.vendorId === selectedVendor.value);
-      setFilteredPOs(filtered);
-      
-      // If current selected PO doesn't belong to the selected vendor, clear it
-      if (selectedPO && selectedPO.vendorId !== selectedVendor.value) {
-        setSelectedPO(null);
-      }
-    } else {
-      setFilteredPOs([]);
-    }
+    if (selectedVendor) { setFilteredPOs(purchaseOrders.filter(po => po.vendorId === selectedVendor.value)); if (selectedPO && selectedPO.vendorId !== selectedVendor.value) setSelectedPO(null); }
+    else setFilteredPOs([]);
   }, [selectedVendor, purchaseOrders]);
 
-  // Load products
-  useEffect(() => {
-    const loadProducts = async () => {
-      const data = await getProducts(1, 1000, productSearch);
-      if (data.success) {
-        setProducts(data.products);
-        const uniqueBrands = [...new Set(data.products.map(p => p.brandName).filter(Boolean))];
-        setBrands(uniqueBrands.map(brand => ({ value: brand, label: brand })));
-      }
-    };
-    if (choice === "Direct Material") {
-      loadProducts();
-    }
-  }, [productSearch, choice]);
+  useEffect(() => { if (selectedGRN?.project?._id && projects.length > 0) { const c = projects.find(p => p.value === selectedGRN.project._id); if (c) setSelectedProject(c); } }, [selectedGRN, projects]);
 
-  // Set selected project
-  useEffect(() => {
-    if (selectedGRN?.project?._id && projects.length > 0) {
-      const currentProject = projects.find(p => p.value === selectedGRN.project._id);
-      if (currentProject) {
-        setSelectedProject(currentProject);
-      }
-    }
-  }, [selectedGRN, projects]);
+  const handleVendorChange = (s) => { setSelectedVendor(s); setSelectedPO(null); };
 
-  // Handle vendor change
-  const handleVendorChange = (selected) => {
-    setSelectedVendor(selected);
-    // Clear selected PO when vendor changes
-    setSelectedPO(null);
-    
-    // If we have the vendor data, populate related fields
-    if (selected && choice === "Against PO") {
-      // We'll populate more fields when PO is selected
+  const handlePOChange = (s) => {
+    setSelectedPO(s);
+    if (s?.po) {
+      const po = s.po;
+      setTransactionType(po.transactionType); setPurchaseType(po.purchaseType);
+      setDeliveryAddress(po.deliveryAddress || ""); setLocation(po.location || ""); setWarehouseLocation(po.warehouseLocation || "");
+      if (po.project) setSelectedProject(projects.find(p => p.value === po.project._id));
+      setItems(po.items.map(item => {
+        const ar = item.receivedQuantity || 0, rem = item.quantity - ar;
+        return { ...emptyItem(), productName: item.productName || "", brandName: item.brandName, modelNo: item.modelNo, description: item.description || "", unit: item.unit || item.baseUOM, baseUOM: item.baseUOM || "", orderedQuantity: item.quantity, receivedQuantity: rem, price: item.price, discountPercent: item.discountPercent, taxPercent: item.taxPercent, netValue: calcNV({ receivedQuantity: rem, price: item.price, discountPercent: item.discountPercent, taxPercent: item.taxPercent }) };
+      }));
     }
   };
 
-  // Handle PO change
-  const handlePOChange = (selected) => {
-    setSelectedPO(selected);
-    if (selected && selected.po) {
-      const po = selected.po;
-      
-      // Set transaction type and purchase type from PO
-      setTransactionType(po.transactionType);
-      setPurchaseType(po.purchaseType);
-      setDeliveryAddress(po.deliveryAddress || "");
-      setLocation(po.location || "");
-      setWarehouseLocation(po.warehouseLocation || "");
-      
-      if (po.project) {
-        setSelectedProject(projects.find(p => p.value === po.project._id));
-      }
-      
-      // Map PO items to GRN items
-      const grnItems = po.items.map(item => {
-        // Calculate remaining quantity
-        const alreadyReceived = item.receivedQuantity || 0;
-        const remainingQuantity = item.quantity - alreadyReceived;
-        
-        return {
-          brandName: item.brandName,
-          modelNo: item.modelNo,
-          description: item.description || "",
-          unit: item.unit || item.baseUOM,
-          baseUOM: item.baseUOM || "",
-          orderedQuantity: item.quantity, // Keep the original ordered quantity
-          receivedQuantity: remainingQuantity, // Default to remaining quantity
-          price: item.price,
-          discountPercent: item.discountPercent,
-          taxPercent: item.taxPercent,
-          netValue: calculateNetValue({
-            receivedQuantity: remainingQuantity, // Use remaining quantity for calculation
-            price: item.price,
-            discountPercent: item.discountPercent,
-            taxPercent: item.taxPercent
-          })
-        };
-      });
-      setItems(grnItems);
-    }
+  const calcNV = (item) => { const b = item.receivedQuantity * item.price; const d = b - b * (item.discountPercent / 100); return d + d * (item.taxPercent / 100); };
+
+  const handleProductSelect = (index, id) => {
+    const n = [...items];
+    if (!id) { n[index]._selectedProductId = ""; n[index].netValue = calcNV(n[index]); setItems(n); return; }
+    const p = products.find(x => x._id === id);
+    if (p) { n[index] = { ...n[index], _selectedProductId: p._id, productName: p.productName || "", brandName: p.brandName || "", modelNo: p.model || "", description: p.description || "", unit: p.baseUOM || "", baseUOM: p.baseUOM || "", price: p.purchasePrice || p.salesPrice || 0, taxPercent: p.gstRate || 0, _currStockQty: p.currentStockQty ?? 0 }; n[index].netValue = calcNV(n[index]); }
+    setItems(n);
   };
 
-  const calculateNetValue = (item) => {
-    const baseAmount = item.receivedQuantity * item.price;
-    const discountAmount = baseAmount * (item.discountPercent / 100);
-    const amountAfterDiscount = baseAmount - discountAmount;
-    const taxAmount = amountAfterDiscount * (item.taxPercent / 100);
-    return amountAfterDiscount + taxAmount;
-  };
-
-  const handleAddItem = () => {
-    setItems([...items, {
-      brandName: "",
-      modelNo: "",
-      description: "",
-      unit: "",
-      baseUOM: "",
-      orderedQuantity: 0,
-      receivedQuantity: 0,
-      price: 0,
-      discountPercent: 0,
-      taxPercent: 0,
-      netValue: 0
-    }]);
-  };
-
-  const handleRemoveItem = (index) => {
-    if (items.length > 1) {
-      const newItems = items.filter((_, i) => i !== index);
-      setItems(newItems);
-    }
-  };
-
-  // Updated handleItemChange function to automatically set baseUOM
   const handleItemChange = (index, field, value) => {
-    const newItems = [...items];
-    newItems[index][field] = value;
-    
-    // If brand is changed, clear model and baseUOM
-    if (field === 'brandName') {
-      newItems[index].modelNo = "";
-      newItems[index].baseUOM = "";
-      newItems[index].unit = "";
-    }
-    
-    // If model is changed, find the product and set baseUOM
-    if (field === 'modelNo' && value && newItems[index].brandName) {
-      const product = products.find(
-        p => p.brandName === newItems[index].brandName && p.model === value
-      );
-      if (product) {
-        newItems[index].baseUOM = product.baseUOM;
-        newItems[index].unit = product.baseUOM;
-        newItems[index].description = product.description || "";
-      }
-    }
-    
-    newItems[index].netValue = calculateNetValue(newItems[index]);
-    setItems(newItems);
+    const n = [...items]; n[index][field] = value;
+    if (field === "productName" || field === "brandName" || field === "modelNo") n[index]._selectedProductId = "";
+    n[index].netValue = calcNV(n[index]); setItems(n);
   };
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const maxSize = 5 * 1024 * 1024;
-      
-      if (file.size > maxSize) {
-        toast.error("File size exceeds 5MB limit");
-        return;
-      }
-      
-      setTermsDocument(file);
-    }
-  };
+  const handleAddItem = () => setItems([...items, emptyItem()]);
+  const handleRemoveItem = (i) => { if (items.length > 1) setItems(items.filter((_, idx) => idx !== i)); };
+
+  const handleFileChange = (e) => { if (e.target.files?.[0]) { const f = e.target.files[0]; if (f.size > 5 * 1024 * 1024) { toast.error("File exceeds 5MB"); return; } setTermsDocument(f); } };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!choice) return toast.error("Please select choice");
+    if (choice === "Against PO" && !selectedPO) return toast.error("Please select PO");
+    if (!selectedVendor) return toast.error("Please select vendor");
+    if (!transactionType || !purchaseType) return toast.error("Please fill required fields");
+    if (purchaseType === "Stock" && !warehouseLocation) return toast.error("Please enter warehouse location");
+    for (let i of items) { if (i.receivedQuantity < 0) return toast.error("Received quantity cannot be negative"); }
 
-    if (!choice) {
-      return toast.error("Please select choice (Against PO or Direct Material)");
-    }
-
-    if (choice === "Against PO" && !selectedPO) {
-      return toast.error("Please select a purchase order");
-    }
-
-    if (!selectedVendor) {
-      return toast.error("Please select a vendor");
-    }
-
-    if (!transactionType || !purchaseType) {
-      return toast.error("Please fill all required fields");
-    }
-
-    if (purchaseType === "Project Purchase" && !selectedProject) {
-      return toast.error("Please select a project");
-    }
-
-    if (purchaseType === "Stock" && !warehouseLocation) {
-      return toast.error("Please enter warehouse location");
-    }
-
-    for (let item of items) {
-      if (!item.brandName || !item.modelNo || item.receivedQuantity < 0) {
-        return toast.error("Please fill all item details correctly");
-      }
-    }
-
-    const grnData = {
-      _id: selectedGRN._id,
-      grnDate: new Date(grnDate),
-      grnNumber,
-      choice,
-      purchaseOrder: choice === "Against PO" ? selectedPO.value : undefined,
-      vendor: selectedVendor.value,
-      transactionType,
-      purchaseType,
-      project: purchaseType === "Project Purchase" ? selectedProject?.value : undefined,
-      warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined,
-      deliveryAddress,
-      location,
-      items,
-      remark,
-      status
-    };
+    const clean = items.map(({ _currStockQty, _selectedProductId, ...r }) => r);
+    const grnData = { _id: selectedGRN._id, grnDate: new Date(grnDate), grnNumber, choice, purchaseOrder: choice === "Against PO" ? selectedPO.value : undefined, vendor: selectedVendor.value, transactionType, purchaseType, project: purchaseType === "Project Purchase" ? selectedProject?.value : undefined, warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined, deliveryAddress, location, items: clean, remark, status };
 
     if (termsDocument) {
-      const formData = new FormData();
-      formData.append('file', termsDocument);
-      formData.append('grnData', JSON.stringify(grnData));
-      
-      setUploading(true);
-      toast.loading("Updating GRN...");
+      const fd = new FormData(); fd.append('file', termsDocument); fd.append('grnData', JSON.stringify(grnData));
+      setUploading(true); toast.loading("Updating GRN...");
       try {
-        const response = await axios.put(`${process.env.REACT_APP_API_URL}/api/grn/with-document/${selectedGRN._id}`, formData, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        
-        toast.dismiss();
-        const data = response.data;
-
-        if (data.success) {
-          toast.success(data.message);
-          handleUpdate();
-        } else {
-          toast.error(data.error || "Failed to update GRN");
-        }
-      } catch (error) {
-        toast.dismiss();
-        console.error('Upload error:', error);
-        if (error.response) {
-          // Server responded with error status
-          toast.error(`Server error: ${error.response.status} - ${error.response.data.error || error.response.data.message}`);
-        } else if (error.request) {
-          // Request made but no response received
-          toast.error('Network error: No response from server. Please check your connection.');
-        } else {
-          // Error in request setup
-          toast.error('Request error: ' + error.message);
-        }
-      } finally {
-        setUploading(false);
-      }
+        const r = await axios.put(`${process.env.REACT_APP_API_URL}/api/grn/with-document/${selectedGRN._id}`, fd, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+        toast.dismiss(); if (r.data.success) { toast.success(r.data.message); handleUpdate(); } else toast.error(r.data.error || "Failed");
+      } catch (err) { toast.dismiss(); toast.error(err.response ? `Error: ${err.response.status}` : "Network error"); }
+      finally { setUploading(false); }
     } else {
       toast.loading("Updating GRN...");
-      const data = await updateGRN(grnData);
-      toast.dismiss();
-
-      if (data.success) {
-        toast.success(data.message);
-        handleUpdate();
-      } else {
-        toast.error(data.error || "Failed to update GRN");
-      }
+      const d = await updateGRN(grnData); toast.dismiss();
+      if (d.success) { toast.success(d.message); handleUpdate(); } else toast.error(d.error || "Failed");
     }
   };
+
+  const grandTotal = items.reduce((s, i) => s + (Number(i.netValue) || 0), 0);
+  const selectStyles = { menuPortal: b => ({ ...b, zIndex: 9999 }), control: b => ({ ...b, fontSize: "0.78rem", minHeight: "28px" }), option: b => ({ ...b, fontSize: "0.76rem", padding: "2px 8px" }), input: b => ({ ...b, fontSize: "0.78rem" }) };
 
   return (
     <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
@@ -414,501 +205,104 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
           <form onSubmit={handleSubmit}>
             <div className="modal-header pt-0">
               <h5 className="card-title fw-bold">Update GRN (Goods Receipt Note)</h5>
-              <button onClick={handleUpdate} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
-                <span aria-hidden="true">&times;</span>
-              </button>
+              <button onClick={handleUpdate} type="button" className="close px-3" style={{ marginLeft: "auto" }}><span aria-hidden="true">&times;</span></button>
             </div>
-
             <div className="modal-body">
               <div className="row modal_body_height">
-                
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">GRN Number <RequiredStar /></label>
-                    <input
-                      type="text"
-                      className="form-control rounded-0"
-                      value={grnNumber}
-                      onChange={(e) => setGrnNumber(e.target.value)}
-                      placeholder="GRN Number"
-                      required
-                      readOnly
-                    />
-                  </div>
-                </div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">GRN Number</label><input type="text" className="form-control rounded-0" value={grnNumber} readOnly /></div></div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Choice</label><select className="form-select rounded-0" value={choice} disabled><option value="">Select</option><option value="Against PO">Against PO</option><option value="Direct Material">Direct Material</option></select></div></div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">GRN Date</label><input type="date" className="form-control rounded-0" value={grnDate} onChange={e => setGrnDate(e.target.value)} required /></div></div>
 
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Choice <RequiredStar /></label>
-                    <select
-                      className="form-select rounded-0"
-                      value={choice}
-                      onChange={(e) => setChoice(e.target.value)}
-                      required
-                      disabled
-                    >
-                      <option value="">Select Choice</option>
-                      <option value="Against PO">Against PO</option>
-                      <option value="Direct Material">Direct Material</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">GRN Date <RequiredStar /></label>
-                    <input
-                      type="date"
-                      className="form-control rounded-0"
-                      value={grnDate}
-                      onChange={(e) => setGrnDate(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {choice === "Against PO" && (
-                  <>
-                    <div className="col-12 col-lg-6">
-                      <div className="mb-3">
-                        <label className="form-label label_text">Vendor Name <RequiredStar /></label>
-                        <Select
-                          value={selectedVendor}
-                          onChange={handleVendorChange}
-                          onInputChange={setVendorSearch}
-                          options={vendors}
-                          placeholder="Select Vendor..."
-                          isClearable
-                          className="react-select-container"
-                          classNamePrefix="react-select"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="col-12 col-lg-6">
-                      <div className="mb-3">
-                        <label className="form-label label_text">PO No. <RequiredStar /></label>
-                        <Select
-                          value={selectedPO}
-                          onChange={handlePOChange}
-                          onInputChange={setPoSearch}
-                          options={filteredPOs}
-                          placeholder={selectedVendor ? "Select Purchase Order..." : "Please select a vendor first"}
-                          isClearable
-                          isDisabled={!selectedVendor}
-                          className="react-select-container"
-                          classNamePrefix="react-select"
-                          required
-                        />
-                        {selectedVendor && filteredPOs.length === 0 && (
-                          <small className="text-muted d-block mt-1">
-                            No incomplete purchase orders found for this vendor
-                          </small>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
+                {choice === "Against PO" && (<>
+                  <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Vendor Name</label><Select value={selectedVendor} onChange={handleVendorChange} onInputChange={setVendorSearch} options={vendors} placeholder="Select Vendor..." isClearable className="react-select-container" classNamePrefix="react-select" /></div></div>
+                  <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">PO No.</label><Select value={selectedPO} onChange={handlePOChange} onInputChange={setPoSearch} options={filteredPOs} placeholder={selectedVendor ? "Select PO..." : "Select vendor first"} isClearable isDisabled={!selectedVendor} className="react-select-container" classNamePrefix="react-select" /></div></div>
+                </>)}
 
                 {choice === "Direct Material" && (
-                  <div className="col-12 col-lg-6">
-                    <div className="mb-3">
-                      <label className="form-label label_text">Vendor Name <RequiredStar /></label>
-                      <Select
-                        value={selectedVendor}
-                        onChange={setSelectedVendor}
-                        onInputChange={setVendorSearch}
-                        options={vendors}
-                        placeholder="Select Vendor..."
-                        isClearable
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        required
-                      />
-                    </div>
-                  </div>
+                  <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Vendor Name</label><Select value={selectedVendor} onChange={setSelectedVendor} onInputChange={setVendorSearch} options={vendors} placeholder="Select Vendor..." isClearable className="react-select-container" classNamePrefix="react-select" /></div></div>
                 )}
 
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Transaction Type <RequiredStar /></label>
-                    <select
-                      className="form-select rounded-0"
-                      value={transactionType}
-                      onChange={(e) => setTransactionType(e.target.value)}
-                      disabled={choice === "Against PO"}
-                      required
-                    >
-                      <option value="">Select Transaction Type</option>
-                      <option value="B2B">B2B</option>
-                      <option value="SEZ">SEZ</option>
-                      <option value="Import">Import</option>
-                      <option value="Asset">Asset</option>
-                    </select>
-                  </div>
-                </div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Transaction Type</label><select className="form-select rounded-0" value={transactionType} onChange={e => setTransactionType(e.target.value)} disabled={choice === "Against PO"} required><option value="">Select</option><option value="B2B">B2B</option><option value="SEZ">SEZ</option><option value="Import">Import</option><option value="Asset">Asset</option></select></div></div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Purchase Type</label><select className="form-select rounded-0" value={purchaseType} onChange={e => setPurchaseType(e.target.value)} disabled={choice === "Against PO"} required><option value="">Select</option><option value="Project Purchase">Project Purchase</option><option value="Stock">Stock</option></select></div></div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Status</label><select className="form-select rounded-0" value={status} onChange={e => setStatus(e.target.value)} required><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></div></div>
 
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Project Purchase / Stock <RequiredStar /></label>
-                    <select
-                      className="form-select rounded-0"
-                      value={purchaseType}
-                      onChange={(e) => setPurchaseType(e.target.value)}
-                      disabled={choice === "Against PO"}
-                      required
-                    >
-                      <option value="">Select Type</option>
-                      <option value="Project Purchase">Project Purchase</option>
-                      <option value="Stock">Stock</option>
-                    </select>
-                  </div>
-                </div>
+                {purchaseType === "Project Purchase" && <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Project Name</label><Select value={selectedProject} onChange={setSelectedProject} options={projects} placeholder="Select Project..." isClearable isDisabled={choice === "Against PO"} /></div></div>}
+                {purchaseType === "Stock" && <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Warehouse Location</label><input type="text" className="form-control rounded-0" value={warehouseLocation} onChange={e => setWarehouseLocation(e.target.value)} maxLength={200} disabled={choice === "Against PO"} required /></div></div>}
 
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Status <RequiredStar /></label>
-                    <select
-                      className="form-select rounded-0"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value)}
-                      required
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-
-                {purchaseType === "Project Purchase" && (
-                  <div className="col-12 col-lg-6">
-                    <div className="mb-3">
-                      <label className="form-label label_text">Project Name <RequiredStar /></label>
-                      <Select
-                        value={selectedProject}
-                        onChange={setSelectedProject}
-                        options={projects}
-                        placeholder="Select Project..."
-                        isClearable
-                        isDisabled={choice === "Against PO"}
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {purchaseType === "Stock" && (
-                  <div className="col-12 col-lg-6">
-                    <div className="mb-3">
-                      <label className="form-label label_text">Warehouse Location <RequiredStar /></label>
-                      <input
-                        type="text"
-                        className="form-control rounded-0"
-                        value={warehouseLocation}
-                        onChange={(e) => setWarehouseLocation(e.target.value)}
-                        placeholder="Ex: Baner / Amazon / Mumbai / Bhosari"
-                        maxLength={200}
-                        disabled={choice === "Against PO"}
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Delivery Address</label>
-                    <textarea
-                      className="form-control rounded-0"
-                      rows="2"
-                      value={deliveryAddress}
-                      onChange={(e) => setDeliveryAddress(e.target.value)}
-                      placeholder="Enter delivery address"
-                      maxLength={500}
-                      disabled={choice === "Against PO"}
-                    />
-                  </div>
-                </div>
-
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Location</label>
-                    <input
-                      type="text"
-                      className="form-control rounded-0"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="Enter location"
-                      maxLength={200}
-                      disabled={choice === "Against PO"}
-                    />
-                  </div>
-                </div>
-
-                <div className="col-12 col-lg-6">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Document</label>
-                    <input
-                      type="file"
-                      className="form-control rounded-0"
-                      onChange={handleFileChange}
-                      accept=".pdf,.doc,.docx"
-                    />
-                    {termsDocument && (
-                      <small className="text-success d-block mt-1">
-                        Selected file: {termsDocument.name}
-                      </small>
-                    )}
-                    {selectedGRN?.attachments && selectedGRN.attachments.length > 0 && !termsDocument && (
-                      <small className="text-muted d-block mt-1">
-                        Current document: {selectedGRN.attachments[0].name}
-                      </small>
-                    )}
-                  </div>
-                </div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Delivery Address</label><textarea className="form-control rounded-0" rows="2" value={deliveryAddress} onChange={e => setDeliveryAddress(e.target.value)} maxLength={500} disabled={choice === "Against PO"} /></div></div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Location</label><input type="text" className="form-control rounded-0" value={location} onChange={e => setLocation(e.target.value)} maxLength={200} disabled={choice === "Against PO"} /></div></div>
+                <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Document</label><input type="file" className="form-control rounded-0" onChange={handleFileChange} accept=".pdf,.doc,.docx" />{termsDocument && <small className="text-success d-block mt-1">Selected: {termsDocument.name}</small>}{selectedGRN?.attachments?.length > 0 && !termsDocument && <small className="text-muted d-block mt-1">Current: {selectedGRN.attachments[0].name}</small>}</div></div>
 
                 <div className="col-12 mt-3">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <h6 className="fw-bold">Item Details</h6>
-                    {choice === "Direct Material" && (
-                      <button type="button" className="btn btn-sm btn-primary" onClick={handleAddItem}>
-                        <i className="fa fa-plus"></i> Add Item
-                      </button>
-                    )}
+                    {choice === "Direct Material" && <button type="button" className="btn btn-sm btn-primary" onClick={handleAddItem}><i className="fa fa-plus"></i> Add Item</button>}
                   </div>
 
+                  {choice === "Direct Material" && !productsLoaded && (
+                    <div className="text-center py-3"><div className="spinner-border spinner-border-sm text-primary" role="status"></div><span className="ms-2">Loading products...</span></div>
+                  )}
+
                   <div className="table-responsive">
-                    <table className="table table-bordered">
-                      <thead>
+                    <table className="table table-bordered table-sm">
+                      <thead className="table-dark">
                         <tr>
-                          <th>Brand Name</th>
-                          <th>Model No</th>
-                          <th>Description</th>
-                          <th>Unit</th>
-                          <th>Base UOM</th>
-                          <th>Ordered Qty</th>
-                          {choice === "Against PO" && <th>Already Received</th>}
-                          <th>Received Qty</th>
-                          <th>Price</th>
-                          <th>Discount %</th>
-                          <th>Tax %</th>
-                          <th>Net Value</th>
-                          {choice === "Direct Material" && <th>Action</th>}
+                          {choice === "Direct Material" && <th style={{ minWidth: 190 }}>Select Product</th>}
+                          <th style={{ minWidth: 140 }}>Product Name</th>
+                          <th style={{ minWidth: 110 }}>Brand Name</th>
+                          <th style={{ minWidth: 110 }}>Model No</th>
+                          <th style={{ minWidth: 60 }}>Unit</th>
+                          <th style={{ minWidth: 75 }}>Ord. Qty</th>
+                          {choice === "Against PO" && <th style={{ minWidth: 70 }}>Rcvd</th>}
+                          <th style={{ minWidth: 75 }}>Rcv Qty</th>
+                          <th style={{ minWidth: 80 }}>Price</th>
+                          <th style={{ minWidth: 65 }}>Disc %</th>
+                          <th style={{ minWidth: 65 }}>Tax %</th>
+                          <th style={{ minWidth: 90 }}>Net Value</th>
+                          {choice === "Direct Material" && <th style={{ minWidth: 42 }}>Del</th>}
                         </tr>
                       </thead>
                       <tbody>
                         {items.map((item, index) => {
-                          const brandProducts = products.filter(p => p.brandName === item.brandName);
-                          const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
-                          const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
-                          
-                          // Calculate already received and remaining quantities for PO items
-                          let alreadyReceived = 0;
-                          let remainingQuantity = item.orderedQuantity;
-                          
-                          if (choice === "Against PO" && selectedPO && selectedPO.po) {
-                            const poItem = selectedPO.po.items.find(i => 
-                              i.brandName === item.brandName && i.modelNo === item.modelNo
-                            );
-                            if (poItem) {
-                              alreadyReceived = poItem.receivedQuantity || 0;
-                              remainingQuantity = poItem.quantity - alreadyReceived;
-                            }
-                          }
-                          
+                          let ar = 0, rem = item.orderedQuantity;
+                          if (choice === "Against PO" && selectedPO?.po) { const pi = selectedPO.po.items.find(i => i.brandName === item.brandName && i.modelNo === item.modelNo); if (pi) { ar = pi.receivedQuantity || 0; rem = pi.quantity - ar; } }
                           return (
                             <tr key={index}>
-                              <td>
-                                {choice === "Against PO" ? (
-                                  <input type="text" className="form-control form-control-sm" value={item.brandName} readOnly />
-                                ) : (
-                                  <Select
-                                    value={brands.find(b => b.value === item.brandName) || null}
-                                    onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
-                                    options={brands}
-                                    placeholder="Select Brand..."
-                                    isClearable
-                                    required
-                                  />
-                                )}
-                              </td>
-                              <td>
-                                {choice === "Against PO" ? (
-                                  <input type="text" className="form-control form-control-sm" value={item.modelNo} readOnly />
-                                ) : (
-                                  <Select
-                                    value={modelOptions.find(m => m.value === item.modelNo) || null}
-                                    onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
-                                    options={modelOptions}
-                                    placeholder="Select Model..."
-                                    isClearable
-                                    isDisabled={!item.brandName}
-                                    required
-                                  />
-                                )}
-                              </td>
-                              <td>
-                                <textarea
-                                  className="form-control form-control-sm"
-                                  value={item.description}
-                                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                                  rows="1"
-                                  disabled={choice === "Against PO"}
-                                />
-                              </td>
-                              
-                              <td>
-                                {choice === "Against PO" ? (
-                                  <input type="text" className="form-control form-control-sm" value={item.unit} readOnly />
-                                ) : (
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    value={item.unit}
-                                    onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                                    placeholder="Unit"
-                                    required
-                                  />
-                                )}
-                              </td>
-                              
-                              <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  value={item.baseUOM}
-                                  onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)}
-                                  placeholder="Base UOM"
-                                  disabled={choice === "Against PO"}
-                                  required
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.orderedQuantity}
-                                  onChange={(e) => handleItemChange(index, 'orderedQuantity', Number(e.target.value))}
-                                  min="0"
-                                  disabled={choice === "Against PO"}
-                                />
-                              </td>
-                              
-                              {choice === "Against PO" && (
-                                <td>
-                                  <input
-                                    type="number"
-                                    className="form-control form-control-sm"
-                                    value={alreadyReceived}
-                                    readOnly
-                                  />
-                                </td>
-                              )}
-                              
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.receivedQuantity}
-                                  onChange={(e) => handleItemChange(index, 'receivedQuantity', Number(e.target.value))}
-                                  min="0"
-                                  max={choice === "Against PO" ? remainingQuantity : undefined}
-                                  required
-                                />
-                                {choice === "Against PO" && (
-                                  <small className="text-muted d-block">
-                                    Max: {remainingQuantity}
-                                  </small>
-                                )}
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.price}
-                                  onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
-                                  min="0"
-                                  step="0.01"
-                                  disabled={choice === "Against PO"}
-                                  required
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.discountPercent}
-                                  onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))}
-                                  min="0"
-                                  max="100"
-                                  disabled={choice === "Against PO"}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.taxPercent}
-                                  onChange={(e) => handleItemChange(index, 'taxPercent', Number(e.target.value))}
-                                  min="0"
-                                  max="100"
-                                  disabled={choice === "Against PO"}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  value={item.netValue.toFixed(2)}
-                                  readOnly
-                                />
-                              </td>
                               {choice === "Direct Material" && (
-                                <td>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-danger"
-                                    onClick={() => handleRemoveItem(index)}
-                                    disabled={items.length === 1}
-                                  >
-                                    <i className="fa fa-trash"></i>
-                                  </button>
-                                </td>
+                                <td><Select value={productOptions.find(p => p.value === item._selectedProductId) || null} onChange={s => handleProductSelect(index, s ? s.value : "")} options={productOptions} placeholder="Type/paste to search..." isClearable filterOption={productFilterOption} menuPortalTarget={document.body} styles={selectStyles} /></td>
                               )}
+                              <td><input type="text" className="form-control form-control-sm rounded-0" value={item.productName} onChange={e => handleItemChange(index, "productName", e.target.value)} placeholder="e.g. Transport, Service..." readOnly={choice === "Against PO"} style={{ minWidth: 120 }} /></td>
+                              <td><input type="text" className="form-control form-control-sm rounded-0" value={item.brandName} onChange={e => handleItemChange(index, "brandName", e.target.value)} placeholder="Optional" readOnly={choice === "Against PO"} style={{ minWidth: 95 }} /></td>
+                              <td><input type="text" className="form-control form-control-sm rounded-0" value={item.modelNo} onChange={e => handleItemChange(index, "modelNo", e.target.value)} placeholder="Optional" readOnly={choice === "Against PO"} style={{ minWidth: 95 }} /></td>
+                              <td><input type="text" className="form-control form-control-sm rounded-0" value={item.unit} onChange={e => handleItemChange(index, "unit", e.target.value)} readOnly={choice === "Against PO"} /></td>
+                              <td><input type="number" className="form-control form-control-sm rounded-0" value={item.orderedQuantity} onChange={e => handleItemChange(index, "orderedQuantity", Number(e.target.value))} min="0" disabled={choice === "Against PO"} /></td>
+                              {choice === "Against PO" && <td><input type="number" className="form-control form-control-sm rounded-0" value={ar} readOnly /></td>}
+                              <td><input type="number" className="form-control form-control-sm rounded-0" value={item.receivedQuantity} onChange={e => handleItemChange(index, "receivedQuantity", Number(e.target.value))} min="0" max={choice === "Against PO" ? rem : undefined} required />{choice === "Against PO" && <small className="text-muted d-block">Max: {rem}</small>}</td>
+                              <td><input type="number" className="form-control form-control-sm rounded-0" value={item.price} onChange={e => handleItemChange(index, "price", Number(e.target.value))} min="0" step="0.01" disabled={choice === "Against PO"} /></td>
+                              <td><input type="number" className="form-control form-control-sm rounded-0" value={item.discountPercent} onChange={e => { const v = e.target.value; if (v === '' || v === '.' || /^\d*\.?\d{0,2}$/.test(v)) handleItemChange(index, "discountPercent", v === '' ? 0 : Number(v)); }} min="0" max="100" step="0.01" disabled={choice === "Against PO"} /></td>
+                              <td><input type="number" className="form-control form-control-sm rounded-0" value={item.taxPercent} onChange={e => { const v = e.target.value; if (v === '' || v === '.' || /^\d*\.?\d{0,2}$/.test(v)) handleItemChange(index, "taxPercent", v === '' ? 0 : Number(v)); }} min="0" max="100" step="0.01" disabled={choice === "Against PO"} /></td>
+                              <td><input type="text" className="form-control form-control-sm rounded-0" value={item.netValue.toFixed(2)} readOnly /></td>
+                              {choice === "Direct Material" && <td><button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveItem(index)} disabled={items.length === 1}><i className="fa fa-trash"></i></button></td>}
                             </tr>
                           );
                         })}
                       </tbody>
+                      <tfoot>
+                        <tr className="fw-bold table-secondary">
+                          <td colSpan={choice === "Direct Material" ? 10 : 9} className="text-end">Grand Total:</td>
+                          <td className="text-end">{grandTotal.toFixed(2)}</td>
+                          {choice === "Direct Material" && <td></td>}
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 </div>
 
-                <div className="col-12 mt-3">
-                  <div className="mb-3">
-                    <label className="form-label label_text">Remark</label>
-                    <textarea
-                      className="form-control rounded-0"
-                      rows="3"
-                      value={remark}
-                      onChange={(e) => setRemark(e.target.value)}
-                      maxLength={1000}
-                    />
-                  </div>
-                </div>
+                <div className="col-12 mt-3"><div className="mb-3"><label className="form-label label_text">Remark</label><textarea className="form-control rounded-0" rows="3" value={remark} onChange={e => setRemark(e.target.value)} maxLength={1000} /></div></div>
 
                 <div className="col-12 pt-3 mt-2">
-                  <button 
-                    type="submit" 
-                    className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
-                    disabled={uploading}
-                  >
-                    Update
-                  </button>
-                  <button type="button" onClick={handleUpdate} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
-                    Cancel
-                  </button>
+                  <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4" disabled={uploading}>Update</button>
+                  <button type="button" onClick={handleUpdate} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">Cancel</button>
                 </div>
               </div>
             </div>

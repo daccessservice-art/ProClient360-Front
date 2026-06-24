@@ -706,16 +706,25 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                                 />
                               </td>
                               <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "80px" }}
-                                  value={item.taxPercent}
-                                  onChange={(e) => handleItemChange(index, 'taxPercent', Number(e.target.value))}
-                                  min="0"
-                                  max="100"
-                                />
-                              </td>
+  <input
+    type="number"
+    className="form-control form-control-sm"
+    style={{ minWidth: "80px" }}
+    value={item.taxPercent}
+    onChange={(e) => {
+      const value = e.target.value;
+      // Allow decimal input like 2.5, 18.5
+      if (value === '' || value === '.') {
+        handleItemChange(index, 'taxPercent', value);
+      } else if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
+        handleItemChange(index, 'taxPercent', Number(value));
+      }
+    }}
+    min="0"
+    max="100"
+    step="0.01"
+  />
+</td>
                               <td>
                                 <input
                                   type="text"

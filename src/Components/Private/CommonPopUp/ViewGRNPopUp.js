@@ -4,6 +4,8 @@ import { formatDate } from "../../../utils/formatDate";
 const ViewGRNPopUp = ({ closePopUp, selectedGRN }) => {
   const [grn] = useState(selectedGRN);
 
+  const grandTotal = grn?.items?.reduce((sum, item) => sum + (item.netValue || 0), 0) || 0;
+
   return (
     <>
       <div
@@ -132,15 +134,17 @@ const ViewGRNPopUp = ({ closePopUp, selectedGRN }) => {
                   <div className="col-12">
                     <h6 className="fw-bold">Items:</h6>
                     <div className="table-responsive">
-                      <table className="table table-bordered">
-                        <thead>
+                      <table className="table table-bordered table-sm">
+                        <thead className="table-dark">
                           <tr>
+                            <th>Sr.</th>
+                            <th>Product Name</th>
                             <th>Brand Name</th>
                             <th>Model No</th>
                             <th>Description</th>
                             <th>Unit</th>
-                            <th>Ordered Quantity</th>
-                            <th>Received Quantity</th>
+                            <th>Ordered Qty</th>
+                            <th>Received Qty</th>
                             <th>Price</th>
                             <th>Discount %</th>
                             <th>Tax %</th>
@@ -150,29 +154,32 @@ const ViewGRNPopUp = ({ closePopUp, selectedGRN }) => {
                         <tbody>
                           {grn?.items?.map((item, index) => (
                             <tr key={index}>
-                              <td>{item.brandName}</td>
-                              <td>{item.modelNo}</td>
+                              <td>{index + 1}</td>
+                              <td className="fw-semibold">{item.productName || "-"}</td>
+                              <td>{item.brandName || "-"}</td>
+                              <td>{item.modelNo || "-"}</td>
                               <td>{item.description || "-"}</td>
                               <td>{item.unit || "-"}</td>
-                              <td>{item.orderedQuantity}</td>
-                              <td>
-                                <span className="badge bg-success">
-                                  {item.receivedQuantity}
-                                </span>
+                              <td className="text-center">{item.orderedQuantity || 0}</td>
+                              <td className="text-center">
+                                <span className="badge bg-success">{item.receivedQuantity || 0}</span>
                               </td>
-                              <td>₹{item.price.toFixed(2)}</td>
-                              <td>{item.discountPercent}%</td>
-                              <td>{item.taxPercent}%</td>
-                              <td>₹{item.netValue.toFixed(2)}</td>
+                              <td className="text-end">₹{(item.price || 0).toFixed(2)}</td>
+                              <td className="text-center">{item.discountPercent || 0}%</td>
+                              <td className="text-center">{item.taxPercent || 0}%</td>
+                              <td className="text-end fw-bold">₹{(item.netValue || 0).toFixed(2)}</td>
                             </tr>
                           ))}
+                          {(!grn?.items || grn.items.length === 0) && (
+                            <tr>
+                              <td colSpan="12" className="text-center text-muted">No items found</td>
+                            </tr>
+                          )}
                         </tbody>
                         <tfoot>
-                          <tr>
-                            <td colSpan="11" className="text-end fw-bold">Grand Total:</td>
-                            <td className="fw-bold">
-                              ₹{grn?.items?.reduce((sum, item) => sum + item.netValue, 0).toFixed(2) || "0.00"}
-                            </td>
+                          <tr className="fw-bold table-secondary">
+                            <td colSpan="11" className="text-end">Grand Total:</td>
+                            <td className="text-end">₹{grandTotal.toFixed(2)}</td>
                           </tr>
                         </tfoot>
                       </table>
