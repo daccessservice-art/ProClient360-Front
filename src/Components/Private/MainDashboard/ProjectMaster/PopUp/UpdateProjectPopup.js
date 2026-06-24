@@ -10,26 +10,94 @@ import { UserContext } from "../../../../../context/UserContext";
 
 const PAGE_SIZE = 15;
 
+// ─── Single source of truth for categories ──────────────────────────
+const PROJECT_CATEGORIES = [
+    "Surveillance System",
+    "CCTV System",
+    "TA System",
+    "Hajeri",
+    "SmartFace",
+    "ZKBioSecurity",
+    "Access Control System",
+    "Turnkey Project",
+    "Alleviz",
+    "CafeLive",
+    "WorksJoy",
+    "WorksJoy Blu",
+    "Fire Alarm System",
+    "Fire Hydrant System",
+    "IDS",
+    "AI Face Machines",
+    "Entrance Automation",
+    "Guard Tour System",
+    "Home Automation",
+    "IP PA and Communication System",
+    "CRM",
+    "KMS",
+    "VMS",
+    "PMS",
+    "Boom Barrier System",
+    "Tripod System",
+    "Flap Barrier System",
+    "EPBX System",
+    "CMS",
+    "Lift Eliviter System",
+    "AV6",
+    "Walky Talky System",
+    "Device Management System",
+    "VisionIQ",
+    "CineMind",
+    "Extracto",
+    "Virtual Agent",
+    "LAN Cabling Activity",
+];
+
+// Check if a category is a predefined one or custom
+const isPredefinedCategory = (cat) => PROJECT_CATEGORIES.includes(cat);
+// ────────────────────────────────────────────────────────────────────
+
 const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
     const { user } = useContext(UserContext);
 
     const designationName = user?.designation || "";
-    const isProjectCoordinator = designationName.trim().toLowerCase() === "project coordinator";
+    const isProjectCoordinator =
+        designationName.trim().toLowerCase() === "project coordinator";
 
     const [loading, setLoading] = useState(false);
     const [retention, setRetention] = useState(0);
 
     const [custOptions, setCustOptions] = useState([]);
     const [selectedCustomer, setSelectedCustomer] = useState(
-        selectedProject?.custId ? {
-            value: selectedProject.custId._id,
-            label: selectedProject.custId.custName
-        } : null
+        selectedProject?.custId
+            ? {
+                  value: selectedProject.custId._id,
+                  label: selectedProject.custId.custName,
+              }
+            : null
     );
     const [custPage, setCustPage] = useState(1);
     const [custHasMore, setCustHasMore] = useState(true);
     const [custLoading, setCustLoading] = useState(false);
     const [custSearch, setCustSearch] = useState("");
+
+    // ─── Category states ─────────────────────────────────────────────
+    const [isCustomCategory, setIsCustomCategory] = useState(() => {
+        // If the existing category is NOT in the predefined list, it's custom
+        if (selectedProject?.category) {
+            return !isPredefinedCategory(selectedProject.category);
+        }
+        return false;
+    });
+    const [customCategory, setCustomCategory] = useState(() => {
+        if (
+            selectedProject?.category &&
+            !isPredefinedCategory(selectedProject.category)
+        ) {
+            return selectedProject.category;
+        }
+        return "";
+    });
+    // ─────────────────────────────────────────────────────────────────
 
     const [projects, setProjects] = useState({
         ...selectedProject,
@@ -40,7 +108,11 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         warrantyCertificate: selectedProject?.warrantyCertificate || "",
         warrantyStartDate: selectedProject?.warrantyStartDate || "",
         warrantyMonths: selectedProject?.warrantyMonths || "",
-        retentionDays: selectedProject?.retentionDays || 0, // ─── INIT NEW FIELD
+        retentionDays: selectedProject?.retentionDays || 0,
+        // If category is predefined, store it; if custom, store empty (we use customCategory)
+        category: isPredefinedCategory(selectedProject?.category)
+            ? selectedProject.category
+            : "",
     });
 
     const [address, setAddress] = useState({
@@ -51,12 +123,19 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         pincode: selectedProject?.Address?.pincode || "",
     });
 
-    // ✅ FIXED: Merge only state/city/country, keep pincode and add intact
+    // ─── Get final category value ───────────────────────────────────
+    const getFinalCategory = () => {
+        if (isCustomCategory) {
+            return customCategory.trim();
+        }
+        return projects.category;
+    };
+
     useEffect(() => {
         const fetchData = async () => {
             const data = await getAddress(address.pincode);
             if (data && data !== "Error") {
-                setAddress(prev => ({
+                setAddress((prev) => ({
                     ...prev,
                     state: data.state || "",
                     city: data.city || "",
@@ -64,24 +143,33 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                 }));
             }
         };
-        if (address.pincode && String(address.pincode).length === 6) fetchData();
+        if (address.pincode && String(address.pincode).length === 6)
+            fetchData();
     }, [address.pincode]);
 
-    const loadCustomers = useCallback(async (page, search) => {
-        if (custLoading || !custHasMore) return;
-        setCustLoading(true);
-        const data = await getCustomers(page, PAGE_SIZE, search);
-        if (data.error) {
-            toast.error(data.error || 'Failed to load customers');
+    const loadCustomers = useCallback(
+        async (page, search) => {
+            if (custLoading || !custHasMore) return;
+            setCustLoading(true);
+            const data = await getCustomers(page, PAGE_SIZE, search);
+            if (data.error) {
+                toast.error(data.error || "Failed to load customers");
+                setCustLoading(false);
+                return;
+            }
+            const newOpts = (data.customers || []).map((c) => ({
+                value: c._id,
+                label: c.custName,
+            }));
+            setCustOptions((prev) =>
+                page === 1 ? newOpts : [...prev, ...newOpts]
+            );
+            setCustHasMore(newOpts.length === PAGE_SIZE);
             setCustLoading(false);
-            return;
-        }
-        const newOpts = (data.customers || []).map(c => ({ value: c._id, label: c.custName }));
-        setCustOptions(prev => page === 1 ? newOpts : [...prev, ...newOpts]);
-        setCustHasMore(newOpts.length === PAGE_SIZE);
-        setCustLoading(false);
-        setCustPage(page + 1);
-    }, [custLoading, custHasMore]);
+            setCustPage(page + 1);
+        },
+        [custLoading, custHasMore]
+    );
 
     useEffect(() => {
         setCustPage(1);
@@ -91,20 +179,24 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
     }, [custSearch]);
 
     useEffect(() => {
-        const retentionValue = 100 - (
-            Number(projects.advancePay || 0) +
-            Number(projects.payAgainstDelivery || 0) +
-            Number(projects.payAfterCompletion || 0)
-        );
+        const retentionValue =
+            100 -
+            (Number(projects.advancePay || 0) +
+                Number(projects.payAgainstDelivery || 0) +
+                Number(projects.payAfterCompletion || 0));
         if (retentionValue >= 0) {
             setRetention(retentionValue);
-            setProjects(prev => ({ ...prev, retention: retentionValue }));
+            setProjects((prev) => ({ ...prev, retention: retentionValue }));
         } else {
             toast.error("The total percentage cannot exceed 100%.");
             setRetention(0);
-            setProjects(prev => ({ ...prev, retention: 0 }));
+            setProjects((prev) => ({ ...prev, retention: 0 }));
         }
-    }, [projects.advancePay, projects.payAgainstDelivery, projects.payAfterCompletion]);
+    }, [
+        projects.advancePay,
+        projects.payAgainstDelivery,
+        projects.payAfterCompletion,
+    ]);
 
     const coordinatorAllowedFields = [
         "projectStatus",
@@ -117,60 +209,95 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         "warrantyMonths",
     ];
 
+    // ─── Category Change Handler ────────────────────────────────────
+    const handleCategoryChange = (e) => {
+        if (isProjectCoordinator) return;
+        const value = e.target.value;
+        if (value === "__other__") {
+            setIsCustomCategory(true);
+            setProjects((prev) => ({ ...prev, category: "" }));
+            setCustomCategory("");
+        } else {
+            setIsCustomCategory(false);
+            setProjects((prev) => ({ ...prev, category: value }));
+            setCustomCategory("");
+        }
+    };
+    // ────────────────────────────────────────────────────────────────
+
     const handleChange = (event) => {
         const { name, value } = event.target;
 
-        if (isProjectCoordinator && !coordinatorAllowedFields.includes(name)) return;
+        if (
+            isProjectCoordinator &&
+            !coordinatorAllowedFields.includes(name)
+        )
+            return;
 
         if (["purchaseOrderValue", "completeLevel"].includes(name)) {
             const numericValue = value.replace(/\D/g, "");
-            const maxLength = { purchaseOrderValue: 12, completeLevel: 10 }[name];
+            const maxLength = { purchaseOrderValue: 12, completeLevel: 10 }[
+                name
+            ];
             if (numericValue.length > maxLength) return;
-            setProjects(prev => ({ ...prev, [name]: numericValue }));
+            setProjects((prev) => ({ ...prev, [name]: numericValue }));
             return;
         }
 
         if (name === "purchaseOrderNo") {
             if (value.length > 200) return;
-            setProjects(prev => ({ ...prev, [name]: value }));
+            setProjects((prev) => ({ ...prev, [name]: value }));
             return;
         }
 
         if (name === "custId") {
-            setSelectedCustomer({ value: value, label: event.target.options[event.target.selectedIndex].text });
-            setProjects(prev => ({ ...prev, custId: { _id: value } }));
+            setSelectedCustomer({
+                value: value,
+                label: event.target.options[event.target.selectedIndex].text,
+            });
+            setProjects((prev) => ({ ...prev, custId: { _id: value } }));
             return;
         }
 
         if (name === "projectStatus") {
-            setProjects(prev => ({
+            setProjects((prev) => ({
                 ...prev,
                 projectStatus: value,
-                completeLevel: value === "Completed" ? "100" : prev.completeLevel
+                completeLevel:
+                    value === "Completed" ? "100" : prev.completeLevel,
             }));
             return;
         }
 
-        if (name === "completionCertificate" || name === "warrantyCertificate") {
+        if (
+            name === "completionCertificate" ||
+            name === "warrantyCertificate"
+        ) {
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    setProjects(prev => ({ ...prev, [name]: reader.result }));
+                    setProjects((prev) => ({
+                        ...prev,
+                        [name]: reader.result,
+                    }));
                 };
                 reader.readAsDataURL(file);
             }
             return;
         }
 
-        setProjects(prev => ({ ...prev, [name]: value }));
+        setProjects((prev) => ({ ...prev, [name]: value }));
     };
 
     const handleAddressChange = (e) => {
         if (isProjectCoordinator) return;
         const { name, value } = e.target;
         if (["city", "state", "country"].includes(name)) {
-            setAddress({ ...address, [name]: value.replace(/[^a-zA-Z\s]/g, "") });
+            setAddress({
+                ...address,
+                [name]: value.replace(/[^a-zA-Z\s]/g, ""),
+            });
         } else if (name === "pincode") {
             const numericValue = value.replace(/\D/g, "");
             if (numericValue.length > 6) return;
@@ -184,17 +311,26 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         event.preventDefault();
         setLoading(true);
 
+        const finalCategory = getFinalCategory();
+
         const updatedProject = {
             ...projects,
+            category: finalCategory, // ─── USE FINAL CATEGORY
             custId: selectedCustomer?.value,
             retention: retention,
             Address: { ...address },
-            warrantyMonths: projects.warrantyMonths ? parseInt(projects.warrantyMonths) : 0,
-            retentionDays: projects.retentionDays || 0 // ─── ENSURE IN DATA
+            warrantyMonths: projects.warrantyMonths
+                ? parseInt(projects.warrantyMonths)
+                : 0,
+            retentionDays: projects.retentionDays || 0,
         };
 
         if (isProjectCoordinator) {
-            if (!updatedProject.projectStatus || !updatedProject.startDate || !updatedProject.endDate) {
+            if (
+                !updatedProject.projectStatus ||
+                !updatedProject.startDate ||
+                !updatedProject.endDate
+            ) {
                 setLoading(false);
                 return toast.error("Please fill all required fields");
             }
@@ -205,50 +341,87 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                 !updatedProject.purchaseOrderDate ||
                 !updatedProject.purchaseOrderNo ||
                 !updatedProject.purchaseOrderValue ||
-                !updatedProject.category ||
+                !finalCategory ||
                 !updatedProject.startDate ||
                 !updatedProject.endDate ||
-                updatedProject.advancePay === "" || updatedProject.advancePay === null || updatedProject.advancePay === undefined ||
-                updatedProject.payAgainstDelivery === "" || updatedProject.payAgainstDelivery === null || updatedProject.payAgainstDelivery === undefined ||
-                updatedProject.payAfterCompletion === "" || updatedProject.payAfterCompletion === null || updatedProject.payAfterCompletion === undefined
+                updatedProject.advancePay === "" ||
+                updatedProject.advancePay === null ||
+                updatedProject.advancePay === undefined ||
+                updatedProject.payAgainstDelivery === "" ||
+                updatedProject.payAgainstDelivery === null ||
+                updatedProject.payAgainstDelivery === undefined ||
+                updatedProject.payAfterCompletion === "" ||
+                updatedProject.payAfterCompletion === null ||
+                updatedProject.payAfterCompletion === undefined
             ) {
                 setLoading(false);
                 return toast.error("Please fill all required fields");
             }
         }
 
+        // ─── Custom category validation ──────────────────────────────
+        if (isCustomCategory && (!finalCategory || finalCategory.length < 2)) {
+            setLoading(false);
+            return toast.error(
+                "Custom category must be at least 2 characters"
+            );
+        }
+        if (finalCategory && finalCategory.length > 200) {
+            setLoading(false);
+            return toast.error("Category cannot exceed 200 characters");
+        }
+        // ────────────────────────────────────────────────────────────
+
         if (updatedProject.projectStatus === "Completed") {
             if (!updatedProject.completionCertificate) {
                 setLoading(false);
-                return toast.error("Completion Certificate is required for completed projects");
+                return toast.error(
+                    "Completion Certificate is required for completed projects"
+                );
             }
             if (!updatedProject.warrantyStartDate) {
                 setLoading(false);
-                return toast.error("Warranty Start Date is required for completed projects");
+                return toast.error(
+                    "Warranty Start Date is required for completed projects"
+                );
             }
-            if (!updatedProject.warrantyMonths || updatedProject.warrantyMonths == 0) {
+            if (
+                !updatedProject.warrantyMonths ||
+                updatedProject.warrantyMonths == 0
+            ) {
                 setLoading(false);
-                return toast.error("Warranty Duration is required and must be greater than 0");
+                return toast.error(
+                    "Warranty Duration is required and must be greater than 0"
+                );
             }
         }
 
         if (!isProjectCoordinator) {
-            if (Number(updatedProject.advancePay) + Number(updatedProject.payAgainstDelivery) + Number(updatedProject.payAfterCompletion) > 100) {
+            if (
+                Number(updatedProject.advancePay) +
+                    Number(updatedProject.payAgainstDelivery) +
+                    Number(updatedProject.payAfterCompletion) >
+                100
+            ) {
                 setLoading(false);
-                return toast.error("Sum of Advance Payment, Pay Against Delivery, and Pay After Completion cannot exceed 100%");
+                return toast.error(
+                    "Sum of Advance Payment, Pay Against Delivery, and Pay After Completion cannot exceed 100%"
+                );
             }
 
-            // ─── NEW: Retention Validation (Max 10%) ───
             if (Number(updatedProject.retention) > 10) {
                 setLoading(false);
-                return toast.error("Retention cannot be more than 10%.");
+                return toast.error(
+                    "Retention cannot be more than 10%."
+                );
             }
-            // ───────────────────────────────────────────
         }
 
         if (updatedProject.startDate > updatedProject.endDate) {
             setLoading(false);
-            return toast.error("Start Date cannot be greater than End Date");
+            return toast.error(
+                "Start Date cannot be greater than End Date"
+            );
         }
 
         try {
@@ -271,59 +444,87 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
 
     const viewFile = (fileType) => {
         const fileUrl = projects[fileType];
-        if (!fileUrl) { toast.error("No file available"); return; }
-        if (fileUrl.startsWith('data:')) {
+        if (!fileUrl) {
+            toast.error("No file available");
+            return;
+        }
+        if (fileUrl.startsWith("data:")) {
             const newWindow = window.open();
-            newWindow.document.write(`<html><head><title>File Preview</title></head><body style="margin:0;overflow:hidden"><iframe src="${fileUrl}" style="border:0;top:0;left:0;bottom:0;right:0;width:100%;height:100%;" allowfullscreen></iframe></body></html>`);
+            newWindow.document.write(
+                `<html><head><title>File Preview</title></head><body style="margin:0;overflow:hidden"><iframe src="${fileUrl}" style="border:0;top:0;left:0;bottom:0;right:0;width:100%;height:100%;" allowfullscreen></iframe></body></html>`
+            );
         } else {
-            window.open(fileUrl, '_blank');
+            window.open(fileUrl, "_blank");
         }
     };
 
-    const formattedPurchaseOrderDate = formatDateforupdate(projects?.purchaseOrderDate);
-    const formattedStartDate         = formatDateforupdate(projects?.startDate);
-    const formattedEndDate           = formatDateforupdate(projects?.endDate);
-    const formattedWarrantyStartDate = formatDateforupdate(projects?.warrantyStartDate);
+    const formattedPurchaseOrderDate = formatDateforupdate(
+        projects?.purchaseOrderDate
+    );
+    const formattedStartDate = formatDateforupdate(projects?.startDate);
+    const formattedEndDate = formatDateforupdate(projects?.endDate);
+    const formattedWarrantyStartDate = formatDateforupdate(
+        projects?.warrantyStartDate
+    );
 
     const lockedStyle = {
-        backgroundColor: '#e9ecef',
-        cursor: 'not-allowed',
+        backgroundColor: "#e9ecef",
+        cursor: "not-allowed",
         opacity: 0.75,
-        pointerEvents: 'none',
-        userSelect: 'none',
+        pointerEvents: "none",
+        userSelect: "none",
     };
 
     return (
         <form onSubmit={handleProjectUpdate}>
-            <div className="modal fade show" style={{ display: "flex", alignItems: 'center', backgroundColor: "#00000090" }}>
+            <div
+                className="modal fade show"
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: "#00000090",
+                }}
+            >
                 <div className="modal-dialog modal-lg">
                     <div className="modal-content p-3">
                         <div className="modal-header pt-0">
                             <h5 className="card-title fw-bold">
                                 Update Project
                                 {isProjectCoordinator && (
-                                    <span className="badge bg-warning text-dark ms-2" style={{ fontSize: '11px' }}>
+                                    <span
+                                        className="badge bg-warning text-dark ms-2"
+                                        style={{ fontSize: "11px" }}
+                                    >
                                         Limited Edit Access
                                     </span>
                                 )}
                             </h5>
-                            <button onClick={() => handleUpdate()} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
+                            <button
+                                onClick={() => handleUpdate()}
+                                type="button"
+                                className="close px-3"
+                                style={{ marginLeft: "auto" }}
+                            >
                                 <span aria-hidden="true">&times;</span>
                             </button>
                         </div>
 
                         <div className="modal-body">
                             <div className="row modal_body_height">
-
                                 {/* Customer Name */}
                                 <div className="col-12">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Customer Name <RequiredStar /></label>
+                                        <label className="form-label label_text">
+                                            Customer Name <RequiredStar />
+                                        </label>
                                         {isProjectCoordinator ? (
                                             <input
                                                 type="text"
                                                 className="form-control rounded-0"
-                                                value={selectedCustomer?.label || ""}
+                                                value={
+                                                    selectedCustomer?.label ||
+                                                    ""
+                                                }
                                                 readOnly
                                                 style={lockedStyle}
                                             />
@@ -331,15 +532,33 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             <Select
                                                 options={custOptions}
                                                 value={selectedCustomer}
-                                                onChange={opt => {
+                                                onChange={(opt) => {
                                                     setSelectedCustomer(opt);
-                                                    setProjects(prev => ({ ...prev, custId: { _id: opt?.value, custName: opt?.label } }));
+                                                    setProjects((prev) => ({
+                                                        ...prev,
+                                                        custId: {
+                                                            _id: opt?.value,
+                                                            custName:
+                                                                opt?.label,
+                                                        },
+                                                    }));
                                                 }}
-                                                onInputChange={val => setCustSearch(val)}
-                                                onMenuScrollToBottom={() => loadCustomers(custPage, custSearch)}
+                                                onInputChange={(val) =>
+                                                    setCustSearch(val)
+                                                }
+                                                onMenuScrollToBottom={() =>
+                                                    loadCustomers(
+                                                        custPage,
+                                                        custSearch
+                                                    )
+                                                }
                                                 isLoading={custLoading}
                                                 placeholder="Search and select customer..."
-                                                noOptionsMessage={() => custLoading ? 'Loading...' : 'No customers'}
+                                                noOptionsMessage={() =>
+                                                    custLoading
+                                                        ? "Loading..."
+                                                        : "No customers"
+                                                }
                                                 closeMenuOnSelect={true}
                                             />
                                         )}
@@ -348,7 +567,9 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
 
                                 {/* Project Name */}
                                 <div className="col-12 mb-3">
-                                    <label className="form-label label_text">Project Name <RequiredStar /></label>
+                                    <label className="form-label label_text">
+                                        Project Name <RequiredStar />
+                                    </label>
                                     <textarea
                                         className="form-control rounded-0"
                                         name="name"
@@ -357,29 +578,43 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                         placeholder="Update Project Name...."
                                         value={projects.name}
                                         readOnly={isProjectCoordinator}
-                                        style={isProjectCoordinator ? lockedStyle : {}}
+                                        style={
+                                            isProjectCoordinator
+                                                ? lockedStyle
+                                                : {}
+                                        }
                                     />
                                 </div>
 
                                 {/* Project Status */}
                                 <div className="col-12 col-lg-6 mt-2">
-                                    <label className="form-label label_text">Project Status <RequiredStar /></label>
+                                    <label className="form-label label_text">
+                                        Project Status <RequiredStar />
+                                    </label>
                                     <select
                                         className="form-select rounded-0"
                                         name="projectStatus"
                                         onChange={handleChange}
                                         value={projects?.projectStatus}
                                     >
-                                        <option value="Upcoming">Upcoming</option>
-                                        <option value="Inprocess">Inprocess</option>
-                                        <option value="Completed">Completed</option>
+                                        <option value="Upcoming">
+                                            Upcoming
+                                        </option>
+                                        <option value="Inprocess">
+                                            Inprocess
+                                        </option>
+                                        <option value="Completed">
+                                            Completed
+                                        </option>
                                     </select>
                                 </div>
 
                                 {/* Completion Level */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Completion level <RequiredStar /></label>
+                                        <label className="form-label label_text">
+                                            Completion level <RequiredStar />
+                                        </label>
                                         <input
                                             onChange={handleChange}
                                             value={projects?.completeLevel}
@@ -390,7 +625,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             maxLength="3"
                                             className="form-control rounded-0"
                                             required
-                                            disabled={projects?.projectStatus === "Completed"}
+                                            disabled={
+                                                projects?.projectStatus ===
+                                                "Completed"
+                                            }
                                         />
                                     </div>
                                 </div>
@@ -398,7 +636,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                 {/* Purchase Order Date */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Purchase Order Date <RequiredStar /></label>
+                                        <label className="form-label label_text">
+                                            Purchase Order Date{" "}
+                                            <RequiredStar />
+                                        </label>
                                         <input
                                             onChange={handleChange}
                                             value={formattedPurchaseOrderDate}
@@ -406,7 +647,11 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             type="date"
                                             className="form-control rounded-0"
                                             readOnly={isProjectCoordinator}
-                                            style={isProjectCoordinator ? lockedStyle : {}}
+                                            style={
+                                                isProjectCoordinator
+                                                    ? lockedStyle
+                                                    : {}
+                                            }
                                         />
                                     </div>
                                 </div>
@@ -414,7 +659,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                 {/* Purchase Order Number */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Purchase Order Number <RequiredStar /></label>
+                                        <label className="form-label label_text">
+                                            Purchase Order Number{" "}
+                                            <RequiredStar />
+                                        </label>
                                         <input
                                             type="text"
                                             className="form-control rounded-0"
@@ -424,7 +672,11 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             value={projects?.purchaseOrderNo}
                                             onChange={handleChange}
                                             readOnly={isProjectCoordinator}
-                                            style={isProjectCoordinator ? lockedStyle : {}}
+                                            style={
+                                                isProjectCoordinator
+                                                    ? lockedStyle
+                                                    : {}
+                                            }
                                         />
                                     </div>
                                 </div>
@@ -432,7 +684,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                 {/* Purchase Order Value */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Purchase Order Value (Rs/USD) <RequiredStar /></label>
+                                        <label className="form-label label_text">
+                                            Purchase Order Value (Rs/USD){" "}
+                                            <RequiredStar />
+                                        </label>
                                         <input
                                             type="text"
                                             inputMode="numeric"
@@ -443,70 +698,125 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             onChange={handleChange}
                                             value={projects?.purchaseOrderValue}
                                             readOnly={isProjectCoordinator}
-                                            style={isProjectCoordinator ? lockedStyle : {}}
+                                            style={
+                                                isProjectCoordinator
+                                                    ? lockedStyle
+                                                    : {}
+                                            }
                                         />
                                     </div>
                                 </div>
 
-                                {/* Category */}
+                                {/* ─── CATEGORY WITH "OTHER" OPTION ─── */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Category of Project <RequiredStar /></label>
-                                        <select
-                                            className="form-select rounded-0"
-                                            name="category"
-                                            onChange={handleChange}
-                                            value={projects?.category}
-                                            disabled={isProjectCoordinator}
-                                            style={isProjectCoordinator ? lockedStyle : {}}
-                                        >
-                                            <option value="Surveillance System">Surveillance System</option>
-                                            <option value="CCTV System">CCTV System</option>
-                                            <option value="TA System">TA System</option>
-                                            <option value="Hajeri">Hajeri</option>
-                                            <option value="SmartFace">SmartFace</option>
-                                            <option value="ZKBioSecurity">ZKBioSecurity</option>
-                                            <option value="Surveillance System">Surveillance System</option>
-                                            <option value="Access Control System">Access Control System</option>
-                                            <option value="Turnkey Project">Turnkey Project</option>
-                                            <option value="Alleviz">Alleviz</option>
-                                            <option value="CafeLive">CafeLive</option>
-                                            <option value="WorksJoy">WorksJoy</option>
-                                            <option value="WorksJoy Blu">WorksJoy Blu</option>
-                                            <option value="Fire Alarm System">Fire Alarm System</option>
-                                            <option value="Fire Hydrant System">Fire Hydrant System</option>
-                                            <option value="IDS">IDS</option>
-                                            <option value="AI Face Machines">AI Face Machines</option>
-                                            <option value="Entrance Automation">Entrance Automation</option>
-                                            <option value="Guard Tour System">Guard Tour System</option>
-                                            <option value="Home Automation">Home Automation</option>
-                                            <option value="IP PA and Communication System">IP PA and Communication System</option>
-                                            <option value="CRM">CRM</option>
-                                            <option value="KMS">KMS</option>
-                                            <option value="VMS">VMS</option>
-                                            <option value="PMS">PMS</option>
-                                            <option value="Boom Barrier System">Boom Barrier System</option>
-                                            <option value="Tripod System">Tripod System</option>
-                                            <option value="Flap Barrier System">Flap Barrier System</option>
-                                            <option value="EPBX System">EPBX System</option>
-                                            <option value="CMS">CMS</option>
-                                            <option value="Lift Eliviter System">Lift Eliviter System</option>
-                                            <option value="AV6">AV6</option>
-                                            <option value="Walky Talky System">Walky Talky System</option>
-                                            <option value="Device Management System">Device Management System</option>
-                                            <option value="VisionIQ">VisionIQ</option>
-                                            <option value="CineMind">CineMind</option>
-                                            <option value="Extracto">Extracto</option>
-                                            <option value="Virtual Agent">Virtual Agent</option>
-                                            <option value="LAN Cabling Activity">LAN Cabling Activity</option>
-                                        </select>
+                                        <label className="form-label label_text">
+                                            Category of Project{" "}
+                                            <RequiredStar />
+                                        </label>
+                                        {!isCustomCategory ? (
+                                            <select
+                                                className="form-select rounded-0"
+                                                name="category"
+                                                onChange={handleCategoryChange}
+                                                value={projects.category}
+                                                disabled={isProjectCoordinator}
+                                                style={
+                                                    isProjectCoordinator
+                                                        ? lockedStyle
+                                                        : {}
+                                                }
+                                            >
+                                                <option value="">
+                                                    -- Select Category Name --
+                                                </option>
+                                                {PROJECT_CATEGORIES.map(
+                                                    (cat) => (
+                                                        <option
+                                                            key={cat}
+                                                            value={cat}
+                                                        >
+                                                            {cat}
+                                                        </option>
+                                                    )
+                                                )}
+                                                <option value="__other__">
+                                                    ── Other (Enter Manually) ──
+                                                </option>
+                                            </select>
+                                        ) : (
+                                            <div className="d-flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    className="form-control rounded-0"
+                                                    placeholder="Type custom category name..."
+                                                    value={customCategory}
+                                                    onChange={(e) =>
+                                                        setCustomCategory(
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    maxLength={200}
+                                                    autoFocus
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-outline-secondary btn-sm"
+                                                    style={{
+                                                        minWidth: "80px",
+                                                        whiteSpace: "nowrap",
+                                                    }}
+                                                    onClick={() => {
+                                                        setIsCustomCategory(
+                                                            false
+                                                        );
+                                                        setCustomCategory("");
+                                                        setProjects(
+                                                            (prev) => ({
+                                                                ...prev,
+                                                                category: "",
+                                                            })
+                                                        );
+                                                    }}
+                                                    title="Back to list"
+                                                    disabled={
+                                                        isProjectCoordinator
+                                                    }
+                                                >
+                                                    <i className="fa-solid fa-list me-1"></i>
+                                                    List
+                                                </button>
+                                            </div>
+                                        )}
+                                        {isCustomCategory && (
+                                            <small className="text-muted">
+                                                Custom:{" "}
+                                                <strong>
+                                                    {customCategory ||
+                                                        "(empty)"}
+                                                </strong>
+                                            </small>
+                                        )}
                                     </div>
                                 </div>
+                                {/* ──────────────────────────────────── */}
 
                                 {/* Project Start Date */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Project Start Date <RequiredStar /></label>
+                                        <label className="form-label label_text">
+                                            Project Start Date{" "}
+                                            <RequiredStar />
+                                        </label>
                                         <input
                                             onChange={handleChange}
                                             name="startDate"
@@ -520,7 +830,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                 {/* Project End Date */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Project End Date <RequiredStar /></label>
+                                        <label className="form-label label_text">
+                                            Project End Date{" "}
+                                            <RequiredStar />
+                                        </label>
                                         <input
                                             onChange={handleChange}
                                             value={formattedEndDate}
@@ -536,39 +849,115 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                     <div className="col-12 mt-4">
                                         <div className="row border bg-light mx-auto p-3">
                                             <div className="col-12 mb-3">
-                                                <span className="SecondaryInfo fw-bold">Project Completion Details</span>
+                                                <span className="SecondaryInfo fw-bold">
+                                                    Project Completion Details
+                                                </span>
                                             </div>
                                             <div className="col-12 col-lg-6 mt-2">
                                                 <div className="mb-3">
-                                                    <label className="form-label label_text">Completion / Warranty Certificate <RequiredStar /></label>
-                                                    <input type="file" className="form-control rounded-0" name="completionCertificate" onChange={handleChange} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
+                                                    <label className="form-label label_text">
+                                                        Completion / Warranty
+                                                        Certificate{" "}
+                                                        <RequiredStar />
+                                                    </label>
+                                                    <input
+                                                        type="file"
+                                                        className="form-control rounded-0"
+                                                        name="completionCertificate"
+                                                        onChange={handleChange}
+                                                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                                    />
                                                     {projects.completionCertificate && (
-                                                        <button type="button" className="btn btn-outline-primary btn-sm mt-2" onClick={() => viewFile('completionCertificate')}>View Current File</button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-outline-primary btn-sm mt-2"
+                                                            onClick={() =>
+                                                                viewFile(
+                                                                    "completionCertificate"
+                                                                )
+                                                            }
+                                                        >
+                                                            View Current File
+                                                        </button>
                                                     )}
                                                 </div>
                                             </div>
                                             <div className="col-12 col-lg-6 mt-2">
                                                 <div className="mb-3">
-                                                    <label className="form-label label_text">HandOver Document</label>
-                                                    <input type="file" className="form-control rounded-0" name="warrantyCertificate" onChange={handleChange} accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
+                                                    <label className="form-label label_text">
+                                                        HandOver Document
+                                                    </label>
+                                                    <input
+                                                        type="file"
+                                                        className="form-control rounded-0"
+                                                        name="warrantyCertificate"
+                                                        onChange={handleChange}
+                                                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                                    />
                                                     {projects.warrantyCertificate && (
-                                                        <button type="button" className="btn btn-outline-primary btn-sm mt-2" onClick={() => viewFile('warrantyCertificate')}>View Current File</button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-outline-primary btn-sm mt-2"
+                                                            onClick={() =>
+                                                                viewFile(
+                                                                    "warrantyCertificate"
+                                                                )
+                                                            }
+                                                        >
+                                                            View Current File
+                                                        </button>
                                                     )}
                                                 </div>
                                             </div>
                                             <div className="col-12 col-lg-6 mt-2">
                                                 <div className="mb-3">
-                                                    <label className="form-label label_text">Warranty Start Date <RequiredStar /></label>
-                                                    <input onChange={handleChange} value={formattedWarrantyStartDate} type="date" name="warrantyStartDate" className="form-control rounded-0" required />
+                                                    <label className="form-label label_text">
+                                                        Warranty Start Date{" "}
+                                                        <RequiredStar />
+                                                    </label>
+                                                    <input
+                                                        onChange={handleChange}
+                                                        value={
+                                                            formattedWarrantyStartDate
+                                                        }
+                                                        type="date"
+                                                        name="warrantyStartDate"
+                                                        className="form-control rounded-0"
+                                                        required
+                                                    />
                                                 </div>
                                             </div>
                                             <div className="col-12 col-lg-6 mt-2">
                                                 <div className="mb-3">
-                                                    <label className="form-label label_text">Warranty Duration <RequiredStar /></label>
-                                                    <select className="form-select rounded-0" name="warrantyMonths" onChange={handleChange} value={projects?.warrantyMonths || ""}>
-                                                        <option value="">Select Duration</option>
-                                                        {Array.from({ length: 40 }, (_, i) => (i + 1) * 3).map(month => (
-                                                            <option key={month} value={month}>{month} Months</option>
+                                                    <label className="form-label label_text">
+                                                        Warranty Duration{" "}
+                                                        <RequiredStar />
+                                                    </label>
+                                                    <select
+                                                        className="form-select rounded-0"
+                                                        name="warrantyMonths"
+                                                        onChange={handleChange}
+                                                        value={
+                                                            projects?.warrantyMonths ||
+                                                            ""
+                                                        }
+                                                    >
+                                                        <option value="">
+                                                            Select Duration
+                                                        </option>
+                                                        {Array.from(
+                                                            {
+                                                                length: 40,
+                                                            },
+                                                            (_, i) =>
+                                                                (i + 1) * 3
+                                                        ).map((month) => (
+                                                            <option
+                                                                key={month}
+                                                                value={month}
+                                                            >
+                                                                {month} Months
+                                                            </option>
                                                         ))}
                                                     </select>
                                                 </div>
@@ -581,51 +970,139 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                 <div className="col-12 mt-2">
                                     <div className="row border bg-gray mx-auto">
                                         <div className="col-10 mb-3">
-                                            <span className="SecondaryInfo">Payment terms:</span>
+                                            <span className="SecondaryInfo">
+                                                Payment terms:
+                                            </span>
                                         </div>
                                         <div className="col-12 col-lg-6 mt-2">
                                             <div className="mb-3">
-                                                <label className="form-label label_text">Advance Payment <RequiredStar /></label>
-                                                <input type="text" inputMode="numeric" maxLength={3} className="form-control rounded-0" name="advancePay" onChange={handleChange} value={projects?.advancePay} readOnly={isProjectCoordinator} style={isProjectCoordinator ? lockedStyle : {}} required />
-                                            </div>
-                                        </div>
-                                        <div className="col-12 col-lg-6 mt-2">
-                                            <div className="mb-3">
-                                                <label className="form-label label_text">Pay Against Delivery <RequiredStar /></label>
-                                                <input type="text" inputMode="numeric" maxLength={3} className="form-control rounded-0" name="payAgainstDelivery" onChange={handleChange} value={projects?.payAgainstDelivery} readOnly={isProjectCoordinator} style={isProjectCoordinator ? lockedStyle : {}} required />
-                                            </div>
-                                        </div>
-                                        <div className="col-12 col-lg-6 mt-2">
-                                            <div className="mb-3">
-                                                <label className="form-label label_text">Pay After Completion <RequiredStar /></label>
-                                                <input type="text" inputMode="numeric" maxLength={3} className="form-control rounded-0" name="payAfterCompletion" onChange={handleChange} value={projects?.payAfterCompletion} readOnly={isProjectCoordinator} style={isProjectCoordinator ? lockedStyle : {}} required />
-                                            </div>
-                                        </div>
-                                        <div className="col-12 col-lg-6 mt-2">
-                                            <div className="mb-3">
-                                                <label className="form-label label_text">Retention (%) <RequiredStar /></label>
-                                                <input type="text" className="form-control rounded-0" name="retention" value={retention} readOnly style={{ backgroundColor: '#f8f9fa' }} required />
-                                            </div>
-                                        </div>
-                                        
-                                        {/* ─── NEW FIELD: Retention Days ─── */}
-                                        <div className="col-12 col-lg-6 mt-2">
-                                            <div className="mb-3">
-                                                <label className="form-label label_text">Retention Days</label>
-                                                <input 
-                                                    type="number" 
-                                                    min="0"
-                                                    className="form-control rounded-0" 
-                                                    name="retentionDays" 
-                                                    onChange={handleChange} 
-                                                    value={projects?.retentionDays || 0}
-                                                    readOnly={isProjectCoordinator}
-                                                    style={isProjectCoordinator ? lockedStyle : {}}
+                                                <label className="form-label label_text">
+                                                    Advance Payment{" "}
+                                                    <RequiredStar />
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    maxLength={3}
+                                                    className="form-control rounded-0"
+                                                    name="advancePay"
+                                                    onChange={handleChange}
+                                                    value={projects?.advancePay}
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                    required
                                                 />
                                             </div>
                                         </div>
-                                        {/* ─────────────────────────────────── */}
+                                        <div className="col-12 col-lg-6 mt-2">
+                                            <div className="mb-3">
+                                                <label className="form-label label_text">
+                                                    Pay Against Delivery{" "}
+                                                    <RequiredStar />
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    maxLength={3}
+                                                    className="form-control rounded-0"
+                                                    name="payAgainstDelivery"
+                                                    onChange={handleChange}
+                                                    value={
+                                                        projects?.payAgainstDelivery
+                                                    }
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="col-12 col-lg-6 mt-2">
+                                            <div className="mb-3">
+                                                <label className="form-label label_text">
+                                                    Pay After Completion{" "}
+                                                    <RequiredStar />
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    maxLength={3}
+                                                    className="form-control rounded-0"
+                                                    name="payAfterCompletion"
+                                                    onChange={handleChange}
+                                                    value={
+                                                        projects?.payAfterCompletion
+                                                    }
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="col-12 col-lg-6 mt-2">
+                                            <div className="mb-3">
+                                                <label className="form-label label_text">
+                                                    Retention (%){" "}
+                                                    <RequiredStar />
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control rounded-0"
+                                                    name="retention"
+                                                    value={retention}
+                                                    readOnly
+                                                    style={{
+                                                        backgroundColor:
+                                                            "#f8f9fa",
+                                                    }}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
 
+                                        <div className="col-12 col-lg-6 mt-2">
+                                            <div className="mb-3">
+                                                <label className="form-label label_text">
+                                                    Retention Days
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    className="form-control rounded-0"
+                                                    name="retentionDays"
+                                                    onChange={handleChange}
+                                                    value={
+                                                        projects?.retentionDays ||
+                                                        0
+                                                    }
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -633,31 +1110,128 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                 <div className="col-12 mt-2">
                                     <div className="row border mt-4 bg-gray mx-auto">
                                         <div className="col-12 mb-3">
-                                            <span className="AddressInfo">Address <RequiredStar /></span>
+                                            <span className="AddressInfo">
+                                                Address <RequiredStar />
+                                            </span>
                                         </div>
                                         <div className="col-12 col-lg-6 mt-2">
                                             <div className="mb-3">
-                                                <input type="text" inputMode="numeric" maxLength="6" className="form-control rounded-0" placeholder="Pincode" name="pincode" onChange={handleAddressChange} value={address.pincode} readOnly={isProjectCoordinator} style={isProjectCoordinator ? lockedStyle : {}} required />
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    maxLength="6"
+                                                    className="form-control rounded-0"
+                                                    placeholder="Pincode"
+                                                    name="pincode"
+                                                    onChange={
+                                                        handleAddressChange
+                                                    }
+                                                    value={address.pincode}
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                    required
+                                                />
                                             </div>
                                         </div>
                                         <div className="col-12 col-lg-6 mt-2">
                                             <div className="mb-3">
-                                                <input type="text" className="form-control rounded-0" placeholder="State" name="state" onChange={handleAddressChange} value={address.state} maxLength={50} readOnly={isProjectCoordinator} style={isProjectCoordinator ? lockedStyle : {}} required />
+                                                <input
+                                                    type="text"
+                                                    className="form-control rounded-0"
+                                                    placeholder="State"
+                                                    name="state"
+                                                    onChange={
+                                                        handleAddressChange
+                                                    }
+                                                    value={address.state}
+                                                    maxLength={50}
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                    required
+                                                />
                                             </div>
                                         </div>
                                         <div className="col-12 col-lg-6 mt-2">
                                             <div className="mb-3">
-                                                <input type="text" className="form-control rounded-0" placeholder="City" name="city" maxLength={50} onChange={handleAddressChange} value={address.city} readOnly={isProjectCoordinator} style={isProjectCoordinator ? lockedStyle : {}} required />
+                                                <input
+                                                    type="text"
+                                                    className="form-control rounded-0"
+                                                    placeholder="City"
+                                                    name="city"
+                                                    maxLength={50}
+                                                    onChange={
+                                                        handleAddressChange
+                                                    }
+                                                    value={address.city}
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                    required
+                                                />
                                             </div>
                                         </div>
                                         <div className="col-12 col-lg-6 mt-2">
                                             <div className="mb-3">
-                                                <input type="text" className="form-control rounded-0" placeholder="Country" name="country" maxLength={50} onChange={handleAddressChange} value={address.country} readOnly={isProjectCoordinator} style={isProjectCoordinator ? lockedStyle : {}} required />
+                                                <input
+                                                    type="text"
+                                                    className="form-control rounded-0"
+                                                    placeholder="Country"
+                                                    name="country"
+                                                    maxLength={50}
+                                                    onChange={
+                                                        handleAddressChange
+                                                    }
+                                                    value={address.country}
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                    required
+                                                />
                                             </div>
                                         </div>
                                         <div className="col-12 mt-2">
                                             <div className="mb-3">
-                                                <textarea className="textarea_edit col-12" name="add" maxLength={500} placeholder="House NO., Building Name, Road Name, Area, Colony" onChange={handleAddressChange} value={address.add} rows="2" readOnly={isProjectCoordinator} style={isProjectCoordinator ? lockedStyle : {}} />
+                                                <textarea
+                                                    className="textarea_edit col-12"
+                                                    name="add"
+                                                    maxLength={500}
+                                                    placeholder="House NO., Building Name, Road Name, Area, Colony"
+                                                    onChange={
+                                                        handleAddressChange
+                                                    }
+                                                    value={address.add}
+                                                    rows="2"
+                                                    readOnly={
+                                                        isProjectCoordinator
+                                                    }
+                                                    style={
+                                                        isProjectCoordinator
+                                                            ? lockedStyle
+                                                            : {}
+                                                    }
+                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -666,15 +1240,26 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                 {/* PO Copy */}
                                 <div className="col-12 col-lg-6 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Purchase Order Copy <RequiredStar /></label>
+                                        <label className="form-label label_text">
+                                            Purchase Order Copy{" "}
+                                            <RequiredStar />
+                                        </label>
                                     </div>
-                                    <button type="button" className="btn btn-outline-dark" onClick={() => viewFile('POCopy')}>View</button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline-dark"
+                                        onClick={() => viewFile("POCopy")}
+                                    >
+                                        View
+                                    </button>
                                 </div>
 
                                 {/* Remark */}
                                 <div className="col-12 mt-2">
                                     <div className="mb-3">
-                                        <label className="form-label label_text">Remark</label>
+                                        <label className="form-label label_text">
+                                            Remark
+                                        </label>
                                         <textarea
                                             className="textarea_edit col-12"
                                             name="remark"
@@ -682,24 +1267,37 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             maxLength={1000}
                                             placeholder="Enter a Remark..."
                                             value={projects?.remark || ""}
-                                            rows='2'
+                                            rows="2"
                                             readOnly={isProjectCoordinator}
-                                            style={isProjectCoordinator ? lockedStyle : {}}
+                                            style={
+                                                isProjectCoordinator
+                                                    ? lockedStyle
+                                                    : {}
+                                            }
                                         />
                                     </div>
                                 </div>
 
                                 <div className="row">
                                     <div className="col-12 pt-3 mt-2">
-                                        <button type='submit' disabled={loading} className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
-                                            {!loading ? "Update" : "Submitting..."}
+                                        <button
+                                            type="submit"
+                                            disabled={loading}
+                                            className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
+                                        >
+                                            {!loading
+                                                ? "Update"
+                                                : "Submitting..."}
                                         </button>
-                                        <button type="button" onClick={handleUpdate} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
+                                        <button
+                                            type="button"
+                                            onClick={handleUpdate}
+                                            className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4"
+                                        >
                                             Cancel
                                         </button>
                                     </div>
                                 </div>
-
                             </div>
                         </div>
                     </div>
@@ -707,6 +1305,6 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             </div>
         </form>
     );
-}
+};
 
 export default UpdateProjectPopup;
