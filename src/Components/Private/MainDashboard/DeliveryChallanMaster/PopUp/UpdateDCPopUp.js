@@ -34,9 +34,9 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
   const [custSearch, setCustSearch] = useState("");
 
   const [products, setProducts] = useState([]);
-  const [brands, setBrands] = useState([]);
+  const [productOptions, setProductOptions] = useState([]);
 
-  // ── NEW: carry productName through (existing items may not have it yet, so default "") ──
+  // Initialise items from existing DC
   const [items, setItems] = useState(
     (selectedDC?.items || [{
       productName: "", brandName: "", modelNo: "", quantity: 1, unit: "", baseUOM: ""
@@ -44,7 +44,8 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
       ...item,
       currStockQty: null,
       productId: item.productId || null,
-      productName: item.productName || ""
+      productName: item.productName || "",
+      isManual: !item.productId
     }))
   );
 
@@ -75,7 +76,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
     loadCustomers(1, custSearch);
   }, [custSearch]);
 
-  // Set initial customer
+  // Set initial customer once options are loaded
   useEffect(() => {
     if (selectedDC?.customer?._id && custOptions.length > 0) {
       const found = custOptions.find(c => c.value === selectedDC.customer._id);
@@ -89,25 +90,40 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
       const data = await getProducts(1, 1000, "");
       if (data.success) {
         setProducts(data.products);
-        const uniqueBrands = [...new Set(data.products.map(p => p.brandName).filter(Boolean))];
-        setBrands(uniqueBrands.map(brand => ({ value: brand, label: brand })));
 
-        // Enrich existing items with live currStockQty + productName from the loaded product list
+        const opts = data.products.map(p => ({
+          value: p._id,
+          label: p.productName,
+          product: p
+        }));
+        setProductOptions(opts);
+
+        // Enrich existing items with live currStockQty + productId
         setItems(prev => prev.map(item => {
-          if (item.brandName && item.modelNo) {
-            const product = data.products.find(
+          let matched = null;
+          if (item.productId) {
+            matched = data.products.find(p => String(p._id) === String(item.productId));
+          }
+          if (!matched && item.brandName && item.modelNo) {
+            matched = data.products.find(
               p => p.brandName === item.brandName && p.model === item.modelNo
             );
-            if (product) {
-              return {
-                ...item,
-                currStockQty: product.currentStockQty ?? 0,
-                productId: product._id,
-                productName: item.productName || product.productName || "", // ── NEW ──
-                baseUOM: item.baseUOM || product.baseUOM,
-                unit: item.unit || product.baseUOM,
-              };
-            }
+          }
+          if (matched) {
+            const originalItem = (selectedDC?.items || []).find(
+              oi => String(oi.productId) === String(matched._id) ||
+                    (oi.brandName === matched.brandName && oi.modelNo === matched.model)
+            );
+            const alreadyAllocated = originalItem ? (originalItem.quantity || 0) : 0;
+            return {
+              ...item,
+              currStockQty: (matched.currentStockQty ?? 0) + alreadyAllocated,
+              productId: matched._id,
+              productName: item.productName || matched.productName || "",
+              baseUOM: item.baseUOM || matched.baseUOM,
+              unit: item.unit || matched.baseUOM,
+              isManual: false
+            };
           }
           return item;
         }));
@@ -128,7 +144,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
   const handleAddItem = () => {
     setItems([...items, {
       productName: "", brandName: "", modelNo: "", quantity: 1,
-      unit: "", baseUOM: "", currStockQty: null, productId: null
+      unit: "", baseUOM: "", currStockQty: null, productId: null, isManual: false
     }]);
   };
 
@@ -136,36 +152,51 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
     if (items.length > 1) setItems(items.filter((_, i) => i !== index));
   };
 
+  const handleProductSelect = (index, selected) => {
+    const newItems = [...items];
+    if (selected) {
+      const p = selected.product;
+      const originalItem = (selectedDC?.items || []).find(
+        oi => String(oi.productId) === String(p._id) ||
+              (oi.brandName === p.brandName && oi.modelNo === p.model)
+      );
+      const alreadyAllocated = originalItem ? (originalItem.quantity || 0) : 0;
+
+      newItems[index] = {
+        ...newItems[index],
+        productName: p.productName || "",
+        brandName: p.brandName || "",
+        modelNo: p.model || "",
+        baseUOM: p.baseUOM || "",
+        unit: p.baseUOM || newItems[index].unit || "",
+        currStockQty: (p.currentStockQty ?? 0) + alreadyAllocated,
+        productId: p._id,
+        isManual: false
+      };
+    } else {
+      newItems[index] = {
+        ...newItems[index],
+        productName: "",
+        brandName: "",
+        modelNo: "",
+        baseUOM: "",
+        unit: "",
+        currStockQty: null,
+        productId: null,
+        isManual: false
+      };
+    }
+    setItems(newItems);
+  };
+
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
-
-    if (field === 'brandName') {
-      newItems[index].modelNo = "";
-      newItems[index].baseUOM = "";
-      newItems[index].currStockQty = null;
+    if (field === 'brandName' || field === 'modelNo' || field === 'productName') {
+      newItems[index].isManual = true;
       newItems[index].productId = null;
-      newItems[index].productName = ""; // ── NEW ──
+      newItems[index].currStockQty = null;
     }
-
-    if (field === 'modelNo' && value && newItems[index].brandName) {
-      const product = products.find(
-        p => p.brandName === newItems[index].brandName && p.model === value
-      );
-      if (product) {
-        newItems[index].baseUOM = product.baseUOM;
-        newItems[index].unit = product.baseUOM;
-        // For update: show current stock PLUS the quantity already allocated in this DC line
-        const originalItem = (selectedDC?.items || []).find(
-          oi => oi.brandName === newItems[index].brandName && oi.modelNo === value
-        );
-        const alreadyAllocated = originalItem ? (originalItem.quantity || 0) : 0;
-        newItems[index].currStockQty = (product.currentStockQty ?? 0) + alreadyAllocated;
-        newItems[index].productId = product._id;
-        newItems[index].productName = product.productName || ""; // ── NEW ──
-      }
-    }
-
     setItems(newItems);
   };
 
@@ -205,13 +236,25 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
     if (purchaseType === "Stock" && !warehouseLocation)
       return toast.error("Please enter warehouse location");
 
-    for (let item of items) {
-      if (!item.brandName || !item.modelNo || item.quantity < 1)
-        return toast.error("Please fill all item details correctly");
-
+    // ── FIX: Updated validation - productName OR brandName+modelNo required ──
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      if (!item.productName && !item.brandName && !item.modelNo) {
+        return toast.error(`Row ${i + 1}: Please fill product name or brand/model`);
+      }
+      
+      if (item.quantity < 1) {
+        return toast.error(`Row ${i + 1}: Quantity must be at least 1`);
+      }
+      
+      if (!item.unit || item.unit.trim() === "") {
+        return toast.error(`Row ${i + 1}: Unit is required`);
+      }
+      
       if (item.currStockQty !== null && item.quantity > item.currStockQty) {
         return toast.error(
-          `Quantity (${item.quantity}) for ${item.brandName} - ${item.modelNo} exceeds available stock (${item.currStockQty})`
+          `Row ${i + 1}: Quantity (${item.quantity}) for ${item.productName || item.brandName + ' - ' + item.modelNo} exceeds available stock (${item.currStockQty})`
         );
       }
     }
@@ -230,8 +273,13 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
       warehouseLocation: purchaseType === "Stock" ? warehouseLocation : undefined,
       deliveryAddress,
       location,
-      // strip display-only field; productName now travels with each item
-      items: items.map(({ currStockQty, ...rest }) => rest),
+      items: items.map(({ currStockQty, isManual, productId, baseUOM, ...rest }) => ({
+        ...rest,
+        // Only send brandName/modelNo if they have actual values
+        brandName: rest.brandName?.trim() || undefined,
+        modelNo: rest.modelNo?.trim() || undefined,
+        productName: rest.productName?.trim() || undefined,
+      })),
       remark,
       status,
       attachments: attachments.map(att => ({
@@ -471,26 +519,44 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
                     </button>
                   </div>
 
+                  {/* ── INFO: Explain the two modes ── */}
+                  <div className="alert alert-info py-2 px-3 mb-2" style={{ fontSize: "0.8rem" }}>
+                    <i className="fa-solid fa-info-circle me-2"></i>
+                    <strong>Two ways to add items:</strong><br />
+                    1. <strong>Select from dropdown</strong> → Brand & Model auto-fill (stock tracked)<br />
+                    2. <strong>Type product name manually</strong> → Brand & Model are optional (no stock tracking)
+                  </div>
+
                   <div className="table-responsive">
                     <table className="table table-bordered">
                       <thead>
                         <tr>
-                          <th style={{ minWidth: "160px" }}>Product Name</th>
-                          <th>Brand Name</th>
-                          <th>Model No</th>
-                          <th style={{ minWidth: "120px" }}>Curr. Stock Qty</th>
-                          <th style={{ minWidth: "100px" }}>Quantity</th>
-                          <th>Unit</th>
-                          <th>Base UOM</th>
-                          <th>Action</th>
+                          <th style={{ minWidth: "200px" }}>
+                            Product Name <RequiredStar />
+                            <small className="d-block text-muted fw-normal" style={{ fontSize: "0.7rem" }}>
+                              Select OR type manually
+                            </small>
+                          </th>
+                          <th style={{ minWidth: "140px" }}>
+                            Brand Name
+                            <small className="d-block text-muted fw-normal" style={{ fontSize: "0.65rem" }}>
+                              Optional if manual
+                            </small>
+                          </th>
+                          <th style={{ minWidth: "140px" }}>
+                            Model No
+                            <small className="d-block text-muted fw-normal" style={{ fontSize: "0.65rem" }}>
+                              Optional if manual
+                            </small>
+                          </th>
+                          <th style={{ minWidth: "100px" }}>Stock</th>
+                          <th style={{ minWidth: "90px" }}>Qty <RequiredStar /></th>
+                          <th style={{ minWidth: "80px" }}>Unit <RequiredStar /></th>
+                          <th style={{ width: "60px" }}>Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {items.map((item, index) => {
-                          const brandProducts = products.filter(p => p.brandName === item.brandName);
-                          const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
-                          const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
-
                           const stockBadgeStyle = item.currStockQty === null
                             ? { background: "#e2e8f0", color: "#64748b" }
                             : item.currStockQty === 0
@@ -499,43 +565,72 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
                                 ? { background: "#fef3c7", color: "#d97706" }
                                 : { background: "#dcfce7", color: "#16a34a" };
 
+                          const selectedProductOption = item.productId
+                            ? productOptions.find(o => String(o.value) === String(item.productId)) || null
+                            : null;
+
                           return (
                             <tr key={index}>
-                              {/* ── NEW: Product Name (auto-filled, read-only) ── */}
-                              <td className="align-middle">
-                                {item.productName ? (
-                                  <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>{item.productName}</span>
-                                ) : (
-                                  <span style={{ color: "#cbd5e1", fontSize: "0.8rem" }}>—</span>
+                              {/* Product Name */}
+                              <td>
+                                <Select
+                                  value={selectedProductOption}
+                                  onChange={selected => handleProductSelect(index, selected)}
+                                  options={productOptions}
+                                  placeholder="Search product..."
+                                  isClearable
+                                  isSearchable
+                                  noOptionsMessage={() => "No products found"}
+                                  styles={{
+                                    control: (base) => ({ ...base, minWidth: 180 }),
+                                  }}
+                                />
+                                {!item.productId && (
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm mt-1"
+                                    value={item.productName}
+                                    onChange={e => handleItemChange(index, 'productName', e.target.value)}
+                                    placeholder="Or type product name manually"
+                                  />
                                 )}
                               </td>
 
-                              {/* Brand */}
+                              {/* Brand Name */}
                               <td>
-                                <Select
-                                  value={brands.find(b => b.value === item.brandName) || null}
-                                  onChange={selected => handleItemChange(index, 'brandName', selected ? selected.value : "")}
-                                  options={brands}
-                                  placeholder="Select Brand..."
-                                  isClearable
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  value={item.brandName}
+                                  onChange={e => handleItemChange(index, 'brandName', e.target.value)}
+                                  placeholder={item.productId ? "Auto-filled" : "Optional"}
+                                  readOnly={!!item.productId}
+                                  style={item.productId ? { background: "#f8f9fa", cursor: "not-allowed" } : {}}
                                 />
+                                {item.productId && (
+                                  <small className="text-muted" style={{ fontSize: "0.7rem" }}>Auto-filled</small>
+                                )}
                               </td>
 
-                              {/* Model */}
+                              {/* Model No */}
                               <td>
-                                <Select
-                                  value={modelOptions.find(m => m.value === item.modelNo) || null}
-                                  onChange={selected => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
-                                  options={modelOptions}
-                                  placeholder="Select Model..."
-                                  isClearable
-                                  isDisabled={!item.brandName}
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  value={item.modelNo}
+                                  onChange={e => handleItemChange(index, 'modelNo', e.target.value)}
+                                  placeholder={item.productId ? "Auto-filled" : "Optional"}
+                                  readOnly={!!item.productId}
+                                  style={item.productId ? { background: "#f8f9fa", cursor: "not-allowed" } : {}}
                                 />
+                                {item.productId && (
+                                  <small className="text-muted" style={{ fontSize: "0.7rem" }}>Auto-filled</small>
+                                )}
                               </td>
 
-                              {/* ── Curr. Stock Qty (read-only display) ── */}
+                              {/* Curr. Stock */}
                               <td className="text-center align-middle">
-                                {item.modelNo ? (
+                                {item.productId ? (
                                   <span
                                     style={{
                                       display: "inline-block",
@@ -554,7 +649,7 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
                                     )}
                                   </span>
                                 ) : (
-                                  <span style={{ color: "#cbd5e1", fontSize: "0.8rem" }}>—</span>
+                                  <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>N/A</span>
                                 )}
                               </td>
 
@@ -568,7 +663,11 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
                                       : ""
                                   }`}
                                   value={item.quantity}
-                                  onChange={e => handleItemChange(index, 'quantity', Number(e.target.value))}
+                                  onChange={e => {
+                                    const newItems = [...items];
+                                    newItems[index].quantity = Number(e.target.value);
+                                    setItems(newItems);
+                                  }}
                                   min="1"
                                   max={item.currStockQty !== null ? item.currStockQty : undefined}
                                   required
@@ -582,15 +681,18 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
 
                               {/* Unit */}
                               <td>
-                                <input type="text" className="form-control form-control-sm" value={item.unit}
-                                  onChange={e => handleItemChange(index, 'unit', e.target.value)} required />
-                              </td>
-
-                              {/* Base UOM */}
-                              <td>
-                                <input type="text" className="form-control form-control-sm" value={item.baseUOM}
-                                  onChange={e => handleItemChange(index, 'baseUOM', e.target.value)}
-                                  placeholder="Base UOM" />
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  value={item.unit}
+                                  onChange={e => {
+                                    const newItems = [...items];
+                                    newItems[index].unit = e.target.value;
+                                    setItems(newItems);
+                                  }}
+                                  placeholder="Unit"
+                                  required
+                                />
                               </td>
 
                               {/* Action */}
@@ -606,6 +708,10 @@ const UpdateDCPopUp = ({ handleUpdate, selectedDC, projects }) => {
                       </tbody>
                     </table>
                   </div>
+                  <small className="text-muted">
+                    <i className="fa fa-info-circle me-1"></i>
+                    Select a product from dropdown for auto-fill + stock tracking, OR type product name manually (Brand/Model optional).
+                  </small>
                 </div>
 
                 {/* Remark */}
