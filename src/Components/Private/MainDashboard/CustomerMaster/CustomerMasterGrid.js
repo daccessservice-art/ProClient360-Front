@@ -41,7 +41,6 @@ export const CustomerMasterGrid = () => {
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
   const [reassignPopUpShow, setReassignPopUpShow] = useState(false);
 
-  // ✅ NEW: Raise Ticket state
   const [raiseTicketShow, setRaiseTicketShow] = useState(false);
   const [raiseTicketCustomer, setRaiseTicketCustomer] = useState(null);
 
@@ -58,6 +57,8 @@ export const CustomerMasterGrid = () => {
 
   const [totalCounts, setTotalCounts] = useState({ main: 0, branch: 0 });
   const [allTotalCounts, setAllTotalCounts] = useState({ main: 0, branch: 0, total: 0 });
+
+  const [verifiedCounts, setVerifiedCounts] = useState({ all: 0, ownedBy: null });
 
   const [createdByFilter, setCreatedByFilter] = useState("");
   const [ownedByFilter, setOwnedByFilter] = useState("");
@@ -115,7 +116,6 @@ export const CustomerMasterGrid = () => {
   const handleUpdate = (customer) => { setSelectedCust(customer); setUpdatePopUpShow(!updatePopUpShow); };
   const handelDeleteClosePopUpClick = (id) => { setSelecteId(id); setdeletePopUpShow(!deletePopUpShow); };
 
-  // ✅ NEW: Raise Ticket handlers
   const handleRaiseTicket = (customer) => {
     setRaiseTicketCustomer(customer);
     setRaiseTicketShow(true);
@@ -242,7 +242,19 @@ export const CustomerMasterGrid = () => {
           }
 
           if (data.allCounts) {
-            setAllTotalCounts({ main: data.allCounts.main || 0, branch: data.allCounts.branch || 0, total: data.allCounts.total || 0, });
+            setAllTotalCounts({
+              main: data.allCounts.main || 0,
+              branch: data.allCounts.branch || 0,
+              total: data.allCounts.total || 0,
+            });
+          }
+
+          // ── Read verified counts from API response ──
+          if (data.verifiedCounts) {
+            setVerifiedCounts({
+              all: data.verifiedCounts.all || 0,
+              ownedBy: data.verifiedCounts.ownedBy,  // null when no ownedBy filter active
+            });
           }
         } else {
           toast(data?.error || "Failed to fetch customers");
@@ -330,17 +342,63 @@ export const CustomerMasterGrid = () => {
                       Customer Master
                       {!loading && (
                         <>
-                          <span className="badge bg-light text-dark" title="Total customers (all)" style={{ fontSize: "11px", fontWeight: "600" }}>
+                          {/* Total badge */}
+                          <span
+                            className="badge bg-light text-dark"
+                            title="Total customers (all, ignores filters)"
+                            style={{ fontSize: "11px", fontWeight: "600" }}
+                          >
                             <i className="fa-solid fa-users me-1"></i>{allTotalCounts.total} Total
                           </span>
-                          <span className="badge bg-primary" title="Total Main customers (all customers, ignores filters)" style={{ fontSize: "11px", fontWeight: "500" }}>
+
+                          {/* Main badge */}
+                          <span
+                            className="badge bg-primary"
+                            title="Total Main customers (all, ignores filters)"
+                            style={{ fontSize: "11px", fontWeight: "500" }}
+                          >
                             <i className="fa-solid fa-building me-1"></i>{allTotalCounts.main} Main
                           </span>
-                          <span className="badge bg-info text-dark" title="Total Branch customers (all customers, ignores filters)" style={{ fontSize: "11px", fontWeight: "500" }}>
+
+                          {/* Branch badge */}
+                          <span
+                            className="badge bg-info text-dark"
+                            title="Total Branch customers (all, ignores filters)"
+                            style={{ fontSize: "11px", fontWeight: "500" }}
+                          >
                             <i className="fa-solid fa-code-branch me-1"></i>{allTotalCounts.branch} Branch
                           </span>
+
+                          {/* ── Verified badge ──
+                              • No ownedBy filter → show company-wide verified count
+                              • ownedBy filter active → show verified count for that owner */}
+                          {verifiedCounts.ownedBy !== null ? (
+                            <span
+                              className="badge bg-success"
+                              title={`Verified customers owned by "${ownedByFilter}"`}
+                              style={{ fontSize: "11px", fontWeight: "500" }}
+                            >
+                              <i className="fa-solid fa-circle-check me-1"></i>
+                              {verifiedCounts.ownedBy} Verified ({ownedByFilter})
+                            </span>
+                          ) : (
+                            <span
+                              className="badge bg-success"
+                              title="Total verified customers (all, ignores filters)"
+                              style={{ fontSize: "11px", fontWeight: "500" }}
+                            >
+                              <i className="fa-solid fa-circle-check me-1"></i>
+                              {verifiedCounts.all} Verified
+                            </span>
+                          )}
+
+                          {/* Filtered result counts (shown only when any filter is active) */}
                           {isFilterActive && (
-                            <span className="badge bg-secondary" title="Filtered result counts" style={{ fontSize: "10px", fontWeight: "400" }}>
+                            <span
+                              className="badge bg-secondary"
+                              title="Filtered result counts"
+                              style={{ fontSize: "10px", fontWeight: "400" }}
+                            >
                               (Filtered: {totalCounts.main}M / {totalCounts.branch}B)
                             </span>
                           )}
@@ -525,7 +583,6 @@ export const CustomerMasterGrid = () => {
                                   <td style={{ verticalAlign: "middle", textAlign: "center" }}>
                                     {!bulkDeleteMode && (
                                       <>
-                                        {/* ✅ NEW: Raise Ticket Button */}
                                         <span
                                           onClick={() => handleRaiseTicket(customer)}
                                           className="me-2"
@@ -614,7 +671,6 @@ export const CustomerMasterGrid = () => {
 
       {reassignPopUpShow && <ReassignOwnedByPopUp onClose={() => setReassignPopUpShow(false)} onDone={handleReassignDone} />}
 
-      {/* ✅ NEW: Raise Ticket Popup */}
       {raiseTicketShow && raiseTicketCustomer && (
         <RaiseTicketPopUp customer={raiseTicketCustomer} onClose={handleRaiseTicketClose} />
       )}
