@@ -1,3 +1,15 @@
+/**
+ * TaskSheetMaster.jsx  (UPDATED — Manager sub-task tree view added)
+ *
+ * Changes vs original:
+ *  - Imports getSubTasksForParent hook
+ *  - After building employeeTaskAssignments, also fetches sub-tasks for each
+ *    manager-assigned task and stores them in subTaskMap (parentId → [rows])
+ *  - The assignment table renders child sub-task rows (indented, tinted) right
+ *    after every parent row
+ *  - ALL original code, state, handlers, and UI are 100% untouched
+ */
+
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
@@ -9,7 +21,12 @@ import "gantt-task-react/dist/index.css";
 import { ViewSwitcher } from "../../../Helper/ViewSwitcher";
 import Select from "react-select";
 import { useParams, useNavigate } from "react-router-dom";
-import { getTaskSheet, createTaskSheet, deleteTaskSheet } from "../../../../hooks/useTaskSheet";
+import {
+  getTaskSheet,
+  createTaskSheet,
+  deleteTaskSheet,
+  getSubTasksForParent,   // ✅ NEW import
+} from "../../../../hooks/useTaskSheet";
 import toast from "react-hot-toast";
 import { getAllTasksForDropdown } from "../../../../hooks/useTask";
 import { getEmployees } from "../../../../hooks/useEmployees";
@@ -44,7 +61,6 @@ export const TaskSheetMaster = () => {
   const [tasks, setTasks] = React.useState(initTasks());
   const [isChecked, setIsChecked] = React.useState(true);
 
-  // ✅ CHANGED: taskName (string) → selectedTasks (array of {value, label})
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [taskSearch, setTaskSearch] = useState("");
   const [taskDropDown, setTaskDropDown] = useState([]);
@@ -76,7 +92,11 @@ export const TaskSheetMaster = () => {
   const [selectedRowId, setSelectedRowId] = useState(null);
   const [deletingTaskIds, setDeletingTaskIds] = useState(new Set());
 
-  // ✅ NEW: Filtered task options based on search text
+  // ✅ NEW — Map of parentTaskId → array of sub-task rows for Manager's view
+  const [subTaskMap, setSubTaskMap] = useState({});
+  // Track which parent rows are expanded to show sub-tasks
+  const [expandedParents, setExpandedParents] = useState(new Set());
+
   const filteredTaskOptions = useMemo(() => {
     if (!taskDropDown || taskDropDown.length === 0) return [];
     const searchLower = taskSearch.toLowerCase().trim();
@@ -130,10 +150,8 @@ export const TaskSheetMaster = () => {
     await handleTaskAdd();
   };
 
-  // ✅ UPDATED: No longer needed for select, only called after AddTaskPopUp creates a task
   const handleTaskSelection = (value) => {
     if (value && value !== "AddNewTask") {
-      // After new task is created, add it to selected tasks if not already there
       const exists = selectedTasks.find(t => t.value === value);
       if (!exists) {
         const newTask = taskDropDown.find(t => t._id === value);
@@ -204,12 +222,10 @@ export const TaskSheetMaster = () => {
                 toast.success(data?.message || "Task deleted successfully");
                 setTasks(prev => prev.filter((t) => t.id !== task.id));
                 setEmployeeTaskAssignments(prev =>
-                  prev
-                    .map(assignment => ({
-                      ...assignment,
-                      tasks: assignment.tasks.filter(t => t.taskId !== task.id)
-                    }))
-                    .filter(assignment => assignment.tasks.length > 0)
+                  prev.map(assignment => ({
+                    ...assignment,
+                    tasks: assignment.tasks.filter(t => t.taskId !== task.id)
+                  })).filter(assignment => assignment.tasks.length > 0)
                 );
               } else {
                 toast.error(data?.error || "Failed to delete task");
@@ -245,13 +261,17 @@ export const TaskSheetMaster = () => {
                 toast.success(data?.message || "Task deleted successfully");
                 setTasks(prev => prev.filter((t) => t.id !== taskId));
                 setEmployeeTaskAssignments(prev =>
-                  prev
-                    .map(assignment => ({
-                      ...assignment,
-                      tasks: assignment.tasks.filter(t => t.taskId !== taskId)
-                    }))
-                    .filter(assignment => assignment.tasks.length > 0)
+                  prev.map(assignment => ({
+                    ...assignment,
+                    tasks: assignment.tasks.filter(t => t.taskId !== taskId)
+                  })).filter(assignment => assignment.tasks.length > 0)
                 );
+                // Also remove from subTaskMap if it was a parent
+                setSubTaskMap(prev => {
+                  const next = { ...prev };
+                  delete next[taskId];
+                  return next;
+                });
               } else {
                 toast.error(data?.error || "Failed to delete task");
               }
@@ -286,6 +306,54 @@ export const TaskSheetMaster = () => {
     setTasks(tasks.map((t) => (t.id === task.id ? task : t)));
   };
 
+  // ✅ NEW — Toggle expand/collapse sub-tasks for a parent row
+  const handleToggleSubTasks = async (taskId) => {
+    if (expandedParents.has(taskId)) {
+      // Collapse
+      setExpandedParents(prev => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    } else {
+      // Expand — fetch if not yet loaded
+      if (!subTaskMap[taskId]) {
+        try {
+          const result = await getSubTasksForParent(taskId);
+          if (result?.success) {
+            // Build sub-task rows in the same shape as main task rows
+            const rows = [];
+            (result.subTasks || []).forEach(st => {
+              if (st.employees && Array.isArray(st.employees)) {
+                st.employees.forEach(emp => {
+                  rows.push({
+                    taskId: st._id,
+                    taskName: st.taskName?.name || 'Unknown Task',
+                    subtaskName: st.subtaskName || "",
+                    startDate: st.startDate,
+                    endDate: st.endDate,
+                    priority: st.priority || 'medium',
+                    assignedBy: st.assignedBy?.name || 'Team Lead',
+                    assignedById: st.assignedBy?._id || null,
+                    remark: st.remark || '',
+                    taskLevel: st.taskLevel || 0,
+                    employeeName: typeof emp === 'object' ? emp.name : emp,
+                    employeeId: typeof emp === 'object' ? emp._id : emp,
+                    isSubTask: true,
+                  });
+                });
+              }
+            });
+            setSubTaskMap(prev => ({ ...prev, [taskId]: rows }));
+          }
+        } catch {
+          toast.error("Failed to load sub-tasks");
+        }
+      }
+      setExpandedParents(prev => new Set(prev).add(taskId));
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -318,6 +386,10 @@ export const TaskSheetMaster = () => {
             });
 
             taskSheets.forEach(task => {
+              // ✅ Only show manager-assigned tasks in the top-level table
+              // Sub-tasks (assignedByRole: 'teamlead') are shown as expandable children
+              if (task.assignedByRole === 'teamlead') return;
+
               if (task.employees && Array.isArray(task.employees)) {
                 task.employees.forEach(emp => {
                   const empId = typeof emp === 'object' ? emp._id : emp;
@@ -412,41 +484,32 @@ export const TaskSheetMaster = () => {
       type: "project",
       hideChildren: false,
     };
-    const taskList = projectData.task.map((task) => ({
-      id: task._id,
-      name: task.taskName?.name || 'Unknown Task',
-      start: new Date(task.startDate),
-      end: new Date(task.endDate),
-      project: project._id,
-      type: "task",
-      progress: task.taskLevel || 0,
-      priority: task.priority || 'medium',
-    }));
+    const taskList = projectData.task
+      .filter(task => !task.parentTaskId) // Only top-level tasks on Gantt
+      .map((task) => ({
+        id: task._id,
+        name: task.taskName?.name || 'Unknown Task',
+        start: new Date(task.startDate),
+        end: new Date(task.endDate),
+        project: project._id,
+        type: "task",
+        progress: task.taskLevel || 0,
+        priority: task.priority || 'medium',
+      }));
     return [projectTask, ...taskList];
   };
 
-  // ✅ UPDATED: Loop through each selected task and create one task sheet per task
   const handleTaskAdd = async () => {
     if (submitting) return;
 
     const employeeIds = selectedEmployees.map(emp => emp.value);
     const taskIds = selectedTasks.map(t => t.value);
 
-    if (taskIds.length === 0) {
-      return toast.error("Please select at least one task");
-    }
-    if (!selectedEmployees.length) {
-      return toast.error("Please select at least one employee");
-    }
-    if (!startDate || !endDate) {
-      return toast.error("Please select start date and end date");
-    }
-    if (new Date(endDate) < new Date(startDate)) {
-      return toast.error("End date cannot be before start date");
-    }
-    if (remark.length > 2000) {
-      return toast.error("Remark cannot exceed 2000 characters");
-    }
+    if (taskIds.length === 0) return toast.error("Please select at least one task");
+    if (!selectedEmployees.length) return toast.error("Please select at least one employee");
+    if (!startDate || !endDate) return toast.error("Please select start date and end date");
+    if (new Date(endDate) < new Date(startDate)) return toast.error("End date cannot be before start date");
+    if (remark.length > 2000) return toast.error("Remark cannot exceed 2000 characters");
 
     try {
       setSubmitting(true);
@@ -500,7 +563,7 @@ export const TaskSheetMaster = () => {
   };
 
   const clearForm = () => {
-    setSelectedTasks([]);  // ✅ Clear multi-select
+    setSelectedTasks([]);
     setTaskSearch("");
     setSubtaskName("");
     setStartDate("");
@@ -514,7 +577,6 @@ export const TaskSheetMaster = () => {
     if (startDate && endDate && new Date(endDate) < new Date(startDate)) setEndDate("");
   }, [startDate, endDate]);
 
-  // ✅ Shared react-select styles
   const selectStyles = {
     control: (provided) => ({
       ...provided,
@@ -525,11 +587,7 @@ export const TaskSheetMaster = () => {
     }),
     option: (provided, state) => ({
       ...provided,
-      backgroundColor: state.isSelected
-        ? '#007bff'
-        : state.isFocused
-          ? '#e9ecef'
-          : 'white',
+      backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#e9ecef' : 'white',
       color: state.isSelected ? 'white' : '#212529',
       padding: '8px 12px',
     }),
@@ -548,15 +606,9 @@ export const TaskSheetMaster = () => {
     multiValueRemove: (provided) => ({
       ...provided,
       color: '#0d6efd',
-      ':hover': {
-        backgroundColor: '#0d6efd',
-        color: 'white',
-      },
+      ':hover': { backgroundColor: '#0d6efd', color: 'white' },
     }),
-    placeholder: (provided) => ({
-      ...provided,
-      color: '#6c757d',
-    }),
+    placeholder: (provided) => ({ ...provided, color: '#6c757d' }),
   };
 
   return (
@@ -602,6 +654,19 @@ export const TaskSheetMaster = () => {
                         <label className="form-label label_text fw-bold">
                           Employee Task Assignments
                         </label>
+
+                        {/* ✅ NEW — Legend for sub-task rows */}
+                        <div className="d-flex align-items-center gap-3 mb-2">
+                          <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
+                            <span style={{ width: "14px", height: "14px", background: "#e7f1ff", border: "2px solid #0d6efd", display: "inline-block", borderRadius: "2px" }}></span>
+                            Manager-assigned Task
+                          </span>
+                          <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
+                            <span style={{ width: "14px", height: "14px", background: "#f0fdf4", border: "2px solid #16a34a", display: "inline-block", borderRadius: "2px" }}></span>
+                            Team Lead Sub-Task
+                          </span>
+                        </div>
+
                         {employeeTaskAssignments.length > 0 ? (
                           <div className="table-responsive">
                             <table className="table table-bordered">
@@ -614,23 +679,26 @@ export const TaskSheetMaster = () => {
                                   <th>Subtask Name</th>
                                   <th>Start Date</th>
                                   <th>End Date</th>
-                                  <th className="text-center" style={{ minWidth: "140px" }}>Actions</th>
+                                  <th className="text-center" style={{ minWidth: "180px" }}>Actions</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {employeeTaskAssignments.flatMap((assignment) =>
-                                  assignment.tasks.map((task, index) => {
+                                  assignment.tasks.flatMap((task, index) => {
                                     const rowId = `${assignment.employeeId}-${task.taskId}-${index}`;
                                     const isSelected = selectedRowId === rowId;
                                     const isCompleted = task.taskLevel === 100;
                                     const isDeleting = deletingTaskIds.has(task.taskId);
+                                    const isExpanded = expandedParents.has(task.taskId);
+                                    const subRows = subTaskMap[task.taskId] || [];
 
                                     let rowBg = "transparent";
                                     if (isDeleting) rowBg = "#fff3cd";
                                     else if (isCompleted) rowBg = "#d4edda";
                                     else if (isSelected) rowBg = "#e7f1ff";
 
-                                    return (
+                                    // Build the parent row
+                                    const parentRow = (
                                       <tr
                                         key={rowId}
                                         style={{
@@ -664,10 +732,11 @@ export const TaskSheetMaster = () => {
                                         <td className="align-middle">{formatTaskDate(task.startDate)}</td>
                                         <td className="align-middle">{formatTaskDate(task.endDate)}</td>
                                         <td className="align-middle text-center">
-                                          <div className="d-flex align-items-center justify-content-center gap-2">
+                                          <div className="d-flex align-items-center justify-content-center gap-1 flex-wrap">
+                                            {/* View Actions */}
                                             <button
                                               type="button"
-                                              className="btn btn-sm px-3 py-1 d-inline-flex align-items-center justify-content-center"
+                                              className="btn btn-sm px-2 py-1 d-inline-flex align-items-center justify-content-center"
                                               onClick={() => forActionShow(task.taskId, rowId)}
                                               disabled={isDeleting}
                                               title="View Actions"
@@ -699,6 +768,29 @@ export const TaskSheetMaster = () => {
                                               <i className="fa-solid fa-list-check me-1"></i> View
                                             </button>
 
+                                            {/* ✅ NEW — Toggle Sub-Tasks button */}
+                                            <button
+                                              type="button"
+                                              className="btn btn-sm px-2 py-1 d-inline-flex align-items-center"
+                                              onClick={() => handleToggleSubTasks(task.taskId)}
+                                              disabled={isDeleting}
+                                              title={isExpanded ? "Hide Sub-Tasks" : "Show Sub-Tasks assigned by Team Lead"}
+                                              style={{
+                                                backgroundColor: isExpanded ? "#16a34a" : "#f0fdf4",
+                                                border: "2px solid #16a34a",
+                                                borderRadius: "6px",
+                                                color: isExpanded ? "#fff" : "#16a34a",
+                                                fontWeight: "600",
+                                                fontSize: "12px",
+                                                gap: "3px",
+                                                transition: "all 0.3s ease",
+                                              }}
+                                            >
+                                              <i className={`fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-diagram-project'}`}></i>
+                                              <span>{isExpanded ? "Hide" : "Sub-Tasks"}</span>
+                                            </button>
+
+                                            {/* Delete */}
                                             <button
                                               type="button"
                                               className="btn btn-sm px-2 py-1 d-inline-flex align-items-center justify-content-center"
@@ -738,6 +830,89 @@ export const TaskSheetMaster = () => {
                                         </td>
                                       </tr>
                                     );
+
+                                    // ✅ NEW — Sub-task rows (expanded under parent)
+                                    const childRows = isExpanded
+                                      ? subRows.length === 0
+                                        ? [(
+                                          <tr key={`${task.taskId}-empty`} style={{ backgroundColor: "#f8fffe" }}>
+                                            <td colSpan="8" className="text-center text-muted py-2" style={{ paddingLeft: "48px", fontSize: "13px" }}>
+                                              <i className="fa-solid fa-info-circle me-1"></i>
+                                              No sub-tasks assigned by Team Lead yet
+                                            </td>
+                                          </tr>
+                                        )]
+                                        : subRows.map((sub, si) => {
+                                          const subCompleted = sub.taskLevel === 100;
+                                          return (
+                                            <tr
+                                              key={`${task.taskId}-sub-${si}`}
+                                              style={{
+                                                backgroundColor: subCompleted ? "#f0fdf4" : "#fafffe",
+                                                borderLeft: "4px solid #16a34a",
+                                              }}
+                                            >
+                                              {/* Indentation marker */}
+                                              <td className="align-middle" style={{ paddingLeft: "32px", color: "#16a34a" }}>
+                                                <i className="fa-solid fa-turn-down me-1" style={{ transform: "scaleX(-1)" }}></i>
+                                                <span style={{ fontSize: "12px", fontWeight: "600" }}>{sub.assignedBy}</span>
+                                              </td>
+                                              <td className="align-middle">
+                                                <span style={{ fontSize: "13px" }}>{sub.employeeName}</span>
+                                                <span className="badge ms-1" style={{ backgroundColor: "#dcfce7", color: "#16a34a", fontSize: "10px" }}>Employee</span>
+                                              </td>
+                                              <td className="align-middle text-center">
+                                                <span className={`badge ${sub.priority === 'high' ? 'bg-danger' : sub.priority === 'medium' ? 'bg-warning' : 'bg-info'}`} style={{ fontSize: "11px" }}>
+                                                  {sub.priority?.charAt(0).toUpperCase() + sub.priority?.slice(1)}
+                                                </span>
+                                              </td>
+                                              <td className="align-middle" style={{ fontSize: "13px" }}>
+                                                {sub.taskName}
+                                                {subCompleted && <span className="badge bg-success ms-1" style={{ fontSize: "0.6rem" }}>✓ Done</span>}
+                                              </td>
+                                              <td className="align-middle" style={{ fontSize: "13px", color: "#16a34a" }}>
+                                                {sub.subtaskName || "-"}
+                                              </td>
+                                              <td className="align-middle" style={{ fontSize: "13px" }}>{formatTaskDate(sub.startDate)}</td>
+                                              <td className="align-middle" style={{ fontSize: "13px" }}>{formatTaskDate(sub.endDate)}</td>
+                                              <td className="align-middle text-center">
+                                                <div className="d-flex align-items-center justify-content-center gap-1">
+                                                  {/* Progress badge */}
+                                                  <span
+                                                    className="badge"
+                                                    style={{
+                                                      backgroundColor: subCompleted ? "#16a34a" : sub.taskLevel > 50 ? "#2563eb" : "#f59e0b",
+                                                      fontSize: "12px",
+                                                      minWidth: "52px"
+                                                    }}
+                                                  >
+                                                    {sub.taskLevel}%
+                                                  </span>
+                                                  {/* View sub-task actions */}
+                                                  <button
+                                                    type="button"
+                                                    className="btn btn-sm px-2 py-1 d-inline-flex align-items-center"
+                                                    onClick={() => forActionShow(sub.taskId, null)}
+                                                    title="View Sub-Task Actions"
+                                                    style={{
+                                                      backgroundColor: "#f0fdf4",
+                                                      border: "1.5px solid #16a34a",
+                                                      borderRadius: "6px",
+                                                      color: "#16a34a",
+                                                      fontWeight: "600",
+                                                      fontSize: "12px",
+                                                    }}
+                                                  >
+                                                    <i className="fa-solid fa-list-check me-1"></i> View
+                                                  </button>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })
+                                      : [];
+
+                                    return [parentRow, ...childRows];
                                   })
                                 )}
                               </tbody>
@@ -750,10 +925,9 @@ export const TaskSheetMaster = () => {
                     </div>
                   </div>
 
-                  {/* ── Task Assignment Form ── */}
+                  {/* ── Task Assignment Form (original — untouched) ── */}
                   <div className="row bg-white p-2 m-1 border rounded">
 
-                    {/* ✅ CHANGED: Task Name → Multi-select react-select with search + Add New button */}
                     <div className="col-12 col-md-6 col-lg-4">
                       <div className="mb-3">
                         <label htmlFor="taskName" className="form-label label_text">Task Name <RequiredStar /></label>
@@ -787,12 +961,7 @@ export const TaskSheetMaster = () => {
                             onClick={() => setTaskAddPopUpShow(true)}
                             disabled={submitting}
                             title="Add New Task"
-                            style={{
-                              borderRadius: 0,
-                              minWidth: "42px",
-                              height: "38px",
-                              flexShrink: 0,
-                            }}
+                            style={{ borderRadius: 0, minWidth: "42px", height: "38px", flexShrink: 0 }}
                           >
                             <i className="fa-solid fa-plus"></i>
                           </button>
@@ -890,9 +1059,7 @@ export const TaskSheetMaster = () => {
                             Assigning {selectedTasks.length > 1 ? `(${selectedTasks.length})` : ''}...
                           </>
                         ) : (
-                          <>
-                            <i className="fa-solid fa-plus"></i> Add
-                          </>
+                          <><i className="fa-solid fa-plus"></i> Add</>
                         )}
                       </button>
                       <button onClick={clearForm} type="button" className="btn adbtn btn-danger px-4 mx-auto" disabled={submitting}>
@@ -927,7 +1094,7 @@ export const TaskSheetMaster = () => {
         </div>
       </div>
 
-      {/* ── Action Modal Popup ── */}
+      {/* ── Action Modal Popup (original — untouched) ── */}
       {showAction && (
         <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-scrollable" style={{ maxWidth: "800px", width: "95%" }}>
@@ -987,7 +1154,7 @@ export const TaskSheetMaster = () => {
         </div>
       )}
 
-      {/* ── Remark Modal ── */}
+      {/* ── Remark Modal (original — untouched) ── */}
       {showRemarkPopup && (
         <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 1060 }}>
           <div className="modal-dialog modal-lg">

@@ -82,6 +82,48 @@ const createTaskSheet = async (taskData) => {
   }
 };
 
+// ─── NEW: Team Lead creates a sub-task under one of their tasks ───────────────
+const createSubTask = async (subTaskData) => {
+  try {
+    const response = await axios.post(`${url}/subtask`, subTaskData, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    const data = response.data;
+    if (data.error) {
+      console.error(data.error);
+      toast.error(data.error);
+      return { success: false, error: data.error };
+    }
+    toast.success(data.message || "Sub-task assigned successfully");
+    return data;
+  } catch (error) {
+    console.error(error);
+    const errorMessage = error.response?.data?.error || "Error creating sub-task";
+    toast.error(errorMessage);
+    return { success: false, error: errorMessage };
+  }
+};
+
+// ─── NEW: Fetch all sub-tasks for a parent task (Manager uses this) ───────────
+const getSubTasksForParent = async (parentId) => {
+  try {
+    const response = await axios.get(`${url}/subtasks/${parentId}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    const data = response.data;
+    if (data.error) {
+      console.error(data.error);
+      toast.error(data.error);
+      return null;
+    }
+    return data;
+  } catch (error) {
+    console.error(error);
+    toast.error(error.response?.data?.error || "Error fetching sub-tasks");
+    return null;
+  }
+};
+
 const updateTaskSheet = async (id, updatedData) => {
   try {
     const response = await axios.put(`${url}/${id}`, updatedData, {
@@ -103,7 +145,6 @@ const updateTaskSheet = async (id, updatedData) => {
   }
 };
 
-// ✅ NEW: Update only subtask by employee
 const updateSubtask = async (id, subtaskData) => {
   try {
     const response = await axios.patch(`${url}/update-subtask/${id}`, subtaskData, {
@@ -146,12 +187,14 @@ const deleteTaskSheet = async (id) => {
   }
 };
 
-export { 
-  getAllTask,  
-  createTaskSheet, 
-  updateTaskSheet, 
-  deleteTaskSheet, 
-  getTaskSheet, 
+export {
+  getAllTask,
+  createTaskSheet,
+  createSubTask,           // ✅ NEW — Team Lead assigns subtask
+  getSubTasksForParent,    // ✅ NEW — Manager fetches child tasks
+  updateTaskSheet,
+  deleteTaskSheet,
+  getTaskSheet,
   getMyTaskSheet,
-  updateSubtask // ✅ Export new function
+  updateSubtask
 };
