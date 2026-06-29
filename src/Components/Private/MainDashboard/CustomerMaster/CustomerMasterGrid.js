@@ -12,20 +12,20 @@ import toast from "react-hot-toast";
 
 const ALLOWED_EXPORT_DESIGNATIONS = [
   "Director Digi Solution",
-  "CEO & Founder",
+  "CEO",
   "Junior Software Developer",
 ];
 
 const ALLOWED_BULK_DELETE_DESIGNATIONS = [
   "Director Digi Solution",
-  "CEO & Founder",
+  "CEO",
   "Junior Software Developer",
   "Soft Test",
 ];
 
 const ALLOWED_REASSIGN_DESIGNATIONS = [
   "Director Digi Solution",
-  "CEO & Founder",
+  "CEO",
   "Junior Software Developer",
   "Soft Test",
 ];
