@@ -7,6 +7,39 @@ import Select from "react-select";
 
 const PAGE_SIZE = 15;
 
+// ✅ NEW: Industry Type Options
+const industryTypeOptions = [
+  'IT & Software',
+  'Manufacturing',
+  'Construction & Infrastructure',
+  'Healthcare',
+  'Education',
+  'Retail',
+  'Banking & Finance',
+  'Logistics & Supply Chain',
+  'Hospitality',
+  'Real Estate',
+  'Government & Public Sector',
+  'Energy & Utilities',
+  'Telecom',
+  'Pharmaceuticals',
+  'Automotive',
+  'Dealer',
+  'Hotel',
+  'Gym & Club',
+  'Facility Services',
+  'Labour Contractor',
+  'Security Systems Dealer',
+  'Other',
+];
+
+// ✅ NEW: Customer Priority Options
+const customerPriorityOptions = [
+  { value: 'P1', label: '🔴 P1 — High Priority' },
+  { value: 'P2', label: '🟡 P2 — Medium Priority' },
+  { value: 'P3', label: '🟢 P3 — Low Priority' },
+];
+
 const AddLeadMaster = ({ onAddLead, onClose }) => {
   const [customerType, setCustomerType] = useState('new');
   const [formData, setFormData] = useState({
@@ -26,7 +59,11 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
       city: '',
       country: '',
       add: ''
-    }
+    },
+    // ✅ NEW FIELDS
+    customerPriority: '',
+    industryType: '',
+    industryTypeOther: '',
   });
 
   // Customer dropdown state
@@ -112,7 +149,11 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
               add: billingAddress.add || billingAddress.addressLine1 || billingAddress.address ||
                 `${billingAddress.houseNo || ''}, ${billingAddress.buildingName || ''}, ${billingAddress.roadName || ''}, ${billingAddress.area || ''}, ${billingAddress.colony || ''}` || '',
               country: billingAddress.country || 'India'
-            }
+            },
+            // ✅ Load from existing customer if available
+            customerPriority: customer.customerPriority || '',
+            industryType: customer.industryType || '',
+            industryTypeOther: customer.industryTypeOther || '',
           }));
 
           toast.success("Customer details loaded successfully");
@@ -147,7 +188,10 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
         city: '',
         add: '',
         country: ''
-      }
+      },
+      customerPriority: '',
+      industryType: '',
+      industryTypeOther: '',
     }));
   };
 
@@ -274,6 +318,13 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
         setCustomProduct('');
         setFormData(prev => ({ ...prev, [name]: value }));
       }
+    } else if (name === "industryType") {
+      // ✅ Handle industry type change
+      if (value === "Other") {
+        setFormData(prev => ({ ...prev, industryType: value, industryTypeOther: '' }));
+      } else {
+        setFormData(prev => ({ ...prev, industryType: value, industryTypeOther: '' }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -313,7 +364,10 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
       products,
       sources,
       message,
-      address
+      address,
+      customerPriority,
+      industryType,
+      industryTypeOther,
     } = formData;
 
     if (customerType === 'new') {
@@ -340,6 +394,12 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
       return;
     }
 
+    // ✅ Validate industry type other
+    if (industryType === 'Other' && !industryTypeOther.trim()) {
+      toast.error('Please specify the industry type.');
+      return;
+    }
+
     const mappedData = {
       customerType,
       customerId: customerType === 'existing' ? selectedCustomer.value : null,
@@ -355,7 +415,11 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
       SENDER_COUNTRY_ISO: address.country,
       QUERY_PRODUCT_NAME: products,
       QUERY_SOURCES_NAME: sources,
-      QUERY_MESSAGE: message || ""
+      QUERY_MESSAGE: message || "",
+      // ✅ NEW FIELDS
+      customerPriority: customerPriority || null,
+      industryType: industryType || null,
+      industryTypeOther: industryType === 'Other' ? industryTypeOther : undefined,
     };
 
     onAddLead(mappedData);
@@ -465,6 +529,65 @@ const AddLeadMaster = ({ onAddLead, onClose }) => {
                           )}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* ✅ NEW: Customer Priority Field */}
+                  <div className="col-md-6">
+                    <label htmlFor="customerPriority" className="form-label">
+                      Customer Priority
+                    </label>
+                    <select
+                      id="customerPriority"
+                      className="form-select"
+                      name="customerPriority"
+                      value={formData.customerPriority}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Priority (Optional)...</option>
+                      <option value="P1">🔴 P1 — High Priority</option>
+                      <option value="P2">🟡 P2 — Medium Priority</option>
+                      <option value="P3">🟢 P3 — Low Priority</option>
+                    </select>
+                    <small className="text-muted">P1 = High | P2 = Medium | P3 = Low</small>
+                  </div>
+
+                  {/* ✅ NEW: Industry Type Field */}
+                  <div className="col-md-6">
+                    <label htmlFor="industryType" className="form-label">
+                      Industry Type
+                    </label>
+                    <select
+                      id="industryType"
+                      className="form-select"
+                      name="industryType"
+                      value={formData.industryType}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select Industry Type (Optional)...</option>
+                      {industryTypeOptions.map(industry => (
+                        <option key={industry} value={industry}>{industry}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* ✅ NEW: Industry Type Other (Conditional) */}
+                  {formData.industryType === 'Other' && (
+                    <div className="col-md-6">
+                      <label htmlFor="industryTypeOther" className="form-label">
+                        Specify Industry Type <RequiredStar />
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="industryTypeOther"
+                        name="industryTypeOther"
+                        placeholder="Enter industry type..."
+                        maxLength={100}
+                        value={formData.industryTypeOther}
+                        onChange={handleInputChange}
+                        required
+                      />
                     </div>
                   )}
 

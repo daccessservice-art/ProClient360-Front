@@ -10,6 +10,32 @@ import Select from "react-select";
 
 const PAGE_SIZE = 15;
 
+// ✅ NEW: Industry Type Options
+const industryTypeOptions = [
+  'IT & Software',
+  'Manufacturing',
+  'Construction & Infrastructure',
+  'Healthcare',
+  'Education',
+  'Retail',
+  'Banking & Finance',
+  'Logistics & Supply Chain',
+  'Hospitality',
+  'Real Estate',
+  'Government & Public Sector',
+  'Energy & Utilities',
+  'Telecom',
+  'Pharmaceuticals',
+  'Automotive',
+  'Dealer',
+  'Hotel',
+  'Gym & Club',
+  'Facility Services',
+  'Labour Contractor',
+  'Security Systems Dealer',
+  'Other',
+];
+
 const isValidName = (value) => /^[A-Za-z\s]+$/.test(value.trim());
 const isValidEmail = (value) =>
   /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(value.trim());
@@ -44,12 +70,17 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     surveyNeededContactPersonName: '',
     surveyNeededContactPersonEmail: '',
     surveyNeededContactPersonNumber: '',
+    // ✅ NEW FIELDS
+    customerPriority: '',
+    industryType: '',
+    industryTypeOther: '',
   });
 
   const [fieldErrors, setFieldErrors] = useState({
     name: '', email: '', subject: '', message: '',
     customProduct: '', customSource: '',
     pincode: '', state: '', city: '', country: '',
+    industryTypeOther: '',
   });
   const [pincodeStatus, setPincodeStatus] = useState('');
 
@@ -93,7 +124,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     'Home Automation', 'IP PA and Communication System', 'CRM', 'Security Systems',
     'KMS', 'VMS', 'PMS', 'Boom Barrier System', 'Tripod System', 'Flap Barrier System',
     'EPBX System', 'CMS', 'Lift Eliviter System', 'AV6', 'Walky Talky System',
-    'Device Management System', 'VisionIQ','CineMind','Extracto','Virtual Agent', 'LAN Cabling Activity', 'Other',
+    'Device Management System', 'VisionIQ', 'CineMind', 'Extracto', 'Virtual Agent', 'LAN Cabling Activity', 'Other',
   ];
 
   const productOptions = productsList.map(p => ({ value: p, label: p }));
@@ -194,6 +225,10 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
               add: billingAddress.add || billingAddress.addressLine1 || billingAddress.address || '',
               country: billingAddress.country || 'India',
             },
+            // ✅ Load from existing customer if available
+            customerPriority: customer.customerPriority || '',
+            industryType: customer.industryType || '',
+            industryTypeOther: customer.industryTypeOther || '',
           }));
           toast.success('Customer details loaded successfully');
         } else { resetFormData(); toast('No details found for this customer'); }
@@ -204,12 +239,17 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
   const resetFormData = () => {
     setFormData(prev => ({
-      ...prev, name: '', email: '', contact: '', company: '', products: [],
+      ...prev,
+      name: '', email: '', contact: '', company: '', products: [],
       address: { pincode: '', state: '', city: '', add: '', country: '' },
       projectSize: '',
       requirementType: '',
       requirementMode: '',
       surveyNeeded: '',
+      // ✅ NEW FIELDS
+      customerPriority: '',
+      industryType: '',
+      industryTypeOther: '',
     }));
     setShowCustomProduct(false);
     setCustomProduct('');
@@ -226,91 +266,79 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     } else { setEmployeeOptions([]); setAssignedEmployee(null); }
   }, [selectedDepartment, loadEmployees, empSearchTerm]);
 
-  // --- MODIFIED PINCODE EFFECT ---
-  // Now attempts to fetch address, but does not block or clear fields on failure.
   useEffect(() => {
     const fetchData = async () => {
       const pin = formData.address.pincode || '';
-      if (pin.length === 0) { 
-        clearFieldError('pincode'); 
-        setPincodeStatus(''); 
-        return; 
+      if (pin.length === 0) {
+        clearFieldError('pincode');
+        setPincodeStatus('');
+        return;
       }
-      
-      // Format validation (length)
+
       if (pin.length > 0 && pin.length < 6) {
-        if (customerType === 'new') { 
-          setFieldError('pincode', 'Pincode must be exactly 6 digits.'); 
-          setPincodeStatus(''); 
-          // We don't clear state/city here anymore, allowing user to fill them first if they want
+        if (customerType === 'new') {
+          setFieldError('pincode', 'Pincode must be exactly 6 digits.');
+          setPincodeStatus('');
         }
         return;
       }
-      
+
       if (pin.length === 6) {
-        // If existing customer and fields are already filled, we assume it's valid
-        if (customerType === 'existing' && formData.address.state && formData.address.city) { 
-          setPincodeStatus('valid'); 
-          clearFieldError('pincode'); 
-          return; 
+        if (customerType === 'existing' && formData.address.state && formData.address.city) {
+          setPincodeStatus('valid');
+          clearFieldError('pincode');
+          return;
         }
-        
-        clearFieldError('pincode'); 
-        setPincodeStatus('loading'); 
+
+        clearFieldError('pincode');
+        setPincodeStatus('loading');
         setIsLoadingAddress(true);
-        
+
         try {
           const data = await getAddress(pin);
-          // Only update if API returns valid data
           if (data && data !== 'Error' && (data.state || data.city)) {
-            setFormData(prev => ({ 
-              ...prev, 
-              address: { 
-                ...prev.address, 
-                state: data.state || prev.address.state || '', 
-                city: data.city || prev.address.city || '', 
-                country: data.country || prev.address.country || 'India' 
-              } 
+            setFormData(prev => ({
+              ...prev,
+              address: {
+                ...prev.address,
+                state: data.state || prev.address.state || '',
+                city: data.city || prev.address.city || '',
+                country: data.country || prev.address.country || 'India'
+              }
             }));
-            setPincodeStatus('valid'); 
+            setPincodeStatus('valid');
             clearFieldError('pincode');
           } else {
-            // --- CHANGE START ---
-            // If API fails or returns no data, we DO NOT clear the fields.
-            // We DO NOT set 'invalid' status that blocks submission.
-            // We simply clear the loading state and let the user fill the data manually.
-            setPincodeStatus(''); 
+            setPincodeStatus('');
             clearFieldError('pincode');
-            // --- CHANGE END ---
           }
         } catch {
-          // Same logic as above for network errors
-          setPincodeStatus(''); 
+          setPincodeStatus('');
           clearFieldError('pincode');
-        } finally { 
-          setIsLoadingAddress(false); 
+        } finally {
+          setIsLoadingAddress(false);
         }
       }
     };
     const t = setTimeout(fetchData, 600);
     return () => clearTimeout(t);
-  }, [formData.address.pincode, customerType]); // Removed state/city from dependency to allow manual edit without triggering fetch again
+  }, [formData.address.pincode, customerType]);
 
   const handleAddressChange = (e) => {
     const { name, value } = e.target;
     if (['state', 'city', 'country'].includes(name)) {
-      if (value && !isValidAddressText(value)) { 
-        setFieldError(name, `${name.charAt(0).toUpperCase() + name.slice(1)} must contain only letters and spaces.`); 
-      } else { 
-        clearFieldError(name); 
+      if (value && !isValidAddressText(value)) {
+        setFieldError(name, `${name.charAt(0).toUpperCase() + name.slice(1)} must contain only letters and spaces.`);
+      } else {
+        clearFieldError(name);
       }
     }
     if (name === 'pincode') {
       const digitsOnly = value.replace(/[^0-9]/g, '');
-      if (value !== digitsOnly) { 
-        setFieldError('pincode', 'Pincode must contain digits only.'); 
-      } else { 
-        clearFieldError('pincode'); 
+      if (value !== digitsOnly) {
+        setFieldError('pincode', 'Pincode must contain digits only.');
+      } else {
+        clearFieldError('pincode');
       }
       setFormData(prev => ({ ...prev, address: { ...prev.address, [name]: digitsOnly } }));
       return;
@@ -344,6 +372,15 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       if (value === 'Other') { setShowCustomSource(true); setFormData(prev => ({ ...prev, [name]: '' })); }
       else { setShowCustomSource(false); setCustomSource(''); clearFieldError('customSource'); setFormData(prev => ({ ...prev, [name]: value })); }
       return;
+    }
+    // ✅ Handle industry type other validation
+    if (name === 'industryTypeOther') {
+      if (value && !isValidCustomText(value)) {
+        setFieldError('industryTypeOther', 'Industry type must contain at least one letter.');
+      } else {
+        clearFieldError('industryTypeOther');
+      }
+      setFormData(prev => ({ ...prev, [name]: value })); return;
     }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -388,7 +425,7 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const { name, email, contact, subject, company, products, sources, callLeads, message, address } = formData;
+    const { name, email, contact, subject, company, products, sources, callLeads, message, address, customerPriority, industryType, industryTypeOther } = formData;
     const finalProducts = getFinalProducts();
 
     if (customerType === 'new') {
@@ -409,17 +446,13 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
     if (message && !isValidMessage(message)) { toast.error('Message must contain at least one letter.'); setFieldError('message', 'Message must contain at least one letter.'); return; }
 
     if (customerType === 'new' && address.pincode) {
-      // Kept format validation (6 digits), but removed API existence validation check
-      if (!isValidPincode(address.pincode)) { 
-        toast.error('Pincode must be exactly 6 digits.'); 
-        setFieldError('pincode', 'Pincode must be exactly 6 digits.'); 
-        return; 
+      if (!isValidPincode(address.pincode)) {
+        toast.error('Pincode must be exactly 6 digits.');
+        setFieldError('pincode', 'Pincode must be exactly 6 digits.');
+        return;
       }
-      
-      // --- REMOVED: The check that blocked submission if API failed ---
-      // if (pincodeStatus === 'invalid') { ... return; }
     }
-    
+
     if (address.state && !isValidAddressText(address.state)) { toast.error('State must contain only letters and spaces.'); setFieldError('state', 'State: letters only.'); return; }
     if (address.city && !isValidAddressText(address.city)) { toast.error('City must contain only letters and spaces.'); setFieldError('city', 'City: letters only.'); return; }
     if (address.country && !isValidAddressText(address.country)) { toast.error('Country must contain only letters and spaces.'); setFieldError('country', 'Country: letters only.'); return; }
@@ -432,6 +465,19 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
       if (!customProduct.trim()) { toast.error('Please enter a custom product name.'); return; }
       if (!isValidCustomText(customProduct)) { toast.error('Product name must contain at least one letter.'); setFieldError('customProduct', 'Product: must contain letters.'); return; }
     }
+
+    // ✅ Validate industry type other
+    if (industryType === 'Other' && !industryTypeOther.trim()) {
+      toast.error('Please specify the industry type.');
+      setFieldError('industryTypeOther', 'Please specify the industry type.');
+      return;
+    }
+    if (industryType === 'Other' && industryTypeOther && !isValidCustomText(industryTypeOther)) {
+      toast.error('Industry type must contain at least one letter.');
+      setFieldError('industryTypeOther', 'Industry type: must contain letters.');
+      return;
+    }
+
     if (assignmentType === 'employee' && !assignedEmployee) { toast.error('Please select an employee to assign the lead to.'); return; }
 
     const hasErrors = Object.values(fieldErrors).some(msg => msg !== '');
@@ -470,6 +516,10 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
         communicateEmail: formData.surveyNeededContactPersonEmail || '',
         communicateContact: formData.surveyNeededContactPersonNumber || '',
       } : { dateTime: null, communicatePerson: '', communicateEmail: '', communicateContact: '' },
+      // ✅ NEW FIELDS
+      customerPriority: customerPriority || null,
+      industryType: industryType || null,
+      industryTypeOther: industryType === 'Other' ? industryTypeOther : undefined,
     };
 
     onAddLead(mappedData);
@@ -544,6 +594,73 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                       </div>
                     </div>
                   )}
+
+                  {/* ✅ NEW: Customer Priority & Industry Type Section */}
+                  <div className="col-12 mb-3">
+                    <div className="row border rounded p-3" style={{ backgroundColor: '#f0f7ff', borderColor: '#b8d0fd' }}>
+                      <h6 className="fw-bold mb-3" style={{ fontSize: '0.9rem', color: '#1e40af' }}>
+                        <i className="fa-solid fa-tags me-2"></i>
+                        Lead Classification
+                      </h6>
+
+                      <div className="col-md-6 mb-2">
+                        <label htmlFor="customerPriority" className="form-label fw-bold">
+                          Customer Priority
+                        </label>
+                        <select
+                          id="customerPriority"
+                          className="form-select"
+                          name="customerPriority"
+                          value={formData.customerPriority}
+                          onChange={handleInputChange}
+                        >
+                          <option value="">Select Priority (Optional)...</option>
+                          <option value="P1">🔴 P1 — High Priority</option>
+                          <option value="P2">🟡 P2 — Medium Priority</option>
+                          <option value="P3">🟢 P3 — Low Priority</option>
+                        </select>
+                        <small className="text-muted">P1 = High | P2 = Medium | P3 = Low</small>
+                      </div>
+
+                      <div className="col-md-6 mb-2">
+                        <label htmlFor="industryType" className="form-label fw-bold">
+                          Industry Type
+                        </label>
+                        <select
+                          id="industryType"
+                          className="form-select"
+                          name="industryType"
+                          value={formData.industryType}
+                          onChange={handleInputChange}
+                        >
+                          <option value="">Select Industry Type (Optional)...</option>
+                          {industryTypeOptions.map(industry => (
+                            <option key={industry} value={industry}>{industry}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {formData.industryType === 'Other' && (
+                        <div className="col-md-6">
+                          <label htmlFor="industryTypeOther" className="form-label fw-bold">
+                            Specify Industry Type <RequiredStar />
+                          </label>
+                          <input
+                            type="text"
+                            className={`form-control ${fieldErrors.industryTypeOther ? 'is-invalid' : ''}`}
+                            id="industryTypeOther"
+                            name="industryTypeOther"
+                            placeholder="Enter industry type..."
+                            maxLength={100}
+                            value={formData.industryTypeOther}
+                            onChange={handleInputChange}
+                            required
+                          />
+                          <FieldError msg={fieldErrors.industryTypeOther} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
                   {/* Company / Customer Name */}
                   <div className="col-md-6">
@@ -870,37 +987,28 @@ const AddSalesLeadPopup = ({ onAddLead, onClose }) => {
                           <label className="form-label">Sales Employee <RequiredStar /></label>
                           <Select
                             options={employeeOptions} isClearable isLoading={loadingEmployees}
-                            onChange={opt => setAssignedEmployee(opt ? opt.value : null)}
+                            value={assignedEmployee} onChange={setAssignedEmployee}
                             onInputChange={val => { setEmpSearchTerm(val); setEmpPage(1); }}
-                            onMenuScrollToBottom={() => { if (hasMoreEmployees) { const np = empPage + 1; setEmpPage(np); loadEmployees(np, empSearchTerm); } }}
-                            value={assignedEmployee ? employeeOptions.find(o => o.value === assignedEmployee) : null}
-                            placeholder={loadingEmployees ? 'Loading employees...' : 'Select Employee...'}
-                            noOptionsMessage={() => selectedDepartment ? 'No employees found' : 'Select a department first'}
-                            isDisabled={!selectedDepartment || loadingEmployees}
+                            onMenuScrollToBottom={() => { if (hasMoreEmployees && !loadingEmployees) { const np = empPage + 1; setEmpPage(np); loadEmployees(np, empSearchTerm); } }}
+                            placeholder="Select Employee..." isDisabled={!selectedDepartment}
+                            noOptionsMessage={() => !selectedDepartment ? 'Select a department first' : loadingEmployees ? 'Loading...' : 'No employees found'}
                             styles={selectStyles}
                           />
                         </div>
                       </div>
                     )}
                   </div>
+
                 </div>
               </div>
-
               <div className="modal-footer border-0 justify-content-start">
-                <button type="submit" className="btn addbtn rounded-0 add_button px-4">Add Sales Lead</button>
+                <button type="submit" className="btn addbtn rounded-0 add_button px-4">Add</button>
                 <button type="button" className="btn addbtn rounded-0 Cancel_button px-4" onClick={onClose}>Cancel</button>
               </div>
             </form>
           </div>
         </div>
       </div>
-
-      <style>{`
-        .is-invalid-select .css-13cymwt-control {
-          border-color: #dc3545 !important;
-          box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25) !important;
-        }
-      `}</style>
     </>
   );
 };
