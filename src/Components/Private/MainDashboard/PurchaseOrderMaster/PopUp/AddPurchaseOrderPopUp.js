@@ -834,8 +834,16 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                 className="form-control form-control-sm"
                 style={{ minWidth: "80px" }}
                 value={item.quantity}
-                onChange={(e) => handleItemChange(index, 'quantity', Number(e.target.value))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || value === '.') {
+                    handleItemChange(index, 'quantity', value);
+                  } else if (/^\d*\.?\d{0,2}$/.test(value)) {
+                    handleItemChange(index, 'quantity', Number(value));
+                  }
+                }}
                 min="1"
+                step="0.01"
               />
             </td>
             <td>
@@ -855,9 +863,17 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                 className="form-control form-control-sm"
                 style={{ minWidth: "80px" }}
                 value={item.discountPercent}
-                onChange={(e) => handleItemChange(index, 'discountPercent', Number(e.target.value))}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || value === '.') {
+                    handleItemChange(index, 'discountPercent', value);
+                  } else if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
+                    handleItemChange(index, 'discountPercent', Number(value));
+                  }
+                }}
                 min="0"
                 max="100"
+                step="0.01"
               />
             </td>
             <td>
