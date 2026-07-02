@@ -493,7 +493,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
                         <label className="form-label label_text">Warehouse Location <RequiredStar /></label>
-                        <input type="text" className="form-control rounded-0" value={warehouseLocation} onChange={e => setWarehouseLocation(e.target.value)} placeholder="Ex: Baner / Mumbai" maxLength={200} disabled={choice === "Against PO"} required />
+                        <input type="text" className="form-control rounded-0" value={warehouseLocation} onChange={e => setWarehouseLocation(e.target.value)} placeholder="Ex: Baner / Mumbai" maxLength={200} required />
                       </div>
                     </div>
                   )}
