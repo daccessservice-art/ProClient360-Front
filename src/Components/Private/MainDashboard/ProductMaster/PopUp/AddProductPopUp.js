@@ -330,21 +330,31 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
                         Brand Name
                       </label>
                       <div className="input-group">
-                        <select
-                          className="form-select rounded-0"
+                        <input
+                          type="text"
+                          className="form-control rounded-0"
                           id="brandName"
+                          list="brandOptions"
                           value={brandName}
                           onChange={(e) => setBrandName(e.target.value)}
-                        >
-                          <option value="">Select Brand</option>
+                          placeholder="Search or select brand..."
+                          autoComplete="off"
+                        />
+                        <datalist id="brandOptions">
                           {allBrands.map((brand, index) => (
-                            <option key={index} value={brand}>{brand}</option>
+                            <option key={index} value={brand} />
                           ))}
-                        </select>
+                        </datalist>
                         <button type="button" className="btn btn-outline-secondary" onClick={() => setShowAddBrand(true)}>
                           <i className="fa-solid fa-plus"></i>
                         </button>
                       </div>
+                      {brandName && (
+                        <small className="text-muted mt-1 d-block">
+                          <i className="fa fa-check-circle me-1 text-success"></i>
+                          Selected: <strong>{brandName}</strong>
+                        </small>
+                      )}
                     </div>
 
                     <div className="col-md-6 col-12 mt-3 mt-md-0">

@@ -238,16 +238,32 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                     <div className="mb-3">
                       <label htmlFor="brandName" className="form-label label_text">Brand Name</label>
                       <div className="input-group">
-                        <select className="form-select rounded-0" id="brandName" name="brandName" value={product.brandName || ""} onChange={handleChange}>
-                          <option value="">Select Brand</option>
+                        <input
+                          type="text"
+                          className="form-control rounded-0"
+                          id="brandName"
+                          name="brandName"
+                          list="brandOptionsUpdate"
+                          value={product.brandName || ""}
+                          onChange={handleChange}
+                          placeholder="Search or select brand..."
+                          autoComplete="off"
+                        />
+                        <datalist id="brandOptionsUpdate">
                           {allBrands.map((brand, index) => (
-                            <option key={index} value={brand}>{brand}</option>
+                            <option key={index} value={brand} />
                           ))}
-                        </select>
+                        </datalist>
                         <button type="button" className="btn btn-outline-secondary" onClick={() => setShowAddBrand(true)}>
                           <i className="fa-solid fa-plus"></i>
                         </button>
                       </div>
+                      {product.brandName && (
+                        <small className="text-muted mt-1 d-block">
+                          <i className="fa fa-info-circle me-1"></i>
+                          Currently saved: <strong>{product.brandName}</strong>
+                        </small>
+                      )}
                     </div>
                   </div>
 
