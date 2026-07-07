@@ -6,7 +6,7 @@ import AddCustomerPopUp from "./PopUp/AddCustomerPopUp";
 import UpdateCustomerPopUp from "./PopUp/UpdateCustomerPopUp";
 import ReassignOwnedByPopUp from "./PopUp/ReassignOwnedByPopUp";
 import RaiseTicketPopUp from "./PopUp/RaiseTicketPopUp";
-import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel, getEmployees } from "../../../../hooks/useCustomer";
+import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel, getEmployees, exportVerifiedCustomersPDF, exportNotVerifiedCustomersPDF } from "../../../../hooks/useCustomer";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
 
@@ -215,6 +215,28 @@ export const CustomerMasterGrid = () => {
       if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Excel"); }
     } catch { toast.error("An unexpected error occurred while exporting Excel"); }
   };
+
+  const handleExportVerifiedPDF = async () => {
+  if (!canExport) {
+    toast.error("Your designation does not have permission to export customer data.");
+    return;
+  }
+  try {
+    const result = await exportVerifiedCustomersPDF();
+    if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Verified PDF"); }
+  } catch { toast.error("An unexpected error occurred while exporting Verified PDF"); }
+};
+
+const handleExportNotVerifiedPDF = async () => {
+  if (!canExport) {
+    toast.error("Your designation does not have permission to export customer data.");
+    return;
+  }
+  try {
+    const result = await exportNotVerifiedCustomersPDF();
+    if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Not Verified PDF"); }
+  } catch { toast.error("An unexpected error occurred while exporting Not Verified PDF"); }
+};
 
   const handleResetFilters = () => {
     setCreatedByFilter(""); setOwnedByFilter(""); setPriorityFilter("");
@@ -488,6 +510,8 @@ export const CustomerMasterGrid = () => {
                             <>
                               <button onClick={handleExportPDF} type="button" className="btn btn-sm btn-danger me-1" title="Export to PDF" disabled={loading}><i className="fa-solid fa-file-pdf"></i></button>
                               <button onClick={handleExportExcel} type="button" className="btn btn-sm btn-success me-1" title="Export to Excel" disabled={loading}><i className="fa-solid fa-file-excel"></i></button>
+                              <button onClick={handleExportVerifiedPDF} type="button" className="btn btn-sm btn-outline-success me-1" title="Export Verified Customers PDF" disabled={loading}><i className="fa-solid fa-file-circle-check"></i></button>
+    <button onClick={handleExportNotVerifiedPDF} type="button" className="btn btn-sm btn-outline-danger me-1" title="Export Not Verified Customers PDF" disabled={loading}><i className="fa-solid fa-file-circle-xmark"></i></button>
                             </>
                           )}
 

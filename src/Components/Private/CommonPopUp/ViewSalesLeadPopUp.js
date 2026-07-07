@@ -745,72 +745,157 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
               {/* ══════════════════════════════════════════════════════════════ */}
               {/* TAB: ACTION HISTORY */}
               {/* ══════════════════════════════════════════════════════════════ */}
-              {activeTab === 'history' && (
-                <div className="py-3">
-                  {selectedLead.previousActions && selectedLead.previousActions.length > 0 ? (
-                    <div className="table-responsive">
-                      <table className="table table-sm table-hover">
-                        <thead className="table-light">
-                          <tr>
-                            <th className="text-center" style={{ width: '50px' }}>#</th>
-                            <th>Status</th>
-                            <th>Step</th>
-                            <th className="text-center">Completion</th>
-                            <th>Amount</th>
-                            <th>Lead Type</th>
-                            <th>Follow-up Date</th>
-                            <th>Remark</th>
-                            <th>By</th>
-                            <th>Time</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedLead.previousActions
-                            .slice()
-                            .reverse()
-                            .map((action, index) => (
-                              <tr key={action._id || index}>
-                                <td className="text-center">{selectedLead.previousActions.length - index}</td>
-                                <td>{getStatusBadge(action.status)}</td>
-                                <td style={{ fontSize: '0.82rem' }}>{action.step || '—'}</td>
-                                <td className="text-center">
-                                  <span className="fw-bold" style={{ color: '#15803d' }}>
-                                    {action.completion || 0}%
-                                  </span>
-                                </td>
-                                <td>
-                                  {action.quotation > 0 ? (
-                                    <span style={{ color: '#15803d', fontWeight: 600, fontSize: '0.82rem' }}>
-                                      {formatAmount(action.quotation)}
-                                    </span>
-                                  ) : (
-                                    <span className="text-muted">—</span>
-                                  )}
-                                </td>
-                                <td>{getCallLeadsBadge(action.callLeads)}</td>
-                                <td style={{ fontSize: '0.82rem' }}>{formatShortDate(action.nextFollowUpDate)}</td>
-                                <td style={{ fontSize: '0.8rem', maxWidth: '200px', wordBreak: 'break-word' }}>
-                                  {action.rem || '—'}
-                                </td>
-                                <td style={{ fontSize: '0.8rem' }}>{action.actionBy?.name || '—'}</td>
-                                <td style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap' }}>
-                                  {formatDate(action.createdAt)}
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <i className="fa-solid fa-clock-rotate-left fa-2x text-muted mb-2"></i>
-                      <p className="text-muted mb-0">No action history available for this lead.</p>
-                    </div>
-                  )}
-                </div>
-              )}
+{activeTab === 'history' && (
+  <div className="py-3">
+    {selectedLead.previousActions && selectedLead.previousActions.length > 0 ? (
+      <>
+        {/* ===== DESKTOP / TABLET TABLE VIEW ===== */}
+        <div className="table-responsive d-none d-md-block">
+          <table
+            className="table table-sm table-hover"
+            style={{ tableLayout: 'fixed', width: '100%' }}
+          >
+            <colgroup>
+              <col style={{ width: '40px' }} />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '180px' }} />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '220px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '150px' }} />
+            </colgroup>
+            <thead className="table-light">
+              <tr>
+                <th className="text-center">SR.NO.</th>
+                <th>Status</th>
+                <th>Step</th>
+                <th className="text-center">Completion</th>
+                <th>Amount</th>
+                <th>Lead Type</th>
+                <th>Follow-up Date</th>
+                <th>Remark</th>
+                <th>By</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedLead.previousActions
+                .slice()
+                .reverse()
+                .map((action, index) => (
+                  <tr key={action._id || index}>
+                    <td className="text-center">{selectedLead.previousActions.length - index}</td>
+                    <td>{getStatusBadge(action.status)}</td>
+                    <td style={{ fontSize: '0.82rem', wordBreak: 'break-word' }}>{action.step || '—'}</td>
+                    <td className="text-center">
+                      <span className="fw-bold" style={{ color: '#15803d' }}>
+                        {action.completion || 0}%
+                      </span>
+                    </td>
+                    <td>
+                      {action.quotation > 0 ? (
+                        <span style={{ color: '#15803d', fontWeight: 600, fontSize: '0.82rem' }}>
+                          {formatAmount(action.quotation)}
+                        </span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    <td>{getCallLeadsBadge(action.callLeads)}</td>
+                    <td style={{ fontSize: '0.82rem' }}>{formatShortDate(action.nextFollowUpDate)}</td>
+                    <td
+                      style={{
+                        fontSize: '0.8rem',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word',
+                        overflowWrap: 'break-word',
+                      }}
+                    >
+                      {action.rem || '—'}
+                    </td>
+                    <td style={{ fontSize: '0.8rem', wordBreak: 'break-word' }}>
+                      {action.actionBy?.name || '—'}
+                    </td>
+                    <td style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'normal' }}>
+                      {formatDate(action.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
 
-              {/* ══════════════════════════════════════════════════════════════ */}
+        {/* ===== MOBILE CARD VIEW ===== */}
+        <div className="d-md-none">
+          {selectedLead.previousActions
+            .slice()
+            .reverse()
+            .map((action, index) => (
+              <div
+                key={action._id || index}
+                className="p-3 mb-3 rounded"
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+              >
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <span className="fw-bold" style={{ fontSize: '0.85rem', color: '#1e293b' }}>
+                    #{selectedLead.previousActions.length - index}
+                  </span>
+                  {getStatusBadge(action.status)}
+                </div>
+
+                <div className="row g-2" style={{ fontSize: '0.8rem' }}>
+                  <div className="col-6">
+                    <span className="text-muted d-block" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Step</span>
+                    <span className="fw-semibold">{action.step || '—'}</span>
+                  </div>
+                  <div className="col-6">
+                    <span className="text-muted d-block" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Completion</span>
+                    <span className="fw-bold" style={{ color: '#15803d' }}>{action.completion || 0}%</span>
+                  </div>
+                  <div className="col-6">
+                    <span className="text-muted d-block" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Amount</span>
+                    {action.quotation > 0 ? (
+                      <span style={{ color: '#15803d', fontWeight: 600 }}>{formatAmount(action.quotation)}</span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </div>
+                  <div className="col-6">
+                    <span className="text-muted d-block" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Lead Type</span>
+                    {getCallLeadsBadge(action.callLeads)}
+                  </div>
+                  <div className="col-6">
+                    <span className="text-muted d-block" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Follow-up Date</span>
+                    <span>{formatShortDate(action.nextFollowUpDate)}</span>
+                  </div>
+                  <div className="col-6">
+                    <span className="text-muted d-block" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>By</span>
+                    <span>{action.actionBy?.name || '—'}</span>
+                  </div>
+                  <div className="col-12">
+                    <span className="text-muted d-block" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Remark</span>
+                    <span style={{ wordBreak: 'break-word' }}>{action.rem || '—'}</span>
+                  </div>
+                  <div className="col-12">
+                    <span className="text-muted d-block" style={{ fontSize: '0.7rem', textTransform: 'uppercase' }}>Time</span>
+                    <span style={{ color: '#64748b', fontSize: '0.75rem' }}>{formatDate(action.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
+      </>
+    ) : (
+      <div className="text-center py-4">
+        <i className="fa-solid fa-clock-rotate-left fa-2x text-muted mb-2"></i>
+        <p className="text-muted mb-0">No action history available for this lead.</p>
+      </div>
+    )}
+  </div>
+)}              {/* ══════════════════════════════════════════════════════════════ */}
               {/* TAB: CALL HISTORY */}
               {/* ══════════════════════════════════════════════════════════════ */}
               {activeTab === 'calls' && (

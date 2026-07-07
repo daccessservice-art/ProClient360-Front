@@ -262,6 +262,70 @@ const exportCustomersExcel = async () => {
   }
 };
 
+const exportVerifiedCustomersPDF = async () => {
+  try {
+    const response = await axios.get(`${url}/export/pdf/verified`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      responseType: 'blob'
+    });
+
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `verified_customers_export_${new Date().toISOString().split('T')[0]}.pdf`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match?.[1]) filename = match[1];
+    }
+
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const ok = triggerDownload(blob, filename);
+    return ok
+      ? { success: true, message: 'Verified customers PDF exported successfully' }
+      : { success: false, error: 'Failed to download PDF' };
+  } catch (error) {
+    console.error('Verified PDF export error:', error);
+    if (error.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text();
+        const obj = JSON.parse(text);
+        return { success: false, error: obj.error || 'Failed to export PDF' };
+      } catch { /* ignore */ }
+    }
+    return { success: false, error: error.message || 'Failed to export PDF' };
+  }
+};
+
+const exportNotVerifiedCustomersPDF = async () => {
+  try {
+    const response = await axios.get(`${url}/export/pdf/not-verified`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      responseType: 'blob'
+    });
+
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `not_verified_customers_export_${new Date().toISOString().split('T')[0]}.pdf`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match?.[1]) filename = match[1];
+    }
+
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const ok = triggerDownload(blob, filename);
+    return ok
+      ? { success: true, message: 'Not verified customers PDF exported successfully' }
+      : { success: false, error: 'Failed to download PDF' };
+  } catch (error) {
+    console.error('Not Verified PDF export error:', error);
+    if (error.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text();
+        const obj = JSON.parse(text);
+        return { success: false, error: obj.error || 'Failed to export PDF' };
+      } catch { /* ignore */ }
+    }
+    return { success: false, error: error.message || 'Failed to export PDF' };
+  }
+};
+
 export {
   getCustomers,
   getCustomerCountByOwner,
@@ -272,5 +336,7 @@ export {
   getEmployees,
   getCustomersForBranch,
   exportCustomersPDF,
-  exportCustomersExcel
+  exportCustomersExcel,
+  exportVerifiedCustomersPDF,
+  exportNotVerifiedCustomersPDF,
 };

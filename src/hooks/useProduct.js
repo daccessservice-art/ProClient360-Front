@@ -152,6 +152,21 @@ const getAllProductsForReport = async (search = "") => {
   }
 };
 
+// ── NEW: fetch distinct brands for this company from the DB ──
+const getProductBrands = async () => {
+  try {
+    const response = await axios.get(`${url}/brands`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: "Network error while fetching brands" };
+  }
+};
+
 export {
   getProducts,
   getProductById,
@@ -162,4 +177,5 @@ export {
   bulkDeleteProducts,
   getDuplicateProducts,
   getAllProductsForReport,
+  getProductBrands,
 };

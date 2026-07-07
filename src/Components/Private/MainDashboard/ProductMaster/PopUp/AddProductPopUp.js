@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import validator from "validator";
 import toast from "react-hot-toast";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
-import { createProduct } from "../../../../../hooks/useProduct";
+import { createProduct, getProductBrands } from "../../../../../hooks/useProduct";
 
 const AddProductPopUp = ({ handleAdd, categories = [] }) => {
   const [productName, setProductName] = useState("");
@@ -49,17 +49,33 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
   ];
 
   const [allBrands, setAllBrands] = useState([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
   const [allCategories, setAllCategories] = useState([]);
 
-  // ── Load brands & categories from localStorage ──
+  // ── FIX: Brands now load from the DATABASE (distinct brandName values
+  // across every existing product for this company) instead of localStorage.
+  // localStorage is per-browser/per-device — a brand added by one user on
+  // one PC was invisible to every other user/PC, which is exactly the bug
+  // you were seeing ("only some brands load"). Now everyone sees the same
+  // live list, fetched via GET /api/product/brands. ──
   useEffect(() => {
-    const savedBrands = localStorage.getItem('productBrands');
-    if (savedBrands) {
-      setAllBrands(JSON.parse(savedBrands));
-    } else {
-      setAllBrands(["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"]);
-    }
+    const loadBrands = async () => {
+      setBrandsLoading(true);
+      const data = await getProductBrands();
+      if (data?.success && Array.isArray(data.brands) && data.brands.length > 0) {
+        setAllBrands(data.brands);
+      } else {
+        // Fallback starter list — only shown when the company has no
+        // products/brands saved yet, or if the request fails.
+        setAllBrands(["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"]);
+      }
+      setBrandsLoading(false);
+    };
+    loadBrands();
+  }, []);
 
+  // ── Categories: unchanged, still localStorage-based per your existing setup ──
+  useEffect(() => {
     const savedCategories = localStorage.getItem('productCategories');
     if (savedCategories) {
       setAllCategories(JSON.parse(savedCategories));
@@ -70,14 +86,7 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
     }
   }, [categories]);
 
-  // ── Persist brands to localStorage ──
-  useEffect(() => {
-    if (allBrands.length > 0) {
-      localStorage.setItem('productBrands', JSON.stringify(allBrands));
-    }
-  }, [allBrands]);
-
-  // ── Persist categories to localStorage ──
+  // ── Persist categories to localStorage (unchanged) ──
   useEffect(() => {
     if (allCategories.length > 0) {
       localStorage.setItem('productCategories', JSON.stringify(allCategories));
@@ -151,13 +160,16 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
       return toast.error("Please enter either CESS Percentage or CESS Amount");
     }
 
-    // ── FIX: Ensure selected brand is saved to localStorage for future updates ──
+    // ── FIX: Ensure selected/newly-typed brand shows up immediately in this
+    // session's dropdown. It gets permanently saved to the DB the moment the
+    // product itself is created (via productName/brandName on the product),
+    // so the next time ANY user opens this popup, getProductBrands() will
+    // include it automatically. No localStorage write needed anymore. ──
     if (brandName && !allBrands.includes(brandName)) {
-      const updatedBrands = [...allBrands, brandName];
-      setAllBrands(updatedBrands);
+      setAllBrands((prev) => [...prev, brandName]);
     }
 
-    // ── FIX: Ensure selected category is saved to localStorage for future updates ──
+    // ── Categories: unchanged ──
     if (productCategory && !allCategories.includes(productCategory)) {
       const updatedCategories = [...allCategories, productCategory];
       setAllCategories(updatedCategories);
@@ -210,26 +222,21 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
   };
 
   // ── UPDATED: Allow special characters in Product Name ──
-  // Allows: letters, numbers, spaces, and common special chars: - _ . & / ( ) @ # % + , ' " ! ; : * [ ] { } < > = ~ ` | \ $
   const handleProductNameChange = (e) => {
     const value = e.target.value;
-    // Only block control characters (tab, newline, etc.) — allow all printable special characters
     if (/^[^\x00-\x1F\x7F]*$/.test(value)) setProductName(value);
   };
 
-  // ── UPDATED: Allow special characters in Print Name ──
   const handlePrintNameChange = (e) => {
     const value = e.target.value;
     if (/^[^\x00-\x1F\x7F]*$/.test(value)) setPrintName(value);
   };
 
-  // ── UPDATED: Allow special characters in Alias Name ──
   const handleAliasNameChange = (e) => {
     const value = e.target.value;
     if (/^[^\x00-\x1F\x7F]*$/.test(value)) setAliasName(value);
   };
 
-  // ── UPDATED: Allow special characters in Model ──
   const handleModelChange = (e) => {
     const value = e.target.value;
     if (/^[^\x00-\x1F\x7F]*$/.test(value)) setModel(value);
@@ -337,8 +344,9 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
                           list="brandOptions"
                           value={brandName}
                           onChange={(e) => setBrandName(e.target.value)}
-                          placeholder="Search or select brand..."
+                          placeholder={brandsLoading ? "Loading brands..." : "Search or select brand..."}
                           autoComplete="off"
+                          disabled={brandsLoading}
                         />
                         <datalist id="brandOptions">
                           {allBrands.map((brand, index) => (
@@ -465,7 +473,6 @@ const AddProductPopUp = ({ handleAdd, categories = [] }) => {
                           <i className="fa-solid fa-plus"></i>
                         </button>
                       </div>
-                      {/* Show selected category hint */}
                       {productCategory && (
                         <small className="text-muted mt-1 d-block">
                           <i className="fa fa-check-circle me-1 text-success"></i>
