@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { updateProduct } from "../../../../../hooks/useProduct";
+import { updateProduct, getProductBrands } from "../../../../../hooks/useProduct";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { toast } from "react-hot-toast";
 
@@ -11,6 +11,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
   const [newBrand, setNewBrand] = useState("");
 
   const [allBrands, setAllBrands] = useState([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
   const [allCategories, setAllCategories] = useState([]);
 
   const uomOptions = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton", "nos"];
@@ -24,15 +25,23 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     { value: "work in progress", label: "Work in Progress" }
   ];
 
-  // ── Load brands & categories from localStorage ──
+  // ── FIX: Brands now load from the DATABASE instead of localStorage ──
   useEffect(() => {
-    const savedBrands = localStorage.getItem('productBrands');
-    if (savedBrands) {
-      setAllBrands(JSON.parse(savedBrands));
-    } else {
-      setAllBrands(["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"]);
-    }
+    const loadBrands = async () => {
+      setBrandsLoading(true);
+      const data = await getProductBrands();
+      if (data?.success && Array.isArray(data.brands) && data.brands.length > 0) {
+        setAllBrands(data.brands);
+      } else {
+        setAllBrands(["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"]);
+      }
+      setBrandsLoading(false);
+    };
+    loadBrands();
+  }, []);
 
+  // ── Categories: localStorage-based ──
+  useEffect(() => {
     const savedCategories = localStorage.getItem('productCategories');
     if (savedCategories) {
       setAllCategories(JSON.parse(savedCategories));
@@ -42,13 +51,6 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
       setAllCategories(["Electronics", "Clothing", "Food", "Furniture", "Stationery", "Tools"]);
     }
   }, [categories]);
-
-  // ── Persist brands to localStorage ──
-  useEffect(() => {
-    if (allBrands.length > 0) {
-      localStorage.setItem('productBrands', JSON.stringify(allBrands));
-    }
-  }, [allBrands]);
 
   // ── Persist categories to localStorage ──
   useEffect(() => {
@@ -64,7 +66,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     }
   }, [selectedProduct]);
 
-  // ── FIX: Ensure saved productCategory is always in the dropdown list ──
+  // ── Ensure saved productCategory is always in the dropdown list ──
   useEffect(() => {
     if (product?.productCategory && !allCategories.includes(product.productCategory)) {
       setAllCategories(prev => {
@@ -76,7 +78,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     }
   }, [product?.productCategory, allCategories]);
 
-  // ── FIX: Ensure saved brandName is always in the dropdown list ──
+  // ── Ensure saved brandName is always in the dropdown list ──
   useEffect(() => {
     if (product?.brandName && !allBrands.includes(product.brandName)) {
       setAllBrands(prev => {
@@ -88,17 +90,13 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     }
   }, [product?.brandName, allBrands]);
 
-  // ── UPDATED: Allow special characters for text fields (productName, model, printName, aliasName) ──
-  // Only blocks control characters — allows all printable special characters
+  // ── Allow special characters for text fields — only blocks control characters ──
   const handleChange = (event) => {
     const { name, value } = event.target;
 
-    // For text fields that should allow special characters
     const specialCharFields = ["productName", "model", "printName", "aliasName", "description"];
     if (specialCharFields.includes(name)) {
-      // Allow all printable characters (block only control characters)
       if (/^[^\x00-\x1F\x7F]*$/.test(value) || name === "description") {
-        // description allows newlines too
         setProduct((prevProduct) => ({
           ...prevProduct,
           [name]: value,
@@ -107,7 +105,6 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
       return;
     }
 
-    // For all other fields, use direct set (selects, numbers, etc.)
     setProduct((prevProduct) => ({
       ...prevProduct,
       [name]: value,
@@ -148,6 +145,11 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     if (product.discountType !== "Zero Discount" && (!product.discountValue || isNaN(product.discountValue))) {
       toast.error("Please enter a valid discount value");
       return;
+    }
+
+    // ── If brand was typed/changed and not in list yet, add it locally ──
+    if (product.brandName && !allBrands.includes(product.brandName)) {
+      setAllBrands((prev) => [...prev, product.brandName]);
     }
 
     try {
@@ -219,23 +221,9 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
               <div className="modal-body">
                 <div className="row modal_body_height" style={{ maxHeight: "70vh", overflowY: "auto" }}>
 
-                  <div className="col-12">
-                    <label htmlFor="productName" className="form-label label_text">Product Name <RequiredStar /></label>
-                    <input
-                      type="text"
-                      className="form-control rounded-0"
-                      id="productName"
-                      maxLength={100}
-                      name="productName"
-                      value={product.productName || ""}
-                      onChange={handleChange}
-                      placeholder="Update Product Name...."
-                      required
-                    />
-                  </div>
-
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                  {/* ── Brand Name (now first, same layout as Add) ── */}
+                  <div className="row mt-3">
+                    <div className="col-md-6 col-12">
                       <label htmlFor="brandName" className="form-label label_text">Brand Name</label>
                       <div className="input-group">
                         <input
@@ -246,8 +234,9 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                           list="brandOptionsUpdate"
                           value={product.brandName || ""}
                           onChange={handleChange}
-                          placeholder="Search or select brand..."
+                          placeholder={brandsLoading ? "Loading brands..." : "Search or select brand..."}
                           autoComplete="off"
+                          disabled={brandsLoading}
                         />
                         <datalist id="brandOptionsUpdate">
                           {allBrands.map((brand, index) => (
@@ -265,46 +254,57 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                         </small>
                       )}
                     </div>
+
+                    <div className="col-md-6 col-12 mt-3 mt-md-0">
+                      <label htmlFor="productName" className="form-label label_text">Product Name <RequiredStar /></label>
+                      <input
+                        type="text"
+                        className="form-control rounded-0"
+                        id="productName"
+                        maxLength={100}
+                        name="productName"
+                        value={product.productName || ""}
+                        onChange={handleChange}
+                        placeholder="Update Product Name...."
+                        required
+                      />
+                    </div>
                   </div>
 
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                  <div className="row mt-3">
+                    <div className="col-md-6 col-12">
+                      <label htmlFor="model" className="form-label label_text">Model</label>
+                      <input type="text" name="model" maxLength={100} placeholder="Update Model...." className="form-control rounded-0" id="model" value={product.model || ""} onChange={handleChange} />
+                    </div>
+
+                    <div className="col-md-6 col-12 mt-3 mt-md-0">
                       <label htmlFor="printName" className="form-label label_text">Print Name</label>
                       <input type="text" name="printName" maxLength={100} placeholder="Update Print Name...." className="form-control rounded-0" id="printName" value={product.printName || ""} onChange={handleChange} />
                     </div>
                   </div>
 
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                  <div className="row mt-3">
+                    <div className="col-md-6 col-12">
                       <label htmlFor="aliasName" className="form-label label_text">Alias Name</label>
                       <input type="text" name="aliasName" maxLength={100} placeholder="Update Alias Name...." className="form-control rounded-0" id="aliasName" value={product.aliasName || ""} onChange={handleChange} />
                     </div>
-                  </div>
 
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
-                      <label htmlFor="model" className="form-label label_text">Model</label>
-                      <input type="text" name="model" maxLength={100} placeholder="Update Model...." className="form-control rounded-0" id="model" value={product.model || ""} onChange={handleChange} />
-                    </div>
-                  </div>
-
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                    <div className="col-md-6 col-12 mt-3 mt-md-0">
                       <label htmlFor="hsnCode" className="form-label label_text">HSN Code</label>
                       <input type="text" name="hsnCode" maxLength={8} placeholder="Update HSN Code...." className="form-control rounded-0" id="hsnCode" value={product.hsnCode || ""} onChange={handleChange} />
                     </div>
                   </div>
 
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                  <div className="row mt-3">
+                    <div className="col-12">
                       <label htmlFor="description" className="form-label label_text">Description</label>
                       <textarea className="form-control rounded-0" id="description" name="description" maxLength={500} value={product.description || ""} onChange={handleChange} rows="3" placeholder="Update Description...."></textarea>
                     </div>
                   </div>
 
-                  {/* ── Product Category ── FIX: Shows saved value properly ── */}
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                  {/* ── Product Category ── */}
+                  <div className="row mt-3">
+                    <div className="col-12">
                       <label htmlFor="productCategory" className="form-label label_text">Product Category</label>
                       <div className="input-group">
                         <select className="form-select rounded-0" id="productCategory" name="productCategory" value={product.productCategory || ""} onChange={handleChange}>
@@ -317,7 +317,6 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                           <i className="fa-solid fa-plus"></i>
                         </button>
                       </div>
-                      {/* Show currently saved category as hint if it exists */}
                       {product.productCategory && (
                         <small className="text-muted mt-1 d-block">
                           <i className="fa fa-info-circle me-1"></i>
@@ -327,8 +326,22 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                     </div>
                   </div>
 
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                  {/* ── Product Group ── */}
+                  <div className="row mt-3">
+                    <div className="col-12">
+                      <label htmlFor="category" className="form-label label_text">Product Group <RequiredStar /></label>
+                      <select className="form-select rounded-0" id="category" name="category" value={product.category || ""} onChange={handleChange} required>
+                        <option value="">Select Category</option>
+                        {categoryOptions.map((option, index) => (
+                          <option key={index} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* ── UOM Row ── */}
+                  <div className="row mt-3">
+                    <div className="col-12 col-md-4">
                       <label htmlFor="baseUOM" className="form-label label_text">Base UOM <RequiredStar /></label>
                       <select className="form-select rounded-0" id="baseUOM" name="baseUOM" value={product.baseUOM || ""} onChange={handleChange} required>
                         <option value="">Select Base UOM</option>
@@ -337,10 +350,8 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                         ))}
                       </select>
                     </div>
-                  </div>
 
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                    <div className="col-12 col-md-4 mt-3 mt-md-0">
                       <label htmlFor="alternateUOM" className="form-label label_text">Alternate UOM</label>
                       <select className="form-select rounded-0" id="alternateUOM" name="alternateUOM" value={product.alternateUOM || ""} onChange={handleChange}>
                         <option value="">Select Alternate UOM</option>
@@ -349,21 +360,17 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                         ))}
                       </select>
                     </div>
-                  </div>
 
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
+                    <div className="col-12 col-md-4 mt-3 mt-md-0">
                       <label htmlFor="uomConversion" className="form-label label_text">UOM Conversion</label>
-                      <input type="text" className="form-control rounded-0" id="uomConversion" name="uomConversion" value={product.uomConversion || 1} onChange={handleChange} placeholder="Update UOM conversion factor" />
+                      <input type="text" className="form-control rounded-0" id="uomConversion" name="uomConversion" value={product.uomConversion || 1} onChange={handleChange} placeholder="Enter UOM conversion factor" />
                     </div>
                   </div>
 
-                  {/* Current Stock Qty Field */}
-                  <div className="col-12 mt-3">
-                    <div className="mb-3">
-                      <label htmlFor="currentStockQty" className="form-label label_text">
-                        Current Stock Qty.
-                      </label>
+                  {/* ── Current Stock Qty ── */}
+                  <div className="row mt-3">
+                    <div className="col-12 col-md-6">
+                      <label htmlFor="currentStockQty" className="form-label label_text">Current Stock Qty.</label>
                       <div className="input-group">
                         <input
                           type="text"
@@ -381,19 +388,8 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                     </div>
                   </div>
 
+                  {/* ── Rate Details ── */}
                   <div className="col-12 mt-3">
-                    <div className="mb-3">
-                      <label htmlFor="category" className="form-label label_text">Product Group <RequiredStar /></label>
-                      <select className="form-select rounded-0" id="category" name="category" value={product.category || ""} onChange={handleChange} required>
-                        <option value="">Select Category</option>
-                        {categoryOptions.map((option, index) => (
-                          <option key={index} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="col-12 mt-2">
                     <div className="row border bg-gray mx-auto p-3">
                       <div className="col-10 mb-3">
                         <span className="SecondaryInfo">Rate Details</span>
@@ -462,7 +458,7 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                         </div>
                       )}
 
-                      {/* Tax Details in Update */}
+                      {/* ── Tax Details ── */}
                       <div className="col-12 mt-3">
                         <h6 className="mb-3">Tax Details</h6>
                         <div className="col-12 mb-3">
