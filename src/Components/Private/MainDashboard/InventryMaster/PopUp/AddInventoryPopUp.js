@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
-import { getProductBrands } from "../../../../../hooks/useProduct";
+import { getProductBrands, getProductCategories } from "../../../../../hooks/useProduct";
 
 const baseUrl = process.env.REACT_APP_API_URL;
 
@@ -78,12 +78,21 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     loadBrands();
   }, []);
 
-  // ── Categories: localStorage-based (no DB endpoint) ──
+    // ── FIX: Categories from DATABASE ──
   useEffect(() => {
-    const savedCategories = localStorage.getItem('productCategories');
-    setAllCategories(savedCategories ? JSON.parse(savedCategories) : ["Electronics", "Clothing", "Food", "Furniture", "Stationery", "Tools"]);
+    const loadCategories = async () => {
+      const data = await getProductCategories();
+      if (data?.success && Array.isArray(data.categories) && data.categories.length > 0) {
+        setAllCategories(data.categories);
+      } else {
+        setAllCategories(["Electronics", "Clothing", "Food", "Furniture", "Stationery", "Tools"]);
+      }
+    };
+    loadCategories();
   }, []);
 
+  // ── REMOVE these two lines completely (no more localStorage for categories) ──
+  // useEffect(() => { localStorage.setItem('productCategories', JSON.stringify(allCategories)); }, [allCategories]);
   useEffect(() => { localStorage.setItem('productCategories', JSON.stringify(allCategories)); }, [allCategories]);
 
   useEffect(() => {
@@ -383,7 +392,7 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                       value={formData.materialName} onChange={handleInputChange} />
                   </div>
 
-                  {/* Product Category */}
+                                    {/* Product Category */}
                   <div className="col-md-6">
                     <label htmlFor="productCategory" className="form-label">Product Category</label>
                     <div className="input-group">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
-import { getProductBrands } from "../../../../../hooks/useProduct";
+import { getProductBrands, getProductCategories } from "../../../../../hooks/useProduct";
 
 const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose }) => {
   const [formData, setFormData] = useState({
@@ -56,11 +56,21 @@ const UpdateInventoryPopup = ({ selectedInventory, onUpdateInventory, onClose })
     loadBrands();
   }, []);
 
-  // ── Categories from localStorage ──
+    // ── FIX: Categories from DATABASE ──
   useEffect(() => {
-    const savedCategories = localStorage.getItem('productCategories');
-    setAllCategories(savedCategories ? JSON.parse(savedCategories) : ["Electronics", "Clothing", "Food", "Furniture", "Stationery", "Tools"]);
+    const loadCategories = async () => {
+      const data = await getProductCategories();
+      if (data?.success && Array.isArray(data.categories) && data.categories.length > 0) {
+        setAllCategories(data.categories);
+      } else {
+        setAllCategories(["Electronics", "Clothing", "Food", "Furniture", "Stationery", "Tools"]);
+      }
+    };
+    loadCategories();
   }, []);
+
+  // ── REMOVE this useEffect completely (no more localStorage for categories) ──
+  // useEffect(() => { if (allCategories.length > 0) { localStorage.setItem(...) } }, [allCategories]);
 
   useEffect(() => {
     if (allCategories.length > 0) {
