@@ -6,7 +6,7 @@ import AddVendorPopUp from "./PopUp/AddVendorPopUp";
 import UpdateVendorPopUp from "./PopUp/UpdateVendorPopUp";
 import VendorLinkPopUp from "./PopUp/VendorLinkPopUp";
 import ViewVendorPopUp from "./PopUp/ViewVendorPopUp";
-import { getVendors, deleteVendor } from "../../../../hooks/useVendor";
+import { getVendors, deleteVendor, getVendorTypeCounts } from "../../../../hooks/useVendor";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
 
@@ -22,14 +22,10 @@ const VENDOR_TYPE_CONFIG = [
   { type: "Other",              icon: "fa-ellipsis-h",   color: "#6c757d", bg: "#f0f0f0" },
 ];
 
-const VendorTypeCards = ({ vendors = [], totalVendors = 0 }) => {
-  // Count from current page vendors — for accurate totals we use totalVendors from pagination
-  const countByType = {};
-  vendors.forEach((v) => {
-    const t = (v.typeOfVendor || "Other").trim();
-    countByType[t] = (countByType[t] || 0) + 1;
-  });
-
+// ✅ FIXED: now takes pre-aggregated counts (from the whole DB), not the
+// paginated `vendors` array. Previously this only counted whatever 20
+// vendors were on the current page.
+const VendorTypeCards = ({ typeCounts = {}, totalVendors = 0 }) => {
   return (
     <div className="row px-2 mb-2">
       <div className="col-12">
@@ -53,7 +49,7 @@ const VendorTypeCards = ({ vendors = [], totalVendors = 0 }) => {
         {/* Type-wise Cards */}
         <div className="row g-2">
           {VENDOR_TYPE_CONFIG.map(({ type, icon, color, bg }) => {
-            const count = countByType[type] || 0;
+            const count = typeCounts[type] || 0;
             return (
               <div className="col-6 col-sm-4 col-md-3 col-xl-3" key={type}>
                 <div
@@ -127,6 +123,9 @@ export const VendorMasterGrid = () => {
     hasNextPage: false,
     hasPrevPage: false,
   });
+
+  // ✅ NEW: type-wise counts across ALL vendors in the DB (not just current page)
+  const [typeCounts, setTypeCounts] = useState({});
 
   // State to toggle between all vendors and link-registered vendors
   const [showOnlyLinkRegistered, setShowOnlyLinkRegistered] = useState(false);
@@ -218,6 +217,9 @@ export const VendorMasterGrid = () => {
     setCurrentPage(1);
   };
 
+  // Fetch paginated vendor list (unchanged, except AddPopUpShow added as a
+  // dependency so the grid also refreshes reliably after adding a vendor
+  // while already on page 1)
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -256,7 +258,24 @@ export const VendorMasterGrid = () => {
     };
 
     fetchData();
-  }, [currentPage, deletePopUpShow, updatePopUpShow, search, showOnlyLinkRegistered]);
+  }, [currentPage, deletePopUpShow, updatePopUpShow, search, showOnlyLinkRegistered, AddPopUpShow]);
+
+  // ✅ NEW: fetch type-wise counts across ALL vendors (whole company DB),
+  // refreshed whenever a vendor is added / updated / deleted.
+  useEffect(() => {
+    const fetchTypeCounts = async () => {
+      try {
+        const data = await getVendorTypeCounts();
+        if (data?.success) {
+          setTypeCounts(data.countByType || {});
+        }
+      } catch (error) {
+        console.error("Error fetching vendor type counts:", error);
+      }
+    };
+
+    fetchTypeCounts();
+  }, [deletePopUpShow, updatePopUpShow, AddPopUpShow]);
 
   const maxPageButtons = 5;
   const halfMaxButtons = Math.floor(maxPageButtons / 2);
@@ -380,7 +399,7 @@ export const VendorMasterGrid = () => {
 
                 {/* ── Vendor Type Summary Cards ── */}
                 <VendorTypeCards
-                  vendors={vendors}
+                  typeCounts={typeCounts}
                   totalVendors={pagination.totalVendors}
                 />
 
