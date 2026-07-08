@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { getVendors } from "../../../../../hooks/useVendor";
-import { getProducts } from "../../../../../hooks/useProduct";
+import { getProducts, getProductBrands } from "../../../../../hooks/useProduct";
 import { createPurchaseOrder } from "../../../../../hooks/usePurchaseOrder";
 import Select from "react-select";
 import AddInventoryPopup from "../../InventryMaster/PopUp/AddInventoryPopUp";
@@ -15,26 +15,21 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const [warehouseLocation, setWarehouseLocation] = useState("");
   const [remark, setRemark] = useState("");
   
-  // New fields for payment terms
   const [advancePay, setAdvancePayment] = useState(0);
   const [payAgainstDelivery, setPayAgainstDelivery] = useState(0);
   const [payAfterCompletion, setPayAfterCompletion] = useState(0);
   const [retention, setRetention] = useState(0);
   const [creditPeriod, setCreditPeriod] = useState(0);
   
-  // New fields for terms and conditions
   const [deliveryDate, setDeliveryDate] = useState("");
   const [materialFollowupDate, setMaterialFollowupDate] = useState("");
   
-  // New fields
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [location, setLocation] = useState("");
   const [termsDocument, setTermsDocument] = useState(null);
   
-  // NEW: Toggle state for default address
   const [useDefaultAddress, setUseDefaultAddress] = useState(false);
   
-  // Popups state
   const [showCreditPopup, setShowCreditPopup] = useState(false);
   const [showPaymentTermsPopup, setShowPaymentTermsPopup] = useState(false);
   const [showAddProductPopup, setShowAddProductPopup] = useState(false);
@@ -43,7 +38,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [vendorSearch, setVendorSearch] = useState("");
   
-  // Product related states
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [brands, setBrands] = useState([]);
@@ -69,15 +63,12 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     warranty: ""
   }]);
 
-  // Default address constants
   const DEFAULT_DELIVERY_ADDRESS = "Office No. - 05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India";
   const DEFAULT_LOCATION = "Baner, Pune";
 
-  // NEW: Handle toggle change
   const handleToggleDefaultAddress = () => {
     const newToggleState = !useDefaultAddress;
     setUseDefaultAddress(newToggleState);
-    
     if (newToggleState) {
       setDeliveryAddress(DEFAULT_DELIVERY_ADDRESS);
       setLocation(DEFAULT_LOCATION);
@@ -103,47 +94,44 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     loadVendors();
   }, [vendorSearch]);
 
-  // Load brands from localStorage and products from API
+  // ── FIX: Brands from DATABASE, products from API ──
   useEffect(() => {
     const loadInitialData = async () => {
-      const savedBrands = localStorage.getItem('productBrands');
-      let brandsFromStorage = [];
-      
-      if (savedBrands) {
-        brandsFromStorage = JSON.parse(savedBrands);
-        setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
-      } else {
-        brandsFromStorage = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
-        setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
+      // ── Load brands from DB ──
+      let dbBrands = [];
+      try {
+        const brandsData = await getProductBrands();
+        if (brandsData?.success && Array.isArray(brandsData.brands)) {
+          dbBrands = brandsData.brands;
+        }
+      } catch (e) {
+        console.error("Error loading brands from DB:", e);
       }
-      
+      if (dbBrands.length === 0) {
+        dbBrands = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
+      }
+
       setLoadingProducts(true);
       let allProducts = [];
       let currentPage = 1;
       const pageSize = 100;
       let hasMore = true;
-      
+
       try {
         while (hasMore) {
           const data = await getProducts(currentPage, pageSize, "");
-          
           if (data.success && data.products && data.products.length > 0) {
             allProducts = [...allProducts, ...data.products];
-            
-            if (data.products.length < pageSize) {
-              hasMore = false;
-            } else {
-              currentPage++;
-            }
+            if (data.products.length < pageSize) hasMore = false;
+            else currentPage++;
           } else {
             hasMore = false;
           }
         }
-        
+
         setProducts(allProducts);
-        
+
         const newBrandModelsMap = new Map();
-        
         allProducts.forEach(product => {
           if (product.brandName && product.model) {
             if (!newBrandModelsMap.has(product.brandName)) {
@@ -152,25 +140,26 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
             newBrandModelsMap.get(product.brandName).add(product.model);
           }
         });
-        
-        brandsFromStorage.forEach(brand => {
+
+        dbBrands.forEach(brand => {
           if (!newBrandModelsMap.has(brand)) {
             newBrandModelsMap.set(brand, new Set());
           }
         });
-        
+
         setBrandModelsMap(newBrandModelsMap);
-        
+
+        // Merge DB brands with any brands found on products
         const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
-        const mergedBrands = [...new Set([...brandsFromStorage, ...productBrands])];
+        const mergedBrands = [...new Set([...dbBrands, ...productBrands])];
         const brandOptions = mergedBrands.map(brand => ({ value: brand, label: brand }));
         setBrands(brandOptions);
         setAllBrands(brandOptions);
-        
+
         const uniqueModels = [...new Set(allProducts.map(p => p.model).filter(Boolean))];
         const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
         setAllModels(modelOptions);
-        
+
         console.log(`Loaded ${allProducts.length} products, ${brandOptions.length} brands, ${modelOptions.length} models`);
       } catch (error) {
         console.error("Error loading products:", error);
@@ -179,7 +168,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
         setLoadingProducts(false);
       }
     };
-    
+
     loadInitialData();
   }, []);
 
@@ -187,7 +176,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     if (items.length > 0) {
       const lastIndex = items.length - 1;
       const currentBrand = items[lastIndex].brandName;
-      
       if (currentBrand) {
         const brandModels = brandModelsMap.get(currentBrand);
         if (brandModels && brandModels.size > 0) {
@@ -221,23 +209,12 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
   const handleAddBlankItem = () => {
     setItems([...items, {
-      productName: "",
-      brandName: "",
-      modelNo: "",
-      description: "",
-      unit: "",
-      baseUOM: "",
-      quantity: 1,
-      price: 0,
-      discountPercent: 0,
-      taxPercent: 0,
-      hsnSac: "",
-      netValue: 0,
-      warranty: ""
+      productName: "", brandName: "", modelNo: "", description: "",
+      unit: "", baseUOM: "", quantity: 1, price: 0,
+      discountPercent: 0, taxPercent: 0, hsnSac: "", netValue: 0, warranty: ""
     }]);
     setModels([]);
   };
-
 
   const handleAddItemFromInventory = () => {
     setShowAddProductPopup(true);
@@ -275,7 +252,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
-    
+
     if (field === 'brandName') {
       if (value) {
         const brandModels = brandModelsMap.get(value);
@@ -291,7 +268,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       newItems[index].modelNo = "";
       newItems[index].baseUOM = "";
     }
-    
+
     if (field === 'modelNo' && value && newItems[index].brandName) {
       const product = products.find(
         p => p.brandName === newItems[index].brandName && p.model === value
@@ -304,69 +281,66 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
         newItems[index].hsnSac = product.hsnCode || "";
       }
     }
-    
+
     newItems[index].netValue = calculateNetValue(newItems[index]);
     setItems(newItems);
   };
 
+  // ── FIX: Refresh also loads brands from DB ──
   const refreshProducts = async () => {
     setLoadingProducts(true);
+
+    let dbBrands = [];
+    try {
+      const brandsData = await getProductBrands();
+      if (brandsData?.success && Array.isArray(brandsData.brands)) {
+        dbBrands = brandsData.brands;
+      }
+    } catch (e) {
+      console.error("Error loading brands from DB:", e);
+    }
+    if (dbBrands.length === 0) dbBrands = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
+
     let allProducts = [];
     let currentPage = 1;
     const pageSize = 100;
     let hasMore = true;
-    
+
     try {
       while (hasMore) {
         const data = await getProducts(currentPage, pageSize, "");
-        
         if (data.success && data.products && data.products.length > 0) {
           allProducts = [...allProducts, ...data.products];
-          
-          if (data.products.length < pageSize) {
-            hasMore = false;
-          } else {
-            currentPage++;
-          }
+          if (data.products.length < pageSize) hasMore = false;
+          else currentPage++;
         } else {
           hasMore = false;
         }
       }
-      
+
       setProducts(allProducts);
-      
+
       const newBrandModelsMap = new Map();
-      
       allProducts.forEach(product => {
         if (product.brandName && product.model) {
-          if (!newBrandModelsMap.has(product.brandName)) {
-            newBrandModelsMap.set(product.brandName, new Set());
-          }
+          if (!newBrandModelsMap.has(product.brandName)) newBrandModelsMap.set(product.brandName, new Set());
           newBrandModelsMap.get(product.brandName).add(product.model);
         }
       });
-      
-      const savedBrands = localStorage.getItem('productBrands');
-      let brandsFromStorage = [];
-      
-      if (savedBrands) {
-        brandsFromStorage = JSON.parse(savedBrands);
-      } else {
-        brandsFromStorage = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
-      }
-      
-      brandsFromStorage.forEach(brand => {
-        if (!newBrandModelsMap.has(brand)) {
-          newBrandModelsMap.set(brand, new Set());
-        }
+
+      dbBrands.forEach(brand => {
+        if (!newBrandModelsMap.has(brand)) newBrandModelsMap.set(brand, new Set());
       });
-      
+
       setBrandModelsMap(newBrandModelsMap);
-      
+
+      const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
+      const mergedBrands = [...new Set([...dbBrands, ...productBrands])];
+      setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));
+
       const uniqueModels = [...new Set(allProducts.map(p => p.model).filter(Boolean))];
-      const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
-      setAllModels(modelOptions);
-      
+      setAllModels(uniqueModels.map(model => ({ value: model, label: model })));
+
       toast.success("Products refreshed successfully");
     } catch (error) {
       console.error("Error refreshing products:", error);
@@ -394,14 +368,9 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       const amountAfterDiscount = baseAmount - discountAmount;
       return sum + (amountAfterDiscount * (item.taxPercent / 100));
     }, 0);
-    
-    const grandTotal = totalAmount + totalTax;
 
-    return { 
-      totalAmount, 
-      totalTax, 
-      grandTotal 
-    };
+    const grandTotal = totalAmount + totalTax;
+    return { totalAmount, totalTax, grandTotal };
   };
 
   const { totalAmount, totalTax, grandTotal } = calculateTotals();
@@ -449,19 +418,16 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       const formData = new FormData();
       formData.append('file', termsDocument);
       formData.append('poData', JSON.stringify(poData));
-      
+
       toast.loading("Creating Purchase Order...");
       try {
         const response = await fetch(`${process.env.REACT_APP_API_URL}/api/purchaseOrder/upload`, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          },
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           body: formData
         });
         const data = await response.json();
         toast.dismiss();
-
         if (data.success) {
           toast.success(data.message);
           handleAdd();
@@ -476,7 +442,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       toast.loading("Creating Purchase Order...");
       const data = await createPurchaseOrder(poData);
       toast.dismiss();
-
       if (data.success) {
         toast.success(data.message);
         handleAdd();
@@ -502,7 +467,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
             <div className="modal-body">
               <div className="row modal_body_height">
-                
+
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Vendor Name</label>
@@ -522,15 +487,11 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                 <div className="col-12 col-lg-3">
                   <div className="mb-3">
                     <label className="form-label label_text">Order Date</label>
-                    <input
-                      type="date"
-                      className="form-control rounded-0"
-                      value={orderDate}
+                    <input type="date" className="form-control rounded-0" value={orderDate}
                       onChange={(e) => {
                         const selectedDate = new Date(e.target.value);
                         const currentDate = new Date();
                         currentDate.setHours(0, 0, 0, 0);
-                        
                         if (selectedDate <= currentDate) {
                           setOrderDate(e.target.value);
                         } else {
@@ -546,23 +507,16 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                 <div className="col-12 col-lg-3">
                   <div className="mb-3">
                     <label className="form-label label_text">Order Time</label>
-                    <input
-                      type="time"
-                      className="form-control rounded-0"
-                      value={orderTime}
-                      onChange={(e) => setOrderTime(e.target.value)}
-                    />
+                    <input type="time" className="form-control rounded-0" value={orderTime}
+                      onChange={(e) => setOrderTime(e.target.value)} />
                   </div>
                 </div>
 
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Transaction Type</label>
-                    <select
-                      className="form-select rounded-0"
-                      value={transactionType}
-                      onChange={(e) => setTransactionType(e.target.value)}
-                    >
+                    <select className="form-select rounded-0" value={transactionType}
+                      onChange={(e) => setTransactionType(e.target.value)}>
                       <option value="">Select Transaction Type</option>
                       <option value="B2B">B2B</option>
                       <option value="SEZ">SEZ</option>
@@ -575,11 +529,8 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Project Purchase / Stock</label>
-                    <select
-                      className="form-select rounded-0"
-                      value={purchaseType}
-                      onChange={(e) => setPurchaseType(e.target.value)}
-                    >
+                    <select className="form-select rounded-0" value={purchaseType}
+                      onChange={(e) => setPurchaseType(e.target.value)}>
                       <option value="">Select Type</option>
                       <option value="Project Purchase">Project Purchase</option>
                       <option value="Stock">Stock</option>
@@ -591,13 +542,8 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label className="form-label label_text">Project Name</label>
-                      <Select
-                        value={selectedProject}
-                        onChange={setSelectedProject}
-                        options={projects}
-                        placeholder="Select Project..."
-                        isClearable
-                      />
+                      <Select value={selectedProject} onChange={setSelectedProject} options={projects}
+                        placeholder="Select Project..." isClearable />
                     </div>
                   </div>
                 )}
@@ -606,29 +552,17 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label className="form-label label_text">Warehouse Location</label>
-                      <input
-                        type="text"
-                        className="form-control rounded-0"
-                        value={warehouseLocation}
+                      <input type="text" className="form-control rounded-0" value={warehouseLocation}
                         onChange={(e) => setWarehouseLocation(e.target.value)}
-                        placeholder="Ex: Baner / Amazon / Mumbai / Bhosari"
-                        maxLength={200}
-                      />
+                        placeholder="Ex: Baner / Amazon / Mumbai / Bhosari" maxLength={200} />
                     </div>
                   </div>
                 )}
 
-                {/* NEW: Toggle Button Section */}
                 <div className="col-12 mb-3">
                   <div className="form-check form-switch">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="defaultAddressToggle"
-                      checked={useDefaultAddress}
-                      onChange={handleToggleDefaultAddress}
-                      style={{ cursor: "pointer" }}
-                    />
+                    <input className="form-check-input" type="checkbox" id="defaultAddressToggle"
+                      checked={useDefaultAddress} onChange={handleToggleDefaultAddress} style={{ cursor: "pointer" }} />
                     <label className="form-check-label" htmlFor="defaultAddressToggle" style={{ cursor: "pointer" }}>
                       Use Default Office Address
                     </label>
@@ -638,52 +572,32 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Delivery Address</label>
-                    <textarea
-                      className="form-control rounded-0"
-                      rows="2"
-                      value={deliveryAddress}
+                    <textarea className="form-control rounded-0" rows="2" value={deliveryAddress}
                       onChange={(e) => {
                         setDeliveryAddress(e.target.value);
-                        // If user manually edits and it's different from default, uncheck toggle
-                        if (useDefaultAddress && e.target.value !== DEFAULT_DELIVERY_ADDRESS) {
-                          setUseDefaultAddress(false);
-                        }
+                        if (useDefaultAddress && e.target.value !== DEFAULT_DELIVERY_ADDRESS) setUseDefaultAddress(false);
                       }}
-                      placeholder="Enter delivery address"
-                      maxLength={500}
-                    />
+                      placeholder="Enter delivery address" maxLength={500} />
                   </div>
                 </div>
 
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Location</label>
-                    <input
-                      type="text"
-                      className="form-control rounded-0"
-                      value={location}
+                    <input type="text" className="form-control rounded-0" value={location}
                       onChange={(e) => {
                         setLocation(e.target.value);
-                        // If user manually edits and it's different from default, uncheck toggle
-                        if (useDefaultAddress && e.target.value !== DEFAULT_LOCATION) {
-                          setUseDefaultAddress(false);
-                        }
+                        if (useDefaultAddress && e.target.value !== DEFAULT_LOCATION) setUseDefaultAddress(false);
                       }}
-                      placeholder="Enter location"
-                      maxLength={200}
-                    />
+                      placeholder="Enter location" maxLength={200} />
                   </div>
                 </div>
 
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Terms & Conditions Document</label>
-                    <input
-                      type="file"
-                      className="form-control rounded-0"
-                      onChange={(e) => setTermsDocument(e.target.files[0])}
-                      accept=".pdf,.doc,.docx"
-                    />
+                    <input type="file" className="form-control rounded-0"
+                      onChange={(e) => setTermsDocument(e.target.files[0])} accept=".pdf,.doc,.docx" />
                   </div>
                 </div>
 
@@ -691,29 +605,16 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <h6 className="fw-bold">Item Details</h6>
                     <div className="d-flex gap-2">
-                      <button 
-                        type="button" 
-                        className="btn btn-sm btn-primary" 
-                        onClick={handleAddBlankItem}
-                        style={{ display: "inline-flex", alignItems: "center" }}
-                      >
+                      <button type="button" className="btn btn-sm btn-primary" onClick={handleAddBlankItem}
+                        style={{ display: "inline-flex", alignItems: "center" }}>
                         <i className="fa fa-plus me-1"></i> Add Item
                       </button>
-                      <button 
-                        type="button" 
-                        className="btn btn-sm btn-info" 
-                        onClick={handleAddItemFromInventory}
-                        style={{ display: "inline-flex", alignItems: "center" }}
-                      >
+                      <button type="button" className="btn btn-sm btn-info" onClick={handleAddItemFromInventory}
+                        style={{ display: "inline-flex", alignItems: "center" }}>
                         <i className="fa fa-plus me-1"></i> Add Product
                       </button>
-                      <button 
-                        type="button" 
-                        className="btn btn-sm btn-warning" 
-                        onClick={refreshProducts}
-                        style={{ display: "inline-flex", alignItems: "center" }}
-                        disabled={loadingProducts}
-                      >
+                      <button type="button" className="btn btn-sm btn-warning" onClick={refreshProducts}
+                        style={{ display: "inline-flex", alignItems: "center" }} disabled={loadingProducts}>
                         <i className="fa fa-refresh me-1"></i> {loadingProducts ? "Loading..." : "Refresh"}
                       </button>
                     </div>
@@ -728,249 +629,188 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                     </div>
                   )}
 
-                <div className="table-responsive">
-  <table className="table table-bordered">
-    <thead>
-      <tr>
-        <th>Brand Name</th>
-        <th>Model</th>
-        <th>Product Name</th>
-        <th>HSN/SAC</th>
-        <th>Description</th>
-        <th>Base UOM</th>
-        <th>Quantity</th>
-        <th>Price (INR/USD)</th>
-        <th>Discount %</th>
-        <th>Tax %</th>
-        <th>Warranty</th>
-        <th>Net Value</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {items.map((item, index) => {
-        const brandModels = brandModelsMap.get(item.brandName);
-        const modelOptions = brandModels ? Array.from(brandModels).map(model => ({ value: model, label: model })) : [];
+                  <div className="table-responsive">
+                    <table className="table table-bordered">
+                      <thead>
+                        <tr>
+                          <th>Brand Name</th>
+                          <th>Model</th>
+                          <th>Product Name</th>
+                          <th>HSN/SAC</th>
+                          <th>Description</th>
+                          <th>Base UOM</th>
+                          <th>Quantity</th>
+                          <th>Price (INR/USD)</th>
+                          <th>Discount %</th>
+                          <th>Tax %</th>
+                          <th>Warranty</th>
+                          <th>Net Value</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item, index) => {
+                          const brandModels = brandModelsMap.get(item.brandName);
+                          const modelOptions = brandModels ? Array.from(brandModels).map(model => ({ value: model, label: model })) : [];
 
-        return (
-          <tr key={index}>
-            <td>
-              <Select
-                value={allBrands.find(b => b.value === item.brandName) || null}
-                onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
-                options={allBrands}
-                placeholder="Select Brand..."
-                isClearable
-                className="react-select-container"
-                classNamePrefix="react-select"
-                isLoading={loadingProducts}
-                isDisabled={loadingProducts}
-                menuPortalTarget={document.body}
-                styles={{
-                  menuPortal: base => ({ ...base, zIndex: 9999 }),
-                  container: base => ({ ...base, minWidth: '150px' })
-                }}
-              />
-            </td>
-            <td>
-              <Select
-                value={modelOptions.find(m => m.value === item.modelNo) || null}
-                onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
-                options={modelOptions}
-                placeholder="Select Model..."
-                isClearable
-                className="react-select-container"
-                classNamePrefix="react-select"
-                isDisabled={!item.brandName || loadingProducts}
-                menuPortalTarget={document.body}
-                styles={{
-                  menuPortal: base => ({ ...base, zIndex: 9999 }),
-                  container: base => ({ ...base, minWidth: '150px' })
-                }}
-              />
-            </td>
-            <td>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                style={{ minWidth: "150px" }}
-                value={item.productName}
-                onChange={(e) => handleItemChange(index, 'productName', e.target.value)}
-                placeholder="Product Name"
-              />
-            </td>
-            <td>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                style={{ minWidth: "90px" }}
-                value={item.hsnSac}
-                onChange={(e) => handleItemChange(index, 'hsnSac', e.target.value)}
-                placeholder="HSN/SAC"
-              />
-            </td>
-            <td>
-              <textarea
-                className="form-control form-control-sm"
-                style={{ width: "185px" }}
-                value={item.description}
-                onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                rows="1"
-              />
-            </td>
-            <td>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                style={{ minWidth: "100px" }}
-                value={item.baseUOM}
-                onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)}
-                placeholder="Base UOM"
-              />
-            </td>
-            <td>
-              <input
-                type="number"
-                className="form-control form-control-sm"
-                style={{ minWidth: "80px" }}
-                value={item.quantity}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === '' || value === '.') {
-                    handleItemChange(index, 'quantity', value);
-                  } else if (/^\d*\.?\d{0,2}$/.test(value)) {
-                    handleItemChange(index, 'quantity', Number(value));
-                  }
-                }}
-                min="1"
-                step="0.01"
-              />
-            </td>
-            <td>
-              <input
-                type="number"
-                className="form-control form-control-sm"
-                style={{ minWidth: "100px" }}
-                value={item.price}
-                onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
-                min="0"
-                step="0.01"
-              />
-            </td>
-            <td>
-              <input
-                type="number"
-                className="form-control form-control-sm"
-                style={{ minWidth: "80px" }}
-                value={item.discountPercent}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === '' || value === '.') {
-                    handleItemChange(index, 'discountPercent', value);
-                  } else if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
-                    handleItemChange(index, 'discountPercent', Number(value));
-                  }
-                }}
-                min="0"
-                max="100"
-                step="0.01"
-              />
-            </td>
-            <td>
-  <input
-    type="number"
-    className="form-control form-control-sm"
-    style={{ minWidth: "80px" }}
-    value={item.taxPercent}
-    onChange={(e) => {
-      const value = e.target.value;
-      // Allow decimal input like 2.5, 18.5
-      if (value === '' || value === '.') {
-        handleItemChange(index, 'taxPercent', value);
-      } else if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
-        handleItemChange(index, 'taxPercent', Number(value));
-      }
-    }}
-    min="0"
-    max="100"
-    step="0.01"
-  />
-</td>
-            <td>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                style={{ minWidth: "120px" }}
-                value={item.warranty}
-                onChange={(e) => handleItemChange(index, 'warranty', e.target.value)}
-                placeholder="e.g. 1 Year"
-              />
-            </td>
-            <td>
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                style={{ minWidth: "100px" }}
-                value={item.netValue.toFixed(2)}
-                readOnly
-              />
-            </td>
-            <td>
-              <button
-                type="button"
-                className="btn btn-sm btn-danger"
-                onClick={() => handleRemoveItem(index)}
-                disabled={items.length === 1}
-              >
-                <i className="fa fa-trash"></i>
-              </button>
-            </td>
-          </tr>
-        );
-      })}
-    </tbody>
-    <tfoot>
-      <tr>
-        <td colSpan="11" className="text-end fw-bold">Total Amount</td>
-        <td className="fw-bold">{totalAmount.toFixed(2)}</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td colSpan="11" className="text-end fw-bold">Total Tax</td>
-        <td className="fw-bold">{totalTax.toFixed(2)}</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td colSpan="11" className="text-end fw-bold">Grand Total</td>
-        <td className="fw-bold">{grandTotal.toFixed(2)}</td>
-        <td></td>
-      </tr>
-    </tfoot>
-  </table>
-</div>
+                          return (
+                            <tr key={index}>
+                              <td>
+                                <Select
+                                  value={allBrands.find(b => b.value === item.brandName) || null}
+                                  onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
+                                  options={allBrands}
+                                  placeholder="Select Brand..."
+                                  isClearable
+                                  className="react-select-container"
+                                  classNamePrefix="react-select"
+                                  isLoading={loadingProducts}
+                                  isDisabled={loadingProducts}
+                                  menuPortalTarget={document.body}
+                                  styles={{
+                                    menuPortal: base => ({ ...base, zIndex: 9999 }),
+                                    container: base => ({ ...base, minWidth: '150px' })
+                                  }}
+                                />
+                              </td>
+                              <td>
+                                <Select
+                                  value={modelOptions.find(m => m.value === item.modelNo) || null}
+                                  onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
+                                  options={modelOptions}
+                                  placeholder="Select Model..."
+                                  isClearable
+                                  className="react-select-container"
+                                  classNamePrefix="react-select"
+                                  isDisabled={!item.brandName || loadingProducts}
+                                  menuPortalTarget={document.body}
+                                  styles={{
+                                    menuPortal: base => ({ ...base, zIndex: 9999 }),
+                                    container: base => ({ ...base, minWidth: '150px' })
+                                  }}
+                                />
+                              </td>
+                              <td>
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "150px" }} value={item.productName}
+                                  onChange={(e) => handleItemChange(index, 'productName', e.target.value)}
+                                  placeholder="Product Name" />
+                              </td>
+                              <td>
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "90px" }} value={item.hsnSac}
+                                  onChange={(e) => handleItemChange(index, 'hsnSac', e.target.value)}
+                                  placeholder="HSN/SAC" />
+                              </td>
+                              <td>
+                                <textarea className="form-control form-control-sm"
+                                  style={{ width: "185px" }} value={item.description}
+                                  onChange={(e) => handleItemChange(index, 'description', e.target.value)} rows="1" />
+                              </td>
+                              <td>
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }} value={item.baseUOM}
+                                  onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)}
+                                  placeholder="Base UOM" />
+                              </td>
+                              <td>
+                                <input type="number" className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }} value={item.quantity}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === '' || value === '.') {
+                                      handleItemChange(index, 'quantity', value);
+                                    } else if (/^\d*\.?\d{0,2}$/.test(value)) {
+                                      handleItemChange(index, 'quantity', Number(value));
+                                    }
+                                  }}
+                                  min="1" step="0.01" />
+                              </td>
+                              <td>
+                                <input type="number" className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }} value={item.price}
+                                  onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
+                                  min="0" step="0.01" />
+                              </td>
+                              <td>
+                                <input type="number" className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }} value={item.discountPercent}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === '' || value === '.') {
+                                      handleItemChange(index, 'discountPercent', value);
+                                    } else if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
+                                      handleItemChange(index, 'discountPercent', Number(value));
+                                    }
+                                  }}
+                                  min="0" max="100" step="0.01" />
+                              </td>
+                              <td>
+                                <input type="number" className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }} value={item.taxPercent}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === '' || value === '.') {
+                                      handleItemChange(index, 'taxPercent', value);
+                                    } else if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
+                                      handleItemChange(index, 'taxPercent', Number(value));
+                                    }
+                                  }}
+                                  min="0" max="100" step="0.01" />
+                              </td>
+                              <td>
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "120px" }} value={item.warranty}
+                                  onChange={(e) => handleItemChange(index, 'warranty', e.target.value)}
+                                  placeholder="e.g. 1 Year" />
+                              </td>
+                              <td>
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }} value={item.netValue.toFixed(2)} readOnly />
+                              </td>
+                              <td>
+                                <button type="button" className="btn btn-sm btn-danger"
+                                  onClick={() => handleRemoveItem(index)} disabled={items.length === 1}>
+                                  <i className="fa fa-trash"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <td colSpan="11" className="text-end fw-bold">Total Amount</td>
+                          <td className="fw-bold">{totalAmount.toFixed(2)}</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td colSpan="11" className="text-end fw-bold">Total Tax</td>
+                          <td className="fw-bold">{totalTax.toFixed(2)}</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td colSpan="11" className="text-end fw-bold">Grand Total</td>
+                          <td className="fw-bold">{grandTotal.toFixed(2)}</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
 
                 <div className="col-12 mt-3">
                   <h6 className="fw-bold">Terms and Conditions</h6>
-                  
                   <div className="row">
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
                         <label className="form-label label_text">Credit Period</label>
                         <div className="input-group">
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
+                          <input type="text" className="form-control rounded-0"
                             value={creditPeriod ? `${creditPeriod} days` : "Click to set credit period"}
-                            onClick={() => setShowCreditPopup(true)}
-                            readOnly
-                            style={{ cursor: "pointer" }}
-                          />
-                          <button
-                            className="btn btn-outline-secondary rounded-0"
-                            type="button"
-                            onClick={() => setShowCreditPopup(true)}
-                          >
+                            onClick={() => setShowCreditPopup(true)} readOnly style={{ cursor: "pointer" }} />
+                          <button className="btn btn-outline-secondary rounded-0" type="button"
+                            onClick={() => setShowCreditPopup(true)}>
                             <i className="fa fa-calendar"></i>
                           </button>
                         </div>
@@ -981,19 +821,11 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                       <div className="mb-3">
                         <label className="form-label label_text">Payment Terms</label>
                         <div className="input-group">
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
+                          <input type="text" className="form-control rounded-0"
                             value={`Advance: ${advancePay}%, Delivery: ${payAgainstDelivery}%, Completion: ${payAfterCompletion}%, Retention: ${retention}%`}
-                            onClick={() => setShowPaymentTermsPopup(true)}
-                            readOnly
-                            style={{ cursor: "pointer" }}
-                          />
-                          <button
-                            className="btn btn-outline-secondary rounded-0"
-                            type="button"
-                            onClick={() => setShowPaymentTermsPopup(true)}
-                          >
+                            onClick={() => setShowPaymentTermsPopup(true)} readOnly style={{ cursor: "pointer" }} />
+                          <button className="btn btn-outline-secondary rounded-0" type="button"
+                            onClick={() => setShowPaymentTermsPopup(true)}>
                             <i className="fa fa-percent"></i>
                           </button>
                         </div>
@@ -1003,24 +835,16 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
                         <label className="form-label label_text">Expected Delivery Date</label>
-                        <input
-                          type="date"
-                          className="form-control rounded-0"
-                          value={deliveryDate}
-                          onChange={(e) => setDeliveryDate(e.target.value)}
-                        />
+                        <input type="date" className="form-control rounded-0" value={deliveryDate}
+                          onChange={(e) => setDeliveryDate(e.target.value)} />
                       </div>
                     </div>
 
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
                         <label className="form-label label_text">Material Followup Date</label>
-                        <input
-                          type="date"
-                          className="form-control rounded-0"
-                          value={materialFollowupDate}
-                          onChange={(e) => setMaterialFollowupDate(e.target.value)}
-                        />
+                        <input type="date" className="form-control rounded-0" value={materialFollowupDate}
+                          onChange={(e) => setMaterialFollowupDate(e.target.value)} />
                       </div>
                     </div>
                   </div>
@@ -1029,23 +853,14 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                 <div className="col-12 mt-3">
                   <div className="mb-3">
                     <label className="form-label label_text">Remark</label>
-                    <textarea
-                      className="form-control rounded-0"
-                      rows="3"
-                      value={remark}
-                      onChange={(e) => setRemark(e.target.value)}
-                      maxLength={1000}
-                    />
+                    <textarea className="form-control rounded-0" rows="3" value={remark}
+                      onChange={(e) => setRemark(e.target.value)} maxLength={1000} />
                   </div>
                 </div>
 
                 <div className="col-12 pt-3 mt-2">
-                  <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
-                    Add
-                  </button>
-                  <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
-                    Cancel
-                  </button>
+                  <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">Add</button>
+                  <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">Cancel</button>
                 </div>
               </div>
             </div>
@@ -1054,7 +869,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       </div>
 
       {showAddProductPopup && (
-        <AddInventoryPopup 
+        <AddInventoryPopup
           onAddInventory={handleProductAdded}
           onClose={() => setShowAddProductPopup(false)}
         />
@@ -1073,29 +888,12 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
               <div className="modal-body">
                 <div className="mb-3">
                   <label className="form-label label_text">Credit Period (Days)</label>
-                  <input
-                    type="number"
-                    className="form-control rounded-0"
-                    value={creditPeriod}
-                    onChange={(e) => setCreditPeriod(Number(e.target.value))}
-                    min="0"
-                  />
+                  <input type="number" className="form-control rounded-0" value={creditPeriod}
+                    onChange={(e) => setCreditPeriod(Number(e.target.value))} min="0" />
                 </div>
                 <div className="d-flex justify-content-end">
-                  <button
-                    type="button"
-                    className="btn btn-secondary me-2"
-                    onClick={() => setShowCreditPopup(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => setShowCreditPopup(false)}
-                  >
-                    Save
-                  </button>
+                  <button type="button" className="btn btn-secondary me-2" onClick={() => setShowCreditPopup(false)}>Cancel</button>
+                  <button type="button" className="btn btn-primary" onClick={() => setShowCreditPopup(false)}>Save</button>
                 </div>
               </div>
             </div>
@@ -1116,80 +914,39 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
               <div className="modal-body">
                 <div className="mb-3">
                   <label className="form-label label_text">Advance Payment (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    className="form-control rounded-0"
+                  <input type="number" step="0.01" min="0" max="100" className="form-control rounded-0"
                     value={advancePay}
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (/^\d*\.?\d*$/.test(value) && Number(value) <= 100) {
-                        setAdvancePayment(value);
-                      }
-                    }}
-                  />
+                      if (/^\d*\.?\d*$/.test(value) && Number(value) <= 100) setAdvancePayment(value);
+                    }} />
                 </div>
                 <div className="mb-3">
                   <label className="form-label label_text">Pay Against Delivery (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    className="form-control rounded-0"
+                  <input type="number" step="0.01" min="0" max="100" className="form-control rounded-0"
                     value={payAgainstDelivery}
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
-                        setPayAgainstDelivery(value);
-                      }
-                    }}
-                  />
+                      if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) setPayAgainstDelivery(value);
+                    }} />
                 </div>
                 <div className="mb-3">
                   <label className="form-label label_text">Pay After Completion (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    className="form-control rounded-0"
+                  <input type="number" step="0.01" min="0" max="100" className="form-control rounded-0"
                     value={payAfterCompletion}
                     onChange={(e) => {
                       const value = e.target.value;
-                      if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
-                        setPayAfterCompletion(value);
-                      }
-                    }}
-                  />
+                      if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) setPayAfterCompletion(value);
+                    }} />
                 </div>
                 <div className="mb-3">
                   <label className="form-label label_text">Retention (%)</label>
-                  <input
-                    type="number"
-                    className="form-control rounded-0"
-                    value={retention}
-                    readOnly
-                    style={{ backgroundColor: '#e9ecef' }}
-                  />
+                  <input type="number" className="form-control rounded-0" value={retention}
+                    readOnly style={{ backgroundColor: '#e9ecef' }} />
                 </div>
                 <div className="d-flex justify-content-end">
-                  <button
-                    type="button"
-                    className="btn btn-secondary me-2"
-                    onClick={() => setShowPaymentTermsPopup(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => setShowPaymentTermsPopup(false)}
-                  >
-                    Save
-                  </button>
+                  <button type="button" className="btn btn-secondary me-2" onClick={() => setShowPaymentTermsPopup(false)}>Cancel</button>
+                  <button type="button" className="btn btn-primary" onClick={() => setShowPaymentTermsPopup(false)}>Save</button>
                 </div>
               </div>
             </div>

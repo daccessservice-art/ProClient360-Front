@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { getProductBrands } from "../../../../../hooks/useProduct";
 
 const baseUrl = process.env.REACT_APP_API_URL;
 
 const AddInventoryPopup = ({ onAddInventory, onClose }) => {
-  // ─── Product Search State ─────────────────────────────────────────────────
   const [productSearch, setProductSearch] = useState("");
   const [productSearchResults, setProductSearchResults] = useState([]);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -14,7 +14,6 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
   const searchDebounceRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // ─── Form State ────────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
     materialCode: '',
     materialName: '',
@@ -51,6 +50,7 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
   const [gstEffectiveDate, setGstEffectiveDate] = useState("");
 
   const [allBrands, setAllBrands] = useState([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
   const [allCategories, setAllCategories] = useState([]);
 
   const categories = ['Raw Material', 'Finished Goods', 'Repairing Material', 'Scrap', 'Asset'];
@@ -63,17 +63,29 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     { value: "Asset", label: "Asset" }
   ];
 
+  // ── FIX: Brands now load from DATABASE via API ──
   useEffect(() => {
-    const savedBrands = localStorage.getItem('productBrands');
-    setAllBrands(savedBrands ? JSON.parse(savedBrands) : ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"]);
+    const loadBrands = async () => {
+      setBrandsLoading(true);
+      const data = await getProductBrands();
+      if (data?.success && Array.isArray(data.brands) && data.brands.length > 0) {
+        setAllBrands(data.brands);
+      } else {
+        setAllBrands(["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"]);
+      }
+      setBrandsLoading(false);
+    };
+    loadBrands();
+  }, []);
+
+  // ── Categories: localStorage-based (no DB endpoint) ──
+  useEffect(() => {
     const savedCategories = localStorage.getItem('productCategories');
     setAllCategories(savedCategories ? JSON.parse(savedCategories) : ["Electronics", "Clothing", "Food", "Furniture", "Stationery", "Tools"]);
   }, []);
 
-  useEffect(() => { localStorage.setItem('productBrands', JSON.stringify(allBrands)); }, [allBrands]);
   useEffect(() => { localStorage.setItem('productCategories', JSON.stringify(allCategories)); }, [allCategories]);
 
-  // ─── Close dropdown on outside click ────────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -84,7 +96,6 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ─── Product Search (debounced) ──────────────────────────────────────────
   const searchProducts = async (query) => {
     if (!query || query.trim().length < 2) {
       setProductSearchResults([]);
@@ -114,21 +125,17 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
   const handleProductSearchChange = (e) => {
     const val = e.target.value;
     setProductSearch(val);
-    if (!val) {
-      setSelectedProductId(null);
-    }
+    if (!val) setSelectedProductId(null);
     clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => searchProducts(val), 350);
   };
 
-  // ─── Auto-fill all fields from selected Product Master record ───────────
   const handleSelectProduct = (product) => {
     setSelectedProductId(product._id);
     setProductSearch(product.productName || "");
     setShowProductDropdown(false);
     setProductSearchResults([]);
 
-    // Fill all matching fields
     setProductName(product.productName || "");
     setBrandName(product.brandName || "");
     setModel(product.model || "");
@@ -144,24 +151,26 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     setDiscountValue(product.discountValue > 0 ? String(product.discountValue) : "");
     setTaxType(product.taxType || "none");
     setGstRate(product.gstRate > 0 ? String(product.gstRate) : "");
-    setGstEffectiveDate(
-      product.gstEffectiveDate ? product.gstEffectiveDate.substring(0, 10) : ""
-    );
+    setGstEffectiveDate(product.gstEffectiveDate ? product.gstEffectiveDate.substring(0, 10) : "");
 
-    // Map product category group to inventory category
+    // Ensure selected brand is in dropdown
+    if (product.brandName && !allBrands.includes(product.brandName)) {
+      setAllBrands(prev => [...prev, product.brandName]);
+    }
+    // Ensure selected category is in dropdown
+    if (product.productCategory && !allCategories.includes(product.productCategory)) {
+      setAllCategories(prev => [...prev, product.productCategory]);
+    }
+
     const catMap = {
-      'raw material': 'Raw Material',
-      'finish material': 'Finished Goods',
-      'finished goods': 'Finished Goods',
-      'scrap': 'Scrap',
-      'repairing material': 'Repairing Material',
-      'work in progress': 'Raw Material',
+      'raw material': 'Raw Material', 'finish material': 'Finished Goods',
+      'finished goods': 'Finished Goods', 'scrap': 'Scrap',
+      'repairing material': 'Repairing Material', 'work in progress': 'Raw Material',
     };
     const mappedCat = catMap[(product.category || '').toLowerCase()] || 'Raw Material';
     setCategory(mappedCat);
     setFormData(prev => ({ ...prev, category: mappedCat, unitPrice: product.purchasePrice > 0 ? String(product.purchasePrice) : prev.unitPrice }));
 
-    // Opening Stock from product's currentStockQty
     if (product.currentStockQty > 0) {
       setFormData(prev => ({ ...prev, currentStock: String(product.currentStockQty) }));
     }
@@ -169,7 +178,6 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     toast.success(`Product "${product.productName}" selected — fields auto-filled`);
   };
 
-  // ─── Clear product selection ─────────────────────────────────────────────
   const handleClearProduct = () => {
     setSelectedProductId(null);
     setProductSearch("");
@@ -182,7 +190,6 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     setFormData(prev => ({ ...prev, category: 'Raw Material', unitPrice: '', currentStock: '' }));
   };
 
-  // ─── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = (e) => {
     e.preventDefault();
     const validCategory = categories.includes(category) ? category : 'Raw Material';
@@ -190,46 +197,28 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     const combinedData = {
       ...formData,
       category: validCategory,
-      productName,
-      brandName,
-      model,
-      hsnCode,
-      productCategory,
-      baseUOM,
+      productName, brandName, model, hsnCode, productCategory, baseUOM,
       uomConversion: parseFloat(uomConversion) || 1,
-      mrp: parseFloat(mrp) || 0,
-      salesPrice: parseFloat(salesPrice) || 0,
-      purchasePrice: parseFloat(purchasePrice) || 0,
-      minQtyLevel: parseFloat(minQtyLevel) || 0,
+      mrp: parseFloat(mrp) || 0, salesPrice: parseFloat(salesPrice) || 0,
+      purchasePrice: parseFloat(purchasePrice) || 0, minQtyLevel: parseFloat(minQtyLevel) || 0,
       discountType,
       discountValue: discountType === "Zero Discount" ? 0 : parseFloat(discountValue) || 0,
-      taxType,
-      gstRate: taxType === "gst" ? parseFloat(gstRate) || 0 : 0,
+      taxType, gstRate: taxType === "gst" ? parseFloat(gstRate) || 0 : 0,
       gstEffectiveDate: taxType === "gst" ? gstEffectiveDate : "",
       createdAt: new Date().toISOString(),
-      // Pass linked product ID so backend can sync currentStockQty if needed
       linkedProductId: selectedProductId || null,
     };
 
     onAddInventory(combinedData);
   };
 
-  // ─── Input handlers ───────────────────────────────────────────────────────
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // ✅ FIXED: Allow all characters including special characters (&, -, /, (, ), ., etc.)
-  const handleProductNameChange = (e) => {
-    setProductName(e.target.value);
-  };
-
-  // ✅ FIXED: Allow all characters including special characters
-  const handleModelChange = (e) => {
-    setModel(e.target.value);
-  };
-
+  const handleProductNameChange = (e) => { setProductName(e.target.value); };
+  const handleModelChange = (e) => { setModel(e.target.value); };
   const handleHsnCodeChange = (e) => { if (/^\d{0,8}$/.test(e.target.value)) setHsnCode(e.target.value); };
   const handleMrpChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setMrp(e.target.value); };
   const handleSalesPriceChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setSalesPrice(e.target.value); };
@@ -273,7 +262,7 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
               <div className="modal-body" style={{ maxHeight: 'calc(80vh - 240px)', overflowY: 'auto' }}>
                 <div className="row g-3">
 
-                  {/* ── Product Master Search ── */}
+                  {/* Product Master Search */}
                   <div className="col-12">
                     <div className="border rounded p-3 mb-2" style={{ backgroundColor: '#f0f7ff', borderColor: '#93c5fd !important' }}>
                       <label className="form-label fw-bold text-primary mb-2">
@@ -290,21 +279,13 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                             }
                           </span>
                           <input
-                            type="text"
-                            className="form-control"
+                            type="text" className="form-control"
                             placeholder="Type product name, brand, model, HSN... (min 2 chars)"
-                            value={productSearch}
-                            onChange={handleProductSearchChange}
-                            autoComplete="off"
+                            value={productSearch} onChange={handleProductSearchChange} autoComplete="off"
                             style={{ borderLeft: 'none' }}
                           />
                           {selectedProductId && (
-                            <button
-                              type="button"
-                              className="btn btn-outline-danger btn-sm"
-                              onClick={handleClearProduct}
-                              title="Clear selection"
-                            >
+                            <button type="button" className="btn btn-outline-danger btn-sm" onClick={handleClearProduct} title="Clear selection">
                               <i className="fa-solid fa-xmark"></i> Clear
                             </button>
                           )}
@@ -312,65 +293,32 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
 
                         {selectedProductId && (
                           <div className="mt-1">
-                            <span className="badge bg-success">
-                              <i className="fa-solid fa-check me-1"></i>
-                              Product selected — fields auto-filled from Product Master
-                            </span>
+                            <span className="badge bg-success"><i className="fa-solid fa-check me-1"></i>Product selected — fields auto-filled from Product Master</span>
                           </div>
                         )}
 
-                        {/* Dropdown Results */}
                         {showProductDropdown && productSearchResults.length > 0 && (
-                          <div
-                            className="position-absolute w-100 bg-white border rounded shadow-lg"
-                            style={{ zIndex: 9999, top: '100%', maxHeight: '260px', overflowY: 'auto' }}
-                          >
+                          <div className="position-absolute w-100 bg-white border rounded shadow-lg" style={{ zIndex: 9999, top: '100%', maxHeight: '260px', overflowY: 'auto' }}>
                             {productSearchResults.map((product) => (
-                              <div
-                                key={product._id}
-                                className="px-3 py-2 border-bottom cursor-pointer"
-                                style={{ cursor: 'pointer' }}
+                              <div key={product._id} className="px-3 py-2 border-bottom cursor-pointer" style={{ cursor: 'pointer' }}
                                 onMouseDown={() => handleSelectProduct(product)}
                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = '#eff6ff'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}
-                              >
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}>
                                 <div className="d-flex justify-content-between align-items-start">
                                   <div>
                                     <strong style={{ fontSize: '0.88rem' }}>{product.productName}</strong>
-                                    {product.brandName && (
-                                      <span className="text-muted ms-2" style={{ fontSize: '0.78rem' }}>
-                                        {product.brandName}
-                                      </span>
-                                    )}
-                                    {product.model && (
-                                      <span className="badge bg-light text-dark ms-1" style={{ fontSize: '0.7rem' }}>
-                                        {product.model}
-                                      </span>
-                                    )}
+                                    {product.brandName && <span className="text-muted ms-2" style={{ fontSize: '0.78rem' }}>{product.brandName}</span>}
+                                    {product.model && <span className="badge bg-light text-dark ms-1" style={{ fontSize: '0.7rem' }}>{product.model}</span>}
                                   </div>
                                   <div className="text-end">
-                                    {product.purchasePrice > 0 && (
-                                      <span className="badge bg-success me-1" style={{ fontSize: '0.7rem' }}>
-                                        ₹{product.purchasePrice}
-                                      </span>
-                                    )}
-                                    {product.currentStockQty > 0 && (
-                                      <span className="badge bg-primary" style={{ fontSize: '0.7rem' }}>
-                                        Stock: {product.currentStockQty} {product.baseUOM}
-                                      </span>
-                                    )}
+                                    {product.purchasePrice > 0 && <span className="badge bg-success me-1" style={{ fontSize: '0.7rem' }}>₹{product.purchasePrice}</span>}
+                                    {product.currentStockQty > 0 && <span className="badge bg-primary" style={{ fontSize: '0.7rem' }}>Stock: {product.currentStockQty} {product.baseUOM}</span>}
                                   </div>
                                 </div>
                                 <div className="mt-1">
-                                  {product.hsnCode && (
-                                    <small className="text-muted me-2">HSN: {product.hsnCode}</small>
-                                  )}
-                                  {product.productCategory && (
-                                    <small className="text-muted me-2">Cat: {product.productCategory}</small>
-                                  )}
-                                  {product.baseUOM && (
-                                    <small className="text-muted">UOM: {product.baseUOM}</small>
-                                  )}
+                                  {product.hsnCode && <small className="text-muted me-2">HSN: {product.hsnCode}</small>}
+                                  {product.productCategory && <small className="text-muted me-2">Cat: {product.productCategory}</small>}
+                                  {product.baseUOM && <small className="text-muted">UOM: {product.baseUOM}</small>}
                                 </div>
                               </div>
                             ))}
@@ -378,29 +326,21 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                         )}
 
                         {showProductDropdown && productSearchResults.length === 0 && !productSearchLoading && (
-                          <div
-                            className="position-absolute w-100 bg-white border rounded shadow-sm p-3 text-center text-muted"
-                            style={{ zIndex: 9999, top: '100%' }}
-                          >
-                            <i className="fa-solid fa-circle-info me-1"></i>
-                            No products found. Fill fields manually below.
+                          <div className="position-absolute w-100 bg-white border rounded shadow-sm p-3 text-center text-muted" style={{ zIndex: 9999, top: '100%' }}>
+                            <i className="fa-solid fa-circle-info me-1"></i>No products found. Fill fields manually below.
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Brand Name */}
+                  {/* Brand Name — now from DB */}
                   <div className="col-md-6">
                     <label htmlFor="brandName" className="form-label">Brand Name</label>
                     <div className="input-group">
-                      <select
-                        className="form-select rounded-0"
-                        id="brandName"
-                        value={brandName}
-                        onChange={(e) => setBrandName(e.target.value)}
-                      >
-                        <option value="">Select Brand</option>
+                      <select className="form-select rounded-0" id="brandName" value={brandName}
+                        onChange={(e) => setBrandName(e.target.value)} disabled={brandsLoading}>
+                        <option value="">{brandsLoading ? "Loading brands..." : "Select Brand"}</option>
                         {allBrands.map((brand, index) => (
                           <option key={index} value={brand}>{brand}</option>
                         ))}
@@ -414,88 +354,41 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                   {/* Product Name */}
                   <div className="col-md-6">
                     <label htmlFor="productName" className="form-label">Product Name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="productName"
-                      name="productName"
-                      placeholder="Enter Product Name...."
-                      maxLength={100}
-                      value={productName}
-                      onChange={handleProductNameChange}
-                    />
+                    <input type="text" className="form-control" id="productName" name="productName"
+                      placeholder="Enter Product Name...." maxLength={100} value={productName} onChange={handleProductNameChange} />
                   </div>
 
-                  {/* Material Code */}
                   <div className="col-md-6">
                     <label htmlFor="materialCode" className="form-label">Material Code</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="materialCode"
-                      name="materialCode"
-                      placeholder="Enter Material Code...."
-                      maxLength={50}
-                      value={formData.materialCode}
-                      onChange={handleInputChange}
-                    />
+                    <input type="text" className="form-control" id="materialCode" name="materialCode"
+                      placeholder="Enter Material Code...." maxLength={50} value={formData.materialCode} onChange={handleInputChange} />
                   </div>
 
-                  {/* Model */}
                   <div className="col-md-6">
                     <label htmlFor="model" className="form-label">Model</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="model"
-                      name="model"
-                      placeholder="Enter Model...."
-                      maxLength={100}
-                      value={model}
-                      onChange={handleModelChange}
-                    />
+                    <input type="text" className="form-control" id="model" name="model"
+                      placeholder="Enter Model...." maxLength={100} value={model} onChange={handleModelChange} />
                   </div>
 
-                  {/* HSN Code */}
                   <div className="col-md-6">
                     <label htmlFor="hsnCode" className="form-label">HSN Code</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="hsnCode"
-                      name="hsnCode"
-                      placeholder="Enter HSN Code...."
-                      maxLength={8}
-                      value={hsnCode}
-                      onChange={handleHsnCodeChange}
-                    />
+                    <input type="text" className="form-control" id="hsnCode" name="hsnCode"
+                      placeholder="Enter HSN Code...." maxLength={8} value={hsnCode} onChange={handleHsnCodeChange} />
                   </div>
 
-                  {/* Material Description */}
                   <div className="col-md-6">
                     <label htmlFor="materialName" className="form-label">Material Description</label>
-                    <textarea
-                      className="form-control"
-                      id="materialName"
-                      name="materialName"
-                      placeholder="Enter Material Description...."
-                      maxLength={100}
-                      rows={3}
-                      value={formData.materialName}
-                      onChange={handleInputChange}
-                    />
+                    <textarea className="form-control" id="materialName" name="materialName"
+                      placeholder="Enter Material Description...." maxLength={100} rows={3}
+                      value={formData.materialName} onChange={handleInputChange} />
                   </div>
 
                   {/* Product Category */}
                   <div className="col-md-6">
                     <label htmlFor="productCategory" className="form-label">Product Category</label>
                     <div className="input-group">
-                      <select
-                        className="form-select rounded-0"
-                        id="productCategory"
-                        value={productCategory}
-                        onChange={(e) => setProductCategory(e.target.value)}
-                      >
+                      <select className="form-select rounded-0" id="productCategory" value={productCategory}
+                        onChange={(e) => setProductCategory(e.target.value)}>
                         <option value="">Select Product Category</option>
                         {allCategories.map((cat, index) => (
                           <option key={index} value={cat}>{cat}</option>
@@ -507,31 +400,20 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                     </div>
                   </div>
 
-                  {/* Category (Product Group) */}
                   <div className="col-md-6">
                     <label htmlFor="category" className="form-label">Product Group</label>
-                    <select
-                      className="form-select rounded-0"
-                      id="category"
-                      name="category"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
+                    <select className="form-select rounded-0" id="category" name="category"
+                      value={category} onChange={(e) => setCategory(e.target.value)}>
                       {categoryOptions.map((option, index) => (
                         <option key={index} value={option.value}>{option.label}</option>
                       ))}
                     </select>
                   </div>
 
-                  {/* Base UOM */}
                   <div className="col-md-6">
                     <label htmlFor="baseUOM" className="form-label">Base UOM / UNIT</label>
-                    <select
-                      className="form-select rounded-0"
-                      id="baseUOM"
-                      value={baseUOM}
-                      onChange={(e) => setBaseUOM(e.target.value)}
-                    >
+                    <select className="form-select rounded-0" id="baseUOM" value={baseUOM}
+                      onChange={(e) => setBaseUOM(e.target.value)}>
                       <option value="">Select Base UOM</option>
                       {uomOptions.map((uom, index) => (
                         <option key={index} value={uom}>{uom}</option>
@@ -539,186 +421,90 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                     </select>
                   </div>
 
-                  {/* UOM Conversion */}
                   <div className="col-md-6">
                     <label htmlFor="uomConversion" className="form-label">UOM Conversion</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="uomConversion"
-                      name="uomConversion"
-                      placeholder="Enter UOM conversion factor"
-                      value={uomConversion}
-                      onChange={handleUomConversionChange}
-                    />
+                    <input type="text" className="form-control" id="uomConversion" name="uomConversion"
+                      placeholder="Enter UOM conversion factor" value={uomConversion} onChange={handleUomConversionChange} />
                   </div>
 
-                  {/* Purchase Price */}
                   <div className="col-md-6">
                     <label htmlFor="unitPrice" className="form-label">Purchase Price</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      id="unitPrice"
-                      name="unitPrice"
-                      placeholder="Enter Purchase Price...."
-                      min="0"
-                      step="0.01"
-                      value={formData.unitPrice}
-                      onChange={handleInputChange}
-                    />
+                    <input type="number" className="form-control" id="unitPrice" name="unitPrice"
+                      placeholder="Enter Purchase Price...." min="0" step="0.01" value={formData.unitPrice} onChange={handleInputChange} />
                   </div>
 
-                  {/* MRP Price */}
                   <div className="col-md-6">
                     <label htmlFor="mrp" className="form-label">MRP Price</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="mrp"
-                      name="mrp"
-                      placeholder="Enter MRP Price...."
-                      value={mrp}
-                      onChange={handleMrpChange}
-                    />
+                    <input type="text" className="form-control" id="mrp" name="mrp"
+                      placeholder="Enter MRP Price...." value={mrp} onChange={handleMrpChange} />
                   </div>
 
-                  {/* Sales Price */}
                   <div className="col-md-6">
                     <label htmlFor="salesPrice" className="form-label">Sales Price</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="salesPrice"
-                      name="salesPrice"
-                      placeholder="Enter Sales Price...."
-                      value={salesPrice}
-                      onChange={handleSalesPriceChange}
-                    />
+                    <input type="text" className="form-control" id="salesPrice" name="salesPrice"
+                      placeholder="Enter Sales Price...." value={salesPrice} onChange={handleSalesPriceChange} />
                   </div>
 
-                  {/* Opening Date */}
                   <div className="col-md-6">
                     <label htmlFor="openingDate" className="form-label">Opening Date</label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      id="openingDate"
-                      name="openingDate"
-                      value={formData.openingDate}
-                      onChange={handleInputChange}
-                    />
+                    <input type="date" className="form-control" id="openingDate" name="openingDate"
+                      value={formData.openingDate} onChange={handleInputChange} />
                   </div>
 
-                  {/* Opening Stock */}
                   <div className="col-md-6">
                     <label htmlFor="currentStock" className="form-label">
                       Opening Stock
-                      {selectedProductId && (
-                        <small className="text-success ms-2">
-                          <i className="fa-solid fa-link"></i> from Product Master
-                        </small>
-                      )}
+                      {selectedProductId && <small className="text-success ms-2"><i className="fa-solid fa-link"></i> from Product Master</small>}
                     </label>
                     <div className="input-group">
-                      <input
-                        type="number"
-                        className={`form-control ${selectedProductId ? 'border-success' : ''}`}
-                        id="currentStock"
-                        name="currentStock"
-                        placeholder="Enter Opening Stock...."
-                        min="0"
-                        value={formData.currentStock}
-                        onChange={handleInputChange}
-                      />
-                      {baseUOM && (
-                        <span className="input-group-text">{baseUOM}</span>
-                      )}
+                      <input type="number" className={`form-control ${selectedProductId ? 'border-success' : ''}`}
+                        id="currentStock" name="currentStock" placeholder="Enter Opening Stock...." min="0"
+                        value={formData.currentStock} onChange={handleInputChange} />
+                      {baseUOM && <span className="input-group-text">{baseUOM}</span>}
                     </div>
                   </div>
 
-                  {/* Min Stock Level */}
                   <div className="col-md-6">
                     <label htmlFor="minStockLevel" className="form-label">Min Stock Level</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      id="minStockLevel"
-                      name="minStockLevel"
-                      placeholder="Enter Min Stock Level...."
-                      min="0"
-                      value={formData.minStockLevel}
-                      onChange={handleInputChange}
-                    />
+                    <input type="number" className="form-control" id="minStockLevel" name="minStockLevel"
+                      placeholder="Enter Min Stock Level...." min="0" value={formData.minStockLevel} onChange={handleInputChange} />
                   </div>
 
-                  {/* Warehouse Location */}
                   <div className="col-md-6">
                     <label htmlFor="warehouseLocation" className="form-label">Warehouse Location</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="warehouseLocation"
-                      name="warehouseLocation"
-                      placeholder="e.g., Warehouse A..."
-                      maxLength={100}
-                      value={formData.warehouseLocation}
-                      onChange={handleInputChange}
-                    />
+                    <input type="text" className="form-control" id="warehouseLocation" name="warehouseLocation"
+                      placeholder="e.g., Warehouse A..." maxLength={100} value={formData.warehouseLocation} onChange={handleInputChange} />
                   </div>
 
-                  {/* Rack Location */}
                   <div className="col-md-6">
                     <label htmlFor="stockLocation" className="form-label">Rack Location</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="stockLocation"
-                      name="stockLocation"
-                      placeholder="e.g., Rack 1..."
-                      maxLength={100}
-                      value={formData.stockLocation}
-                      onChange={handleInputChange}
-                    />
+                    <input type="text" className="form-control" id="stockLocation" name="stockLocation"
+                      placeholder="e.g., Rack 1..." maxLength={100} value={formData.stockLocation} onChange={handleInputChange} />
                   </div>
 
-                  {/* Discount Type */}
                   <div className="col-md-6">
                     <label htmlFor="discountType" className="form-label">Discount Type</label>
-                    <select
-                      className="form-select rounded-0"
-                      id="discountType"
-                      value={discountType}
-                      onChange={(e) => setDiscountType(e.target.value)}
-                    >
+                    <select className="form-select rounded-0" id="discountType" value={discountType}
+                      onChange={(e) => setDiscountType(e.target.value)}>
                       <option value="Zero Discount">Zero Discount</option>
                       <option value="In percentage">In Percentage</option>
                       <option value="In Value">In Value</option>
                     </select>
                   </div>
 
-                  {/* Discount Value */}
                   {discountType !== "Zero Discount" && (
                     <div className="col-md-6">
                       <label htmlFor="discountValue" className="form-label">Discount</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="discountValue"
-                        name="discountValue"
+                      <input type="text" className="form-control" id="discountValue" name="discountValue"
                         placeholder={discountType === "In percentage" ? "Enter percentage" : "Enter value"}
-                        value={discountValue}
-                        onChange={handleDiscountValueChange}
-                      />
+                        value={discountValue} onChange={handleDiscountValueChange} />
                     </div>
                   )}
 
                   {/* Tax Details */}
                   <div className="col-12 mt-3">
                     <div className="border bg-gray mx-auto p-3">
-                      <div className="col-10 mb-3">
-                        <span className="SecondaryInfo">Tax Details</span>
-                      </div>
+                      <div className="col-10 mb-3"><span className="SecondaryInfo">Tax Details</span></div>
                       <div className="col-12 mb-3">
                         <div className="form-check form-check-inline">
                           <input className="form-check-input" type="radio" name="taxType" id="taxNone" value="none" checked={taxType === "none"} onChange={() => setTaxType("none")} />
@@ -751,19 +537,12 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                     </div>
                   </div>
 
-                  {/* Description */}
                   <div className="col-12">
                     <label htmlFor="description" className="form-label">Description / Remarks</label>
-                    <textarea
-                      className="form-control"
-                      id="description"
-                      name="description"
+                    <textarea className="form-control" id="description" name="description"
                       placeholder="Enter material description, specifications, or remarks...."
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      style={{ width: '100%', height: '100px' }}
-                      maxLength={500}
-                    />
+                      value={formData.description} onChange={handleInputChange}
+                      style={{ width: '100%', height: '100px' }} maxLength={500} />
                   </div>
 
                 </div>

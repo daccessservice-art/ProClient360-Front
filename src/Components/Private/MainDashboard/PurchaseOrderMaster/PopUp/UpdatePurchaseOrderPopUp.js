@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import toast from "react-hot-toast";
 import { getVendors } from "../../../../../hooks/useVendor";
-import { getProducts } from "../../../../../hooks/useProduct";
+import { getProducts, getProductBrands } from "../../../../../hooks/useProduct";
 import { updatePurchaseOrder } from "../../../../../hooks/usePurchaseOrder";
 import Select from "react-select";
 import { UserContext } from "../../../../../context/UserContext";
@@ -59,19 +59,9 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
           hsnSac: item.hsnSac || ""
         }))
       : [{
-          productName: "",
-          brandName: "",
-          modelNo: "",
-          description: "",
-          unit: "",
-          baseUOM: "",
-          quantity: 1,
-          price: 0,
-          discountPercent: 0,
-          taxPercent: 0,
-          hsnSac: "",
-          netValue: 0,
-          warranty: ""
+          productName: "", brandName: "", modelNo: "", description: "",
+          unit: "", baseUOM: "", quantity: 1, price: 0,
+          discountPercent: 0, taxPercent: 0, hsnSac: "", netValue: 0, warranty: ""
         }]
   );
 
@@ -115,17 +105,20 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
     loadVendors();
   }, [vendorSearch, selectedPO]);
 
+  // ── FIX: Brands from DATABASE, products from API ──
   useEffect(() => {
     const loadInitialData = async () => {
-      const savedBrands = localStorage.getItem('productBrands');
-      let brandsFromStorage = [];
-
-      if (savedBrands) {
-        brandsFromStorage = JSON.parse(savedBrands);
-      } else {
-        brandsFromStorage = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
+      let dbBrands = [];
+      try {
+        const brandsData = await getProductBrands();
+        if (brandsData?.success && Array.isArray(brandsData.brands)) {
+          dbBrands = brandsData.brands;
+        }
+      } catch (e) {
+        console.error("Error loading brands from DB:", e);
       }
-      setAllBrands(brandsFromStorage.map(brand => ({ value: brand, label: brand })));
+      if (dbBrands.length === 0) dbBrands = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
+      setAllBrands(dbBrands.map(brand => ({ value: brand, label: brand })));
 
       let allProducts = [];
       let currentPage = 1;
@@ -144,8 +137,9 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
           }
         }
         setProducts(allProducts);
+
         const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
-        const mergedBrands = [...new Set([...brandsFromStorage, ...productBrands])];
+        const mergedBrands = [...new Set([...dbBrands, ...productBrands])];
         setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));
       } catch (error) {
         console.error("Error loading products:", error);
@@ -177,19 +171,9 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
 
   const handleAddItem = () => {
     setItems([...items, {
-      productName: "",
-      brandName: "",
-      modelNo: "",
-      description: "",
-      unit: "",
-      baseUOM: "",
-      quantity: 1,
-      price: 0,
-      discountPercent: 0,
-      taxPercent: 0,
-      hsnSac: "",
-      netValue: 0,
-      warranty: ""
+      productName: "", brandName: "", modelNo: "", description: "",
+      unit: "", baseUOM: "", quantity: 1, price: 0,
+      discountPercent: 0, taxPercent: 0, hsnSac: "", netValue: 0, warranty: ""
     }]);
   };
 
@@ -336,73 +320,44 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
             <div className="modal-body">
               <div className="row modal_body_height">
 
-                {/* Vendor */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Vendor Name</label>
-                    <Select
-                      value={selectedVendor}
-                      onChange={setSelectedVendor}
-                      onInputChange={setVendorSearch}
-                      options={vendors}
-                      placeholder="Select Vendor..."
-                      isClearable
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                    />
+                    <Select value={selectedVendor} onChange={setSelectedVendor} onInputChange={setVendorSearch}
+                      options={vendors} placeholder="Select Vendor..." isClearable
+                      className="react-select-container" classNamePrefix="react-select" />
                   </div>
                 </div>
 
-                {/* Order Date */}
                 <div className="col-12 col-lg-3">
                   <div className="mb-3">
                     <label className="form-label label_text">Order Date</label>
-                    <input
-                      type="date"
-                      className="form-control rounded-0"
-                      value={orderDate}
-                      onChange={(e) => setOrderDate(e.target.value)}
-                    />
+                    <input type="date" className="form-control rounded-0" value={orderDate}
+                      onChange={(e) => setOrderDate(e.target.value)} />
                   </div>
                 </div>
 
-                {/* Order Time */}
                 <div className="col-12 col-lg-3">
                   <div className="mb-3">
                     <label className="form-label label_text">Order Time</label>
-                    <input
-                      type="time"
-                      className="form-control rounded-0"
-                      value={orderTime}
-                      onChange={(e) => setOrderTime(e.target.value)}
-                    />
+                    <input type="time" className="form-control rounded-0" value={orderTime}
+                      onChange={(e) => setOrderTime(e.target.value)} />
                   </div>
                 </div>
 
-                {/* Order Number */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Order Number</label>
-                    <input
-                      type="text"
-                      className="form-control rounded-0"
-                      value={orderNumber}
-                      onChange={(e) => setOrderNumber(e.target.value)}
-                      placeholder="Order Number"
-                      readOnly
-                    />
+                    <input type="text" className="form-control rounded-0" value={orderNumber}
+                      onChange={(e) => setOrderNumber(e.target.value)} placeholder="Order Number" readOnly />
                   </div>
                 </div>
 
-                {/* Transaction Type */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Transaction Type</label>
-                    <select
-                      className="form-select rounded-0"
-                      value={transactionType}
-                      onChange={(e) => setTransactionType(e.target.value)}
-                    >
+                    <select className="form-select rounded-0" value={transactionType}
+                      onChange={(e) => setTransactionType(e.target.value)}>
                       <option value="">Select Transaction Type</option>
                       <option value="B2B">B2B</option>
                       <option value="SEZ">SEZ</option>
@@ -412,15 +367,11 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                   </div>
                 </div>
 
-                {/* Purchase Type */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Project Purchase / Stock</label>
-                    <select
-                      className="form-select rounded-0"
-                      value={purchaseType}
-                      onChange={(e) => setPurchaseType(e.target.value)}
-                    >
+                    <select className="form-select rounded-0" value={purchaseType}
+                      onChange={(e) => setPurchaseType(e.target.value)}>
                       <option value="">Select Type</option>
                       <option value="Project Purchase">Project Purchase</option>
                       <option value="Stock">Stock</option>
@@ -428,15 +379,11 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                   </div>
                 </div>
 
-                {/* Status */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Status</label>
-                    <select
-                      className="form-select rounded-0"
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value)}
-                    >
+                    <select className="form-select rounded-0" value={status}
+                      onChange={(e) => setStatus(e.target.value)}>
                       <option value="Pending">Pending</option>
                       <option value="Approved">Approved</option>
                       <option value="Partially Received">Partially Received</option>
@@ -446,115 +393,72 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                   </div>
                 </div>
 
-                {/* Project Name */}
                 {purchaseType === "Project Purchase" && (
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label className="form-label label_text">Project Name</label>
-                      <Select
-                        value={selectedProject}
-                        onChange={setSelectedProject}
-                        options={projects}
-                        placeholder="Select Project..."
-                        isClearable
-                      />
+                      <Select value={selectedProject} onChange={setSelectedProject} options={projects}
+                        placeholder="Select Project..." isClearable />
                     </div>
                   </div>
                 )}
 
-                {/* Warehouse Location */}
                 {purchaseType === "Stock" && (
                   <div className="col-12 col-lg-6">
                     <div className="mb-3">
                       <label className="form-label label_text">Warehouse Location</label>
-                      <input
-                        type="text"
-                        className="form-control rounded-0"
-                        value={warehouseLocation}
+                      <input type="text" className="form-control rounded-0" value={warehouseLocation}
                         onChange={(e) => setWarehouseLocation(e.target.value)}
-                        placeholder="Ex: Baner / Amazon / Mumbai / Bhosari"
-                        maxLength={200}
-                      />
+                        placeholder="Ex: Baner / Amazon / Mumbai / Bhosari" maxLength={200} />
                     </div>
                   </div>
                 )}
 
-                {/* Default Address Toggle */}
                 <div className="col-12 mb-3">
                   <div className="form-check form-switch">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="defaultAddressToggleUpdate"
-                      checked={useDefaultAddress}
-                      onChange={handleToggleDefaultAddress}
-                      style={{ cursor: "pointer" }}
-                    />
+                    <input className="form-check-input" type="checkbox" id="defaultAddressToggleUpdate"
+                      checked={useDefaultAddress} onChange={handleToggleDefaultAddress} style={{ cursor: "pointer" }} />
                     <label className="form-check-label" htmlFor="defaultAddressToggleUpdate" style={{ cursor: "pointer" }}>
                       Use Default Office Address
                     </label>
                   </div>
                 </div>
 
-                {/* Delivery Address */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Delivery Address</label>
-                    <textarea
-                      className="form-control rounded-0"
-                      rows="2"
-                      value={deliveryAddress}
+                    <textarea className="form-control rounded-0" rows="2" value={deliveryAddress}
                       onChange={(e) => {
                         setDeliveryAddress(e.target.value);
-                        if (useDefaultAddress && e.target.value !== DEFAULT_DELIVERY_ADDRESS) {
-                          setUseDefaultAddress(false);
-                        }
+                        if (useDefaultAddress && e.target.value !== DEFAULT_DELIVERY_ADDRESS) setUseDefaultAddress(false);
                       }}
-                      placeholder="Enter delivery address"
-                      maxLength={500}
-                    />
+                      placeholder="Enter delivery address" maxLength={500} />
                   </div>
                 </div>
 
-                {/* Location */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Location</label>
-                    <input
-                      type="text"
-                      className="form-control rounded-0"
-                      value={location}
+                    <input type="text" className="form-control rounded-0" value={location}
                       onChange={(e) => {
                         setLocation(e.target.value);
-                        if (useDefaultAddress && e.target.value !== DEFAULT_LOCATION) {
-                          setUseDefaultAddress(false);
-                        }
+                        if (useDefaultAddress && e.target.value !== DEFAULT_LOCATION) setUseDefaultAddress(false);
                       }}
-                      placeholder="Enter location"
-                      maxLength={200}
-                    />
+                      placeholder="Enter location" maxLength={200} />
                   </div>
                 </div>
 
-                {/* Terms Document */}
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
                     <label className="form-label label_text">Terms & Conditions Document</label>
-                    <input
-                      type="file"
-                      className="form-control rounded-0"
-                      onChange={(e) => setTermsDocument(e.target.files[0])}
-                      accept=".pdf,.doc,.docx"
-                    />
+                    <input type="file" className="form-control rounded-0"
+                      onChange={(e) => setTermsDocument(e.target.files[0])} accept=".pdf,.doc,.docx" />
                     {selectedPO?.attachments && selectedPO.attachments.length > 0 && (
-                      <small className="text-muted">
-                        Current document: {selectedPO.attachments[0].split('/').pop()}
-                      </small>
+                      <small className="text-muted">Current document: {selectedPO.attachments[0].split('/').pop()}</small>
                     )}
                   </div>
                 </div>
 
-                {/* Item Details */}
                 <div className="col-12 mt-3">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <h6 className="fw-bold">Item Details</h6>
@@ -595,11 +499,8 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                                 <Select
                                   value={allBrands.find(b => b.value === item.brandName) || null}
                                   onChange={(selected) => handleItemChange(index, 'brandName', selected ? selected.value : "")}
-                                  options={allBrands}
-                                  placeholder="Select Brand..."
-                                  isClearable
-                                  className="react-select-container"
-                                  classNamePrefix="react-select"
+                                  options={allBrands} placeholder="Select Brand..." isClearable
+                                  className="react-select-container" classNamePrefix="react-select"
                                   menuPortalTarget={document.body}
                                   styles={{
                                     menuPortal: base => ({ ...base, zIndex: 9999 }),
@@ -611,11 +512,8 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                                 <Select
                                   value={modelOptions.find(m => m.value === item.modelNo) || null}
                                   onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
-                                  options={modelOptions}
-                                  placeholder="Select Model..."
-                                  isClearable
-                                  className="react-select-container"
-                                  classNamePrefix="react-select"
+                                  options={modelOptions} placeholder="Select Model..." isClearable
+                                  className="react-select-container" classNamePrefix="react-select"
                                   isDisabled={!item.brandName}
                                   menuPortalTarget={document.body}
                                   styles={{
@@ -625,60 +523,36 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                                 />
                               </td>
                               <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "150px" }}
-                                  value={item.productName || ""}
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "150px" }} value={item.productName || ""}
                                   onChange={(e) => handleItemChange(index, 'productName', e.target.value)}
-                                  placeholder="Product Name"
-                                />
+                                  placeholder="Product Name" />
                               </td>
                               <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "90px" }}
-                                  value={item.hsnSac || ""}
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "90px" }} value={item.hsnSac || ""}
                                   onChange={(e) => handleItemChange(index, 'hsnSac', e.target.value)}
-                                  placeholder="HSN/SAC"
-                                />
+                                  placeholder="HSN/SAC" />
                               </td>
                               <td>
-                                <textarea
-                                  className="form-control form-control-sm"
-                                  style={{ width: "185px" }}
-                                  value={item.description}
-                                  onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                                  rows="1"
-                                  placeholder="Item description"
-                                />
+                                <textarea className="form-control form-control-sm" style={{ width: "185px" }}
+                                  value={item.description} onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                                  rows="1" placeholder="Item description" />
                               </td>
                               <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "80px" }}
-                                  value={item.unit}
-                                  onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                                />
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }} value={item.unit}
+                                  onChange={(e) => handleItemChange(index, 'unit', e.target.value)} />
                               </td>
                               <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "100px" }}
-                                  value={item.baseUOM}
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }} value={item.baseUOM}
                                   onChange={(e) => handleItemChange(index, 'baseUOM', e.target.value)}
-                                  placeholder="Base UOM"
-                                />
+                                  placeholder="Base UOM" />
                               </td>
                               <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "80px" }}
-                                  value={item.quantity}
+                                <input type="number" className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }} value={item.quantity}
                                   onChange={(e) => {
                                     const value = e.target.value;
                                     if (value === '' || value === '.') {
@@ -687,27 +561,17 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                                       handleItemChange(index, 'quantity', Number(value));
                                     }
                                   }}
-                                  min="1"
-                                  step="0.01"
-                                />
+                                  min="1" step="0.01" />
                               </td>
                               <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "100px" }}
-                                  value={item.price}
+                                <input type="number" className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }} value={item.price}
                                   onChange={(e) => handleItemChange(index, 'price', Number(e.target.value))}
-                                  min="0"
-                                  step="0.01"
-                                />
+                                  min="0" step="0.01" />
                               </td>
                               <td>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "80px" }}
-                                  value={item.discountPercent}
+                                <input type="number" className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }} value={item.discountPercent}
                                   onChange={(e) => {
                                     const value = e.target.value;
                                     if (value === '' || value === '.') {
@@ -716,57 +580,34 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                                       handleItemChange(index, 'discountPercent', Number(value));
                                     }
                                   }}
-                                  min="0"
-                                  max="100"
-                                  step="0.01"
-                                />
+                                  min="0" max="100" step="0.01" />
                               </td>
                               <td>
-  <input
-    type="number"
-    className="form-control form-control-sm"
-    style={{ minWidth: "80px" }}
-    value={item.taxPercent}
-    onChange={(e) => {
-      const value = e.target.value;
-      // Allow decimal input like 2.5, 18.5
-      if (value === '' || value === '.') {
-        handleItemChange(index, 'taxPercent', value);
-      } else if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
-        handleItemChange(index, 'taxPercent', Number(value));
-      }
-    }}
-    min="0"
-    max="100"
-    step="0.01"
-  />
-</td>
+                                <input type="number" className="form-control form-control-sm"
+                                  style={{ minWidth: "80px" }} value={item.taxPercent}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    if (value === '' || value === '.') {
+                                      handleItemChange(index, 'taxPercent', value);
+                                    } else if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) {
+                                      handleItemChange(index, 'taxPercent', Number(value));
+                                    }
+                                  }}
+                                  min="0" max="100" step="0.01" />
+                              </td>
                               <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "120px" }}
-                                  value={item.warranty || ""}
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "120px" }} value={item.warranty || ""}
                                   onChange={(e) => handleItemChange(index, 'warranty', e.target.value)}
-                                  placeholder="e.g. 1 Year"
-                                />
+                                  placeholder="e.g. 1 Year" />
                               </td>
                               <td>
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  style={{ minWidth: "100px" }}
-                                  value={item.netValue.toFixed(2)}
-                                  readOnly
-                                />
+                                <input type="text" className="form-control form-control-sm"
+                                  style={{ minWidth: "100px" }} value={item.netValue.toFixed(2)} readOnly />
                               </td>
                               <td>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger"
-                                  onClick={() => handleRemoveItem(index)}
-                                  disabled={items.length === 1}
-                                >
+                                <button type="button" className="btn btn-sm btn-danger"
+                                  onClick={() => handleRemoveItem(index)} disabled={items.length === 1}>
                                   <i className="fa fa-trash"></i>
                                 </button>
                               </td>
@@ -795,7 +636,6 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                   </div>
                 </div>
 
-                {/* Terms and Conditions */}
                 <div className="col-12 mt-3">
                   <h6 className="fw-bold">Terms and Conditions</h6>
                   <div className="row">
@@ -803,19 +643,11 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                       <div className="mb-3">
                         <label className="form-label label_text">Credit Period</label>
                         <div className="input-group">
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
+                          <input type="text" className="form-control rounded-0"
                             value={creditPeriod ? `${creditPeriod} days` : "Click to set credit period"}
-                            onClick={() => setShowCreditPopup(true)}
-                            readOnly
-                            style={{ cursor: "pointer" }}
-                          />
-                          <button
-                            className="btn btn-outline-secondary rounded-0"
-                            type="button"
-                            onClick={() => setShowCreditPopup(true)}
-                          >
+                            onClick={() => setShowCreditPopup(true)} readOnly style={{ cursor: "pointer" }} />
+                          <button className="btn btn-outline-secondary rounded-0" type="button"
+                            onClick={() => setShowCreditPopup(true)}>
                             <i className="fa fa-calendar"></i>
                           </button>
                         </div>
@@ -826,19 +658,11 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                       <div className="mb-3">
                         <label className="form-label label_text">Payment Terms</label>
                         <div className="input-group">
-                          <input
-                            type="text"
-                            className="form-control rounded-0"
+                          <input type="text" className="form-control rounded-0"
                             value={`Advance: ${advancePay}%, Delivery: ${payAgainstDelivery}%, Completion: ${payAfterCompletion}%, Retention: ${retention}%`}
-                            onClick={() => setShowPaymentTermsPopup(true)}
-                            readOnly
-                            style={{ cursor: "pointer" }}
-                          />
-                          <button
-                            className="btn btn-outline-secondary rounded-0"
-                            type="button"
-                            onClick={() => setShowPaymentTermsPopup(true)}
-                          >
+                            onClick={() => setShowPaymentTermsPopup(true)} readOnly style={{ cursor: "pointer" }} />
+                          <button className="btn btn-outline-secondary rounded-0" type="button"
+                            onClick={() => setShowPaymentTermsPopup(true)}>
                             <i className="fa fa-percent"></i>
                           </button>
                         </div>
@@ -848,51 +672,32 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
                         <label className="form-label label_text">Delivery Date</label>
-                        <input
-                          type="date"
-                          className="form-control rounded-0"
-                          value={deliveryDate}
-                          onChange={(e) => setDeliveryDate(e.target.value)}
-                        />
+                        <input type="date" className="form-control rounded-0" value={deliveryDate}
+                          onChange={(e) => setDeliveryDate(e.target.value)} />
                       </div>
                     </div>
 
                     <div className="col-12 col-lg-6">
                       <div className="mb-3">
                         <label className="form-label label_text">Material Followup Date</label>
-                        <input
-                          type="date"
-                          className="form-control rounded-0"
-                          value={materialFollowupDate}
-                          onChange={(e) => setMaterialFollowupDate(e.target.value)}
-                        />
+                        <input type="date" className="form-control rounded-0" value={materialFollowupDate}
+                          onChange={(e) => setMaterialFollowupDate(e.target.value)} />
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Remark */}
                 <div className="col-12 mt-3">
                   <div className="mb-3">
                     <label className="form-label label_text">Remark</label>
-                    <textarea
-                      className="form-control rounded-0"
-                      rows="3"
-                      value={remark}
-                      onChange={(e) => setRemark(e.target.value)}
-                      maxLength={1000}
-                    />
+                    <textarea className="form-control rounded-0" rows="3" value={remark}
+                      onChange={(e) => setRemark(e.target.value)} maxLength={1000} />
                   </div>
                 </div>
 
-                {/* Submit Buttons */}
                 <div className="col-12 pt-3 mt-2">
-                  <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
-                    Update
-                  </button>
-                  <button type="button" onClick={handleUpdate} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
-                    Cancel
-                  </button>
+                  <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">Update</button>
+                  <button type="button" onClick={handleUpdate} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">Cancel</button>
                 </div>
 
               </div>
@@ -901,7 +706,6 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
         </div>
       </div>
 
-      {/* Credit Period Popup */}
       {showCreditPopup && (
         <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 9999 }}>
           <div className="modal-dialog modal-dialog-centered">
@@ -915,13 +719,8 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
               <div className="modal-body">
                 <div className="mb-3">
                   <label className="form-label label_text">Credit Period (Days)</label>
-                  <input
-                    type="number"
-                    className="form-control rounded-0"
-                    value={creditPeriod}
-                    onChange={(e) => setCreditPeriod(Number(e.target.value))}
-                    min="0"
-                  />
+                  <input type="number" className="form-control rounded-0" value={creditPeriod}
+                    onChange={(e) => setCreditPeriod(Number(e.target.value))} min="0" />
                 </div>
                 <div className="d-flex justify-content-end">
                   <button type="button" className="btn btn-secondary me-2" onClick={() => setShowCreditPopup(false)}>Cancel</button>
@@ -933,7 +732,6 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
         </div>
       )}
 
-      {/* Payment Terms Popup */}
       {showPaymentTermsPopup && (
         <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090", zIndex: 9999 }}>
           <div className="modal-dialog modal-dialog-centered">
@@ -947,47 +745,35 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
               <div className="modal-body">
                 <div className="mb-3">
                   <label className="form-label label_text">Advance Payment (%)</label>
-                  <input
-                    type="number" step="0.01" min="0" max="100"
-                    className="form-control rounded-0"
+                  <input type="number" step="0.01" min="0" max="100" className="form-control rounded-0"
                     value={advancePay}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (/^\d*\.?\d*$/.test(value) && Number(value) <= 100) setAdvancePayment(value);
-                    }}
-                  />
+                    }} />
                 </div>
                 <div className="mb-3">
                   <label className="form-label label_text">Pay Against Delivery (%)</label>
-                  <input
-                    type="number" step="0.01" min="0" max="100"
-                    className="form-control rounded-0"
+                  <input type="number" step="0.01" min="0" max="100" className="form-control rounded-0"
                     value={payAgainstDelivery}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) setPayAgainstDelivery(value);
-                    }}
-                  />
+                    }} />
                 </div>
                 <div className="mb-3">
                   <label className="form-label label_text">Pay After Completion (%)</label>
-                  <input
-                    type="number" step="0.01" min="0" max="100"
-                    className="form-control rounded-0"
+                  <input type="number" step="0.01" min="0" max="100" className="form-control rounded-0"
                     value={payAfterCompletion}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (/^\d*\.?\d{0,2}$/.test(value) && Number(value) <= 100) setPayAfterCompletion(value);
-                    }}
-                  />
+                    }} />
                 </div>
                 <div className="mb-3">
                   <label className="form-label label_text">Retention (%)</label>
-                  <input
-                    type="number" className="form-control rounded-0"
-                    value={retention} readOnly
-                    style={{ backgroundColor: '#e9ecef' }}
-                  />
+                  <input type="number" className="form-control rounded-0" value={retention}
+                    readOnly style={{ backgroundColor: '#e9ecef' }} />
                 </div>
                 <div className="d-flex justify-content-end">
                   <button type="button" className="btn btn-secondary me-2" onClick={() => setShowPaymentTermsPopup(false)}>Cancel</button>
