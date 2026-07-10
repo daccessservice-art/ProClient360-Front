@@ -7,7 +7,17 @@ import AddCustomerPopUp from "./PopUp/AddCustomerPopUp";
 import UpdateCustomerPopUp from "./PopUp/UpdateCustomerPopUp";
 import ReassignOwnedByPopUp from "./PopUp/ReassignOwnedByPopUp";
 import RaiseTicketPopUp from "./PopUp/RaiseTicketPopUp";
-import { getCustomers, deleteCustomer, exportCustomersPDF, exportCustomersExcel, getEmployees, exportVerifiedCustomersPDF, exportNotVerifiedCustomersPDF } from "../../../../hooks/useCustomer";
+import {
+  getCustomers,
+  deleteCustomer,
+  exportCustomersPDF,
+  exportCustomersExcel,
+  getEmployees,
+  exportVerifiedCustomersPDF,
+  exportNotVerifiedCustomersPDF,
+  exportVerifiedCustomersExcel,
+  exportNotVerifiedCustomersExcel,
+} from "../../../../hooks/useCustomer";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
 
@@ -232,26 +242,49 @@ export const CustomerMasterGrid = () => {
   };
 
   const handleExportVerifiedPDF = async () => {
-  if (!canExport) {
-    toast.error("Your designation does not have permission to export customer data.");
-    return;
-  }
-  try {
-    const result = await exportVerifiedCustomersPDF();
-    if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Verified PDF"); }
-  } catch { toast.error("An unexpected error occurred while exporting Verified PDF"); }
-};
+    if (!canExport) {
+      toast.error("Your designation does not have permission to export customer data.");
+      return;
+    }
+    try {
+      const result = await exportVerifiedCustomersPDF();
+      if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Verified PDF"); }
+    } catch { toast.error("An unexpected error occurred while exporting Verified PDF"); }
+  };
 
-const handleExportNotVerifiedPDF = async () => {
-  if (!canExport) {
-    toast.error("Your designation does not have permission to export customer data.");
-    return;
-  }
-  try {
-    const result = await exportNotVerifiedCustomersPDF();
-    if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Not Verified PDF"); }
-  } catch { toast.error("An unexpected error occurred while exporting Not Verified PDF"); }
-};
+  const handleExportNotVerifiedPDF = async () => {
+    if (!canExport) {
+      toast.error("Your designation does not have permission to export customer data.");
+      return;
+    }
+    try {
+      const result = await exportNotVerifiedCustomersPDF();
+      if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Not Verified PDF"); }
+    } catch { toast.error("An unexpected error occurred while exporting Not Verified PDF"); }
+  };
+
+  // ── NEW: Verified / Not Verified Excel export handlers ──
+  const handleExportVerifiedExcel = async () => {
+    if (!canExport) {
+      toast.error("Your designation does not have permission to export customer data.");
+      return;
+    }
+    try {
+      const result = await exportVerifiedCustomersExcel();
+      if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Verified Excel"); }
+    } catch { toast.error("An unexpected error occurred while exporting Verified Excel"); }
+  };
+
+  const handleExportNotVerifiedExcel = async () => {
+    if (!canExport) {
+      toast.error("Your designation does not have permission to export customer data.");
+      return;
+    }
+    try {
+      const result = await exportNotVerifiedCustomersExcel();
+      if (result.success) { toast.success(result.message); } else { toast.error(result.error || "Failed to export Not Verified Excel"); }
+    } catch { toast.error("An unexpected error occurred while exporting Not Verified Excel"); }
+  };
 
   const handleResetFilters = () => {
     setCreatedByFilter(""); setOwnedByFilter(""); setPriorityFilter("");
@@ -526,7 +559,13 @@ const handleExportNotVerifiedPDF = async () => {
                               <button onClick={handleExportPDF} type="button" className="btn btn-sm btn-danger me-1" title="Export to PDF" disabled={loading}><i className="fa-solid fa-file-pdf"></i></button>
                               <button onClick={handleExportExcel} type="button" className="btn btn-sm btn-success me-1" title="Export to Excel" disabled={loading}><i className="fa-solid fa-file-excel"></i></button>
                               <button onClick={handleExportVerifiedPDF} type="button" className="btn btn-sm btn-outline-success me-1" title="Export Verified Customers PDF" disabled={loading}><i className="fa-solid fa-file-circle-check"></i></button>
-    <button onClick={handleExportNotVerifiedPDF} type="button" className="btn btn-sm btn-outline-danger me-1" title="Export Not Verified Customers PDF" disabled={loading}><i className="fa-solid fa-file-circle-xmark"></i></button>
+                              <button onClick={handleExportNotVerifiedPDF} type="button" className="btn btn-sm btn-outline-danger me-1" title="Export Not Verified Customers PDF" disabled={loading}><i className="fa-solid fa-file-circle-xmark"></i></button>
+                              <button onClick={handleExportVerifiedExcel} type="button" className="btn btn-sm btn-outline-success me-1" title="Export Verified Customers Excel" disabled={loading}>
+                                <i className="fa-solid fa-file-excel"></i><i className="fa-solid fa-check ms-1" style={{ fontSize: "9px" }}></i>
+                              </button>
+                              <button onClick={handleExportNotVerifiedExcel} type="button" className="btn btn-sm btn-outline-danger me-1" title="Export Not Verified Customers Excel" disabled={loading}>
+                                <i className="fa-solid fa-file-excel"></i><i className="fa-solid fa-xmark ms-1" style={{ fontSize: "9px" }}></i>
+                              </button>
                             </>
                           )}
 

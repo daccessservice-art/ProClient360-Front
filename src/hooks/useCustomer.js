@@ -343,6 +343,76 @@ const exportNotVerifiedCustomersPDF = async () => {
   }
 };
 
+// ── Verified Customers Excel Export (NEW) ──
+const exportVerifiedCustomersExcel = async () => {
+  try {
+    const response = await axios.get(`${url}/export/excel/verified`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      responseType: 'blob'
+    });
+
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `verified_customers_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match?.[1]) filename = match[1];
+    }
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const ok = triggerDownload(blob, filename);
+    return ok
+      ? { success: true, message: 'Verified customers Excel exported successfully' }
+      : { success: false, error: 'Failed to download Excel' };
+  } catch (error) {
+    console.error('Verified Excel export error:', error);
+    if (error.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text();
+        const obj = JSON.parse(text);
+        return { success: false, error: obj.error || 'Failed to export Excel' };
+      } catch { /* ignore */ }
+    }
+    return { success: false, error: error.message || 'Failed to export Excel' };
+  }
+};
+
+// ── Not Verified Customers Excel Export (NEW) ──
+const exportNotVerifiedCustomersExcel = async () => {
+  try {
+    const response = await axios.get(`${url}/export/excel/not-verified`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      responseType: 'blob'
+    });
+
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `not_verified_customers_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (match?.[1]) filename = match[1];
+    }
+
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const ok = triggerDownload(blob, filename);
+    return ok
+      ? { success: true, message: 'Not verified customers Excel exported successfully' }
+      : { success: false, error: 'Failed to download Excel' };
+  } catch (error) {
+    console.error('Not Verified Excel export error:', error);
+    if (error.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text();
+        const obj = JSON.parse(text);
+        return { success: false, error: obj.error || 'Failed to export Excel' };
+      } catch { /* ignore */ }
+    }
+    return { success: false, error: error.message || 'Failed to export Excel' };
+  }
+};
+
 export {
   getCustomers,
   getCustomerCountByOwner,
@@ -356,5 +426,7 @@ export {
   exportCustomersExcel,
   exportVerifiedCustomersPDF,
   exportNotVerifiedCustomersPDF,
-  checkCustomerExists, // ← NEW
+  exportVerifiedCustomersExcel, // ← NEW
+  exportNotVerifiedCustomersExcel, // ← NEW
+  checkCustomerExists,
 };
