@@ -1,4 +1,5 @@
 import { useState, useContext, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Header } from "../Header/Header";
 import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
@@ -36,6 +37,10 @@ export const CustomerMasterGrid = () => {
   const toggle = () => { setIsOpen(!isopen); };
 
   const { user } = useContext(UserContext);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [prefillData, setPrefillData] = useState(null);
+
   const [AddPopUpShow, setAddPopUpShow] = useState(false);
   const [deletePopUpShow, setdeletePopUpShow] = useState(false);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
@@ -108,11 +113,21 @@ export const CustomerMasterGrid = () => {
     fetchFilterEmployees();
   }, []);
 
+  // ── NEW: pick up prefill data passed from ViewSalesLeadPopUp "Create Customer" ──
+  useEffect(() => {
+    if (location.state?.prefillCustomer) {
+      setPrefillData(location.state.prefillCustomer);
+      setAddPopUpShow(true);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handlePageChange = (page) => {
     setCurrentPage(page);
     setSelectedIds([]);
   };
-  const handleAdd = () => { setAddPopUpShow(!AddPopUpShow); };
+  const handleAdd = () => { setAddPopUpShow(!AddPopUpShow); setPrefillData(null); };
   const handleUpdate = (customer) => { setSelectedCust(customer); setUpdatePopUpShow(!updatePopUpShow); };
   const handelDeleteClosePopUpClick = (id) => { setSelecteId(id); setdeletePopUpShow(!deletePopUpShow); };
 
@@ -689,7 +704,7 @@ const handleExportNotVerifiedPDF = async () => {
         />
       )}
 
-      {AddPopUpShow && <AddCustomerPopUp handleAdd={handleAdd} />}
+      {AddPopUpShow && <AddCustomerPopUp handleAdd={handleAdd} prefillData={prefillData} />}
 
       {updatePopUpShow && <UpdateCustomerPopUp selectedCust={selectedCust} handleUpdate={handleUpdate} />}
 

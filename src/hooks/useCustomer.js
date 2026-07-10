@@ -166,6 +166,23 @@ const getCustomersForBranch = async (searchText = "") => {
   }
 };
 
+// ── Check if a customer already exists by email — used by "Create Customer" from a Won lead ──
+const checkCustomerExists = async (email) => {
+  try {
+    const params = new URLSearchParams();
+    params.append('email', email);
+    const response = await axios.get(`${url}/check-exists?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error checking customer existence:', error?.response?.data || error.message);
+    return { success: false, exists: false };
+  }
+};
+
 const triggerDownload = (blob, filename) => {
   try {
     if (navigator.userAgent.match(/(iPod|iPhone|iPad|Safari)/) && !navigator.userAgent.match(/Chrome/)) {
@@ -339,4 +356,5 @@ export {
   exportCustomersExcel,
   exportVerifiedCustomersPDF,
   exportNotVerifiedCustomersPDF,
+  checkCustomerExists, // ← NEW
 };

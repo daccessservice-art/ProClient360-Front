@@ -6,14 +6,14 @@ import { getAddress } from "../../../../../hooks/usePincode";
 import { createCustomer, getEmployees, getCustomersForBranch } from "../../../../../hooks/useCustomer";
 import { useUser } from "../../../../../context/UserContext";
 
-const AddCustomerPopUp = ({ handleAdd }) => {
+const AddCustomerPopUp = ({ handleAdd, prefillData }) => {
   const { user } = useUser();
-  const [custName, setCustName] = useState("");
-  const [phoneNumber1, setPhoneNumber1] = useState("");
-  const [email, setEmail] = useState("");
+  const [custName, setCustName] = useState(prefillData?.custName || "");
+  const [phoneNumber1, setPhoneNumber1] = useState(prefillData?.phoneNumber1 || "");
+  const [email, setEmail] = useState(prefillData?.email || "");
   const [GSTNo, setGSTNo] = useState("");
   const [gstAutoFilled, setGstAutoFilled] = useState(false);
-  const [customerContactPersonName1, setCustomerContactPersonName1] = useState("");
+  const [customerContactPersonName1, setCustomerContactPersonName1] = useState(prefillData?.customerContactPersonName1 || "");
   const [customerContactPersonEmail1, setCustomerContactPersonEmail1] = useState("");
   const [customerContactPersonDesignation1, setCustomerContactPersonDesignation1] = useState("");
   const [zone, setZone] = useState("");
@@ -37,12 +37,16 @@ const AddCustomerPopUp = ({ handleAdd }) => {
 
   const [extraContacts, setExtraContacts] = useState([]);
 
-  const [industryType, setIndustryType] = useState("");
-  const [industryTypeOther, setIndustryTypeOther] = useState("");
-  const [customerPriority, setCustomerPriority] = useState("");
+  const [industryType, setIndustryType] = useState(prefillData?.industryType || "");
+  const [industryTypeOther, setIndustryTypeOther] = useState(prefillData?.industryTypeOther || "");
+  const [customerPriority, setCustomerPriority] = useState(prefillData?.customerPriority || "");
 
   const [billingAddress, setBillingAddress] = useState({
-    pincode: "", state: "", city: "", add: "", country: "",
+    pincode: prefillData?.billingAddress?.pincode || "",
+    state: prefillData?.billingAddress?.state || "",
+    city: prefillData?.billingAddress?.city || "",
+    add: prefillData?.billingAddress?.add || "",
+    country: prefillData?.billingAddress?.country || "",
   });
 
   const industryOptions = [
@@ -346,6 +350,17 @@ const AddCustomerPopUp = ({ handleAdd }) => {
                       </small>
                     </div>
                   </div>
+
+                  {prefillData && (
+                    <div className="col-12 mb-2">
+                      <div className="alert alert-warning py-2">
+                        <small>
+                          <i className="fa-solid fa-bolt me-2"></i>
+                          Prefilled from a <strong>Won</strong> lead — verify the details and add <strong>GST Number</strong> & <strong>Zone</strong> before submitting.
+                        </small>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="col-12 col-lg-6">
                     <div className="">
