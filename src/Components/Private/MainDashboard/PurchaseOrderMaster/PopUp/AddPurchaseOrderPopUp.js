@@ -1,10 +1,27 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { getVendors } from "../../../../../hooks/useVendor";
-import { getProducts, getProductBrands } from "../../../../../hooks/useProduct";
+import { getProducts, getProductBrands, createProduct } from "../../../../../hooks/useProduct";
 import { createPurchaseOrder } from "../../../../../hooks/usePurchaseOrder";
 import Select from "react-select";
 import AddInventoryPopup from "../../InventryMaster/PopUp/AddInventoryPopUp";
+
+// ── NEW: AddInventoryPopup's "Product Group" dropdown uses values like
+// "Raw Material" / "Finished Goods" / "Asset", but the Product Master
+// schema's `category` field is a lowercase enum:
+// ['raw material','finish material','scrap','repairing material',
+//  'work in progress','finished goods']. "Asset" has no equivalent there,
+// so it falls back to "raw material" instead of failing product creation. ──
+const mapToProductMasterCategory = (cat) => {
+  const map = {
+    "Raw Material": "raw material",
+    "Finished Goods": "finished goods",
+    "Repairing Material": "repairing material",
+    "Scrap": "scrap",
+    "Asset": "raw material",
+  };
+  return map[cat] || "raw material";
+};
 
 const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
@@ -220,7 +237,70 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     setShowAddProductPopup(true);
   };
 
-  const handleAddProductFromInventory = (productData) => {
+  // ── FIX: this used to ONLY add the product as a line item on the
+  // current PO (frontend state only) — it never actually saved anything
+  // to the Product Master collection. So products entered here via
+  // "Add Product" never showed up in Product Master Grid or in the
+  // Brand/Model dropdowns for future purchase orders, even though the
+  // popup looks identical to Product Master's own "Add" form.
+  //
+  // Now this also calls createProduct() to save the product into
+  // Product Master (same as clicking "Add" on the Product Master page)
+  // BEFORE adding it as a line item here. If a product with the same
+  // Name + Brand + Model already exists, the backend's existing
+  // duplicate check (in productController.createProduct) returns
+  // isDuplicate — we surface that as an info toast but still let the
+  // user continue adding it to this PO. ──
+  const handleAddProductFromInventory = async (productData) => {
+    const productPayload = {
+      productName: productData.productName || "",
+      brandName: productData.brandName || "",
+      printName: productData.printName || "",
+      aliasName: productData.aliasName || "",
+      model: productData.model || "",
+      hsnCode: productData.hsnCode || "",
+      description: productData.description || productData.materialName || "",
+      productCategory: productData.productCategory || "",
+      baseUOM: productData.baseUOM || "",
+      alternateUOM: productData.alternateUOM || "",
+      uomConversion: parseFloat(productData.uomConversion) || 1,
+      category: mapToProductMasterCategory(productData.category),
+      mrp: parseFloat(productData.mrp) || 0,
+      salesPrice: parseFloat(productData.salesPrice) || 0,
+      purchasePrice: parseFloat(productData.purchasePrice || productData.unitPrice) || 0,
+      minSalesPrice: parseFloat(productData.minSalesPrice) || 0,
+      minQtyLevel: parseFloat(productData.minQtyLevel) || 0,
+      discountType: productData.discountType || "Zero Discount",
+      discountValue:
+        productData.discountType === "Zero Discount"
+          ? 0
+          : parseFloat(productData.discountValue) || 0,
+      currentStockQty: parseFloat(productData.currentStock) || 0,
+      taxType: productData.taxType || "none",
+      gstRate: productData.taxType === "gst" ? parseFloat(productData.gstRate) || 0 : 0,
+      gstEffectiveDate: productData.taxType === "gst" ? productData.gstEffectiveDate : "",
+    };
+
+    if (!productPayload.productName || !productPayload.baseUOM) {
+      toast.error("Product Name and Base UOM are required to save this product in Product Master");
+      return;
+    }
+
+    toast.loading("Saving product to Product Master...");
+    const result = await createProduct(productPayload);
+    toast.dismiss();
+
+    if (result?.success) {
+      toast.success("Product saved to Product Master");
+    } else if (result?.isDuplicate) {
+      // Same Name + Brand + Model already exists in Product Master —
+      // don't block the PO flow, just inform the user, then still add
+      // it as a line item below.
+      toast(result.error || "This product already exists in Product Master", { icon: "ℹ️" });
+    } else {
+      toast.error(result?.error || "Failed to save product to Product Master");
+    }
+
     const newItem = {
       productName: productData.productName || "",
       brandName: productData.brandName || "",
@@ -239,7 +319,10 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     newItem.netValue = calculateNetValue(newItem);
     setItems([...items, newItem]);
     setShowAddProductPopup(false);
-    toast.success("Product added to purchase order");
+
+    // Refresh brand/model dropdowns so the newly saved product is
+    // immediately selectable on subsequent rows of this same PO.
+    refreshProducts();
   };
 
   const handleRemoveItem = (index) => {
@@ -348,11 +431,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     } finally {
       setLoadingProducts(false);
     }
-  };
-
-  const handleProductAdded = (productData) => {
-    refreshProducts();
-    handleAddProductFromInventory(productData);
   };
 
   const calculateTotals = () => {
@@ -870,7 +948,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
       {showAddProductPopup && (
         <AddInventoryPopup
-          onAddInventory={handleProductAdded}
+          onAddInventory={handleAddProductFromInventory}
           onClose={() => setShowAddProductPopup(false)}
         />
       )}
