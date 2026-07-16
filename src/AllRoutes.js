@@ -81,6 +81,8 @@ import { ProjectPurchaseMasterGrid } from "./Components/Private/MainDashboard/Pr
 
 import { AccountFollowUpMasterGrid } from "./Components/Private/MainDashboard/AccountMaster/AccountFollowUpMasterGrid";
 
+// ── NEW: Old AMC History (separate, read/write history page — does not touch AMCMasterGrid) ──
+import { OldAMCHistoryGrid } from "./Components/Private/MainDashboard/OldAMCHistory/OldAMCHistoryGrid";
 
 
 // Custom component to check if user has required permissions
@@ -247,6 +249,8 @@ const AllRoutes = () => {
                 <Route exact path="/ProjectPurchaseMasterGrid" element={<ProtectRoute Component={ProjectPurchaseMasterGrid} />} />
 
                 <Route exact path="/AccountFollowUpMasterGrid" element={<ProtectRoute Component={AccountFollowUpMasterGrid} />} />
+                
+                <Route exact path="/OldAMCHistoryGrid" element={<ProtectRoute Component={OldAMCHistoryGrid} />} />
 
                                {/* Company Routes */}
                 {user && user?.user === 'company' && (

@@ -490,6 +490,19 @@ export const Sidebar = ({ isopen, active }) => {
         </Link>
     </li>
 ) : null}
+
+{/* Old AMC History */}
+{user?.permissions?.includes('viewOldAMCHistory') || user?.user === 'company' ? (
+    <li title="Old AMC History"
+        className={active === "OldAMCHistoryGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+        <Link to='/OldAMCHistoryGrid' className="nav-link ">
+            <i className="fa-solid fa-clock-rotate-left ps-3 side_icon_fs"></i>
+            <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                Old AMC History
+            </span>
+        </Link>
+    </li>
+) : null}
                 </ul>
             </nav>
         </div>

@@ -1221,6 +1221,43 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
     </td>
 </tr>
 
+{/* OLD AMC HISTORY */}
+<tr>
+<td>Old AMC History</td>
+<td>
+<label className="toggler-wrapper style-22">
+<input type="checkbox" name="createOldAMCHistory"
+        checked={designation.permissions?.includes('createOldAMCHistory')}
+        onChange={(e) => handlePermissionChange('createOldAMCHistory', e.target.checked)} />
+<div className="toggler-slider"><div className="toggler-knob"></div></div>
+</label>
+</td>
+<td>
+<label className="toggler-wrapper style-22">
+<input type="checkbox" name="viewOldAMCHistory"
+        checked={designation.permissions?.includes('viewOldAMCHistory')}
+        onChange={(e) => handlePermissionChange('viewOldAMCHistory', e.target.checked)} />
+<div className="toggler-slider"><div className="toggler-knob"></div></div>
+</label>
+</td>
+<td>
+<label className="toggler-wrapper style-22">
+<input type="checkbox" name="updateOldAMCHistory"
+        checked={designation.permissions?.includes('updateOldAMCHistory')}
+        onChange={(e) => handlePermissionChange('updateOldAMCHistory', e.target.checked)} />
+<div className="toggler-slider"><div className="toggler-knob"></div></div>
+</label>
+</td>
+<td>
+<label className="toggler-wrapper style-22">
+<input type="checkbox" name="deleteOldAMCHistory"
+        checked={designation.permissions?.includes('deleteOldAMCHistory')}
+        onChange={(e) => handlePermissionChange('deleteOldAMCHistory', e.target.checked)} />
+<div className="toggler-slider"><div className="toggler-knob"></div></div>
+</label>
+</td>
+</tr>
+
                           {/* SURVEY ENGINEER */}
                           <tr className="table-info" style={{ backgroundColor: '#e3f2fd' }}>
                             <td className="fw-bold text-primary">
