@@ -29,6 +29,8 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
   const [pincode, setPincode] = useState("");
   const [GSTNo, setGSTNo] = useState("");
   const [zone, setZone] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const handleCustNameChange = (e) => {
     if (/^[a-zA-Z0-9\s()&\-.]*$/.test(e.target.value)) setCustName(e.target.value);
@@ -52,6 +54,9 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
     if (customerContactPersonEmail1 && !validator.isEmail(customerContactPersonEmail1)) {
       return toast.error("Enter a valid Contact Person Email 1");
     }
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      return toast.error("End Date cannot be before Start Date");
+    }
 
     const payload = {
       custName: custName.trim(),
@@ -67,6 +72,8 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
       billingAddress: { city: city.trim(), state: state.trim(), pincode: pincode.trim() },
       GSTNo: GSTNo.trim(),
       zone,
+      startDate: startDate || null,
+      endDate: endDate || null,
     };
 
     toast.loading("Adding AMC History Record...");
@@ -240,6 +247,22 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
                       <option value="West">West</option>
                       <option value="Central">Central</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="col-12 col-lg-6">
+                  <div className="mb-3">
+                    <label className="form-label label_text">Start Date</label>
+                    <input type="date" className="form-control rounded-0"
+                      value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="col-12 col-lg-6">
+                  <div className="mb-3">
+                    <label className="form-label label_text">End Date</label>
+                    <input type="date" className="form-control rounded-0"
+                      value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                   </div>
                 </div>
 

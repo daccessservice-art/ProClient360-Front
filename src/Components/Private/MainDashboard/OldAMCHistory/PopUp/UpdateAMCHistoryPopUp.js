@@ -13,6 +13,13 @@ const industryOptions = [
   "Facility Services", "Labour Contractor", "Security Systems Dealer", "Other"
 ];
 
+const toDateInputValue = (val) => {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d)) return "";
+  return d.toISOString().split("T")[0];
+};
+
 const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
   const [record, setRecord] = useState({
     ...selectedRecord,
@@ -21,6 +28,8 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
       state: selectedRecord?.billingAddress?.state || "",
       pincode: selectedRecord?.billingAddress?.pincode || "",
     },
+    startDate: toDateInputValue(selectedRecord?.startDate),
+    endDate: toDateInputValue(selectedRecord?.endDate),
   });
 
   const handleChange = (e) => {
@@ -62,11 +71,16 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
     if (record.customerContactPersonEmail1 && !validator.isEmail(record.customerContactPersonEmail1)) {
       return toast.error("Enter a valid Contact Person Email 1");
     }
+    if (record.startDate && record.endDate && new Date(record.endDate) < new Date(record.startDate)) {
+      return toast.error("End Date cannot be before Start Date");
+    }
 
     const payload = {
       ...record,
       custName: record.custName.trim(),
       email: (record.email || "").trim(),
+      startDate: record.startDate || null,
+      endDate: record.endDate || null,
     };
 
     toast.loading("Updating AMC History Record...");
@@ -229,6 +243,22 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
                       <option value="West">West</option>
                       <option value="Central">Central</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="col-12 col-lg-6">
+                  <div className="mb-3">
+                    <label className="form-label label_text">Start Date</label>
+                    <input type="date" className="form-control rounded-0"
+                      name="startDate" value={record.startDate || ""} onChange={handleChange} />
+                  </div>
+                </div>
+
+                <div className="col-12 col-lg-6">
+                  <div className="mb-3">
+                    <label className="form-label label_text">End Date</label>
+                    <input type="date" className="form-control rounded-0"
+                      name="endDate" value={record.endDate || ""} onChange={handleChange} />
                   </div>
                 </div>
 

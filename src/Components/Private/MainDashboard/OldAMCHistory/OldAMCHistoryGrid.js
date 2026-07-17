@@ -267,6 +267,8 @@ export const OldAMCHistoryGrid = () => {
                             <th className="text-center align-middle">City / State</th>
                             <th className="text-center align-middle">GST No</th>
                             <th className="text-center align-middle">Zone</th>
+                            <th className="text-center align-middle">Start Date</th>
+                            <th className="text-center align-middle">End Date</th>
                             <th className="text-center align-middle">Action</th>
                           </tr>
                         </thead>
@@ -292,6 +294,8 @@ export const OldAMCHistoryGrid = () => {
                                 </td>
                                 <td style={{ textAlign: "center" }}>{r.GSTNo || "N/A"}</td>
                                 <td style={{ textAlign: "center" }}>{r.zone || "N/A"}</td>
+                                <td style={{ textAlign: "center" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString() : "N/A"}</td>
+                                <td style={{ textAlign: "center" }}>{r.endDate ? new Date(r.endDate).toLocaleDateString() : "N/A"}</td>
                                 <td style={{ textAlign: "center" }}>
                                   <span onClick={() => handleUpdateOpen(r)} className="update me-2" title="Edit">
                                     <i className="fa-solid fa-pen text-success cursor-pointer"></i>
@@ -303,7 +307,7 @@ export const OldAMCHistoryGrid = () => {
                               </tr>
                             ))
                           ) : (
-                            <tr><td colSpan="13" style={{ textAlign: "center" }}>No data found — import an Excel/CSV file or click Add to get started</td></tr>
+                            <tr><td colSpan="15" style={{ textAlign: "center" }}>No data found — import an Excel/CSV file or click Add to get started</td></tr>
                           )}
                         </tbody>
                       </table>
