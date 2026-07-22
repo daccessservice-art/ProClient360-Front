@@ -1,18 +1,29 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import axios from "axios";
+import toast from "react-hot-toast";
+import { getPurchaseOrders, approvePurchaseOrder } from "../../../hooks/usePurchaseOrder";
 
 export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], inprocessTasks = [] }) => {
 
   const [allLeads, setAllLeads] = useState([]);
   const [activeTab, setActiveTab] = useState("today");
   const [userDesignation, setUserDesignation] = useState("");
+  const [userDepartment, setUserDepartment] = useState("");
+
+  // ── PO approval state (Purchase and Store / CEO only) ──
+  const [pendingPOs, setPendingPOs] = useState([]);
+  const [poLoading, setPoLoading] = useState(false);
+  const [approvingId, setApprovingId] = useState(null);
+  const poPollRef = useRef(null);
 
   useEffect(() => {
     try {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
       setUserDesignation(userData?.designation || "");
+      setUserDepartment(userData?.department || "");
     } catch {
       setUserDesignation("");
+      setUserDepartment("");
     }
   }, []);
 
@@ -48,6 +59,71 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     );
   }, [userDesignation]);
 
+  // ── is this the Purchase & Store CEO? ──
+  const isPurchaseCEO = useMemo(() => {
+    const dept = userDepartment?.toLowerCase() || "";
+    const desig = userDesignation?.toLowerCase() || "";
+    return dept.includes("purchase") && dept.includes("store") && desig === "ceo";
+  }, [userDepartment, userDesignation]);
+
+  // ── fetch pending POs for approval ──
+  const fetchPendingPOs = async (silent = false) => {
+    if (!silent) setPoLoading(true);
+    try {
+      const data = await getPurchaseOrders(1, 500, "");
+      if (data?.success) {
+        const pending = (data.purchaseOrders || []).filter(po => po.status === "Pending");
+        setPendingPOs(pending);
+      } else {
+        setPendingPOs([]);
+      }
+    } catch (err) {
+      console.error("Error fetching pending purchase orders:", err);
+      if (!silent) setPendingPOs([]);
+    } finally {
+      if (!silent) setPoLoading(false);
+    }
+  };
+
+  // ── NEW: initial fetch + background polling every 20s so the count/list
+  // stays live when POs are created/approved elsewhere, without needing
+  // a manual refresh or page reload. Polling is silent (no loading spinner
+  // flicker) and only runs while this user is the Purchase & Store CEO. ──
+  useEffect(() => {
+    if (!isPurchaseCEO) return;
+
+    fetchPendingPOs(false);
+
+    poPollRef.current = setInterval(() => {
+      fetchPendingPOs(true);
+    }, 20000);
+
+    return () => {
+      if (poPollRef.current) clearInterval(poPollRef.current);
+    };
+  }, [isPurchaseCEO]);
+
+  const handleApprovePO = async (poId) => {
+    setApprovingId(poId);
+    try {
+      const data = await approvePurchaseOrder(poId);
+      if (data?.success) {
+        if (data.mailStatus === false) {
+          toast.success("Purchase Order approved (but approval email could not be sent — check vendor email on file)");
+        } else if (data.mailStatus === true) {
+          toast.success("Purchase Order approved & email sent to vendor");
+        } else {
+          toast.success("Purchase Order approved successfully");
+        }
+        fetchPendingPOs(false);
+      } else {
+        toast.error(data?.error || "Failed to approve purchase order");
+      }
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   const { todayLeads, overdueLeads, pendingLeads } = useMemo(() => {
     const today = [], overdue = [], pending = [];
 
@@ -79,6 +155,11 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   };
 
+  const formatAmount = (val) => {
+    if (!val || val <= 0) return "₹0";
+    return '₹' + Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
   const statusBadge = (status) => {
     const map = {
       Won:     { bg: "#198754", color: "#fff" },
@@ -99,28 +180,33 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     { key: "overdue",  label: "Overdue Follow-up", count: overdueLeads.length,           color: "#dc2626", pulse: "pulseRed",    leadTab: true  },
     { key: "assigned", label: "Assigned Tasks",    count: (assignedTasks || []).length,  color: "#8b5cf6", pulse: "pulsePurple", leadTab: false },
     { key: "active",   label: "Active Tasks",      count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
+    { key: "poApproval", label: "PO Approval", count: pendingPOs.length, color: "#0891b2", pulse: "pulseBlue", leadTab: false, poTab: true },
   ];
 
   const tabs = allTabs.filter(tab => {
+    if (tab.poTab) return isPurchaseCEO;
     if (tab.leadTab) return isSalesOrMarketing;
     return true;
   });
 
   useEffect(() => {
-    if (!isSalesOrMarketing) setActiveTab("assigned");
+    if (isPurchaseCEO) setActiveTab("poApproval");
+    else if (!isSalesOrMarketing) setActiveTab("assigned");
     else setActiveTab("today");
-  }, [isSalesOrMarketing]);
+  }, [isSalesOrMarketing, isPurchaseCEO]);
 
   const currentData = useMemo(() => {
-    if (activeTab === "today")    return todayLeads;
-    if (activeTab === "pending")  return pendingLeads;
-    if (activeTab === "overdue")  return overdueLeads;
-    if (activeTab === "assigned") return assignedTasks || [];
-    if (activeTab === "active")   return inprocessTasks || [];
+    if (activeTab === "today")      return todayLeads;
+    if (activeTab === "pending")    return pendingLeads;
+    if (activeTab === "overdue")    return overdueLeads;
+    if (activeTab === "assigned")   return assignedTasks || [];
+    if (activeTab === "active")     return inprocessTasks || [];
+    if (activeTab === "poApproval") return pendingPOs;
     return [];
-  }, [activeTab, todayLeads, pendingLeads, overdueLeads, assignedTasks, inprocessTasks]);
+  }, [activeTab, todayLeads, pendingLeads, overdueLeads, assignedTasks, inprocessTasks, pendingPOs]);
 
   const isTaskTab = activeTab === "assigned" || activeTab === "active";
+  const isPOTab = activeTab === "poApproval";
   const activeTabInfo = tabs.find(t => t.key === activeTab);
 
   const getRowAnimation = () => {
@@ -184,9 +270,17 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
               borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
             }}>🕐 Pending</span>
           )}
+          {activeTab === "poApproval" && (
+            <span style={{
+              fontSize: "0.72rem", color: "#0e7490",
+              background: "rgba(8,145,178,0.07)",
+              border: "1px solid rgba(8,145,178,0.18)",
+              borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
+            }}>🧾 Awaiting Approval</span>
+          )}
         </div>
 
-        {/* ── Pill Tabs — full width, each button stretches equally ── */}
+        {/* ── Pill Tabs ── */}
         <div style={{
           padding: "14px 20px 12px",
           display: "flex",
@@ -270,7 +364,16 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                   background: "#f8fafc",
                   borderBottom: `2px solid ${activeTabInfo?.color}30`,
                 }}>
-                  {(isTaskTab
+                  {(isPOTab
+                    ? [
+                        { h: "SR NO.",      w: "60px"  },
+                        { h: "ORDER NO.",   w: "140px" },
+                        { h: "VENDOR",      w: ""      },
+                        { h: "ORDER DATE",  w: "110px" },
+                        { h: "GRAND TOTAL", w: "130px" },
+                        { h: "ACTION",      w: "110px" },
+                      ]
+                    : isTaskTab
                     ? [
                         { h: "SR NO.",     w: "60px"  },
                         { h: "TASK NAME",  w: ""      },
@@ -314,13 +417,56 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
               </thead>
 
               <tbody>
-                {currentData.length === 0 ? (
+                {isPOTab && poLoading ? (
+                  <tr>
+                    <td colSpan="6" className="text-center text-muted py-5" style={{ fontSize: "0.82rem", border: "none" }}>
+                      Loading pending purchase orders...
+                    </td>
+                  </tr>
+                ) : currentData.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="text-center text-muted py-5"
                       style={{ fontSize: "0.82rem", border: "none" }}>
                       No records found
                     </td>
                   </tr>
+                ) : isPOTab ? (
+                  currentData.map((po, idx) => (
+                    <tr
+                      key={po._id}
+                      style={{
+                        borderBottom: "1px solid rgba(0,0,0,0.05)",
+                        background: idx % 2 === 0 ? "#fff" : "#fafbfc",
+                      }}
+                    >
+                      <td style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>
+                        {String(idx + 1).padStart(2, "0")}.
+                      </td>
+                      <td style={{ border: "none", padding: "10px 14px", fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap" }}>
+                        {po.orderNumber || "N/A"}
+                      </td>
+                      <td style={{ border: "none", padding: "10px 14px", color: "#555" }}>
+                        {po.vendor?.vendorName || "N/A"}
+                      </td>
+                      <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>
+                        {formatDate(po.orderDate)}
+                      </td>
+                      <td style={{ border: "none", padding: "10px 14px", fontWeight: 700, color: "#15803d", whiteSpace: "nowrap" }}>
+                        {formatAmount(po.grandTotal)}
+                      </td>
+                      <td style={{ border: "none", padding: "10px 14px", textAlign: "center" }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-success"
+                          disabled={approvingId === po._id}
+                          onClick={() => handleApprovePO(po._id)}
+                          style={{ fontSize: "0.72rem", padding: "4px 12px" }}
+                        >
+                          {approvingId === po._id ? "Approving..." : "Approve"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 ) : (
                   currentData.map((item, idx) =>
                     isTaskTab ? (

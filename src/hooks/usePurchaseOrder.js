@@ -98,6 +98,21 @@ const deletePurchaseOrder = async (Id) => {
   }
 };  
 
+const approvePurchaseOrder = async (poId) => {
+  try {
+    const response = await axios.put(`${url}/${poId}`, { _id: poId, status: "Approved" }, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    const data = response.data;
+    return data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
 export { 
-  getPurchaseOrders, getPurchaseOrderById, getPurchaseOrderHistory, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder 
+  getPurchaseOrders, getPurchaseOrderById, getPurchaseOrderHistory, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, approvePurchaseOrder 
 };
