@@ -9,6 +9,7 @@ import { getPurchaseOrders, deletePurchaseOrder } from "../../../../hooks/usePur
 import axios from "axios";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
 
 const getProjects = async (page = 1, limit = 20, filters = {}, searchTerm = "") => {
   try {
@@ -52,6 +53,7 @@ export const PurchaseOrderMasterGrid = () => {
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 0,
@@ -106,6 +108,111 @@ export const PurchaseOrderMasterGrid = () => {
     }
     setdeletePopUpShow(false);
     setCurrentPage(1);
+  };
+
+  // ── Export to Excel ──────────────────────────────────────────────────────
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      toast.loading("Preparing Excel file...");
+
+      // Fetch all Purchase Orders (not just current page) for a complete export
+      let allPOs = [];
+      let page = 1;
+      const limit = 200;
+      let hasMore = true;
+
+      while (hasMore) {
+        const data = await getPurchaseOrders(page, limit, search);
+        if (data?.success && data.purchaseOrders?.length > 0) {
+          allPOs = [...allPOs, ...data.purchaseOrders];
+          if (data.purchaseOrders.length < limit) hasMore = false;
+          else page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      toast.dismiss();
+
+      if (allPOs.length === 0) {
+        toast.error("No Purchase Order data to export");
+        setExporting(false);
+        return;
+      }
+
+      // Flatten: one row per PO item (so quantities/prices are visible)
+      const rows = [];
+      allPOs.forEach((po, poIndex) => {
+        const baseInfo = {
+          "Sr. No": poIndex + 1,
+          "Order Number": po.orderNumber || "-",
+          "Order Date": po.orderDate ? new Date(po.orderDate).toLocaleDateString("en-GB") : "-",
+          "Vendor Name": po.vendor?.vendorName || "-",
+          "Transaction Type": po.transactionType || "-",
+          "Purchase Type": po.purchaseType || "-",
+          "Project": po.project?.name || "-",
+          "Warehouse Location": po.warehouseLocation || "-",
+          "Status": po.status || "-",
+          "Remark": po.remark || "-",
+        };
+
+        if (po.items && po.items.length > 0) {
+          po.items.forEach((item) => {
+            rows.push({
+              ...baseInfo,
+              "Product Name": item.productName || "-",
+              "Brand Name": item.brandName || "-",
+              "Model No": item.modelNo || "-",
+              "HSN/SAC": item.hsnSac || "-",
+              "Unit": item.baseUOM || item.unit || "-",
+              "Quantity": item.quantity || 0,
+              "Price": item.price || 0,
+              "Discount %": item.discountPercent || 0,
+              "Tax %": item.taxPercent || 0,
+              "Warranty": item.warranty || "-",
+              "Net Value": item.netValue || 0,
+            });
+          });
+        } else {
+          rows.push({
+            ...baseInfo,
+            "Product Name": "-",
+            "Brand Name": "-",
+            "Model No": "-",
+            "HSN/SAC": "-",
+            "Unit": "-",
+            "Quantity": 0,
+            "Price": 0,
+            "Discount %": 0,
+            "Tax %": 0,
+            "Warranty": "-",
+            "Net Value": 0,
+          });
+        }
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Purchase Orders");
+
+      // Auto column width (simple heuristic)
+      const colWidths = Object.keys(rows[0]).map((key) => ({
+        wch: Math.max(key.length, 15),
+      }));
+      worksheet["!cols"] = colWidths;
+
+      const fileName = `PurchaseOrder_Master_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+
+      toast.success("Excel file downloaded successfully!");
+    } catch (error) {
+      toast.dismiss();
+      console.error("Error exporting Purchase Orders to Excel:", error);
+      toast.error("Failed to export Excel file");
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Fetch projects for dropdown
@@ -257,6 +364,20 @@ export const PurchaseOrderMasterGrid = () => {
                           </form>
                         </div>
                       </div>
+
+                      <div className="col- col-lg-2 ms-auto text-end me-2">
+                        <div className="col-12 col-lg-12 ms-auto text-end">
+                          <button
+                            onClick={handleExportExcel}
+                            type="button"
+                            className="btn adbtn btn-success"
+                            disabled={exporting}
+                          >
+                            <i className="fa-solid fa-file-excel"></i> {exporting ? "Exporting..." : "Export"}
+                          </button>
+                        </div>
+                      </div>
+
                       {user?.permissions || user?.permissions?.includes("createPurchaseOrder") || user.user==='company' ? ( 
                         <div className="col- col-lg-2 ms-auto text-end me-4">
                           <div className="col-12 col-lg-12 ms-auto text-end">

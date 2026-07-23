@@ -43,6 +43,11 @@ const COMPANY_CONFIGS = {
   },
 };
 
+// ── NEW: path to the signature image, shown automatically once a PO is
+// Approved. Sits alongside the DAccess/Entero logos under the same
+// public/static/assets/img folder. ──
+const SIGNATURE_IMAGE_URL = '/static/assets/img/sign.png';
+
 const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
   const po         = selectedPO || {};
   const items      = po.items      || [];
@@ -51,6 +56,14 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
   const grandTotal = Number(po.grandTotal)  || 0;
   const cgst       = totalTax / 2;
   const sgst       = totalTax / 2;
+
+  // ── NEW: is this PO approved? drives whether the signature auto-shows ──
+  const isApproved = po.status === 'Approved';
+
+  // ── NEW: tracks whether sign.png actually loaded, so we can fall back
+  // to the original "Authorised Signatory" placeholder text if the image
+  // is missing/broken, instead of showing a blank/broken image icon. ──
+  const [signatureLoadFailed, setSignatureLoadFailed] = useState(false);
 
   // ── Default is DAccess ───────────────────────────────────────────────────
   const [printAs, setPrintAs] = useState('daccess');
@@ -393,9 +406,22 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               </div>
               <div className="col-6 p-2 text-end" style={{ fontSize: '11px' }}>
                 <div className="mb-1">For, {company.name}</div>
+                {/* ── FIX: when the PO is Approved, auto-show sign.png inside
+                    the signature box instead of the blank placeholder.
+                    Falls back to "Authorised Signatory" text if the PO
+                    isn't approved yet, or if the image fails to load. ── */}
                 <div className="border mx-auto mt-2 d-flex align-items-center justify-content-center"
-                  style={{ width: '90px', height: '38px' }}>
-                  <span className="text-muted" style={{ fontSize: '9px' }}>Authorised Signatory</span>
+                  style={{ width: '220px', height: '70px', overflow: 'hidden' }}>
+                  {isApproved && !signatureLoadFailed ? (
+                    <img
+                      src={SIGNATURE_IMAGE_URL}
+                      alt="Authorised Signature"
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                      onError={() => setSignatureLoadFailed(true)}
+                    />
+                  ) : (
+                    <span className="text-muted" style={{ fontSize: '9px' }}>Authorised Signatory</span>
+                  )}
                 </div>
                 <div className="mt-1 text-muted" style={{ fontSize: '10px' }}>Signature</div>
               </div>

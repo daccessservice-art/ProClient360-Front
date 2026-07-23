@@ -9,6 +9,7 @@ import { getGRNs, deleteGRN } from "../../../../hooks/useGRN";
 import axios from "axios";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
 
 const getProjects = async (page = 1, limit = 20, filters = {}, searchTerm = "") => {
   try {
@@ -52,6 +53,7 @@ export const GRNMasterGrid = () => {
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 0,
@@ -95,6 +97,111 @@ export const GRNMasterGrid = () => {
     }
     setdeletePopUpShow(false);
     setCurrentPage(1);
+  };
+
+  // ── Export to Excel ──────────────────────────────────────────────────────
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      toast.loading("Preparing Excel file...");
+
+      // Fetch all GRNs (not just current page) for a complete export
+      let allGRNs = [];
+      let page = 1;
+      const limit = 200;
+      let hasMore = true;
+
+      while (hasMore) {
+        const data = await getGRNs(page, limit, search);
+        if (data?.success && data.grns?.length > 0) {
+          allGRNs = [...allGRNs, ...data.grns];
+          if (data.grns.length < limit) hasMore = false;
+          else page++;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      toast.dismiss();
+
+      if (allGRNs.length === 0) {
+        toast.error("No GRN data to export");
+        setExporting(false);
+        return;
+      }
+
+      // Flatten: one row per GRN item (so quantities/prices are visible)
+      const rows = [];
+      allGRNs.forEach((grn, grnIndex) => {
+        const baseInfo = {
+          "Sr. No": grnIndex + 1,
+          "GRN Number": grn.grnNumber || "-",
+          "GRN Date": grn.grnDate ? new Date(grn.grnDate).toLocaleDateString("en-GB") : "-",
+          "Choice": grn.choice || "-",
+          "PO Number": grn.purchaseOrder?.orderNumber || "-",
+          "Vendor Name": grn.vendor?.vendorName || "-",
+          "Transaction Type": grn.transactionType || "-",
+          "Purchase Type": grn.purchaseType || "-",
+          "Project": grn.project?.name || "-",
+          "Warehouse Location": grn.warehouseLocation || "-",
+          "Status": grn.status || "-",
+          "Remark": grn.remark || "-",
+        };
+
+        if (grn.items && grn.items.length > 0) {
+          grn.items.forEach((item) => {
+            rows.push({
+              ...baseInfo,
+              "Product Name": item.productName || "-",
+              "Brand Name": item.brandName || "-",
+              "Model No": item.modelNo || "-",
+              "Unit": item.unit || "-",
+              "Ordered Qty": item.orderedQuantity || 0,
+              "Received Qty": item.receivedQuantity || 0,
+              "Price": item.price || 0,
+              "Discount %": item.discountPercent || 0,
+              "Tax %": item.taxPercent || 0,
+              "Net Value": item.netValue || 0,
+            });
+          });
+        } else {
+          rows.push({
+            ...baseInfo,
+            "Product Name": "-",
+            "Brand Name": "-",
+            "Model No": "-",
+            "Unit": "-",
+            "Ordered Qty": 0,
+            "Received Qty": 0,
+            "Price": 0,
+            "Discount %": 0,
+            "Tax %": 0,
+            "Net Value": 0,
+          });
+        }
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "GRN Data");
+
+      // Auto column width (simple heuristic)
+      const colWidths = Object.keys(rows[0]).map((key) => ({
+        wch: Math.max(key.length, 15),
+      }));
+      worksheet["!cols"] = colWidths;
+
+      const fileName = `GRN_Master_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+
+      toast.success("Excel file downloaded successfully!");
+    } catch (error) {
+      toast.dismiss();
+      console.error("Error exporting GRN to Excel:", error);
+      toast.error("Failed to export Excel file");
+    } finally {
+      setExporting(false);
+    }
   };
 
   useEffect(() => {
@@ -213,6 +320,20 @@ export const GRNMasterGrid = () => {
                           </form>
                         </div>
                       </div>
+
+                      <div className="col- col-lg-2 ms-auto text-end me-2">
+                        <div className="col-12 col-lg-12 ms-auto text-end">
+                          <button
+                            onClick={handleExportExcel}
+                            type="button"
+                            className="btn adbtn btn-success"
+                            disabled={exporting}
+                          >
+                            <i className="fa-solid fa-file-excel"></i> {exporting ? "Exporting..." : "Export"}
+                          </button>
+                        </div>
+                      </div>
+
                       {user?.permissions || user?.permissions?.includes("createGRN") || user.user==='company' ? ( 
                         <div className="col- col-lg-2 ms-auto text-end me-4">
                           <div className="col-12 col-lg-12 ms-auto text-end">
