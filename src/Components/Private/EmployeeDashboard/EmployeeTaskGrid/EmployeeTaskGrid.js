@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import ViewTaskPopUp from "./PopUp/ViewTaskPopUp";
+import TesterQueuePopUp from "./PopUp/TesterQueuePopUp"; // ✅ NEW
 import { getMyProjects } from "../../../../hooks/useProjects";
+import { getTesterTasks } from "../../../../hooks/useTaskSheet"; // ✅ NEW
 import { formatDate } from "../../../../utils/formatDate";
 import { Header } from "../../MainDashboard/Header/Header";
 import { Sidebar } from "../../MainDashboard/Sidebar/Sidebar";
@@ -63,6 +65,10 @@ export const EmployeeTaskGrid = () => {
   const itemsPerPage = 20;
 
   const [notifiedTomorrowProjects, setNotifiedTomorrowProjects] = useState(new Set());
+
+  // ✅ NEW — Tester's own testing queue
+  const [testerQueueShow, setTesterQueueShow] = useState(false);
+  const [testerQueueCount, setTesterQueueCount] = useState(0);
 
   useEffect(() => {
     const styleId = 'beacon-indicator-styles';
@@ -171,6 +177,24 @@ export const EmployeeTaskGrid = () => {
     fetchData();
   }, []);
 
+  // ✅ NEW — Keep a live count of pending testing-queue items for the badge
+  useEffect(() => {
+    const fetchTesterCount = async () => {
+      try {
+        const data = await getTesterTasks();
+        if (data?.success) {
+          const pending = (data.task || []).filter(
+            t => t.qaStatus === 'pending_test' || t.qaStatus === 'testing'
+          ).length;
+          setTesterQueueCount(pending);
+        }
+      } catch (e) {
+        // silent — this is just a badge count, not critical
+      }
+    };
+    fetchTesterCount();
+  }, [testerQueueShow]);
+
   const applyFilters = (allProjects, statusVal, searchVal) => {
     let result = allProjects;
     if (statusVal) {
@@ -269,7 +293,7 @@ export const EmployeeTaskGrid = () => {
             <div className="main-panel" style={{ width: isopen ? "" : "calc(100% - 120px)", marginLeft: isopen ? "" : "125px" }}>
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
-                {/* ── Title + Search + Filter + Legend (all in one row) ── */}
+                {/* ── Title + Search + Filter + Testing Queue + Legend ── */}
                 <div className="row px-2 py-1 align-items-center">
                   {/* Title */}
                   <div className="col-12 col-lg-2">
@@ -305,8 +329,24 @@ export const EmployeeTaskGrid = () => {
                     </select>
                   </div>
 
+                  {/* ✅ NEW — My Testing Queue button */}
+                  <div className="col-12 col-lg-2 mt-2 mt-lg-0">
+                    <button
+                      type="button"
+                      className="btn btn-info btn-sm w-100 text-white position-relative"
+                      onClick={() => setTesterQueueShow(true)}
+                    >
+                      <i className="fa-solid fa-vial me-1"></i> Testing Queue
+                      {testerQueueCount > 0 && (
+                        <span className="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle">
+                          {testerQueueCount}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
                   {/* ── Blinker Legend beside search bar ── */}
-                  <div className="col-12 col-lg-5 d-flex align-items-center justify-content-lg-end mt-2 mt-lg-0">
+                  <div className="col-12 col-lg-3 d-flex align-items-center justify-content-lg-end mt-2 mt-lg-0">
                     <div
                       className="d-inline-flex align-items-center px-3 py-2 rounded"
                       style={{
@@ -478,6 +518,11 @@ export const EmployeeTaskGrid = () => {
           selectedId={selectedId}
           handleViewTask={handleViewTask}
         />
+      )}
+
+      {/* ✅ NEW — Tester's own testing queue popup */}
+      {testerQueueShow && (
+        <TesterQueuePopUp onClose={() => setTesterQueueShow(false)} />
       )}
 
       <Tooltip id={APP_TOOLTIP_ID} />

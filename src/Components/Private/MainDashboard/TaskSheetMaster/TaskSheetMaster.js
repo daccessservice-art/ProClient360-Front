@@ -1,13 +1,10 @@
 /**
- * TaskSheetMaster.jsx  (UPDATED — Manager sub-task tree view added)
+ * TaskSheetMaster.jsx  (UPDATED — Manager sub-task tree view + Tester/QA workflow)
  *
- * Changes vs original:
- *  - Imports getSubTasksForParent hook
- *  - After building employeeTaskAssignments, also fetches sub-tasks for each
- *    manager-assigned task and stores them in subTaskMap (parentId → [rows])
- *  - The assignment table renders child sub-task rows (indented, tinted) right
- *    after every parent row
- *  - ALL original code, state, handlers, and UI are 100% untouched
+ * Changes vs previous version:
+ *  - Manager can assign a Tester alongside employees when creating a task
+ *  - Assignment table shows a Tester column + QA Status badge with bug-report access
+ *  - Everything else (sub-task tree, Gantt, original handlers) is untouched
  */
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
@@ -25,7 +22,7 @@ import {
   getTaskSheet,
   createTaskSheet,
   deleteTaskSheet,
-  getSubTasksForParent,   // ✅ NEW import
+  getSubTasksForParent,
 } from "../../../../hooks/useTaskSheet";
 import toast from "react-hot-toast";
 import { getAllTasksForDropdown } from "../../../../hooks/useTask";
@@ -78,6 +75,9 @@ export const TaskSheetMaster = () => {
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
 
+  // ✅ NEW — Optional Tester assigned alongside the developer(s)
+  const [selectedTester, setSelectedTester] = useState(null);
+
   const [projectName, setProjectName] = useState("");
   const [renderPage, setRenderPage] = useState(false);
   const [taskAddPopUpShow, setTaskAddPopUpShow] = useState(false);
@@ -92,7 +92,7 @@ export const TaskSheetMaster = () => {
   const [selectedRowId, setSelectedRowId] = useState(null);
   const [deletingTaskIds, setDeletingTaskIds] = useState(new Set());
 
-  // ✅ NEW — Map of parentTaskId → array of sub-task rows for Manager's view
+  // ✅ Map of parentTaskId → array of sub-task rows for Manager's view
   const [subTaskMap, setSubTaskMap] = useState({});
   // Track which parent rows are expanded to show sub-tasks
   const [expandedParents, setExpandedParents] = useState(new Set());
@@ -306,7 +306,7 @@ export const TaskSheetMaster = () => {
     setTasks(tasks.map((t) => (t.id === task.id ? task : t)));
   };
 
-  // ✅ NEW — Toggle expand/collapse sub-tasks for a parent row
+  // ✅ Toggle expand/collapse sub-tasks for a parent row
   const handleToggleSubTasks = async (taskId) => {
     if (expandedParents.has(taskId)) {
       // Collapse
@@ -407,6 +407,11 @@ export const TaskSheetMaster = () => {
                       assignedById: task.assignedBy?._id || null,
                       remark: task.remark || '',
                       taskLevel: task.taskLevel || 0,
+                      // ✅ NEW — QA / Tester workflow fields
+                      assignedTesterName: task.assignedTester?.name || null,
+                      qaStatus: task.qaStatus || 'none',
+                      bugHistory: task.bugHistory || [],
+                      testCycles: task.testCycles || 0,
                     });
                   }
                 });
@@ -433,6 +438,11 @@ export const TaskSheetMaster = () => {
                 assignedById: assignment.assignedById,
                 remark: assignment.remark,
                 taskLevel: assignment.taskLevel,
+                // ✅ NEW — carry QA/Tester fields into the grouped table rows
+                assignedTesterName: assignment.assignedTesterName,
+                qaStatus: assignment.qaStatus,
+                bugHistory: assignment.bugHistory,
+                testCycles: assignment.testCycles,
               });
             });
 
@@ -528,6 +538,8 @@ export const TaskSheetMaster = () => {
           endDate,
           remark,
           priority,
+          // ✅ NEW — Optional tester for the QA workflow
+          assignedTester: selectedTester?.value || undefined,
         };
 
         try {
@@ -571,6 +583,7 @@ export const TaskSheetMaster = () => {
     setRemark("");
     setSelectedEmployees([]);
     setPriority("medium");
+    setSelectedTester(null); // ✅ NEW
   };
 
   useEffect(() => {
@@ -655,8 +668,8 @@ export const TaskSheetMaster = () => {
                           Employee Task Assignments
                         </label>
 
-                        {/* ✅ NEW — Legend for sub-task rows */}
-                        <div className="d-flex align-items-center gap-3 mb-2">
+                        {/* ✅ Legend for sub-task rows */}
+                        <div className="d-flex align-items-center gap-3 mb-2 flex-wrap">
                           <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
                             <span style={{ width: "14px", height: "14px", background: "#e7f1ff", border: "2px solid #0d6efd", display: "inline-block", borderRadius: "2px" }}></span>
                             Manager-assigned Task
@@ -664,6 +677,15 @@ export const TaskSheetMaster = () => {
                           <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
                             <span style={{ width: "14px", height: "14px", background: "#f0fdf4", border: "2px solid #16a34a", display: "inline-block", borderRadius: "2px" }}></span>
                             Team Lead Sub-Task
+                          </span>
+                          {/* ✅ NEW — QA legend */}
+                          <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
+                            <span style={{ width: "14px", height: "14px", background: "#f0f9ff", border: "2px solid #0dcaf0", display: "inline-block", borderRadius: "2px" }}></span>
+                            With Tester
+                          </span>
+                          <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
+                            <span style={{ width: "14px", height: "14px", background: "#fff5f5", border: "2px solid #dc3545", display: "inline-block", borderRadius: "2px" }}></span>
+                            Bug Found — Back with Developer
                           </span>
                         </div>
 
@@ -679,6 +701,9 @@ export const TaskSheetMaster = () => {
                                   <th>Subtask Name</th>
                                   <th>Start Date</th>
                                   <th>End Date</th>
+                                  {/* ✅ NEW columns */}
+                                  <th className="text-center">Tester</th>
+                                  <th className="text-center">QA Status</th>
                                   <th className="text-center" style={{ minWidth: "180px" }}>Actions</th>
                                 </tr>
                               </thead>
@@ -687,13 +712,18 @@ export const TaskSheetMaster = () => {
                                   assignment.tasks.flatMap((task, index) => {
                                     const rowId = `${assignment.employeeId}-${task.taskId}-${index}`;
                                     const isSelected = selectedRowId === rowId;
-                                    const isCompleted = task.taskLevel === 100;
+                                    // ✅ UPDATED — "completed" now also requires QA to have passed (or no tester assigned)
+                                    const isCompleted = task.taskLevel === 100 && (!task.qaStatus || task.qaStatus === 'none' || task.qaStatus === 'passed');
+                                    const isPendingTest = task.qaStatus === 'pending_test' || task.qaStatus === 'testing';
+                                    const isBugFound = task.qaStatus === 'bug_found';
                                     const isDeleting = deletingTaskIds.has(task.taskId);
                                     const isExpanded = expandedParents.has(task.taskId);
                                     const subRows = subTaskMap[task.taskId] || [];
 
                                     let rowBg = "transparent";
                                     if (isDeleting) rowBg = "#fff3cd";
+                                    else if (isBugFound) rowBg = "#fff5f5";
+                                    else if (isPendingTest) rowBg = "#f0f9ff";
                                     else if (isCompleted) rowBg = "#d4edda";
                                     else if (isSelected) rowBg = "#e7f1ff";
 
@@ -703,7 +733,7 @@ export const TaskSheetMaster = () => {
                                         key={rowId}
                                         style={{
                                           backgroundColor: rowBg,
-                                          borderLeft: isDeleting ? "4px solid #ffc107" : isSelected ? "4px solid #0d6efd" : isCompleted ? "4px solid #28a745" : "none",
+                                          borderLeft: isDeleting ? "4px solid #ffc107" : isSelected ? "4px solid #0d6efd" : isBugFound ? "4px solid #dc3545" : isPendingTest ? "4px solid #0dcaf0" : isCompleted ? "4px solid #28a745" : "none",
                                           transition: "all 0.3s ease",
                                           opacity: isDeleting ? 0.7 : 1,
                                         }}
@@ -731,6 +761,41 @@ export const TaskSheetMaster = () => {
                                         </td>
                                         <td className="align-middle">{formatTaskDate(task.startDate)}</td>
                                         <td className="align-middle">{formatTaskDate(task.endDate)}</td>
+
+                                        {/* ✅ NEW — Tester column */}
+                                        <td className="align-middle text-center">
+                                          <small className="text-muted">{task.assignedTesterName || "-"}</small>
+                                        </td>
+
+                                        {/* ✅ NEW — QA Status column */}
+                                        <td className="align-middle text-center">
+                                          {task.assignedTesterName ? (
+                                            <>
+                                              <span className={`badge ${
+                                                task.qaStatus === 'passed' ? 'bg-success' :
+                                                (task.qaStatus === 'pending_test' || task.qaStatus === 'testing') ? 'bg-info text-dark' :
+                                                task.qaStatus === 'bug_found' ? 'bg-danger' : 'bg-secondary'
+                                              }`}>
+                                                {task.qaStatus === 'passed' ? 'Passed' :
+                                                 (task.qaStatus === 'pending_test' || task.qaStatus === 'testing') ? 'With Tester' :
+                                                 task.qaStatus === 'bug_found' ? `Bug (Cycle ${task.testCycles || 1})` : 'Not Submitted'}
+                                              </span>
+                                              {task.bugHistory && task.bugHistory.length > 0 && (
+                                                <button
+                                                  type="button"
+                                                  className="btn btn-sm btn-link p-0 ms-1"
+                                                  onClick={() => handleViewRemark(task.bugHistory[task.bugHistory.length - 1].remark, task.taskName + " — Bug Report")}
+                                                  title="View Latest Bug Report"
+                                                >
+                                                  <i className="fa-solid fa-bug text-danger"></i>
+                                                </button>
+                                              )}
+                                            </>
+                                          ) : (
+                                            <span className="text-muted small">No Tester</span>
+                                          )}
+                                        </td>
+
                                         <td className="align-middle text-center">
                                           <div className="d-flex align-items-center justify-content-center gap-1 flex-wrap">
                                             {/* View Actions */}
@@ -768,7 +833,7 @@ export const TaskSheetMaster = () => {
                                               <i className="fa-solid fa-list-check me-1"></i> View
                                             </button>
 
-                                            {/* ✅ NEW — Toggle Sub-Tasks button */}
+                                            {/* ✅ Toggle Sub-Tasks button */}
                                             <button
                                               type="button"
                                               className="btn btn-sm px-2 py-1 d-inline-flex align-items-center"
@@ -831,12 +896,12 @@ export const TaskSheetMaster = () => {
                                       </tr>
                                     );
 
-                                    // ✅ NEW — Sub-task rows (expanded under parent)
+                                    // ✅ Sub-task rows (expanded under parent)
                                     const childRows = isExpanded
                                       ? subRows.length === 0
                                         ? [(
                                           <tr key={`${task.taskId}-empty`} style={{ backgroundColor: "#f8fffe" }}>
-                                            <td colSpan="8" className="text-center text-muted py-2" style={{ paddingLeft: "48px", fontSize: "13px" }}>
+                                            <td colSpan="10" className="text-center text-muted py-2" style={{ paddingLeft: "48px", fontSize: "13px" }}>
                                               <i className="fa-solid fa-info-circle me-1"></i>
                                               No sub-tasks assigned by Team Lead yet
                                             </td>
@@ -875,6 +940,11 @@ export const TaskSheetMaster = () => {
                                               </td>
                                               <td className="align-middle" style={{ fontSize: "13px" }}>{formatTaskDate(sub.startDate)}</td>
                                               <td className="align-middle" style={{ fontSize: "13px" }}>{formatTaskDate(sub.endDate)}</td>
+
+                                              {/* ✅ NEW — placeholder cells to keep column alignment */}
+                                              <td className="align-middle text-center"><small className="text-muted">-</small></td>
+                                              <td className="align-middle text-center"><small className="text-muted">-</small></td>
+
                                               <td className="align-middle text-center">
                                                 <div className="d-flex align-items-center justify-content-center gap-1">
                                                   {/* Progress badge */}
@@ -925,7 +995,7 @@ export const TaskSheetMaster = () => {
                     </div>
                   </div>
 
-                  {/* ── Task Assignment Form (original — untouched) ── */}
+                  {/* ── Task Assignment Form ── */}
                   <div className="row bg-white p-2 m-1 border rounded">
 
                     <div className="col-12 col-md-6 col-lg-4">
@@ -1040,6 +1110,39 @@ export const TaskSheetMaster = () => {
                           noOptionsMessage={() => employeeLoading ? 'Loading...' : 'No employees found'}
                           closeMenuOnSelect={false}
                         />
+                      </div>
+                    </div>
+
+                    {/* ✅ NEW — Assign Tester (optional, enables QA workflow) */}
+                    <div className="col-12 col-md-6 col-lg-6">
+                      <div className="mb-3">
+                        <label htmlFor="testerSelect" className="form-label label_text">
+                          Assign Tester <span className="text-muted small">(optional — enables QA pass/fail workflow)</span>
+                        </label>
+                        <Select
+                          id="testerSelect"
+                          options={employeeOptions}
+                          value={selectedTester}
+                          onChange={opt => setSelectedTester(opt)}
+                          onInputChange={val => { setEmployeeSearch(val); setEmployeePage(1); }}
+                          onMenuScrollToBottom={() => {
+                            if (employeeHasMore) {
+                              const nextPage = employeePage + 1;
+                              setEmployeePage(nextPage);
+                              loadEmployees(nextPage, employeeSearch);
+                            }
+                          }}
+                          placeholder="Search and select a tester..."
+                          isClearable
+                          isLoading={employeeLoading}
+                          isDisabled={submitting}
+                          styles={selectStyles}
+                          noOptionsMessage={() => employeeLoading ? 'Loading...' : 'No employees found'}
+                        />
+                        <small className="text-muted d-block mt-1">
+                          <i className="fa-solid fa-circle-info me-1"></i>
+                          If set, the developer must click "Submit for Testing" once done — the task only counts as fully completed after the tester passes it.
+                        </small>
                       </div>
                     </div>
 

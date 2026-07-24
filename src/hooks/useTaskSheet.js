@@ -82,7 +82,6 @@ const createTaskSheet = async (taskData) => {
   }
 };
 
-// ─── NEW: Team Lead creates a sub-task under one of their tasks ───────────────
 const createSubTask = async (subTaskData) => {
   try {
     const response = await axios.post(`${url}/subtask`, subTaskData, {
@@ -104,7 +103,6 @@ const createSubTask = async (subTaskData) => {
   }
 };
 
-// ─── NEW: Fetch all sub-tasks for a parent task (Manager uses this) ───────────
 const getSubTasksForParent = async (parentId) => {
   try {
     const response = await axios.get(`${url}/subtasks/${parentId}`, {
@@ -187,14 +185,82 @@ const deleteTaskSheet = async (id) => {
   }
 };
 
+// ── UPDATED: now accepts an optional testerId — required only if the task
+// has no Manager-assigned tester, letting the developer choose their own. ──
+const submitForTesting = async (id, testerId = null) => {
+  try {
+    const response = await axios.post(`${url}/${id}/submit-for-testing`, { testerId }, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: error.response?.data?.error || "Error submitting for testing" };
+  }
+};
+
+// ── NEW: Tester updates their in-progress testing percentage ──
+const updateTestProgress = async (id, progress) => {
+  try {
+    const response = await axios.put(`${url}/${id}/test-progress`, { progress }, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: error.response?.data?.error || "Error updating test progress" };
+  }
+};
+
+const getTesterTasks = async () => {
+  try {
+    const response = await axios.get(`${url}/tester/my-tasks`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: error.response?.data?.error || "Error fetching testing queue" };
+  }
+};
+
+const submitTestResult = async (id, result, remark = "") => {
+  try {
+    const response = await axios.post(`${url}/${id}/test-result`, { result, remark }, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: error.response?.data?.error || "Error submitting test result" };
+  }
+};
+
+const assignTester = async (id, testerId) => {
+  try {
+    const response = await axios.put(`${url}/${id}/assign-tester`, { testerId }, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: error.response?.data?.error || "Error assigning tester" };
+  }
+};
+
 export {
   getAllTask,
   createTaskSheet,
-  createSubTask,           // ✅ NEW — Team Lead assigns subtask
-  getSubTasksForParent,    // ✅ NEW — Manager fetches child tasks
+  createSubTask,
+  getSubTasksForParent,
   updateTaskSheet,
   deleteTaskSheet,
   getTaskSheet,
   getMyTaskSheet,
-  updateSubtask
+  updateSubtask,
+  submitForTesting,
+  updateTestProgress,   // ✅ NEW
+  getTesterTasks,
+  submitTestResult,
+  assignTester
 };

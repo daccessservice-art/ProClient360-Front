@@ -1,11 +1,15 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
-import { formatDate, formatDateforEditAction } from "../../../../../utils/formatDate";
+import Select from "react-select";
+import { formatDate, formatDateforEditAction, formatDateTimeForDisplay } from "../../../../../utils/formatDate";
 import { Steps } from "rsuite";
 import { createAction, getAllActions } from "../../../../../hooks/useAction";
 import { updateAction } from "../../../../../hooks/useAction";
-// ✅ REMOVED: import { updateSubtask } from "../../../../../hooks/useTaskSheet";
+import { submitForTesting } from "../../../../../hooks/useTaskSheet";
+import { getEmployees } from "../../../../../hooks/useEmployees";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
+
+const PAGE_SIZE = 10;
 
 const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -19,8 +23,17 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const [forEdit, setForEdit] = useState(false);
   const [editAction, setEditAction] = useState(""); 
   const [addAction, setAddAction] = useState(true);
-  
-  // ✅ REMOVED: subtaskInput and savingSubtask states
+
+  const [submittingForTest, setSubmittingForTest] = useState(false);
+
+  // ── NEW: developer's own tester pick — only used/shown when the Manager
+  // did NOT assign a tester on this task. ──
+  const [testerOptions, setTesterOptions] = useState([]);
+  const [testerPage, setTesterPage] = useState(1);
+  const [testerHasMore, setTesterHasMore] = useState(true);
+  const [testerLoading, setTesterLoading] = useState(false);
+  const [testerSearch, setTesterSearch] = useState("");
+  const [pickedTester, setPickedTester] = useState(null);
   
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreData, setHasMoreData] = useState(true);
@@ -31,6 +44,42 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     const now = new Date();
     return now.toISOString().slice(0, 10);
   };
+
+  // ── derived QA flags ──
+  const hasTester = !!selectedTask?.assignedTester;
+  const qaStatus = selectedTask?.qaStatus || 'none';
+  const isWithTester = qaStatus === 'pending_test' || qaStatus === 'testing';
+  const isBugFound = qaStatus === 'bug_found';
+  const isPassed = qaStatus === 'passed';
+  const canSubmitForTesting = selectedTask?.taskLevel === 100 && (qaStatus === 'none' || qaStatus === 'bug_found');
+
+  // ── NEW: load tester options only if this task has no assigned tester yet
+  // and the developer is in a position to submit for testing ──
+  const loadTesters = useCallback(async (page = 1, search = "") => {
+    setTesterLoading(true);
+    try {
+      const data = await getEmployees(page, PAGE_SIZE, search);
+      if (data && data.employees) {
+        const newOpts = data.employees.map(emp => ({ value: emp._id, label: emp.name }));
+        setTesterOptions(prev => page === 1 ? newOpts : [...prev, ...newOpts]);
+        setTesterHasMore(newOpts.length === PAGE_SIZE);
+      }
+    } catch {
+      toast.error("Failed to load employees");
+    } finally {
+      setTesterLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasTester && canSubmitForTesting) {
+      setTesterPage(1);
+      setTesterHasMore(true);
+      setTesterOptions([]);
+      loadTesters(1, testerSearch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testerSearch, hasTester, canSubmitForTesting]);
 
   const handleStatusChange = (status) => {
     setTaskStatus(status);
@@ -43,7 +92,32 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     }
   };
 
-  // ✅ REMOVED: handleSaveSubtask function
+  // ── UPDATED: passes the developer's chosen tester only when the task
+  // doesn't already have one assigned by the Manager. testStartDate is set
+  // automatically on the backend — nothing to pick here. ──
+  const handleSubmitForTesting = async () => {
+    if (submittingForTest) return;
+
+    if (!hasTester && !pickedTester) {
+      toast.error("Please select a tester before submitting for testing");
+      return;
+    }
+
+    setSubmittingForTest(true);
+    try {
+      const result = await submitForTesting(selectedTask._id, hasTester ? null : pickedTester.value);
+      if (result?.success) {
+        toast.success(result.message || "Submitted for testing");
+        handleUpdateTask();
+      } else {
+        toast.error(result?.error || "Failed to submit for testing");
+      }
+    } catch {
+      toast.error("Failed to submit for testing");
+    } finally {
+      setSubmittingForTest(false);
+    }
+  };
 
   const loadActions = useCallback(async (page = 1, isInitial = false) => {
     try {
@@ -186,6 +260,17 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     }
   }
 
+  const selectStyles = {
+    control: (provided) => ({ ...provided, borderRadius: 0, borderColor: '#ced4da', fontSize: '15px', minHeight: '38px' }),
+    option: (provided, state) => ({
+      ...provided,
+      backgroundColor: state.isSelected ? '#007bff' : state.isFocused ? '#e9ecef' : 'white',
+      color: state.isSelected ? 'white' : '#212529',
+      padding: '8px 12px',
+    }),
+    placeholder: (p) => ({ ...p, color: '#6c757d' }),
+  };
+
   return (
     <>
      <style>
@@ -229,13 +314,136 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                   </Steps>
                 </span>
 
-                {/* ✅ READ-ONLY SUBTASK SECTION - Employee can only view, not update */}
                 {selectedTask?.subtaskName && (
                   <div className="row mt-3 p-3 border rounded bg-light shadow-sm">
                     <div className="col-12">
                       <label className="form-label label_text fw-bold text-primary mb-1">Subtask Name</label>
                       <p className="mb-0 fs-6 text-dark">{selectedTask.subtaskName}</p>
                     </div>
+                  </div>
+                )}
+
+                {/* ── QA / Testing Status block — shown whenever this task
+                    is in (or has entered) the testing workflow ── */}
+                {(hasTester || canSubmitForTesting) && (
+                  <div
+                    className="row mt-3 p-3 border rounded shadow-sm"
+                    style={{
+                      background: isBugFound ? '#fff5f5' : isWithTester ? '#f0f9ff' : isPassed ? '#f0fdf4' : '#fff'
+                    }}
+                  >
+                    <div className="col-12 d-flex justify-content-between align-items-start flex-wrap gap-3">
+                      <div style={{ minWidth: '220px' }}>
+                        <label className="form-label label_text fw-bold mb-1">
+                          <i className="fa-solid fa-vial me-1"></i> QA / Testing Status
+                        </label>
+                        <div>
+                          <span className={`badge ${
+                            isPassed ? 'bg-success' :
+                            isWithTester ? 'bg-info text-dark' :
+                            isBugFound ? 'bg-danger' : 'bg-secondary'
+                          }`}>
+                            {isPassed ? 'Passed by Tester' :
+                             isWithTester ? 'With Tester — awaiting review' :
+                             isBugFound ? `Bug Reported (Cycle ${selectedTask.testCycles || 1})` :
+                             'Not submitted for testing yet'}
+                          </span>
+                          {selectedTask.assignedTester?.name && (
+                            <small className="text-muted ms-2">Tester: {selectedTask.assignedTester.name}</small>
+                          )}
+                        </div>
+
+                        {/* ── Automatic testing timestamps — read-only, no manual entry ── */}
+                        {(selectedTask.testStartDate || selectedTask.testEndDate) && (
+                          <div className="mt-2" style={{ fontSize: '12px' }}>
+                            {selectedTask.testStartDate && (
+                              <div className="text-muted">
+                                <i className="fa-solid fa-play me-1"></i>
+                                Testing started: {formatDateTimeForDisplay(selectedTask.testStartDate)}
+                              </div>
+                            )}
+                            {selectedTask.testEndDate && (
+                              <div className="text-muted">
+                                <i className="fa-solid fa-flag-checkered me-1"></i>
+                                Testing ended: {formatDateTimeForDisplay(selectedTask.testEndDate)}
+                              </div>
+                            )}
+                            {isWithTester && typeof selectedTask.testProgress === 'number' && (
+                              <div className="mt-1">
+                                <div className="d-flex align-items-center gap-2">
+                                  <span className="text-muted">Tester progress:</span>
+                                  <div className="progress flex-grow-1" style={{ height: '8px', maxWidth: '160px' }}>
+                                    <div className="progress-bar bg-info" role="progressbar" style={{ width: `${selectedTask.testProgress}%` }}></div>
+                                  </div>
+                                  <span className="fw-bold">{selectedTask.testProgress}%</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* ── Submit for Testing area ── */}
+                      {canSubmitForTesting && (
+                        <div style={{ minWidth: '260px' }}>
+                          {!hasTester && (
+                            <div className="mb-2">
+                              <label className="form-label label_text small fw-bold mb-1">
+                                No tester assigned by manager — choose who should test this <RequiredStar />
+                              </label>
+                              <Select
+                                options={testerOptions}
+                                value={pickedTester}
+                                onChange={opt => setPickedTester(opt)}
+                                onInputChange={val => { setTesterSearch(val); setTesterPage(1); }}
+                                onMenuScrollToBottom={() => {
+                                  if (testerHasMore) {
+                                    const nextPage = testerPage + 1;
+                                    setTesterPage(nextPage);
+                                    loadTesters(nextPage, testerSearch);
+                                  }
+                                }}
+                                placeholder="Search & select a tester..."
+                                isClearable
+                                isLoading={testerLoading}
+                                styles={selectStyles}
+                                noOptionsMessage={() => testerLoading ? 'Loading...' : 'No employees found'}
+                              />
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-info text-white w-100"
+                            onClick={handleSubmitForTesting}
+                            disabled={submittingForTest || (!hasTester && !pickedTester)}
+                          >
+                            {submittingForTest ? (
+                              <><span className="spinner-border spinner-border-sm me-2"></span>Submitting...</>
+                            ) : (
+                              <><i className="fa-solid fa-paper-plane me-1"></i> Submit for Testing</>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {isBugFound && selectedTask.bugHistory?.length > 0 && (
+                      <div className="col-12 mt-2">
+                        <div className="alert alert-danger mb-0 py-2">
+                          <strong><i className="fa-solid fa-bug me-1"></i>Latest Bug Report:</strong>
+                          <p className="mb-0 mt-1">{selectedTask.bugHistory[selectedTask.bugHistory.length - 1].remark}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {isWithTester && (
+                      <div className="col-12 mt-2">
+                        <small className="text-muted">
+                          <i className="fa-solid fa-circle-info me-1"></i>
+                          This task is currently with the tester for review. You'll be notified if any changes are needed.
+                        </small>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -316,7 +524,6 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                   )}
                 </div>
 
-                  {/* for edit the actions */}
                   {forEdit ? (
                     <div className="row modal_body_height mt-2">
                       <div className="col-12 col-lg-12 ">
@@ -376,7 +583,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                     </div>
                   ) : ""}
 
-                  {selectedTask?.taskLevel !== 100 && addAction && (
+                  {selectedTask?.taskLevel !== 100 && addAction && !isWithTester && (
                     <div className="row modal_body_height mt-2">
                       <div className="col-12 col-lg-12 ">
                         <div className="md-3">
@@ -452,6 +659,17 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                       </div>
                     </div>
                   )}
+
+                  {isWithTester && (
+                    <div className="row mt-2">
+                      <div className="col-12">
+                        <div className="alert alert-info mb-0">
+                          <i className="fa-solid fa-hourglass-half me-1"></i>
+                          This task is currently with the tester. You can't log new work until it's reviewed.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </form>
@@ -462,4 +680,4 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   );
 };
 
-export default TaskListUpdatedPopUp; 
+export default TaskListUpdatedPopUp;
