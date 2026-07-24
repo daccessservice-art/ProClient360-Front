@@ -26,7 +26,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
 
   const [submittingForTest, setSubmittingForTest] = useState(false);
 
-  // ── NEW: developer's own tester pick — only used/shown when the Manager
+  // ── developer's own tester pick — only used/shown when the Manager
   // did NOT assign a tester on this task. ──
   const [testerOptions, setTesterOptions] = useState([]);
   const [testerPage, setTesterPage] = useState(1);
@@ -39,11 +39,6 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const [hasMoreData, setHasMoreData] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const tableContainerRef = useRef(null);
-  
-  const getCurrentDate = () => {
-    const now = new Date();
-    return now.toISOString().slice(0, 10);
-  };
 
   // ── derived QA flags ──
   const hasTester = !!selectedTask?.assignedTester;
@@ -53,7 +48,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const isPassed = qaStatus === 'passed';
   const canSubmitForTesting = selectedTask?.taskLevel === 100 && (qaStatus === 'none' || qaStatus === 'bug_found');
 
-  // ── NEW: load tester options only if this task has no assigned tester yet
+  // ── load tester options only if this task has no assigned tester yet
   // and the developer is in a position to submit for testing ──
   const loadTesters = useCallback(async (page = 1, search = "") => {
     setTesterLoading(true);
@@ -92,7 +87,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     }
   };
 
-  // ── UPDATED: passes the developer's chosen tester only when the task
+  // ── passes the developer's chosen tester only when the task
   // doesn't already have one assigned by the Manager. testStartDate is set
   // automatically on the backend — nothing to pick here. ──
   const handleSubmitForTesting = async () => {
@@ -161,16 +156,12 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     setIsVisible(!isVisible);
   };
 
+  // ── UPDATED: removed the "process start date cannot be in the past"
+  // validation — users can now select back dates freely. ──
   const handelTaskUpdate = async (event) => {
     event.preventDefault();
     if (taskStatus === "completed") setTaskLevel(100); 
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); 
-    const startDateTime = new Date(startTime);
-    startDateTime.setHours(0, 0, 0, 0); 
-    
-    if (startDateTime < today) return toast.error("Process start date cannot be in the past");
+
     if (!action || !startTime || !endTime || !taskLevel || !taskStatus) return toast.error("Please fill all fields");
     
     if (taskLevel > 100) return toast.error("Task level should be less than 100");
@@ -234,14 +225,11 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     setEditAction((prevAction) => ({ ...prevAction, [name]: value }));
   };
 
+  // ── UPDATED: removed the "process start date cannot be in the past"
+  // validation here too — same rule applies to editing an existing action. ──
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); 
-    const startDateTime = new Date(editAction.startTime);
-    startDateTime.setHours(0, 0, 0, 0); 
-    
-    if (startDateTime < today) return toast.error("Process start date cannot be in the past");
+
     if (!editAction.action || !editAction.startTime || !editAction.endTime || !editAction.complated || !editAction.taskStatus) return toast.error("Please fill all required fields");
     if (editAction.complated > 100) return toast.error("Completed level should be less than or equal to 100");
     if (new Date(editAction.startTime) >= new Date(editAction.endTime)) return toast.error("Start time must be before end time");
@@ -536,14 +524,14 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="mb-3">
                           <label htmlFor="startTime" className="form-label label_text">Process Start Date <RequiredStar/></label>
-                          <input type="datetime-local" name="startTime" onChange={handleEditTask} value={formatDateforEditAction(editAction?.startTime)} className="form-control rounded-0" id="startTime" min={getCurrentDate() + "T00:00"} required />
+                          <input type="datetime-local" name="startTime" onChange={handleEditTask} value={formatDateforEditAction(editAction?.startTime)} className="form-control rounded-0" id="startTime" required />
                         </div>
                       </div>
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="mb-3">
                           <label htmlFor="endTime" className="form-label label_text">Process End Date <RequiredStar/></label>
-                          <input type="datetime-local" name="endTime" onChange={handleEditTask} value={formatDateforEditAction(editAction?.endTime)} className="form-control rounded-0" id="endTime" min={editAction?.startTime ? formatDateforEditAction(editAction?.startTime) : getCurrentDate() + "T00:00"} required />
+                          <input type="datetime-local" name="endTime" onChange={handleEditTask} value={formatDateforEditAction(editAction?.endTime)} className="form-control rounded-0" id="endTime" required />
                         </div>
                       </div>
 
@@ -595,14 +583,14 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="mb-3">
                           <label htmlFor="processStartDate" className="form-label label_text">Process Start Date  <RequiredStar/></label>
-                          <input type="datetime-local" name="processStartDate" onChange={(e) => setStartTime(e.target.value)} value={startTime} className="form-control rounded-0" id="processStartDate" min={getCurrentDate() + "T00:00"} />
+                          <input type="datetime-local" name="processStartDate" onChange={(e) => setStartTime(e.target.value)} value={startTime} className="form-control rounded-0" id="processStartDate" />
                         </div>
                       </div>
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="mb-3">
                           <label htmlFor="processEndDate" className="form-label label_text">Process End Date   <RequiredStar/></label>
-                          <input type="datetime-local" name="processEndDate" onChange={(e) => setEndTime(e.target.value)} value={endTime} className="form-control rounded-0" id="processEndDate" min={startTime || getCurrentDate() + "T00:00"} />
+                          <input type="datetime-local" name="processEndDate" onChange={(e) => setEndTime(e.target.value)} value={endTime} className="form-control rounded-0" id="processEndDate" />
                         </div>
                       </div>
 
