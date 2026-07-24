@@ -565,15 +565,34 @@ export const SalesManagerMasterGrid = () => {
                             </select>
                           </div>
                           <div className="col">
+                            {/* ── UPDATED: Sources filter now lists the full
+                                set of sources (matches Add Lead form / Marketing
+                                Master page): Google, Tender, Exhibitions,
+                                JustDial, Facebook, LinkedIn, Twitter, YouTube,
+                                WhatsApp, Referral, Email Campaign, Cold Call,
+                                Website, Walk-In, Direct, Other — plus
+                                IndiaMart/TradeIndia kept since existing lead
+                                data already uses those values. ── */}
                             <select className="form-select"
                               onChange={e => handleChange("source", e.target.value)} value={filters.source || ""}>
                               <option value="">Sources...</option>
-                              <option value="Direct">Direct</option>
                               <option value="IndiaMart">IndiaMart</option>
                               <option value="TradeIndia">TradeIndia</option>
+                              <option value="Google">Google</option>
+                              <option value="Tender">Tender</option>
+                              <option value="Exhibitions">Exhibitions</option>
+                              <option value="JustDial">JustDial</option>
                               <option value="Facebook">Facebook</option>
                               <option value="LinkedIn">LinkedIn</option>
-                              <option value="Google">Google</option>
+                              <option value="Twitter">Twitter</option>
+                              <option value="YouTube">YouTube</option>
+                              <option value="WhatsApp">WhatsApp</option>
+                              <option value="Referral">Referral</option>
+                              <option value="Email Campaign">Email Campaign</option>
+                              <option value="Cold Call">Cold Call</option>
+                              <option value="Website">Website</option>
+                              <option value="Walk-In">Walk-In</option>
+                              <option value="Direct">Direct</option>
                               <option value="Other">Other</option>
                             </select>
                           </div>
