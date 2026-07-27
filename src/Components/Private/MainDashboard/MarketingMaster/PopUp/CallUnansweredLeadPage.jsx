@@ -1,5 +1,6 @@
 import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
 import { Header } from "../../Header/Header";
 import { Sidebar } from "../../Sidebar/Sidebar";
 import toast from 'react-hot-toast';
@@ -7,7 +8,7 @@ import { UserContext } from "../../../../../context/UserContext";
 import ViewSalesLeadPopUp from "../../../CommonPopUp/ViewSalesLeadPopUp";
 import useCallUnansweredLeads from "../../../../../hooks/leads/CallUnansweredLeadPage";
 
-// ── IST time formatter ──
+// ── IST time formatter (for table cells) ──
 const formatLeadTime = (rawDate) => {
   if (!rawDate) return "—";
   const d = new Date(rawDate);
@@ -27,6 +28,22 @@ const formatLeadTime = (rawDate) => {
   return `${datePart} ${timePart}`;
 };
 
+// ── Plain string version for Excel cells (no "—" glyph issues, no JSX) ──
+const formatLeadTimeForExcel = (rawDate) => {
+  if (!rawDate) return "Not available";
+  const d = new Date(rawDate);
+  if (isNaN(d.getTime())) return "Not available";
+  return d.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  });
+};
+
 export const CallUnansweredLeadsPage = () => {
   const navigate = useNavigate();
   const [isopen, setIsOpen] = useState(false);
@@ -34,6 +51,7 @@ export const CallUnansweredLeadsPage = () => {
 
   const [detailsServicePopUp, setDetailsServicePopUp] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   const { user } = useContext(UserContext);
   const [filters, setFilters] = useState({ date: null, source: null });
@@ -103,6 +121,117 @@ export const CallUnansweredLeadsPage = () => {
     return <span className="badge bg-secondary">-</span>;
   };
 
+  // ══════════════════════════════════════════════════════════════
+  //  EXCEL EXPORT — fetches ALL matching leads (ignores pagination)
+  // ══════════════════════════════════════════════════════════════
+  const fetchAllCallUnansweredLeads = async () => {
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
+    const params = new URLSearchParams({
+      page: 1,
+      limit: 99999,
+      ...(filters.source && { source: filters.source }),
+      ...(filters.date && { date: filters.date }),
+    });
+
+    const res = await fetch(`${API_URL}/api/leads/call-unanswered?${params}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    const json = await res.json();
+    if (!json.success) {
+      throw new Error(json.error || 'Failed to fetch leads for export');
+    }
+    return json.leads || [];
+  };
+
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
+    const toastId = toast.loading("Preparing Excel file...");
+
+    try {
+      const leads = await fetchAllCallUnansweredLeads();
+
+      if (leads.length === 0) {
+        toast.dismiss(toastId);
+        toast.error("No call unanswered leads to export.");
+        return;
+      }
+
+      const rows = leads.map((lead, index) => {
+        const uniqueDays = lead.callHistory
+          ? [...new Set(lead.callHistory.map(c => c.day))].length
+          : 0;
+        const totalCalls = lead.callHistory ? lead.callHistory.length : 0;
+
+        // Build a compact "Day1: 2, Day2: 3, Day3: 3" style summary
+        const callBreakdown = lead.callHistory && lead.callHistory.length > 0
+          ? [1, 2, 3]
+              .map(day => {
+                const count = lead.callHistory.filter(c => c.day === day).length;
+                return count > 0 ? `Day ${day}: ${count}/3` : null;
+              })
+              .filter(Boolean)
+              .join(', ')
+          : 'No calls recorded';
+
+        return {
+          "Sr.No": index + 1,
+          "Source": lead.SOURCE || "Not available",
+          "Company Name": lead.SENDER_COMPANY || "Not available",
+          "Contact Name": lead.SENDER_NAME || "Not available",
+          "Product": lead.QUERY_PRODUCT_NAME || "Not available",
+          "Mobile": lead.SENDER_MOBILE || "Not available",
+          "Email": lead.SENDER_EMAIL || "Not available",
+          "Date & Time": formatLeadTimeForExcel(lead.QUERY_TIME || lead.createdAt),
+          "Days Attempted": uniqueDays,
+          "Total Calls": totalCalls,
+          "Call Breakdown": callBreakdown,
+          "First Call Date": formatLeadTimeForExcel(lead.firstCallDate),
+          "Remark": lead.remark || "",
+          "Assigned By": lead.assignedBy?.name || "—",
+          "Assigned To": lead.assignedTo?.name || "Unassigned",
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+
+      // Reasonable column widths so it doesn't look cramped in Excel
+      worksheet["!cols"] = [
+        { wch: 6 },  // Sr.No
+        { wch: 12 }, // Source
+        { wch: 24 }, // Company Name
+        { wch: 20 }, // Contact Name
+        { wch: 24 }, // Product
+        { wch: 14 }, // Mobile
+        { wch: 24 }, // Email
+        { wch: 20 }, // Date & Time
+        { wch: 14 }, // Days Attempted
+        { wch: 12 }, // Total Calls
+        { wch: 28 }, // Call Breakdown
+        { wch: 20 }, // First Call Date
+        { wch: 30 }, // Remark
+        { wch: 18 }, // Assigned By
+        { wch: 18 }, // Assigned To
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Call Unanswered Leads");
+
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      const fileName = `Call-Unanswered-Leads_${dateStamp}.xlsx`;
+
+      XLSX.writeFile(workbook, fileName);
+
+      toast.dismiss(toastId);
+      toast.success(`Exported ${leads.length} lead${leads.length > 1 ? 's' : ''} to Excel`);
+    } catch (err) {
+      toast.dismiss(toastId);
+      toast.error(err.message || "Failed to export Excel file");
+      console.error("Excel export error:", err);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <>
       <div className="container-scroller">
@@ -119,7 +248,7 @@ export const CallUnansweredLeadsPage = () => {
             >
               <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
-                {/* Header with Back Button */}
+                {/* Header with Back Button + Export */}
                 <div className="row px-2 py-1 align-items-center">
                   <div className="col-12 col-lg-6 d-flex align-items-center gap-3">
                     <button
@@ -134,6 +263,20 @@ export const CallUnansweredLeadsPage = () => {
                       <i className="fa-solid fa-phone-slash me-2"></i>
                       Call Unanswered Leads
                     </h5>
+                  </div>
+                  <div className="col-12 col-lg-6 d-flex justify-content-end pe-4">
+                    <button
+                      className="btn btn-success btn-sm d-flex align-items-center gap-2"
+                      onClick={handleExportExcel}
+                      disabled={exportingExcel}
+                      style={{ borderRadius: '6px', fontWeight: 600, minWidth: 170 }}
+                    >
+                      {exportingExcel ? (
+                        <><span className="spinner-border spinner-border-sm" role="status"></span> Exporting...</>
+                      ) : (
+                        <><i className="fa-solid fa-file-excel"></i> Export to Excel</>
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -228,7 +371,6 @@ export const CallUnansweredLeadsPage = () => {
                                     {lead?.SENDER_MOBILE || "Not available"}
                                   </a>
                                 </td>
-                                {/* Proper IST time */}
                                 <td style={{ whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
                                   {formatLeadTime(lead?.QUERY_TIME || lead?.createdAt)}
                                 </td>
