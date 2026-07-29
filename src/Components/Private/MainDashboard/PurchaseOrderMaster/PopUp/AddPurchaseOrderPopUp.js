@@ -6,12 +6,6 @@ import { createPurchaseOrder } from "../../../../../hooks/usePurchaseOrder";
 import Select from "react-select";
 import AddInventoryPopup from "../../InventryMaster/PopUp/AddInventoryPopUp";
 
-// ── NEW: AddInventoryPopup's "Product Group" dropdown uses values like
-// "Raw Material" / "Finished Goods" / "Asset", but the Product Master
-// schema's `category` field is a lowercase enum:
-// ['raw material','finish material','scrap','repairing material',
-//  'work in progress','finished goods']. "Asset" has no equivalent there,
-// so it falls back to "raw material" instead of failing product creation. ──
 const mapToProductMasterCategory = (cat) => {
   const map = {
     "Raw Material": "raw material",
@@ -58,11 +52,8 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const [products, setProducts] = useState([]);
   const [productSearch, setProductSearch] = useState("");
   const [brands, setBrands] = useState([]);
-  const [models, setModels] = useState([]);
   const [allBrands, setAllBrands] = useState([]);
-  const [allModels, setAllModels] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
-  const [brandModelsMap, setBrandModelsMap] = useState(new Map());
   
   const [items, setItems] = useState([{
     productName: "",
@@ -111,10 +102,9 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     loadVendors();
   }, [vendorSearch]);
 
-  // ── FIX: Brands from DATABASE, products from API ──
+  // ── Load brands from DB + ALL products from API ──
   useEffect(() => {
     const loadInitialData = async () => {
-      // ── Load brands from DB ──
       let dbBrands = [];
       try {
         const brandsData = await getProductBrands();
@@ -148,24 +138,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
         setProducts(allProducts);
 
-        const newBrandModelsMap = new Map();
-        allProducts.forEach(product => {
-          if (product.brandName && product.model) {
-            if (!newBrandModelsMap.has(product.brandName)) {
-              newBrandModelsMap.set(product.brandName, new Set());
-            }
-            newBrandModelsMap.get(product.brandName).add(product.model);
-          }
-        });
-
-        dbBrands.forEach(brand => {
-          if (!newBrandModelsMap.has(brand)) {
-            newBrandModelsMap.set(brand, new Set());
-          }
-        });
-
-        setBrandModelsMap(newBrandModelsMap);
-
         // Merge DB brands with any brands found on products
         const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
         const mergedBrands = [...new Set([...dbBrands, ...productBrands])];
@@ -173,11 +145,13 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
         setBrands(brandOptions);
         setAllBrands(brandOptions);
 
-        const uniqueModels = [...new Set(allProducts.map(p => p.model).filter(Boolean))];
-        const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
-        setAllModels(modelOptions);
-
-        console.log(`Loaded ${allProducts.length} products, ${brandOptions.length} brands, ${modelOptions.length} models`);
+        console.log(`Loaded ${allProducts.length} products, ${brandOptions.length} brands`);
+        console.log('[DEBUG] Brand → Model counts:');
+        mergedBrands.forEach(brand => {
+          const count = allProducts.filter(p => p.brandName === brand && p.model).length;
+          const models = [...new Set(allProducts.filter(p => p.brandName === brand && p.model).map(p => p.model))];
+          console.log(`  "${brand}": ${count} products, ${models.length} unique models:`, models);
+        });
       } catch (error) {
         console.error("Error loading products:", error);
         toast.error("Failed to load products");
@@ -188,24 +162,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
     loadInitialData();
   }, []);
-
-  useEffect(() => {
-    if (items.length > 0) {
-      const lastIndex = items.length - 1;
-      const currentBrand = items[lastIndex].brandName;
-      if (currentBrand) {
-        const brandModels = brandModelsMap.get(currentBrand);
-        if (brandModels && brandModels.size > 0) {
-          const modelOptions = Array.from(brandModels).map(model => ({ value: model, label: model }));
-          setModels(modelOptions);
-        } else {
-          setModels([]);
-        }
-      } else {
-        setModels([]);
-      }
-    }
-  }, [items, brandModelsMap]);
 
   useEffect(() => {
     const retentionValue = 100 - (Number(advancePay) + Number(payAgainstDelivery) + Number(payAfterCompletion));
@@ -230,27 +186,12 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       unit: "", baseUOM: "", quantity: 1, price: 0,
       discountPercent: 0, taxPercent: 0, hsnSac: "", netValue: 0, warranty: ""
     }]);
-    setModels([]);
   };
 
   const handleAddItemFromInventory = () => {
     setShowAddProductPopup(true);
   };
 
-  // ── FIX: this used to ONLY add the product as a line item on the
-  // current PO (frontend state only) — it never actually saved anything
-  // to the Product Master collection. So products entered here via
-  // "Add Product" never showed up in Product Master Grid or in the
-  // Brand/Model dropdowns for future purchase orders, even though the
-  // popup looks identical to Product Master's own "Add" form.
-  //
-  // Now this also calls createProduct() to save the product into
-  // Product Master (same as clicking "Add" on the Product Master page)
-  // BEFORE adding it as a line item here. If a product with the same
-  // Name + Brand + Model already exists, the backend's existing
-  // duplicate check (in productController.createProduct) returns
-  // isDuplicate — we surface that as an info toast but still let the
-  // user continue adding it to this PO. ──
   const handleAddProductFromInventory = async (productData) => {
     const productPayload = {
       productName: productData.productName || "",
@@ -293,9 +234,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     if (result?.success) {
       toast.success("Product saved to Product Master");
     } else if (result?.isDuplicate) {
-      // Same Name + Brand + Model already exists in Product Master —
-      // don't block the PO flow, just inform the user, then still add
-      // it as a line item below.
       toast(result.error || "This product already exists in Product Master", { icon: "ℹ️" });
     } else {
       toast.error(result?.error || "Failed to save product to Product Master");
@@ -320,8 +258,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     setItems([...items, newItem]);
     setShowAddProductPopup(false);
 
-    // Refresh brand/model dropdowns so the newly saved product is
-    // immediately selectable on subsequent rows of this same PO.
+    // Refresh products so the newly saved product is immediately selectable
     refreshProducts();
   };
 
@@ -332,22 +269,16 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     }
   };
 
+  // ── FIXED: Removed setModels calls — each row computes modelOptions
+  //    directly from the `products` array (same approach as Update popup). ──
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
 
     if (field === 'brandName') {
-      if (value) {
-        const brandModels = brandModelsMap.get(value);
-        if (brandModels && brandModels.size > 0) {
-          const modelOptions = Array.from(brandModels).map(model => ({ value: model, label: model }));
-          setModels(modelOptions);
-        } else {
-          setModels([]);
-        }
-      } else {
-        setModels([]);
-      }
+      // Clear model and UOM when brand changes — the per-row modelOptions
+      // in the render will automatically pick up the correct models for
+      // the new brand from the `products` array. No shared state needed.
       newItems[index].modelNo = "";
       newItems[index].baseUOM = "";
     }
@@ -357,9 +288,9 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
         p => p.brandName === newItems[index].brandName && p.model === value
       );
       if (product) {
-        newItems[index].baseUOM = product.baseUOM;
+        newItems[index].baseUOM = product.baseUOM || "";
         newItems[index].description = product.description || "";
-        newItems[index].unit = product.baseUOM;
+        newItems[index].unit = product.baseUOM || "";
         newItems[index].productName = product.productName || "";
         newItems[index].hsnSac = product.hsnCode || "";
       }
@@ -369,7 +300,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     setItems(newItems);
   };
 
-  // ── FIX: Refresh also loads brands from DB ──
   const refreshProducts = async () => {
     setLoadingProducts(true);
 
@@ -403,27 +333,11 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
       setProducts(allProducts);
 
-      const newBrandModelsMap = new Map();
-      allProducts.forEach(product => {
-        if (product.brandName && product.model) {
-          if (!newBrandModelsMap.has(product.brandName)) newBrandModelsMap.set(product.brandName, new Set());
-          newBrandModelsMap.get(product.brandName).add(product.model);
-        }
-      });
-
-      dbBrands.forEach(brand => {
-        if (!newBrandModelsMap.has(brand)) newBrandModelsMap.set(brand, new Set());
-      });
-
-      setBrandModelsMap(newBrandModelsMap);
-
       const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
       const mergedBrands = [...new Set([...dbBrands, ...productBrands])];
       setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));
 
-      const uniqueModels = [...new Set(allProducts.map(p => p.model).filter(Boolean))];
-      setAllModels(uniqueModels.map(model => ({ value: model, label: model })));
-
+      console.log(`Refreshed: ${allProducts.length} products, ${mergedBrands.length} brands`);
       toast.success("Products refreshed successfully");
     } catch (error) {
       console.error("Error refreshing products:", error);
@@ -728,8 +642,14 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                       </thead>
                       <tbody>
                         {items.map((item, index) => {
-                          const brandModels = brandModelsMap.get(item.brandName);
-                          const modelOptions = brandModels ? Array.from(brandModels).map(model => ({ value: model, label: model })) : [];
+                          // ── FIX: Compute model options directly from `products` array
+                          //    for THIS row's brand — same working approach as
+                          //    UpdatePurchaseOrderPopUp. No shared state, no Map,
+                          //    no stale closure issues. Every model for the brand
+                          //    will always appear. ──
+                          const brandProducts = products.filter(p => p.brandName === item.brandName);
+                          const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
+                          const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
 
                           return (
                             <tr key={index}>
