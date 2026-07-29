@@ -122,7 +122,7 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
 
       let allProducts = [];
       let currentPage = 1;
-      const pageSize = 100;
+      const pageSize = 500; // ── FIX: fewer pages, less tie-break risk
       let hasMore = true;
 
       try {
@@ -130,14 +130,15 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
           const data = await getProducts(currentPage, pageSize, "");
           if (data.success && data.products && data.products.length > 0) {
             allProducts = [...allProducts, ...data.products];
-            if (data.products.length < pageSize) hasMore = false;
-            else currentPage++;
+            hasMore = !!data.pagination?.hasNextPage; // ── FIX: trust backend flag
+            currentPage++;
           } else {
             hasMore = false;
           }
         }
         setProducts(allProducts);
 
+        
         const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
         const mergedBrands = [...new Set([...dbBrands, ...productBrands])];
         setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));

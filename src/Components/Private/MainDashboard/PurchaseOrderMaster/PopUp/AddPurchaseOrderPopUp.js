@@ -126,7 +126,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       setLoadingProducts(true);
       let allProducts = [];
       let currentPage = 1;
-      const pageSize = 100;
+      const pageSize = 500; // ── FIX: bigger page size, fewer paginated calls, less tie-break risk
       let hasMore = true;
 
       try {
@@ -134,16 +134,19 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
           const data = await getProducts(currentPage, pageSize, "");
           if (data.success && data.products && data.products.length > 0) {
             allProducts = [...allProducts, ...data.products];
-            if (data.products.length < pageSize) hasMore = false;
-            else currentPage++;
+            // ── FIX: trust the backend's authoritative hasNextPage flag
+            // instead of inferring "last page" from array length. Length
+            // comparison could stop early or misjudge boundaries when a
+            // page returns fewer items for reasons unrelated to being the
+            // actual last page. ──
+            hasMore = !!data.pagination?.hasNextPage;
+            currentPage++;
           } else {
             hasMore = false;
           }
         }
 
-        setProducts(allProducts);
-
-        // ── FIX: Merge DB brands with any brands found on products,
+        setProducts(allProducts);        // ── FIX: Merge DB brands with any brands found on products,
         // deduped case/whitespace-insensitively so the SAME brand typed
         // differently across products (e.g. "Honeywell" vs "honeywell ")
         // doesn't split into two separate dropdown entries — which is what
@@ -332,7 +335,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
     let allProducts = [];
     let currentPage = 1;
-    const pageSize = 100;
+    const pageSize = 500; // ── FIX: same as loadInitialData
     let hasMore = true;
 
     try {
@@ -340,15 +343,15 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
         const data = await getProducts(currentPage, pageSize, "");
         if (data.success && data.products && data.products.length > 0) {
           allProducts = [...allProducts, ...data.products];
-          if (data.products.length < pageSize) hasMore = false;
-          else currentPage++;
+          hasMore = !!data.pagination?.hasNextPage; // ── FIX: trust backend flag
+          currentPage++;
         } else {
           hasMore = false;
         }
       }
 
       setProducts(allProducts);
-
+      
       // ── FIX: same case/whitespace-insensitive brand dedupe as above ──
       const productBrands = allProducts.map(p => (p.brandName || "").trim()).filter(Boolean);
       const brandMap = new Map();
