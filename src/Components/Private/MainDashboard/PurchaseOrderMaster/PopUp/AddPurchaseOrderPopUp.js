@@ -6,6 +6,11 @@ import { createPurchaseOrder } from "../../../../../hooks/usePurchaseOrder";
 import Select from "react-select";
 import AddInventoryPopup from "../../InventryMaster/PopUp/AddInventoryPopUp";
 
+// ── NEW: normalize brand/model strings before comparing them so that
+// trailing spaces or different casing (e.g. "Honeywell" vs "honeywell ")
+// don't cause products to be silently excluded from the model dropdown. ──
+const normalizeStr = (s) => (s || "").toString().trim().toLowerCase();
+
 const mapToProductMasterCategory = (cat) => {
   const map = {
     "Raw Material": "raw material",
@@ -50,6 +55,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const [vendorSearch, setVendorSearch] = useState("");
   
   const [products, setProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState("");
   const [brands, setBrands] = useState([]);
   const [allBrands, setAllBrands] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -101,56 +107,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     loadVendors();
   }, [vendorSearch]);
 
-  // ── ROBUST product loader: uses pagination.hasNextPage from the API
-  //    response instead of comparing array length to pageSize (which breaks
-  //    when the API caps per-page results at its own default, e.g. 20). ──
-  const fetchAllProducts = async () => {
-    let allProducts = [];
-    let page = 1;
-    const pageSize = 100;
-    let hasMore = true;
-    let emptyStreak = 0;
-
-    while (hasMore) {
-      try {
-        const data = await getProducts(page, pageSize, "");
-        const pageProducts = data?.products || [];
-
-        if (pageProducts.length > 0) {
-          allProducts = [...allProducts, ...pageProducts];
-          emptyStreak = 0;
-
-          // ── KEY FIX: use hasNextPage from the API's pagination object.
-          //    The old code checked `pageProducts.length < pageSize` which
-          //    fails when the API ignores the requested limit and returns
-          //    its own default (e.g. 20). 20 < 100 → loop stops after
-          //    page 1, so only the first 20 products were ever loaded. ──
-          if (data?.pagination?.hasNextPage === true) {
-            page++;
-          } else if (data?.pagination?.totalPages && page < data.pagination.totalPages) {
-            page++;
-          } else if (pageProducts.length >= (data?.pagination?.limit || pageSize)) {
-            page++;
-          } else {
-            hasMore = false;
-          }
-        } else {
-          emptyStreak++;
-          if (emptyStreak >= 2) {
-            hasMore = false;
-          } else {
-            page++;
-          }
-        }
-      } catch (err) {
-        console.error("[AddPO] Error fetching product page", page, err);
-        hasMore = false;
-      }
-    }
-
-    return allProducts;
-  };
-
+  // ── Load brands from DB + ALL products from API ──
   useEffect(() => {
     const loadInitialData = async () => {
       let dbBrands = [];
@@ -167,32 +124,48 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       }
 
       setLoadingProducts(true);
+      let allProducts = [];
+      let currentPage = 1;
+      const pageSize = 100;
+      let hasMore = true;
 
       try {
-        const allProducts = await fetchAllProducts();
+        while (hasMore) {
+          const data = await getProducts(currentPage, pageSize, "");
+          if (data.success && data.products && data.products.length > 0) {
+            allProducts = [...allProducts, ...data.products];
+            if (data.products.length < pageSize) hasMore = false;
+            else currentPage++;
+          } else {
+            hasMore = false;
+          }
+        }
+
         setProducts(allProducts);
 
-        // Merge DB brands with any brands found on products
-        const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
-        const mergedBrands = [...new Set([...dbBrands, ...productBrands])];
+        // ── FIX: Merge DB brands with any brands found on products,
+        // deduped case/whitespace-insensitively so the SAME brand typed
+        // differently across products (e.g. "Honeywell" vs "honeywell ")
+        // doesn't split into two separate dropdown entries — which is what
+        // was silently hiding some products' models from the list. ──
+        const productBrands = allProducts.map(p => (p.brandName || "").trim()).filter(Boolean);
+        const brandMap = new Map();
+        [...dbBrands, ...productBrands].forEach((b) => {
+          const key = normalizeStr(b);
+          if (key && !brandMap.has(key)) brandMap.set(key, b.trim());
+        });
+        const mergedBrands = [...brandMap.values()];
         const brandOptions = mergedBrands.map(brand => ({ value: brand, label: brand }));
         setBrands(brandOptions);
         setAllBrands(brandOptions);
 
-        // ── Debug: log brand → model counts so you can verify in console ──
-        console.log(`[AddPO] ✅ Loaded ${allProducts.length} products, ${mergedBrands.length} brands`);
+        console.log(`Loaded ${allProducts.length} products, ${brandOptions.length} brands`);
+        console.log('[DEBUG] Brand → Model counts:');
         mergedBrands.forEach(brand => {
-          const models = [...new Set(
-            allProducts
-              .filter(p => p.brandName && p.brandName.toLowerCase() === brand.toLowerCase() && p.model)
-              .map(p => p.model)
-          )];
-          console.log(`[AddPO]   "${brand}" → ${models.length} models:`, models);
+          const count = allProducts.filter(p => normalizeStr(p.brandName) === normalizeStr(brand) && p.model).length;
+          const models = [...new Set(allProducts.filter(p => normalizeStr(p.brandName) === normalizeStr(brand) && p.model).map(p => p.model))];
+          console.log(`  "${brand}": ${count} products, ${models.length} unique models:`, models);
         });
-
-        if (allProducts.length === 0) {
-          console.warn("[AddPO] ⚠️ No products loaded! Check getProducts API response format.");
-        }
       } catch (error) {
         console.error("Error loading products:", error);
         toast.error("Failed to load products");
@@ -299,6 +272,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     setItems([...items, newItem]);
     setShowAddProductPopup(false);
 
+    // Refresh products so the newly saved product is immediately selectable
     refreshProducts();
   };
 
@@ -309,6 +283,11 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     }
   };
 
+  // ── FIXED: Each row computes modelOptions directly from the `products`
+  //    array in the render (same working approach as UpdatePurchaseOrderPopUp).
+  //    No shared `models` state, no `brandModelsMap`, no stale closure.
+  //    Brand/model comparisons are normalized (trim + lowercase) so products
+  //    with slightly different-cased or spaced brand/model text still show. ──
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
@@ -319,10 +298,10 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     }
 
     if (field === 'modelNo' && value && newItems[index].brandName) {
-      // ── Case-insensitive match so "Samsung" vs "samsung" doesn't miss ──
-      const selectedBrand = newItems[index].brandName.toLowerCase();
       const product = products.find(
-        p => p.brandName && p.brandName.toLowerCase() === selectedBrand && p.model === value
+        (p) =>
+          normalizeStr(p.brandName) === normalizeStr(newItems[index].brandName) &&
+          normalizeStr(p.model) === normalizeStr(value)
       );
       if (product) {
         newItems[index].baseUOM = product.baseUOM || "";
@@ -351,15 +330,36 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     }
     if (dbBrands.length === 0) dbBrands = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
 
+    let allProducts = [];
+    let currentPage = 1;
+    const pageSize = 100;
+    let hasMore = true;
+
     try {
-      const allProducts = await fetchAllProducts();
+      while (hasMore) {
+        const data = await getProducts(currentPage, pageSize, "");
+        if (data.success && data.products && data.products.length > 0) {
+          allProducts = [...allProducts, ...data.products];
+          if (data.products.length < pageSize) hasMore = false;
+          else currentPage++;
+        } else {
+          hasMore = false;
+        }
+      }
+
       setProducts(allProducts);
 
-      const productBrands = [...new Set(allProducts.map(p => p.brandName).filter(Boolean))];
-      const mergedBrands = [...new Set([...dbBrands, ...productBrands])];
+      // ── FIX: same case/whitespace-insensitive brand dedupe as above ──
+      const productBrands = allProducts.map(p => (p.brandName || "").trim()).filter(Boolean);
+      const brandMap = new Map();
+      [...dbBrands, ...productBrands].forEach((b) => {
+        const key = normalizeStr(b);
+        if (key && !brandMap.has(key)) brandMap.set(key, b.trim());
+      });
+      const mergedBrands = [...brandMap.values()];
       setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));
 
-      console.log(`[AddPO] ✅ Refreshed: ${allProducts.length} products, ${mergedBrands.length} brands`);
+      console.log(`Refreshed: ${allProducts.length} products, ${mergedBrands.length} brands`);
       toast.success("Products refreshed successfully");
     } catch (error) {
       console.error("Error refreshing products:", error);
@@ -664,13 +664,16 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                       </thead>
                       <tbody>
                         {items.map((item, index) => {
-                          // ── Case-insensitive brand match so "Samsung" / "samsung"
-                          //    / "SAMSUNG" all map to the same set of models ──
-                          const selectedBrandLower = item.brandName ? item.brandName.toLowerCase() : "";
+                          // ── FIX: Compute model options directly from `products` array
+                          //    for THIS row's brand, using normalized (trim + lowercase)
+                          //    comparison so every model for the brand always appears,
+                          //    even if brand/model text has minor casing/space differences. ──
                           const brandProducts = products.filter(
-                            p => p.brandName && p.brandName.toLowerCase() === selectedBrandLower
+                            (p) => normalizeStr(p.brandName) === normalizeStr(item.brandName)
                           );
-                          const uniqueModels = [...new Set(brandProducts.map(p => p.model).filter(Boolean))];
+                          const uniqueModels = [
+                            ...new Set(brandProducts.map((p) => (p.model || "").toString().trim()).filter(Boolean)),
+                          ];
                           const modelOptions = uniqueModels.map(model => ({ value: model, label: model }));
 
                           return (
@@ -698,7 +701,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                                   value={modelOptions.find(m => m.value === item.modelNo) || null}
                                   onChange={(selected) => handleItemChange(index, 'modelNo', selected ? selected.value : "")}
                                   options={modelOptions}
-                                  placeholder={modelOptions.length > 0 ? "Select Model..." : "No models"}
+                                  placeholder="Select Model..."
                                   isClearable
                                   className="react-select-container"
                                   classNamePrefix="react-select"
