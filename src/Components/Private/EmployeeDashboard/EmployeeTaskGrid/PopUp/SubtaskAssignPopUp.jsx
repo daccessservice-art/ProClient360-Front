@@ -18,6 +18,7 @@ import { createSubTask } from "../../../../../hooks/useTaskSheet";
 import { getEmployees } from "../../../../../hooks/useEmployees";
 import { getAllTasksForDropdown } from "../../../../../hooks/useTask";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
+import ProjectTaskAgentSuggestionHint from "./ProjectTaskAgentSuggestionHint"; // ✅ NEW
 
 const PAGE_SIZE = 10;
 
@@ -280,6 +281,12 @@ const SubtaskAssignPopUp = ({ parentTask, onClose, onSuccess }) => {
                     styles={selectStyles}
                     noOptionsMessage={() => employeeLoading ? 'Loading...' : 'No employees found'}
                     closeMenuOnSelect={false}
+                  />
+                  {/* ✅ NEW — Agent suggestion for least-busy employee, excludes anyone already picked */}
+                  <ProjectTaskAgentSuggestionHint
+                    mode="assignee"
+                    excludeIds={selectedEmployees.map(e => e.value)}
+                    onApply={(s) => setSelectedEmployees(prev => [...prev, { value: s.employeeId, label: s.name }])}
                   />
                 </div>
 

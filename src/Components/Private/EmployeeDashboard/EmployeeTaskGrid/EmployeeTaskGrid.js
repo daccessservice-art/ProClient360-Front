@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import ViewTaskPopUp from "./PopUp/ViewTaskPopUp";
 import TesterQueuePopUp from "./PopUp/TesterQueuePopUp"; // ✅ NEW
+import MyFocusAgentPanel from "./MyFocusAgentPanel"; // ✅ NEW — Agent panel
+import FloatingAgentWidget from "./FloatingAgentWidget"; // ✅ NEW — voice Agent bubble
 import { getMyProjects } from "../../../../hooks/useProjects";
 import { getTesterTasks } from "../../../../hooks/useTaskSheet"; // ✅ NEW
 import { formatDate } from "../../../../utils/formatDate";
 import { Header } from "../../MainDashboard/Header/Header";
 import { Sidebar } from "../../MainDashboard/Sidebar/Sidebar";
+import { UserContext } from "../../../../context/UserContext"; // ✅ NEW — for greeting by name
 
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
@@ -39,6 +42,8 @@ const commonThStyle = {
 };
 
 export const EmployeeTaskGrid = () => {
+  const { user } = useContext(UserContext); // ✅ NEW
+
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => setIsOpen(!isopen);
 
@@ -375,6 +380,11 @@ export const EmployeeTaskGrid = () => {
                   </div>
                 </div>
 
+                {/* ✅ Agent panel: shows what to focus on next, right under the title/search row */}
+                <div className="px-2">
+                  <MyFocusAgentPanel />
+                </div>
+
                 {/* ── Table ── */}
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
@@ -524,6 +534,9 @@ export const EmployeeTaskGrid = () => {
       {testerQueueShow && (
         <TesterQueuePopUp onClose={() => setTesterQueueShow(false)} />
       )}
+
+      {/* ✅ NEW — Floating voice Agent, bottom-right */}
+      <FloatingAgentWidget userName={user?.name} />
 
       <Tooltip id={APP_TOOLTIP_ID} />
     </>

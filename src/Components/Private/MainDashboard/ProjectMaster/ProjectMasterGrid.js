@@ -13,6 +13,7 @@ import { formatDate } from "../../../../utils/formatDate";
 import GaintchartPoup from "./PopUp/GaintchartPoup";
 import { useNavigate } from "react-router-dom";
 import { UserContext } from "../../../../context/UserContext";
+import ProjectProgressReportPanel from "./ProjectProgressReportPanel";
 
 // ─── Material Availability Badge for Project Master ────────────────
 const MaterialAvailabilityBadge = ({ projectId }) => {

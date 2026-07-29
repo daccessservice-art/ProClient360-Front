@@ -8,6 +8,7 @@ import { updateAction } from "../../../../../hooks/useAction";
 import { submitForTesting } from "../../../../../hooks/useTaskSheet";
 import { getEmployees } from "../../../../../hooks/useEmployees";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
+import ProjectTaskAgentSuggestionHint from "./ProjectTaskAgentSuggestionHint"; // ✅ NEW
 
 const PAGE_SIZE = 10;
 
@@ -396,6 +397,11 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                                 isLoading={testerLoading}
                                 styles={selectStyles}
                                 noOptionsMessage={() => testerLoading ? 'Loading...' : 'No employees found'}
+                              />
+                              {/* ✅ NEW — Agent suggestion for least-busy tester */}
+                              <ProjectTaskAgentSuggestionHint
+                                mode="tester"
+                                onApply={(s) => setPickedTester({ value: s.employeeId, label: s.name })}
                               />
                             </div>
                           )}
