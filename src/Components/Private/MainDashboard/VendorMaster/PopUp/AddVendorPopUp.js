@@ -248,6 +248,10 @@ const AddVendorPopUp = ({ handleAdd, brands, addBrand }) => {
                         <option value="Scrap Material">Scrap Material</option>
                         <option value="Service">Service</option>
                         <option value="Logistics">Logistics</option>
+                        <option value="Manufacturing">Manufacturing</option>
+                        <option value="Automotive">Automotive</option>
+
+
                         <option value="Other">Other</option>
                       </select>
                     </div>

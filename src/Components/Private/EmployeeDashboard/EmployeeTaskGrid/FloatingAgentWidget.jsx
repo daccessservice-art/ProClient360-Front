@@ -22,7 +22,10 @@ const getGreetingWord = () => {
 const speakText = (text, muted) => {
   if (muted || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
+  // Strip the [[..]] highlight markers before speaking — they're only
+  // meant to drive visual bold/color in the chat bubble, not be read aloud.
+  const cleanText = text.replace(/\[\[(.*?)\]\]/g, '$1');
+  const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.rate = 1;
   utterance.pitch = 1;
   window.speechSynthesis.speak(utterance);
@@ -34,6 +37,20 @@ const FIELD_LABELS = {
   taskLevel: 'Completion %',
   startDate: 'Start Date',
   endDate: 'End Date',
+};
+
+// Splits agent text on [[Name]] markers and renders those pieces as bold,
+// colored spans — plain React text nodes only, never raw HTML, so this is
+// safe even though the surrounding text originates from an AI response.
+const renderAgentText = (text) => {
+  const parts = text.split(/(\[\[.*?\]\])/g);
+  return parts.map((part, idx) => {
+    const match = part.match(/^\[\[(.*?)\]\]$/);
+    if (match) {
+      return <strong key={idx} className="fa-entity-highlight">{match[1]}</strong>;
+    }
+    return <span key={idx}>{part}</span>;
+  });
 };
 
 const SpeechRecognitionAPI =
@@ -65,12 +82,45 @@ const FloatingAgentWidget = ({ userName }) => {
     scrollToBottom();
   }, []);
 
+  // ── Proactive overdue check — runs once, right after the greeting
+  // finishes speaking (or immediately if muted/unsupported). This is the
+  // Agent alerting the user on its own, not waiting to be asked. ──
+  const announceOverdueIfAny = useCallback(async () => {
+    const res = await getMyFocus();
+    if (!res?.success) return;
+    const { summary, recommended } = res;
+    if (!summary || summary.overdueCount === 0) return;
+
+    let msg = `Heads up — you have ${summary.overdueCount} overdue task${summary.overdueCount === 1 ? '' : 's'}.`;
+    if (recommended && recommended.daysOverdue > 0) {
+      msg += ` Most urgent is "${recommended.taskName}" on ${recommended.projectName}, ${recommended.daysOverdue} day${recommended.daysOverdue === 1 ? '' : 's'} overdue.`;
+      msg += ` Consider updating its status, or tell me what's blocking it and I can log it as a remark for you.`;
+    }
+    addMessage("agent", msg);
+    speakText(msg, muted);
+  }, [addMessage, muted]);
+
   useEffect(() => {
     if (greetedRef.current) return;
     greetedRef.current = true;
-    const greeting = `${getGreetingWord()}${userName ? `, ${userName}` : ''}! Ask me about your tasks, or tell me about work you did — like "I finished the login page, it's 90% done."`;
+    const greeting = `${getGreetingWord()}${userName ? `, ${userName}` : ''}! Ask me about your tasks, or describe work you finished — for example, name one of your tasks and how much is done, like "90 percent."`;
     addMessage("agent", greeting);
-    speakText(greeting, muted);
+
+    if (!muted && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(greeting);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      // Chain the overdue alert to speak AFTER the greeting finishes, so
+      // the two don't talk over each other.
+      utterance.onend = () => { announceOverdueIfAny(); };
+      utterance.onerror = () => { announceOverdueIfAny(); };
+      window.speechSynthesis.speak(utterance);
+    } else {
+      // Muted or unsupported — still show the proactive alert as text,
+      // just without waiting on speech timing.
+      setTimeout(() => { announceOverdueIfAny(); }, 400);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -238,7 +288,8 @@ const FloatingAgentWidget = ({ userName }) => {
         .fa-msg-row { display: flex; gap: 6px; align-items: flex-end; }
         .fa-msg-row.user { justify-content: flex-end; }
         .fa-msg-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--agent-grad); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
-        .fa-bubble-msg { max-width: 230px; padding: 8px 11px; border-radius: 12px; font-size: 12.5px; line-height: 1.4; animation: fa-msg-in 0.2s ease-out; }
+        .fa-bubble-msg { max-width: 230px; padding: 8px 11px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; animation: fa-msg-in 0.2s ease-out; white-space: pre-wrap; }
+        .fa-entity-highlight { color: #4338CA; font-weight: 700; }
         @keyframes fa-msg-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         .fa-bubble-msg.agent { background: #fff; color: #1E293B; border: 1px solid #E2E8F0; border-bottom-left-radius: 3px; }
         .fa-bubble-msg.user { background: var(--agent-grad); color: #fff; border-bottom-right-radius: 3px; }
@@ -302,7 +353,9 @@ const FloatingAgentWidget = ({ userName }) => {
               <div key={m.id}>
                 <div className={`fa-msg-row ${m.sender}`}>
                   {m.sender === 'agent' && <div className="fa-msg-avatar">🤖</div>}
-                  <div className={`fa-bubble-msg ${m.sender}`}>{m.text}</div>
+                  <div className={`fa-bubble-msg ${m.sender}`}>
+                    {m.sender === 'agent' ? renderAgentText(m.text) : m.text}
+                  </div>
                 </div>
 
                 {m.proposal && m.proposalStatus === 'pending' && m.proposal.kind === 'field_update' && (
