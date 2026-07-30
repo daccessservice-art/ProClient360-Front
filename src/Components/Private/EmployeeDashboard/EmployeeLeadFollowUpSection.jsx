@@ -2,6 +2,11 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { getPurchaseOrders, approvePurchaseOrder } from "../../../hooks/usePurchaseOrder";
+// ── NEW: reuse the same View PO popup used in PurchaseOrderMasterGrid ──
+// ⚠️ Adjust this relative path if this file lives somewhere other than
+// Components/Private/EmployeeDashboard/ — it must resolve to
+// Components/Private/CommonPopUp/ViewPurchaseOrderPopUp
+import ViewPurchaseOrderPopUp from "../CommonPopUp/ViewPurchaseOrderPopUp";
 
 export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], inprocessTasks = [] }) => {
 
@@ -15,6 +20,10 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   const [poLoading, setPoLoading] = useState(false);
   const [approvingId, setApprovingId] = useState(null);
   const poPollRef = useRef(null);
+
+  // ── NEW: View PO popup state ──
+  const [viewPopUpShow, setViewPopUpShow] = useState(false);
+  const [selectedPO, setSelectedPO] = useState(null);
 
   useEffect(() => {
     try {
@@ -85,7 +94,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     }
   };
 
-  // ── NEW: initial fetch + background polling every 20s so the count/list
+  // ── initial fetch + background polling every 20s so the count/list
   // stays live when POs are created/approved elsewhere, without needing
   // a manual refresh or page reload. Polling is silent (no loading spinner
   // flicker) and only runs while this user is the Purchase & Store CEO. ──
@@ -122,6 +131,12 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     } finally {
       setApprovingId(null);
     }
+  };
+
+  // ── NEW: open the View PO popup for a given row ──
+  const handleViewPO = (po) => {
+    setSelectedPO(po);
+    setViewPopUpShow(true);
   };
 
   const { todayLeads, overdueLeads, pendingLeads } = useMemo(() => {
@@ -371,7 +386,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                         { h: "VENDOR",      w: ""      },
                         { h: "ORDER DATE",  w: "110px" },
                         { h: "GRAND TOTAL", w: "130px" },
-                        { h: "ACTION",      w: "110px" },
+                        { h: "ACTION",      w: "140px" },
                       ]
                     : isTaskTab
                     ? [
@@ -454,7 +469,15 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                       <td style={{ border: "none", padding: "10px 14px", fontWeight: 700, color: "#15803d", whiteSpace: "nowrap" }}>
                         {formatAmount(po.grandTotal)}
                       </td>
-                      <td style={{ border: "none", padding: "10px 14px", textAlign: "center" }}>
+                      <td style={{ border: "none", padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
+                        {/* ── NEW: View (eye) button — opens ViewPurchaseOrderPopUp ── */}
+                        <span
+                          onClick={() => handleViewPO(po)}
+                          title="View Purchase Order"
+                          style={{ cursor: "pointer", marginRight: "10px" }}
+                        >
+                          <i className="fa-solid fa-eye text-primary"></i>
+                        </span>
                         <button
                           type="button"
                           className="btn btn-sm btn-success"
@@ -561,6 +584,14 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
         </div>
 
       </div>
+
+      {/* ── NEW: View Purchase Order popup ── */}
+      {viewPopUpShow && (
+        <ViewPurchaseOrderPopUp
+          closePopUp={() => setViewPopUpShow(false)}
+          selectedPO={selectedPO}
+        />
+      )}
 
       <style>{`
         @keyframes blinkRed {
