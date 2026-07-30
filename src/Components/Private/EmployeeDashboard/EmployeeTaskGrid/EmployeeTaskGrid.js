@@ -395,6 +395,8 @@ export const EmployeeTaskGrid = () => {
                             <th style={commonThStyle}>Sr. No</th>
                             <th className="align_left_td td_width">Customer Name</th>
                             <th className="align_left_td td_width">Project Name</th>
+                            {/* ── NEW: PO Number column ── */}
+                            <th style={commonThStyle}>PO Number</th>
                             <th>Project Status</th>
                             <th style={commonThStyle}>Finish Date</th>
                             <th style={commonThStyle}>Work Status</th>
@@ -412,6 +414,8 @@ export const EmployeeTaskGrid = () => {
                                   <td className="w-3">{index + 1 + (pagination.currentPage - 1) * itemsPerPage}</td>
                                   <td className="align_left_td td_width wrap-text-of-col">{project.custId?.custName || "N/A"}</td>
                                   <td className="align_left_td td_width wrap-text-of-col">{project.name}</td>
+                                  {/* ── NEW: PO Number cell ── */}
+                                  <td>{project.purchaseOrderNo || "N/A"}</td>
                                   <td>{project.projectStatus}</td>
                                   <td>{formatDate(project.endDate)}</td>
                                   <td>
@@ -460,7 +464,7 @@ export const EmployeeTaskGrid = () => {
                             })
                           ) : (
                             <tr>
-                              <td colSpan="7" className="text-center">No Projects Found Matching Criteria</td>
+                              <td colSpan="8" className="text-center">No Projects Found Matching Criteria</td>
                             </tr>
                           )}
                         </tbody>
