@@ -171,12 +171,13 @@ const MyFocusAgentPanel = () => {
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="agent-panel-eyebrow">Pro ProClient360</div>
+          <div className="agent-panel-eyebrow">Your work agent</div>
           {loading ? (
             <div className="agent-panel-skeleton" style={{ marginTop: 6 }}></div>
           ) : recommended ? (
             <div className="agent-panel-body">
               Focus on <strong>{recommended.taskName}</strong> — {recommended.projectName}
+              {recommended.customerName && <span className="text-muted"> ({recommended.customerName})</span>}
               {recommended.daysOverdue > 0 ? (
                 <span style={{ color: '#DC2626', fontWeight: 600 }}>
                   {' '}({recommended.daysOverdue} day{recommended.daysOverdue !== 1 ? 's' : ''} overdue)

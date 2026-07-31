@@ -22,9 +22,10 @@ const getGreetingWord = () => {
 const speakText = (text, muted) => {
   if (muted || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  // Strip the [[..]] highlight markers before speaking — they're only
-  // meant to drive visual bold/color in the chat bubble, not be read aloud.
-  const cleanText = text.replace(/\[\[(.*?)\]\]/g, '$1');
+  // Strip the [[T:..]]/[[P:..]] highlight markers before speaking — they're
+  // only meant to drive the colored badges in the chat bubble, not be read
+  // aloud with their prefix.
+  const cleanText = text.replace(/\[\[[TP]:(.*?)\]\]/g, '$1');
   const utterance = new SpeechSynthesisUtterance(cleanText);
   utterance.rate = 1;
   utterance.pitch = 1;
@@ -39,15 +40,17 @@ const FIELD_LABELS = {
   endDate: 'End Date',
 };
 
-// Splits agent text on [[Name]] markers and renders those pieces as bold,
-// colored spans — plain React text nodes only, never raw HTML, so this is
-// safe even though the surrounding text originates from an AI response.
+// Splits agent text on [[T:Name]] / [[P:Name]] markers and renders those
+// pieces as colored background badges — task names one color, project
+// names another — using plain React text nodes, never raw HTML, so this
+// is safe even though the surrounding text originates from an AI response.
 const renderAgentText = (text) => {
-  const parts = text.split(/(\[\[.*?\]\])/g);
+  const parts = text.split(/(\[\[[TP]:.*?\]\])/g);
   return parts.map((part, idx) => {
-    const match = part.match(/^\[\[(.*?)\]\]$/);
+    const match = part.match(/^\[\[([TP]):(.*?)\]\]$/);
     if (match) {
-      return <strong key={idx} className="fa-entity-highlight">{match[1]}</strong>;
+      const kind = match[1] === 'T' ? 'task' : 'project';
+      return <span key={idx} className={`fa-entity-badge fa-entity-badge-${kind}`}>{match[2]}</span>;
     }
     return <span key={idx}>{part}</span>;
   });
@@ -288,8 +291,23 @@ const FloatingAgentWidget = ({ userName }) => {
         .fa-msg-row { display: flex; gap: 6px; align-items: flex-end; }
         .fa-msg-row.user { justify-content: flex-end; }
         .fa-msg-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--agent-grad); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
-        .fa-bubble-msg { max-width: 230px; padding: 8px 11px; border-radius: 12px; font-size: 12.5px; line-height: 1.5; animation: fa-msg-in 0.2s ease-out; white-space: pre-wrap; }
-        .fa-entity-highlight { color: #4338CA; font-weight: 700; }
+        .fa-bubble-msg { max-width: 230px; padding: 8px 11px; border-radius: 12px; font-size: 12.5px; line-height: 1.8; animation: fa-msg-in 0.2s ease-out; white-space: pre-wrap; }
+        .fa-entity-badge {
+          display: inline-block;
+          padding: 1px 7px;
+          border-radius: 999px;
+          font-weight: 700;
+          font-size: 11.5px;
+          white-space: nowrap;
+        }
+        .fa-entity-badge-task {
+          background: #E0E7FF;
+          color: #3730A3;
+        }
+        .fa-entity-badge-project {
+          background: #CCFBF1;
+          color: #0F766E;
+        }
         @keyframes fa-msg-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         .fa-bubble-msg.agent { background: #fff; color: #1E293B; border: 1px solid #E2E8F0; border-bottom-left-radius: 3px; }
         .fa-bubble-msg.user { background: var(--agent-grad); color: #fff; border-bottom-right-radius: 3px; }
