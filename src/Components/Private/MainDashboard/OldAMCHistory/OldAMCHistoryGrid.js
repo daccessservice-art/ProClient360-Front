@@ -13,6 +13,39 @@ import {
 } from "../../../../hooks/useOldAMCHistory";
 import toast from "react-hot-toast";
 
+// ── NEW: how many days before an AMC contract's End Date the row should
+// start blinking. Example: End Date 20 Sep 2026 → blinker starts 1 Aug 2026
+// (50 days before). Keep this in sync with the same constant used on the
+// Employee Dashboard's "AMC Expiry Alerts" tab. ──
+const ALERT_WINDOW_DAYS = 50;
+
+// ── NEW: figure out if a record's End Date is expired / expiring soon,
+// and how it should blink. Returns null if it's outside the alert window
+// (i.e. no highlight needed). ──
+const getAMCExpiryInfo = (endDateStr) => {
+  if (!endDateStr) return null;
+  const end = new Date(endDateStr);
+  if (isNaN(end.getTime())) return null;
+  end.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const windowEnd = new Date(today);
+  windowEnd.setDate(windowEnd.getDate() + ALERT_WINDOW_DAYS);
+
+  if (end > windowEnd) return null; // still far away, no highlight
+
+  const diffDays = Math.round((end - today) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) {
+    return { expired: true, label: `Expired ${Math.abs(diffDays)}d ago` };
+  }
+  if (diffDays === 0) {
+    return { expired: true, label: "Expires Today" };
+  }
+  return { expired: false, label: `${diffDays}d left` };
+};
+
 export const OldAMCHistoryGrid = () => {
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => setIsOpen(!isopen);
@@ -274,38 +307,77 @@ export const OldAMCHistoryGrid = () => {
                         </thead>
                         <tbody>
                           {records.length > 0 ? (
-                            records.map((r, index) => (
-                              <tr className="border my-4" key={r._id}>
-                                <td style={{ textAlign: "center" }}>{index + 1 + (currentPage - 1) * itemsPerPage}</td>
-                                <td className="align_left_td td_width wrap-text-of-col">{r.custName}</td>
-                                <td style={{ textAlign: "center" }}>
-                                  {r.customerType === "branch"
-                                    ? <span className="badge bg-info"><i className="fa-solid fa-code-branch me-1"></i>Branch</span>
-                                    : <span className="badge bg-primary"><i className="fa-solid fa-building me-1"></i>Main</span>}
-                                </td>
-                                <td style={{ textAlign: "center" }}>{r.email || "N/A"}</td>
-                                <td style={{ textAlign: "center" }}>{r.ownedBy || "N/A"}</td>
-                                <td style={{ textAlign: "center" }}><span className="badge bg-secondary">{r.industryType || "N/A"}</span></td>
-                                <td style={{ textAlign: "center" }}><span className={getPriorityBadgeClass(r.customerPriority)}>{r.customerPriority || "N/A"}</span></td>
-                                <td style={{ textAlign: "center" }}>{r.customerContactPersonName1 || "N/A"}</td>
-                                <td style={{ textAlign: "center" }}>{r.phoneNumber1 || "N/A"}</td>
-                                <td style={{ textAlign: "center" }}>
-                                  {[r.billingAddress?.city, r.billingAddress?.state].filter(Boolean).join(", ") || "N/A"}
-                                </td>
-                                <td style={{ textAlign: "center" }}>{r.GSTNo || "N/A"}</td>
-                                <td style={{ textAlign: "center" }}>{r.zone || "N/A"}</td>
-                                <td style={{ textAlign: "center" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString() : "N/A"}</td>
-                                <td style={{ textAlign: "center" }}>{r.endDate ? new Date(r.endDate).toLocaleDateString() : "N/A"}</td>
-                                <td style={{ textAlign: "center" }}>
-                                  <span onClick={() => handleUpdateOpen(r)} className="update me-2" title="Edit">
-                                    <i className="fa-solid fa-pen text-success cursor-pointer"></i>
-                                  </span>
-                                  <span onClick={() => handleDeleteClick(r._id)} className="delete" title="Delete">
-                                    <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
-                                  </span>
-                                </td>
-                              </tr>
-                            ))
+                            records.map((r, index) => {
+                              {/* ── NEW: expiry blinker for this row's End Date ── */}
+                              const expiryInfo = getAMCExpiryInfo(r.endDate);
+                              return (
+                                <tr
+                                  className="border my-4"
+                                  key={r._id}
+                                  style={expiryInfo ? {
+                                    animation: expiryInfo.expired ? "amcBlinkDarkRed 1s infinite" : "amcBlinkRed 1s infinite",
+                                    borderLeft: expiryInfo.expired ? "5px solid #8b0000" : "5px solid #dc2626",
+                                    boxShadow: expiryInfo.expired
+                                      ? "inset 0 0 0 9999px rgba(139,0,0,0.10)"
+                                      : "inset 0 0 0 9999px rgba(220,38,38,0.08)",
+                                  } : undefined}
+                                >
+                                  <td style={{ textAlign: "center" }}>{index + 1 + (currentPage - 1) * itemsPerPage}</td>
+                                  <td className="align_left_td td_width wrap-text-of-col">{r.custName}</td>
+                                  <td style={{ textAlign: "center" }}>
+                                    {r.customerType === "branch"
+                                      ? <span className="badge bg-info"><i className="fa-solid fa-code-branch me-1"></i>Branch</span>
+                                      : <span className="badge bg-primary"><i className="fa-solid fa-building me-1"></i>Main</span>}
+                                  </td>
+                                  <td style={{ textAlign: "center" }}>{r.email || "N/A"}</td>
+                                  <td style={{ textAlign: "center" }}>{r.ownedBy || "N/A"}</td>
+                                  <td style={{ textAlign: "center" }}><span className="badge bg-secondary">{r.industryType || "N/A"}</span></td>
+                                  <td style={{ textAlign: "center" }}><span className={getPriorityBadgeClass(r.customerPriority)}>{r.customerPriority || "N/A"}</span></td>
+                                  <td style={{ textAlign: "center" }}>{r.customerContactPersonName1 || "N/A"}</td>
+                                  <td style={{ textAlign: "center" }}>{r.phoneNumber1 || "N/A"}</td>
+                                  <td style={{ textAlign: "center" }}>
+                                    {[r.billingAddress?.city, r.billingAddress?.state].filter(Boolean).join(", ") || "N/A"}
+                                  </td>
+                                  <td style={{ textAlign: "center" }}>{r.GSTNo || "N/A"}</td>
+                                  <td style={{ textAlign: "center" }}>{r.zone || "N/A"}</td>
+                                  <td style={{ textAlign: "center" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString() : "N/A"}</td>
+                                  <td style={{ textAlign: "center" }}>
+                                    {/* ── NEW: End Date cell shows the expiry badge next to the date when in the alert window ── */}
+                                    {r.endDate ? new Date(r.endDate).toLocaleDateString() : "N/A"}
+                                    {expiryInfo && (
+                                      <span style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "4px",
+                                        marginTop: "3px",
+                                        fontSize: "0.7rem",
+                                        fontWeight: 800,
+                                        color: "#fff",
+                                        background: expiryInfo.expired ? "#8b0000" : "#dc2626",
+                                        borderRadius: "6px",
+                                        padding: "2px 7px",
+                                        boxShadow: expiryInfo.expired
+                                          ? "0 0 6px rgba(139,0,0,0.9)"
+                                          : "0 0 6px rgba(220,38,38,0.9)",
+                                        animation: "amcIconBlink 1s infinite",
+                                      }}>
+                                        <i className="fa-solid fa-triangle-exclamation"></i>
+                                        {expiryInfo.label}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ textAlign: "center" }}>
+                                    <span onClick={() => handleUpdateOpen(r)} className="update me-2" title="Edit">
+                                      <i className="fa-solid fa-pen text-success cursor-pointer"></i>
+                                    </span>
+                                    <span onClick={() => handleDeleteClick(r._id)} className="delete" title="Delete">
+                                      <i className="fa-solid fa-trash text-danger cursor-pointer"></i>
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
                           ) : (
                             <tr><td colSpan="15" style={{ textAlign: "center" }}>No data found — import an Excel/CSV file or click Add to get started</td></tr>
                           )}
@@ -352,6 +424,22 @@ export const OldAMCHistoryGrid = () => {
       {updatePopUpShow && selectedRecord && (
         <UpdateAMCHistoryPopUp selectedRecord={selectedRecord} handleUpdate={handleUpdateClose} />
       )}
+
+      {/* ── NEW: blink animations for expiring / expired End Date rows ── */}
+      <style>{`
+        @keyframes amcBlinkRed {
+          0%, 100% { background-color: rgba(220, 38, 38, 0.06); }
+          50%       { background-color: rgba(255, 90, 90, 0.35); }
+        }
+        @keyframes amcBlinkDarkRed {
+          0%, 100% { background-color: rgba(139, 0, 0, 0.10); }
+          50%       { background-color: rgba(139, 0, 0, 0.40); }
+        }
+        @keyframes amcIconBlink {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%       { opacity: 0.55; transform: scale(1.08); }
+        }
+      `}</style>
     </>
   );
 };

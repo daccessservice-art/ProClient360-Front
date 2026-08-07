@@ -11,7 +11,7 @@ import { getProjects, deleteProject } from "../../../../hooks/useProjects";
 import { getMaterialStatusByProject } from "../../../../hooks/useProjectPurchase";
 import { formatDate } from "../../../../utils/formatDate";
 import GaintchartPoup from "./PopUp/GaintchartPoup";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { UserContext } from "../../../../context/UserContext";
 import ProjectProgressReportPanel from "./ProjectProgressReportPanel";
 
@@ -54,6 +54,8 @@ const MaterialAvailabilityBadge = ({ projectId }) => {
 
 export const ProjectMasterGrid = () => {
   const navigate = useNavigate();
+  // ── NEW: read state passed back from TaskSheetMaster's Back button (page/search/filters) ──
+  const location = useLocation();
 
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => {
@@ -74,14 +76,16 @@ export const ProjectMasterGrid = () => {
   const [selectedId, setSelecteId] = useState(null);
   const [project, setProject] = useState([]);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState({ status: null });
+  // ── NEW: restore search/filter state if we arrived here via the Back button ──
+  const [searchTerm, setSearchTerm] = useState(location.state?.fromSearchTerm || "");
+  const [search, setSearch] = useState(location.state?.fromSearch || "");
+  const [filters, setFilters] = useState(location.state?.fromFilters || { status: null });
 
   const [selectedProject, setSelectedProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
-    currentPage: 1,
+    // ── NEW: restore the page the user was on before they clicked Assign ──
+    currentPage: location.state?.fromPage || 1,
     totalPages: 0,
     totalProjects: 0,
     limit: 20,
@@ -199,6 +203,20 @@ export const ProjectMasterGrid = () => {
     return taskCount > 0 ? `${taskCount} Task(s) Assigned` : "No Tasks Assigned Yet";
   };
 
+  // ── NEW: navigate to the Task Sheet page, carrying the current page/search/
+  // filters in location state so the Back button there can bring the user
+  // back to exactly this view instead of always landing on page 1. ──
+  const goToTaskSheet = (projectId) => {
+    navigate(`/project/${projectId}`, {
+      state: {
+        fromPage: pagination.currentPage,
+        fromSearch: search,
+        fromSearchTerm: searchTerm,
+        fromFilters: filters,
+      },
+    });
+  };
+
   return (
     <>
       {loading && (
@@ -257,6 +275,7 @@ export const ProjectMasterGrid = () => {
                           className="form-select bg_edit"
                           aria-label="Default select example"
                           name="projectStatus"
+                          value={filters.status || ""}
                           onChange={(e) => handleChange('status', e.target.value)}
                         >
                           <option value=""> Project Status</option>
@@ -335,7 +354,7 @@ export const ProjectMasterGrid = () => {
                                 <td className="w-20">
                                   {user?.permissions?.includes("viewTaskSheet") || user?.user === 'company' ? (
                                     <i
-                                      onClick={() => navigate(`/project/${project._id}`)}
+                                      onClick={() => goToTaskSheet(project._id)}
                                       className="fa-solid fa-share cursor-pointer"
                                       title={getAssignIconTitle(project.taskCount || 0)}
                                       style={{

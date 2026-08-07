@@ -7,6 +7,17 @@ import { getPurchaseOrders, approvePurchaseOrder } from "../../../hooks/usePurch
 // Components/Private/EmployeeDashboard/ — it must resolve to
 // Components/Private/CommonPopUp/ViewPurchaseOrderPopUp
 import ViewPurchaseOrderPopUp from "../CommonPopUp/ViewPurchaseOrderPopUp";
+// ── NEW: Old AMC History expiry alerts (AMC Executive / Vice President / Service Manager only) ──
+import { getOldAMCHistory } from "../../../hooks/useOldAMCHistory";
+
+// ── NEW: how many days before an AMC contract's End Date the blinker should
+// start showing. Example: End Date 20 Sep 2026 → blinker starts 1 Aug 2026
+// (50 days before). Change this single number to adjust the window. ──
+const ALERT_WINDOW_DAYS = 50;
+
+// ── NEW: designations allowed to see the AMC Expiry Alerts tab. Matched
+// case-insensitively, so "AMC Executive" / "amc executives" etc. all work. ──
+const AMC_ALERT_DESIGNATIONS = ["amc executive", "amc executives", "vice president", "service manager"];
 
 export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], inprocessTasks = [] }) => {
 
@@ -24,6 +35,17 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   // ── NEW: View PO popup state ──
   const [viewPopUpShow, setViewPopUpShow] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
+
+  // ── NEW: AMC expiry alert state ──
+  const [amcAlerts, setAmcAlerts] = useState([]);
+  const [amcLoading, setAmcLoading] = useState(false);
+  const amcPollRef = useRef(null);
+
+  // ── NEW: "Show More" pagination — every tab (Assigned Tasks, Active Tasks,
+  // Today/Overdue/Pending, PO Approval, AMC Expiry Alerts) starts by showing
+  // only 10 rows; clicking "Show More" reveals 10 more at a time. ──
+  const SHOW_MORE_STEP = 10;
+  const [visibleCount, setVisibleCount] = useState(SHOW_MORE_STEP);
 
   useEffect(() => {
     try {
@@ -75,6 +97,13 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return dept.includes("purchase") && dept.includes("store") && desig === "ceo";
   }, [userDepartment, userDesignation]);
 
+  // ── NEW: is this user allowed to see AMC expiry alerts? ──
+  const isAMCAlertRole = useMemo(() => {
+    const d = (userDesignation || "").toLowerCase().trim();
+    if (!d) return false;
+    return AMC_ALERT_DESIGNATIONS.some((allowed) => d.includes(allowed));
+  }, [userDesignation]);
+
   // ── fetch pending POs for approval ──
   const fetchPendingPOs = async (silent = false) => {
     if (!silent) setPoLoading(true);
@@ -111,6 +140,56 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
       if (poPollRef.current) clearInterval(poPollRef.current);
     };
   }, [isPurchaseCEO]);
+
+  // ── NEW: fetch AMC records whose End Date falls inside the alert window
+  // (already expired, or expiring within ALERT_WINDOW_DAYS days from today).
+  // Pulls the full old-AMC-history list and filters client-side. ──
+  const fetchAMCAlerts = async (silent = false) => {
+    if (!silent) setAmcLoading(true);
+    try {
+      const data = await getOldAMCHistory(1, 9999, "", "", "", "", "");
+      if (data?.success) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const windowEnd = new Date(today);
+        windowEnd.setDate(windowEnd.getDate() + ALERT_WINDOW_DAYS);
+
+        const alerts = (data.records || [])
+          .filter((r) => {
+            if (!r.endDate) return false;
+            const end = new Date(r.endDate);
+            if (isNaN(end.getTime())) return false;
+            end.setHours(0, 0, 0, 0);
+            return end <= windowEnd; // includes already-expired + expiring within window
+          })
+          .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+
+        setAmcAlerts(alerts);
+      } else {
+        setAmcAlerts([]);
+      }
+    } catch (err) {
+      console.error("Error fetching AMC expiry alerts:", err);
+      if (!silent) setAmcAlerts([]);
+    } finally {
+      if (!silent) setAmcLoading(false);
+    }
+  };
+
+  // ── NEW: initial fetch + 20s poll, only for allowed designations ──
+  useEffect(() => {
+    if (!isAMCAlertRole) return;
+
+    fetchAMCAlerts(false);
+
+    amcPollRef.current = setInterval(() => {
+      fetchAMCAlerts(true);
+    }, 20000);
+
+    return () => {
+      if (amcPollRef.current) clearInterval(amcPollRef.current);
+    };
+  }, [isAMCAlertRole]);
 
   const handleApprovePO = async (poId) => {
     setApprovingId(poId);
@@ -185,6 +264,22 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return map[status] || { bg: "#6c757d", color: "#fff" };
   };
 
+  // ── NEW: expired vs expiring-soon status + days-left label for AMC alerts ──
+  const getAMCStatus = (endDateStr) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const end = new Date(endDateStr);
+    end.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((end - today) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) {
+      return { label: `Expired ${Math.abs(diffDays)}d ago`, expired: true };
+    }
+    if (diffDays === 0) {
+      return { label: "Expires Today", expired: true };
+    }
+    return { label: `${diffDays} day${diffDays === 1 ? "" : "s"} left`, expired: false };
+  };
+
   const todayDate = new Date().toLocaleDateString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
   });
@@ -196,19 +291,23 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     { key: "assigned", label: "Assigned Tasks",    count: (assignedTasks || []).length,  color: "#8b5cf6", pulse: "pulsePurple", leadTab: false },
     { key: "active",   label: "Active Tasks",      count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
     { key: "poApproval", label: "PO Approval", count: pendingPOs.length, color: "#0891b2", pulse: "pulseBlue", leadTab: false, poTab: true },
+    // ── NEW: AMC Expiry Alerts tab ──
+    { key: "amcExpiry", label: "AMC Expiry Alerts", count: amcAlerts.length, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
   ];
 
   const tabs = allTabs.filter(tab => {
     if (tab.poTab) return isPurchaseCEO;
+    if (tab.amcTab) return isAMCAlertRole;
     if (tab.leadTab) return isSalesOrMarketing;
     return true;
   });
 
   useEffect(() => {
     if (isPurchaseCEO) setActiveTab("poApproval");
+    else if (isAMCAlertRole) setActiveTab("amcExpiry");
     else if (!isSalesOrMarketing) setActiveTab("assigned");
     else setActiveTab("today");
-  }, [isSalesOrMarketing, isPurchaseCEO]);
+  }, [isSalesOrMarketing, isPurchaseCEO, isAMCAlertRole]);
 
   const currentData = useMemo(() => {
     if (activeTab === "today")      return todayLeads;
@@ -217,12 +316,23 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (activeTab === "assigned")   return assignedTasks || [];
     if (activeTab === "active")     return inprocessTasks || [];
     if (activeTab === "poApproval") return pendingPOs;
+    if (activeTab === "amcExpiry")  return amcAlerts;
     return [];
-  }, [activeTab, todayLeads, pendingLeads, overdueLeads, assignedTasks, inprocessTasks, pendingPOs]);
+  }, [activeTab, todayLeads, pendingLeads, overdueLeads, assignedTasks, inprocessTasks, pendingPOs, amcAlerts]);
 
   const isTaskTab = activeTab === "assigned" || activeTab === "active";
   const isPOTab = activeTab === "poApproval";
+  const isAMCTab = activeTab === "amcExpiry";
   const activeTabInfo = tabs.find(t => t.key === activeTab);
+
+  // ── NEW: reset "Show More" back to 10 whenever the active tab changes ──
+  useEffect(() => {
+    setVisibleCount(SHOW_MORE_STEP);
+  }, [activeTab]);
+
+  // ── NEW: only render the first `visibleCount` rows; "Show More" bumps this up ──
+  const displayedData = currentData.slice(0, visibleCount);
+  const hasMore = currentData.length > visibleCount;
 
   const getRowAnimation = () => {
     if (activeTab === "overdue") return "blinkDarkRed 1.4s infinite";
@@ -292,6 +402,14 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
               border: "1px solid rgba(8,145,178,0.18)",
               borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
             }}>🧾 Awaiting Approval</span>
+          )}
+          {activeTab === "amcExpiry" && (
+            <span style={{
+              fontSize: "0.72rem", color: "#b91c1c",
+              background: "rgba(220,53,69,0.07)",
+              border: "1px solid rgba(220,53,69,0.18)",
+              borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
+            }}>⏰ Expiring / Expired within {ALERT_WINDOW_DAYS} days</span>
           )}
         </div>
 
@@ -379,7 +497,16 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                   background: "#f8fafc",
                   borderBottom: `2px solid ${activeTabInfo?.color}30`,
                 }}>
-                  {(isPOTab
+                  {(isAMCTab
+                    ? [
+                        { h: "SR NO.",        w: "60px"  },
+                        { h: "CUSTOMER NAME", w: ""      },
+                        { h: "ZONE",          w: "110px" },
+                        { h: "OWNED BY",      w: "140px" },
+                        { h: "END DATE",      w: "120px" },
+                        { h: "STATUS",        w: "150px" },
+                      ]
+                    : isPOTab
                     ? [
                         { h: "SR NO.",      w: "60px"  },
                         { h: "ORDER NO.",   w: "140px" },
@@ -438,6 +565,12 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                       Loading pending purchase orders...
                     </td>
                   </tr>
+                ) : isAMCTab && amcLoading ? (
+                  <tr>
+                    <td colSpan="6" className="text-center text-muted py-5" style={{ fontSize: "0.82rem", border: "none" }}>
+                      Loading AMC expiry alerts...
+                    </td>
+                  </tr>
                 ) : currentData.length === 0 ? (
                   <tr>
                     <td colSpan="6" className="text-center text-muted py-5"
@@ -445,8 +578,49 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                       No records found
                     </td>
                   </tr>
+                ) : isAMCTab ? (
+                  displayedData.map((r, idx) => {
+                    const status = getAMCStatus(r.endDate);
+                    return (
+                      <tr
+                        key={r._id}
+                        style={{
+                          borderBottom: "1px solid rgba(0,0,0,0.05)",
+                          background: idx % 2 === 0 ? "#fff" : "#fafbfc",
+                          animation: status.expired ? "blinkDarkRed 1.4s infinite" : "blinkRed 1.4s infinite",
+                        }}
+                      >
+                        <td style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>
+                          {String(idx + 1).padStart(2, "0")}.
+                        </td>
+                        <td style={{ border: "none", padding: "10px 14px", fontWeight: 600, color: "#1e293b" }}>
+                          {r.custName || "N/A"}
+                        </td>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#555" }}>
+                          {r.zone || "N/A"}
+                        </td>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#555" }}>
+                          {r.ownedBy || "N/A"}
+                        </td>
+                        <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>
+                          {formatDate(r.endDate)}
+                        </td>
+                        <td style={{ border: "none", padding: "10px 14px", textAlign: "center" }}>
+                          <span style={{
+                            background: status.expired ? "#8b0000" : "#dc2626",
+                            color: "#fff",
+                            borderRadius: "6px", padding: "3px 10px",
+                            fontSize: "0.7rem", fontWeight: 700,
+                            whiteSpace: "nowrap",
+                          }}>
+                            {status.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : isPOTab ? (
-                  currentData.map((po, idx) => (
+                  displayedData.map((po, idx) => (
                     <tr
                       key={po._id}
                       style={{
@@ -491,7 +665,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
                     </tr>
                   ))
                 ) : (
-                  currentData.map((item, idx) =>
+                  displayedData.map((item, idx) =>
                     isTaskTab ? (
                       <tr
                         key={item._id}
@@ -581,6 +755,28 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
               </tbody>
             </table>
           </div>
+
+          {/* ── NEW: Show More — reveals 10 more rows at a time for whichever tab is active ── */}
+          {hasMore && (
+            <div className="text-center mt-2">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((c) => c + SHOW_MORE_STEP)}
+                style={{
+                  border: `1.5px solid ${activeTabInfo?.color || "#64748b"}`,
+                  color: activeTabInfo?.color || "#64748b",
+                  background: "#fff",
+                  borderRadius: "50px",
+                  padding: "6px 18px",
+                  fontSize: "0.78rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Show More ({currentData.length - visibleCount} remaining)
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

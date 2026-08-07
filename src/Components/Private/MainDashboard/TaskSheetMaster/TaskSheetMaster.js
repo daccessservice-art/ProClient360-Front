@@ -4,6 +4,8 @@
  * Changes vs previous version:
  *  - Manager can assign a Tester alongside employees when creating a task
  *  - Assignment table shows a Tester column + QA Status badge with bug-report access
+ *  - NEW: Back button now returns to the exact Project Master page/search/filters
+ *    the user came from (via location.state), instead of always jumping to page 1
  *  - Everything else (sub-task tree, Gantt, original handlers) is untouched
  */
 
@@ -17,7 +19,7 @@ import { initTasks } from "../../../Helper/GanttChartHelper";
 import "gantt-task-react/dist/index.css";
 import { ViewSwitcher } from "../../../Helper/ViewSwitcher";
 import Select from "react-select";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   getTaskSheet,
   createTaskSheet,
@@ -44,6 +46,8 @@ const formatTaskDate = (dateStr) => {
 
 export const TaskSheetMaster = () => {
   const navigate = useNavigate();
+  // ── NEW: state passed in from ProjectMasterGrid (page/search/filters) ──
+  const location = useLocation();
 
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => setIsOpen(!isopen);
@@ -96,6 +100,13 @@ export const TaskSheetMaster = () => {
   const [subTaskMap, setSubTaskMap] = useState({});
   // Track which parent rows are expanded to show sub-tasks
   const [expandedParents, setExpandedParents] = useState(new Set());
+
+  // ── NEW: go back to Project Master, restoring the page/search/filters
+  // the user came from (falls back to a plain navigate if this page was
+  // opened directly, e.g. via a bookmark or refresh) ──
+  const handleBackToProjects = () => {
+    navigate('/ProjectMasterGrid', { state: location.state });
+  };
 
   const filteredTaskOptions = useMemo(() => {
     if (!taskDropDown || taskDropDown.length === 0) return [];
@@ -646,7 +657,10 @@ export const TaskSheetMaster = () => {
                 <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
                   <div className="col-12 col-lg-12 mx-auto mb-4 mb-lg-0 pt-4">
-                    <button className="btn btn-outline-light d-flex align-items-center" onClick={() => navigate('/ProjectMasterGrid')}>
+                    {/* ── UPDATED: Back button now restores the page/search/filters
+                         the user came from on Project Master, instead of always
+                         jumping to page 1. ── */}
+                    <button className="btn btn-outline-light d-flex align-items-center" onClick={handleBackToProjects}>
                       <i className="fa-solid text-light fa-angle-left me-2"></i> Back
                     </button>
                   </div>
