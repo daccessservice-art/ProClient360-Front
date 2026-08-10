@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { approvePurchaseOrder } from '../../../hooks/usePurchaseOrder';
+// ⚠️ Adjust the relative path above if this file's location differs —
+// it must resolve to hooks/usePurchaseOrder.js
 
 const numberToWords = (num) => {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven',
@@ -48,7 +51,33 @@ const COMPANY_CONFIGS = {
 // public/static/assets/img folder. ──
 const SIGNATURE_IMAGE_URL = '/static/assets/img/sign.png';
 
-const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
+// ── NEW: who is allowed to Approve a Pending PO from this popup.
+// Mirrors the checks already used elsewhere in the app:
+//   - PurchaseOrderMasterGrid.js:  user?.permissions?.includes('updatePurchaseOrder') || user.user === 'company'
+//   - EmployeeLeadFollowUpSection.js: dept includes "purchase"+"store" AND designation === "ceo"
+// Reads straight from localStorage so this popup doesn't need a UserContext
+// import to work correctly from BOTH places it's rendered. ──
+const canUserApprovePO = () => {
+  try {
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    if (userData?.user === 'company') return true;
+    if (Array.isArray(userData?.permissions) && userData.permissions.includes('updatePurchaseOrder')) return true;
+
+    const dept   = (userData?.department || '').toLowerCase();
+    const desig  = (userData?.designation || '').toLowerCase();
+    if (dept.includes('purchase') && dept.includes('store') && desig === 'ceo') return true;
+
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+// ── NEW: onApproved is optional — parent grids that pass it (e.g. the PO
+// Approval tab) get a callback to refresh their list; if not passed, we
+// simply close the popup after a successful approve (safe default for
+// PurchaseOrderMasterGrid, which doesn't pass this prop). ──
+const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
   const po         = selectedPO || {};
   const items      = po.items      || [];
   const totalAmt   = Number(po.totalAmount) || 0;
@@ -64,6 +93,9 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
   // to the original "Authorised Signatory" placeholder text if the image
   // is missing/broken, instead of showing a blank/broken image icon. ──
   const [signatureLoadFailed, setSignatureLoadFailed] = useState(false);
+
+  // ── NEW: Approve button loading state ──
+  const [approving, setApproving] = useState(false);
 
   // ── Default is DAccess ───────────────────────────────────────────────────
   const [printAs, setPrintAs] = useState('daccess');
@@ -124,6 +156,35 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
     }
   };
 
+  // ── NEW: Approve handler — mirrors handleApprovePO in
+  // EmployeeLeadFollowUpSection.js (same mailStatus toast logic) ──
+  const handleApprove = async () => {
+    if (!po._id || approving) return;
+    setApproving(true);
+    try {
+      const data = await approvePurchaseOrder(po._id);
+      if (data?.success) {
+        if (data.mailStatus === false) {
+          toast.success('Purchase Order approved (but approval email could not be sent — check vendor email on file)');
+        } else if (data.mailStatus === true) {
+          toast.success('Purchase Order approved & email sent to vendor');
+        } else {
+          toast.success('Purchase Order approved successfully');
+        }
+        if (typeof onApproved === 'function') {
+          onApproved(po._id);
+        }
+        closePopUp();
+      } else {
+        toast.error(data?.error || 'Failed to approve purchase order');
+      }
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const showApproveButton = po.status === 'Pending' && canUserApprovePO();
+
   return (
     <div
       className="modal fade show"
@@ -141,6 +202,18 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               <i className="fa-solid fa-file-invoice me-2 text-warning"></i>
               Purchase Order &nbsp;—&nbsp;
               <span className="text-warning">{po.orderNumber || 'N/A'}</span>
+              {po.status && (
+                <span
+                  className={`badge ms-2 ${
+                    po.status === 'Approved' ? 'bg-success' :
+                    po.status === 'Pending' ? 'bg-warning text-dark' :
+                    po.status === 'Cancelled' ? 'bg-danger' : 'bg-secondary'
+                  }`}
+                  style={{ fontSize: '11px' }}
+                >
+                  {po.status}
+                </span>
+              )}
             </h5>
 
             {/* Company Toggle — DAccess / Entero */}
@@ -259,11 +332,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
                     const taxAmt  = lineAmt * taxPct / 100;
                     const netVal  = lineAmt + taxAmt;
 
-                    // ── FIX: show Brand Name & Model as clearly labeled,
-                    // always-visible sub-line (previously these were only
-                    // shown as unlabeled text mixed in with description,
-                    // and easy to miss). Item name / description logic and
-                    // all other columns, widths, and styling are unchanged.
                     const itemName = item.productName || item.brandName || '-';
                     const subParts = [];
                     if (item.brandName) subParts.push(`Brand: ${item.brandName}`);
@@ -406,10 +474,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
               </div>
               <div className="col-6 p-2 text-end" style={{ fontSize: '11px' }}>
                 <div className="mb-1">For, {company.name}</div>
-                {/* ── FIX: when the PO is Approved, auto-show sign.png inside
-                    the signature box instead of the blank placeholder.
-                    Falls back to "Authorised Signatory" text if the PO
-                    isn't approved yet, or if the image fails to load. ── */}
                 <div className="border mx-auto mt-2 d-flex align-items-center justify-content-center"
                   style={{ width: '220px', height: '70px', overflow: 'hidden' }}>
                   {isApproved && !signatureLoadFailed ? (
@@ -438,6 +502,17 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO }) => {
 
           {/* Modal Footer */}
           <div className="modal-footer py-2 bg-light">
+            {/* ── NEW: Approve button — only for Pending POs + allowed users ── */}
+            {showApproveButton && (
+              <button
+                onClick={handleApprove}
+                type="button"
+                className="btn btn-success btn-sm fw-bold"
+                disabled={approving}
+              >
+                <i className="fa-solid fa-check me-1"></i> {approving ? 'Approving...' : 'Approve'}
+              </button>
+            )}
             <button onClick={handleDownloadPDF} className="btn btn-warning btn-sm fw-bold">
               <i className="fa-solid fa-file-pdf me-1"></i> Download PDF ({printAs === 'daccess' ? 'DAccess' : 'Entero'})
             </button>
