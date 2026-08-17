@@ -7,6 +7,7 @@ import AddCustomerPopUp from "./PopUp/AddCustomerPopUp";
 import UpdateCustomerPopUp from "./PopUp/UpdateCustomerPopUp";
 import ReassignOwnedByPopUp from "./PopUp/ReassignOwnedByPopUp";
 import RaiseTicketPopUp from "./PopUp/RaiseTicketPopUp";
+import ViewCampaignRepliesPopUp from "./PopUp/ViewCampaignRepliesPopUp";
 import {
   getCustomers,
   deleteCustomer,
@@ -58,6 +59,10 @@ export const CustomerMasterGrid = () => {
 
   const [raiseTicketShow, setRaiseTicketShow] = useState(false);
   const [raiseTicketCustomer, setRaiseTicketCustomer] = useState(null);
+
+  // ── NEW: WhatsApp Campaign replies popup state ──
+  const [repliesPopUpShow, setRepliesPopUpShow] = useState(false);
+  const [repliesCustomer, setRepliesCustomer] = useState(null);
 
   const [selectedId, setSelecteId] = useState(null);
   const [customers, setCustomers] = useState([]);
@@ -111,6 +116,10 @@ export const CustomerMasterGrid = () => {
     user?.user === "company" ||
     ALLOWED_REASSIGN_DESIGNATIONS.includes(user?.designation || "");
 
+  // ── NEW: who can see WhatsApp campaign replies ──
+  const canViewCampaignReplies =
+    user?.user === "company" || user?.permissions?.includes("viewCampaign");
+
   useEffect(() => {
     const fetchFilterEmployees = async () => {
       try {
@@ -149,6 +158,16 @@ export const CustomerMasterGrid = () => {
     setRaiseTicketShow(false);
     setRaiseTicketCustomer(null);
     setRefetchTrigger((n) => n + 1);
+  };
+
+  // ── NEW: open/close WhatsApp replies popup ──
+  const handleViewReplies = (customer) => {
+    setRepliesCustomer(customer);
+    setRepliesPopUpShow(true);
+  };
+  const handleRepliesClose = () => {
+    setRepliesPopUpShow(false);
+    setRepliesCustomer(null);
   };
 
   const handelDeleteClick = async () => {
@@ -670,6 +689,18 @@ export const CustomerMasterGrid = () => {
                                           <i className="fa-solid fa-ticket text-info" style={{ fontSize: "16px" }}></i>
                                         </span>
 
+                                        {/* ── NEW: view WhatsApp campaign replies for this customer ── */}
+                                        {canViewCampaignReplies && (
+                                          <span
+                                            onClick={() => handleViewReplies(customer)}
+                                            className="me-2"
+                                            title="View WhatsApp Campaign Replies"
+                                            style={{ cursor: "pointer" }}
+                                          >
+                                            <i className="fa-brands fa-whatsapp" style={{ fontSize: "16px", color: "#25D366" }}></i>
+                                          </span>
+                                        )}
+
                                         {user?.permissions?.includes("updateCustomer") || user?.user === "company" ? (
                                           <span onClick={() => handleUpdate(customer)} className="update me-2">
                                             <i className="fa-solid fa-pen text-success cursor-pointer"></i>
@@ -751,6 +782,11 @@ export const CustomerMasterGrid = () => {
 
       {raiseTicketShow && raiseTicketCustomer && (
         <RaiseTicketPopUp customer={raiseTicketCustomer} onClose={handleRaiseTicketClose} />
+      )}
+
+      {/* ── NEW: WhatsApp Campaign replies popup ── */}
+      {repliesPopUpShow && repliesCustomer && (
+        <ViewCampaignRepliesPopUp customer={repliesCustomer} onClose={handleRepliesClose} />
       )}
     </>
   );

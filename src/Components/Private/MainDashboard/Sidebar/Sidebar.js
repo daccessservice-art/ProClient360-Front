@@ -379,6 +379,20 @@ export const Sidebar = ({ isopen, active }) => {
                         </li>
                     ) : null}
 
+                    {/* WhatsApp Campaign — product-wise campaign sends against Customer Master */}
+                    {user?.permissions?.includes("viewCampaign") || user?.user === 'company' ? (
+                        <li
+                            title="WhatsApp Campaigns"
+                            className={active === "CampaignMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
+                            <Link to='/CampaignMasterGrid' className="nav-link ">
+                                <i className="fa-brands fa-whatsapp ps-3 side_icon_fs"></i>
+                                <span className="menu-title_m" style={{ display: isopen ? "" : "none" }}>
+                                    WhatsApp Campaigns
+                                </span>
+                            </Link>
+                        </li>
+                    ) : null}
+
                     {/* Project Master */}
                     <li
                         title="Project Master"

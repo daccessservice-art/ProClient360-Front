@@ -9,6 +9,7 @@ import MainDashboard from "./Components/Private/MainDashboard/MainDashboard";
 import { LogIn } from "./Components/Public/Login";
 import { EmployeeMasterGrid } from "./Components/Private/MainDashboard/EmployeeMaster/EmployeeMasterGrid";
 import { CustomerMasterGrid } from "./Components/Private/MainDashboard/CustomerMaster/CustomerMasterGrid";
+import { CampaignMasterGrid } from "./Components/Private/MainDashboard/CampaignMaster/CampaignMasterGrid";
 import { ProjectMasterGrid } from "./Components/Private/MainDashboard/ProjectMaster/ProjectMasterGrid";
 import { TaskMasterGrid } from "./Components/Private/MainDashboard/TaskMaster/TaskMasterGrid";
 import { DepartmentMasterGrid } from "./Components/Private/MainDashboard/DepartmentMaster/DepartmentMasterGrid";
@@ -201,6 +202,7 @@ const AllRoutes = () => {
                 
                 {/* Master Grid Routes */}
                 <Route exact path="/CustomerMasterGrid" element={<ProtectRoute Component={CustomerMasterGrid} />} />
+                <Route exact path="/CampaignMasterGrid" element={<ProtectRoute Component={CampaignMasterGrid} />} />
                 <Route exact path="/EmployeeMasterGrid" element={<ProtectRoute Component={EmployeeMasterGrid} />} />
                 <Route exact path="/ServiceMasterGrid" element={<ProtectRoute Component={ServiceMasterGrid} />} />
                 <Route exact path="/TaskMasterGrid" element={<ProtectRoute Component={TaskMasterGrid} />} />

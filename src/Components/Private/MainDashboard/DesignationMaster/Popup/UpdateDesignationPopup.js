@@ -12,7 +12,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
   const [permissions, setPermissions] = useState([]);
   const [designation, setDesignation] = useState(selectedDes);
 
-  // Department dropdown state
   const [deptOptions, setDeptOptions] = useState([]);
   const [selectedDept, setSelectedDept] = useState(null);
   const [deptPage, setDeptPage] = useState(1);
@@ -20,7 +19,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
   const [deptLoading, setDeptLoading] = useState(false);
   const [deptSearch, setDeptSearch] = useState("");
 
-  // Fetch departments with pagination & search
   const loadDepartments = useCallback(async (page, search) => {
     if (deptLoading || !deptHasMore) return;
     setDeptLoading(true);
@@ -39,7 +37,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
     setDeptPage(page + 1);
   }, [deptLoading, deptHasMore]);
 
-  // Initial & search-triggered load (reset on search)
   useEffect(() => {
     setDeptPage(1);
     setDeptHasMore(true);
@@ -47,7 +44,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
     loadDepartments(1, deptSearch);
   }, [deptSearch]);
 
-  // Set selected department when designation data is loaded
   useEffect(() => {
     if (designation?.department?._id && deptOptions.length > 0) {
       const selectedOption = deptOptions.find(opt => opt.value === designation.department._id);
@@ -83,7 +79,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
     }));
   };
 
-  // Handle department selection
   const handleDepartmentChange = (selectedOption) => {
     setSelectedDept(selectedOption);
     setDesignation((prevDesignation) => ({
@@ -92,7 +87,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
     }));
   };
 
-  // Handle role addition
   const handleUpdateDesignation = async (e) => {
     e.preventDefault();
     if (!designation.name || !designation.department) {
@@ -159,7 +153,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                     </div>
                   </div>
 
-                  {/* Department Selection */}
                   <div className="col-12 col-lg-6 my-3">
                     <div className="mb-3">
                       <label htmlFor="Department" className="form-label label_text">
@@ -219,7 +212,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                         </thead>
                         <tbody>
 
-                          {/* EMPLOYEE */}
                           <tr>
                             <td>Employee</td>
                             <td>
@@ -256,7 +248,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* CUSTOMER */}
                           <tr>
                             <td>Customer</td>
                             <td>
@@ -293,7 +284,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* PROJECT */}
                           <tr>
                             <td>Project</td>
                             <td>
@@ -330,7 +320,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* TASK NAME */}
                           <tr>
                             <td>Task Name</td>
                             <td>
@@ -367,7 +356,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* TASK SHEET */}
                           <tr>
                             <td>Task Sheet</td>
                             <td>
@@ -404,7 +392,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* DEPARTMENT */}
                           <tr>
                             <td>Department</td>
                             <td>
@@ -441,7 +428,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* DESIGNATION */}
                           <tr>
                             <td>Designation</td>
                             <td>
@@ -478,7 +464,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* SERVICE */}
                           <tr>
                             <td>Service</td>
                             <td>
@@ -515,7 +500,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* LEADS */}
                           <tr>
                             <td>Leads</td>
                             <td>
@@ -552,7 +536,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* ANNUAL REPORT */}
                           <tr>
                             <td>Annual Report</td>
                             <td>
@@ -589,7 +572,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* ACTIVITY LOGS */}
                           <tr>
                             <td>Activity Logs</td>
                             <td>
@@ -626,7 +608,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* FEEDBACK */}
                           <tr>
                             <td>Feedback</td>
                             <td>
@@ -663,7 +644,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* MARKETING */}
                           <tr>
                             <td>Marketing</td>
                             <td>
@@ -700,7 +680,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* AMC */}
                           <tr>
                             <td>AMC</td>
                             <td>
@@ -737,7 +716,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* INVENTORY */}
                           <tr>
                             <td>Inventory</td>
                             <td>
@@ -774,7 +752,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* VENDOR */}
                           <tr>
                             <td>Vendor</td>
                             <td>
@@ -811,7 +788,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* PRODUCT */}
                           <tr>
                             <td>Product</td>
                             <td>
@@ -848,7 +824,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* PURCHASE ORDER */}
                           <tr>
                             <td>Purchase Order</td>
                             <td>
@@ -885,7 +860,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* GRN */}
                           <tr>
                             <td>GRN</td>
                             <td>
@@ -922,7 +896,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* QUALITY INSPECTION */}
                           <tr>
                             <td>Quality Inspection</td>
                             <td>
@@ -959,7 +932,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* DELIVERY CHALLAN */}
                           <tr>
                             <td>Delivery Challan</td>
                             <td>
@@ -996,7 +968,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* MRF */}
                           <tr>
                             <td>MRF</td>
                             <td>
@@ -1032,8 +1003,8 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                               </label>
                             </td>
                           </tr>
-
-                          {/* SALES MANAGER MASTER */}
+                          
+                          
                           <tr>
                             <td>Sales Manager Master</td>
                             <td>
@@ -1070,7 +1041,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* EXHIBITION MASTER */}
                           <tr>
                             <td>Exhibition Master</td>
                             <td>
@@ -1107,7 +1077,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* EXHIBITION VISIT */}
                           <tr>
                             <td>Exhibition Visit</td>
                             <td>
@@ -1144,7 +1113,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* ACCOUNT MASTER */}
                           <tr className="table-primary">
                             <td className="fw-bold">Accounts Master</td>
                             <td>
@@ -1181,7 +1149,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                             </td>
                           </tr>
 
-                          {/* PROJECT PURCHASE */}
 <tr className="table-info">
     <td className="fw-bold">
         <i className="fa-solid fa-boxes-stacked me-2"></i>
@@ -1221,6 +1188,57 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
     </td>
 </tr>
 
+{/* CAMPAIGN */}
+                          <tr className="table-success">
+                            <td className="fw-bold">
+                              <i className="fa-brands fa-whatsapp me-2" style={{ color: '#25D366' }}></i>
+                              WhatsApp Campaign
+                            </td>
+                            <td>
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="createCampaign"
+                                  checked={designation.permissions?.includes('createCampaign')}
+                                  onChange={(e) => handlePermissionChange('createCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                            <td>
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="viewCampaign"
+                                  checked={designation.permissions?.includes('viewCampaign')}
+                                  onChange={(e) => handlePermissionChange('viewCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                            <td>
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="updateCampaign"
+                                  checked={designation.permissions?.includes('updateCampaign')}
+                                  onChange={(e) => handlePermissionChange('updateCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                            <td>
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="deleteCampaign"
+                                  checked={designation.permissions?.includes('deleteCampaign')}
+                                  onChange={(e) => handlePermissionChange('deleteCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="ps-4 text-muted small">↳ Send Campaign (separate from Create/Edit)</td>
+                            <td colSpan="3">
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="sendCampaign"
+                                  checked={designation.permissions?.includes('sendCampaign')}
+                                  onChange={(e) => handlePermissionChange('sendCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                          </tr>
+
 {/* OLD AMC HISTORY */}
 <tr>
 <td>Old AMC History</td>
@@ -1258,7 +1276,6 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
 </td>
 </tr>
 
-                          {/* SURVEY ENGINEER */}
                           <tr className="table-info" style={{ backgroundColor: '#e3f2fd' }}>
                             <td className="fw-bold text-primary">
                               <i className="fa-solid fa-clipboard-list me-2"></i>
