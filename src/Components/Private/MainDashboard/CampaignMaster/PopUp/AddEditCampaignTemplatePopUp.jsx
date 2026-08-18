@@ -5,9 +5,10 @@ import {
   createCampaignTemplate,
   updateCampaignTemplate,
   submitCampaignTemplate,
+  uploadCampaignImage,
 } from "../../../../../hooks/useCampaign";
 
-const emptyForm = { title: "", category: "MARKETING", language: "en", bodyText: "", buttons: [], questions: [] };
+const emptyForm = { title: "", category: "MARKETING", language: "en", bodyText: "", buttons: [], questions: [], images: [] };
 const emptyQuestion = { questionText: "", options: [{ title: "", description: "" }] };
 
 // template = existing template object to edit, or null to create new
@@ -27,11 +28,45 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
           questionText: q.questionText,
           options: (q.options || []).map((o) => ({ title: o.title, description: o.description || "" })),
         })),
+        images: (template.images || []).map((img) => ({ mediaId: img.mediaId, caption: img.caption || "" })),
       });
     } else {
       setForm(emptyForm);
     }
   }, [template]);
+
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (form.images.length >= 5) {
+      toast.error("Maximum 5 images per template.");
+      e.target.value = "";
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const data = await uploadCampaignImage(file);
+      if (data?.success) {
+        setForm((f) => ({ ...f, images: [...f.images, { mediaId: data.mediaId, caption: "" }] }));
+        toast.success("Image uploaded");
+      } else {
+        toast.error(data?.error || "Failed to upload image");
+      }
+    } catch (err) {
+      toast.error("Error uploading image");
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  };
+  const updateImageCaption = (i, caption) => {
+    setForm((f) => ({ ...f, images: f.images.map((img, idx) => (idx === i ? { ...img, caption } : img)) }));
+  };
+  const removeImage = (i) => {
+    setForm((f) => ({ ...f, images: f.images.filter((_, idx) => idx !== i) }));
+  };
 
   const isValid = form.title.trim() && form.bodyText.trim();
 
@@ -244,6 +279,54 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
                     + Add button
                   </button>
                 )}
+              </div>
+
+              {/* ── NEW: Images — sent right after the customer's first reply, before Question 1 ── */}
+              <div className="col-12 mb-3">
+                <label className="form-label label_text">
+                  Images <span className="text-muted fw-normal">(optional, max 5 — sent after the customer's first reply, before questions)</span>
+                </label>
+                <div className="d-flex flex-wrap gap-3 mb-2">
+                  {form.images.map((img, i) => (
+                    <div key={i} className="border rounded p-2" style={{ width: 160 }}>
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <i className="fa-solid fa-image text-muted"></i>
+                        <button type="button" className="btn btn-sm btn-outline-danger py-0 px-1" onClick={() => removeImage(i)}>
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      </div>
+                      <small className="text-muted d-block mb-1" style={{ fontSize: "10px", wordBreak: "break-all" }}>
+                        ID: {img.mediaId}
+                      </small>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="Caption (optional)"
+                        value={img.caption}
+                        onChange={(e) => updateImageCaption(i, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {form.images.length < 5 && (
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id="campaignImageUpload"
+                      style={{ display: "none" }}
+                      onChange={handleImageSelect}
+                      disabled={uploadingImage}
+                    />
+                    <label htmlFor="campaignImageUpload" className={`btn btn-sm btn-outline-secondary ${uploadingImage ? "disabled" : ""}`}>
+                      <i className="fa-solid fa-upload me-1"></i>
+                      {uploadingImage ? "Uploading..." : "+ Add image"}
+                    </label>
+                  </div>
+                )}
+                <small className="text-muted d-block mt-1">
+                  Images are session content — adding or removing them never requires Meta re-approval.
+                </small>
               </div>
 
               {/* ── NEW: Questions builder — the real tappable questionnaire ── */}

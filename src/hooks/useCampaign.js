@@ -121,6 +121,24 @@ const getCampaignSessions = async (customerId = null) => {
   }
 };
 
+// NEW — uploads an image, returns { success, mediaId }
+const uploadCampaignImage = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await axios.post(`${url}/templates/upload-image`, formData, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
 export {
   getCampaignTemplates,
   getApprovedCampaignTemplates,
@@ -133,4 +151,5 @@ export {
   getCampaignLogs,
   getCampaignReplies,
   getCampaignSessions,
+  uploadCampaignImage,
 };
