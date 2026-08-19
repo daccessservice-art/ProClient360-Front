@@ -139,6 +139,17 @@ const uploadCampaignImage = async (file) => {
   }
 };
 
+// NEW — paginated, grouped-by-customer inbox view
+const getCampaignReplyCustomers = async (page = 1, limit = 15) => {
+  try {
+    const response = await axios.get(`${url}/replies/customers?page=${page}&limit=${limit}`, authHeaders());
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
 export {
   getCampaignTemplates,
   getApprovedCampaignTemplates,
@@ -152,4 +163,5 @@ export {
   getCampaignReplies,
   getCampaignSessions,
   uploadCampaignImage,
+  getCampaignReplyCustomers,
 };

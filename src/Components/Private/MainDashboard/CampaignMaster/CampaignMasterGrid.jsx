@@ -4,6 +4,7 @@ import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddEditCampaignTemplatePopUp from "./PopUp/AddEditCampaignTemplatePopUp";
 import SendCampaignPopUp from "./PopUp/SendCampaignPopUp";
+import ViewCampaignRepliesPopUp from "../CustomerMaster/PopUp/ViewCampaignRepliesPopUp";
 import {
   getCampaignTemplates,
   deleteCampaignTemplate,
@@ -11,6 +12,7 @@ import {
   syncCampaignTemplateStatus,
   getCampaignLogs,
   getCampaignReplies,
+  getCampaignReplyCustomers,
 } from "../../../../hooks/useCampaign";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
@@ -35,7 +37,11 @@ export const CampaignMasterGrid = () => {
   const [tab, setTab] = useState("templates"); // 'templates' | 'history' | 'replies'
   const [templates, setTemplates] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [replies, setReplies] = useState([]);
+  const [replyItems, setReplyItems] = useState([]);
+  const [replyPage, setReplyPage] = useState(1);
+  const [replyPagination, setReplyPagination] = useState({ totalPages: 1, hasNextPage: false, hasPrevPage: false, totalItems: 0 });
+  const [repliesLoading, setRepliesLoading] = useState(false);
+  const [viewingCustomer, setViewingCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [showAddEdit, setShowAddEdit] = useState(false);
@@ -56,14 +62,29 @@ export const CampaignMasterGrid = () => {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [tplData, logData, replyData] = await Promise.all([getCampaignTemplates(), getCampaignLogs(), getCampaignReplies()]);
+      const [tplData, logData] = await Promise.all([getCampaignTemplates(), getCampaignLogs()]);
       if (tplData?.success) setTemplates(tplData.templates || []);
       if (logData?.success) setLogs(logData.logs || []);
-      if (replyData?.success) setReplies(replyData.replies || []);
       setLoading(false);
     };
     fetchData();
   }, [refetchTrigger]);
+
+  const fetchReplyPage = async (page) => {
+    setRepliesLoading(true);
+    const data = await getCampaignReplyCustomers(page, 15);
+    if (data?.success) {
+      setReplyItems(data.items || []);
+      setReplyPagination(data.pagination || { totalPages: 1, hasNextPage: false, hasPrevPage: false, totalItems: 0 });
+      setReplyPage(page);
+    }
+    setRepliesLoading(false);
+  };
+
+  useEffect(() => {
+    if (tab === "replies") fetchReplyPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, refetchTrigger]);
 
   const handleAdd = () => { setEditingTemplate(null); setShowAddEdit(true); };
   const handleEdit = (tpl) => { setEditingTemplate(tpl); setShowAddEdit(true); };
@@ -165,7 +186,7 @@ export const CampaignMasterGrid = () => {
                         className={`btn btn-sm ${tab === "replies" ? "btn-primary" : "btn-outline-light"}`}
                         onClick={() => setTab("replies")}
                       >
-                        Replies {replies.length > 0 && <span className="badge bg-danger ms-1">{replies.length}</span>}
+                        Replies {replyPagination.totalItems > 0 && <span className="badge bg-danger ms-1">{replyPagination.totalItems}</span>}
                       </button>
                     </div>
                     {canSend && (
@@ -288,30 +309,88 @@ export const CampaignMasterGrid = () => {
                   </div>
                 )}
 
-                {/* ── Replies tab — what customers actually typed back ── */}
+                {/* ── Replies tab — inbox-style, grouped by customer ── */}
                 {tab === "replies" && (
                   <div className="row bg-white p-2 m-1 border rounded">
                     <div className="col-12 py-2">
-                      {replies.length === 0 && (
+
+                      {repliesLoading && (
+                        <div className="text-center text-muted py-4">Loading replies...</div>
+                      )}
+
+                      {!repliesLoading && replyItems.length === 0 && (
                         <div className="text-muted text-center py-4">No customer replies yet.</div>
                       )}
-                      {replies.map((r) => (
-                        <div key={r._id} className="border rounded p-3 mb-2" style={{ background: r.isButtonClick ? "#eff6ff" : "#f0fdf4" }}>
-                          <div className="d-flex justify-content-between align-items-start">
-                            <div className="fw-bold">
-                              {r.customer?.custName || "Unknown customer"}
-                              <small className="text-muted ms-2">{r.customer?.phoneNumber1 || r.phone}</small>
-                              {r.isButtonClick && (
-                                <span className="badge bg-primary ms-2">
-                                  <i className="fa-solid fa-computer-mouse me-1"></i>Tapped a button
-                                </span>
-                              )}
+
+                      {!repliesLoading && replyItems.map((item) => (
+                        <div
+                          key={item.customerId || item.phone}
+                          className="d-flex justify-content-between align-items-start p-3 mb-2 rounded"
+                          style={{
+                            background: item.lastIsButtonClick ? "#eff6ff" : "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            cursor: item.customerId ? "pointer" : "default",
+                            transition: "box-shadow 0.15s",
+                          }}
+                          onClick={() => item.customerId && setViewingCustomer({ _id: item.customerId, custName: item.custName, phoneNumber1: item.phone })}
+                          onMouseEnter={(e) => item.customerId && (e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "none")}
+                        >
+                          <div className="d-flex align-items-start gap-3" style={{ minWidth: 0 }}>
+                            <div
+                              className="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                              style={{ width: 40, height: 40, background: "#25D366", color: "#fff", fontWeight: 600 }}
+                            >
+                              {(item.custName || "?").charAt(0).toUpperCase()}
                             </div>
-                            <small className="text-muted">{new Date(r.createdAt).toLocaleString()}</small>
+                            <div style={{ minWidth: 0 }}>
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span className="fw-bold">{item.custName || "Unknown customer"}</span>
+                                <small className="text-muted">{item.phone}</small>
+                                {item.lastIsButtonClick && (
+                                  <span className="badge bg-primary" style={{ fontSize: "10px" }}>
+                                    <i className="fa-solid fa-computer-mouse me-1"></i>Tapped
+                                  </span>
+                                )}
+                              </div>
+                              <div
+                                className="text-muted text-truncate"
+                                style={{ maxWidth: 480, fontSize: "13px" }}
+                              >
+                                {item.lastMessage}
+                              </div>
+                            </div>
                           </div>
-                          <div className="mt-1" style={{ whiteSpace: "pre-wrap", fontSize: "14px" }}>{r.message}</div>
+                          <div className="text-end flex-shrink-0 ms-2">
+                            <small className="text-muted d-block">{new Date(item.lastAt).toLocaleString()}</small>
+                            <span className="badge bg-secondary mt-1">{item.count} message{item.count === 1 ? "" : "s"}</span>
+                          </div>
                         </div>
                       ))}
+
+                      {!repliesLoading && replyPagination.totalPages > 1 && (
+                        <div className="d-flex justify-content-between align-items-center mt-3 px-1">
+                          <button
+                            className="btn btn-sm btn-outline-dark"
+                            disabled={!replyPagination.hasPrevPage}
+                            onClick={() => fetchReplyPage(replyPage - 1)}
+                          >
+                            <i className="fa-solid fa-chevron-left me-1"></i>Prev
+                          </button>
+                          <small className="text-muted">
+                            Page {replyPagination.currentPage || replyPage} of {replyPagination.totalPages}
+                            {" — "}{replyPagination.totalItems} customer{replyPagination.totalItems === 1 ? "" : "s"} total
+                          </small>
+                          <button
+                            className="btn btn-sm btn-outline-dark"
+                            disabled={!replyPagination.hasNextPage}
+                            onClick={() => fetchReplyPage(replyPage + 1)}
+                          >
+                            Next<i className="fa-solid fa-chevron-right ms-1"></i>
+                          </button>
+                        </div>
+                      )}
+
                     </div>
                   </div>
                 )}
@@ -322,6 +401,9 @@ export const CampaignMasterGrid = () => {
         </div>
       </div>
 
+      {viewingCustomer && (
+        <ViewCampaignRepliesPopUp customer={viewingCustomer} onClose={() => setViewingCustomer(null)} />
+      )}
       {/* ── Popups ── */}
       {deletePopUpShow && (
         <DeletePopUP
