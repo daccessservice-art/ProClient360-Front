@@ -139,10 +139,12 @@ const uploadCampaignImage = async (file) => {
   }
 };
 
-// NEW — paginated, grouped-by-customer inbox view
-const getCampaignReplyCustomers = async (page = 1, limit = 15) => {
+// NEW — paginated, grouped-by-customer inbox view, with optional name search
+const getCampaignReplyCustomers = async (page = 1, limit = 15, search = '') => {
   try {
-    const response = await axios.get(`${url}/replies/customers?page=${page}&limit=${limit}`, authHeaders());
+    const params = new URLSearchParams({ page, limit });
+    if (search) params.append('search', search);
+    const response = await axios.get(`${url}/replies/customers?${params.toString()}`, authHeaders());
     return response.data;
   } catch (error) {
     console.error(error?.response?.data);
