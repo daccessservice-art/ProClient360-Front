@@ -50,7 +50,11 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
       const data = await uploadCampaignImage(file);
       if (data?.success) {
         setForm((f) => ({ ...f, images: [...f.images, { mediaId: data.mediaId, headerHandle: data.headerHandle || null, caption: "" }] }));
-        toast.success("Image uploaded");
+        if (data.headerHandle) {
+          toast.success("Image uploaded");
+        } else {
+          toast.error(`Image uploaded, but can't be used as the "with Initial Message" header image: ${data.headerHandleError || "unknown reason"}. It will still send as a regular image after the customer replies.`, { duration: 6000 });
+        }
       } else {
         toast.error(data?.error || "Failed to upload image");
       }
