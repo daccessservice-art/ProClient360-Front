@@ -131,11 +131,18 @@ const uploadCampaignImage = async (file) => {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 30000, // FIXED: fail fast with a clear message instead of hanging silently
     });
     return response.data;
   } catch (error) {
-    console.error(error?.response?.data);
-    return error?.response?.data;
+    console.error(error);
+    // FIXED: previously returned error?.response?.data, which is undefined
+    // for a total connection failure/timeout (no server response at all) —
+    // the popup then fell back to a generic "Failed to upload image" with
+    // no real reason shown. Now always returns a usable error message.
+    if (error?.response?.data) return error.response.data;
+    if (error.code === 'ECONNABORTED') return { success: false, error: 'Upload timed out after 30 seconds — the server may be taking too long to respond.' };
+    return { success: false, error: error.message || 'Could not reach the server.' };
   }
 };
 
