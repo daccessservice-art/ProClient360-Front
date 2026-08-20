@@ -28,7 +28,7 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
           questionText: q.questionText,
           options: (q.options || []).map((o) => ({ title: o.title, description: o.description || "" })),
         })),
-        images: (template.images || []).map((img) => ({ mediaId: img.mediaId, headerHandle: img.headerHandle || null, caption: img.caption || "" })),
+        images: (template.images || []).map((img) => ({ mediaId: img.mediaId, caption: img.caption || "" })),
       });
     } else {
       setForm(emptyForm);
@@ -49,12 +49,8 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
     try {
       const data = await uploadCampaignImage(file);
       if (data?.success) {
-        setForm((f) => ({ ...f, images: [...f.images, { mediaId: data.mediaId, headerHandle: data.headerHandle || null, caption: "" }] }));
-        if (data.headerHandle) {
-          toast.success("Image uploaded");
-        } else {
-          toast.error(`Image uploaded, but can't be used as the "with Initial Message" header image: ${data.headerHandleError || "unknown reason"}. It will still send as a regular image after the customer replies.`, { duration: 6000 });
-        }
+        setForm((f) => ({ ...f, images: [...f.images, { mediaId: data.mediaId, caption: "" }] }));
+        toast.success("Image uploaded");
       } else {
         toast.error(data?.error || "Failed to upload image");
       }
@@ -291,15 +287,14 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
                   Images <span className="text-muted fw-normal">(optional, max 5)</span>
                 </label>
                 <small className="text-muted d-block mb-2">
-                  The <strong>first image</strong> is sent together with the Initial Message itself — customers see it right away.
-                  Any additional images are sent after the customer's first reply, before the questions.
+                  Images are sent right after the customer's first reply, before the questions. The <strong>first image</strong> is also attempted immediately after the Initial Message — this succeeds for customers who've messaged your business before (e.g. repeat testing), and falls back to sending after their reply otherwise.
                 </small>
                 <div className="d-flex flex-wrap gap-3 mb-2">
                   {form.images.map((img, i) => (
                     <div key={i} className="border rounded p-2" style={{ width: 160, borderColor: i === 0 ? "#25D366" : undefined, borderWidth: i === 0 ? 2 : undefined }}>
                       <div className="d-flex justify-content-between align-items-center mb-1">
                         {i === 0 ? (
-                          <span className="badge bg-success" style={{ fontSize: "9px" }}>With Initial Message</span>
+                          <span className="badge bg-success" style={{ fontSize: "9px" }}>Sent first (if possible)</span>
                         ) : (
                           <i className="fa-solid fa-image text-muted"></i>
                         )}
@@ -337,7 +332,7 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
                   </div>
                 )}
                 <small className="text-muted d-block mt-1">
-                  Changing the first image requires Meta re-approval (it's part of the template). Additional images don't — they're sent separately after the customer replies.
+                  Images are session content — adding, removing, or changing them never requires Meta re-approval.
                 </small>
               </div>
 
