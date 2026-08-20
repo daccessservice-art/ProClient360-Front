@@ -86,10 +86,10 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
       setLocation("");
     }
   };
-
+  
   useEffect(() => {
     const loadVendors = async () => {
-      const data = await getVendors(1, 100, vendorSearch);
+      const data = await getVendors(1, 1000, vendorSearch);
       if (data.success) {
         const vendorOptions = data.vendors.map(v => ({
           value: v._id,
