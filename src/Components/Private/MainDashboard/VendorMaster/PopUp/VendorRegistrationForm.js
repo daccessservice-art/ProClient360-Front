@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAddress } from "../../../../../hooks/usePincode";
 
+const DEFAULT_LOGO = "/static/assets/img/nav/DACCESS.png"; // fallback if a company has no logo set
+
 const VendorRegistrationForm = () => {
   const { linkId } = useParams();
   const navigate = useNavigate();
@@ -49,6 +51,11 @@ const VendorRegistrationForm = () => {
   const [existingVendor, setExistingVendor] = useState(null);
   const [checkingVendor, setCheckingVendor] = useState(false);
 
+  // ✅ NEW: company logo shown on this public registration page,
+  // resolved from the vendor link's company (set during link validation)
+  const [companyLogo, setCompanyLogo] = useState(DEFAULT_LOGO);
+  const [companyName, setCompanyName] = useState('');
+
   useEffect(() => {
     const validateLink = async () => {
       try {
@@ -73,6 +80,15 @@ const VendorRegistrationForm = () => {
           setErrorMessage(data.error || "Invalid or expired registration link");
         } else {
           setLinkValid(true);
+
+          // ✅ NEW: pick up the company's logo/name returned by the backend
+          // (backend must populate the vendor link's company — see note below)
+          if (data.company?.logo) {
+            setCompanyLogo(data.company.logo);
+          }
+          if (data.company?.name) {
+            setCompanyName(data.company.name);
+          }
         }
       } catch (error) {
         setLinkValid(false);
@@ -362,10 +378,16 @@ const VendorRegistrationForm = () => {
 
       <div style={{ maxWidth: '78%', margin: '0 auto' }} className="mobile-wrapper">
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          {/* ✅ CHANGED: was hardcoded to daccess.png, now resolved per-company via API */}
           <img
-            src="/static/assets/img/daccess.png"
-            alt="Daccess Logo"
+            src={companyLogo}
+            alt={companyName ? `${companyName} Logo` : "Company Logo"}
             style={{ width: '180px', height: 'auto' }}
+            onError={(e) => {
+              // if a company's stored logo URL is broken/unreachable, fall back gracefully
+              e.target.onerror = null;
+              e.target.src = DEFAULT_LOGO;
+            }}
           />
         </div>
 
