@@ -28,35 +28,20 @@ const numberToWords = (num) => {
   return result;
 };
 
-// ── Company Configs ──────────────────────────────────────────────────────────
-const COMPANY_CONFIGS = {
-  daccess: {
-    name:    'DACCESS SECURITY SYSTEMS PVT. LTD.',
-    address: 'Office No.05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India',
-    gstin:   '27AACCD7325G1ZR',
-    logoUrl: '/static/assets/img/nav/DACCESS.png',
-    logoAlt: 'DACCESS',
-  },
-  entero: {
-    name:    'ENTERO SYSTEMS INDIA PVT. LTD.',
-    address: 'Factory Address: Gate No: Shop No.3, Sr.No.170, Gavhane Industrial Estate, Devkar vasti, Bhosari, Pune - 411039, Maharashtra, India',
-    gstin:   '27AAJCE1335Q1Z8',
-    logoUrl: '/static/assets/img/nav/ENTERO.png',
-    logoAlt: 'ENTERO',
-  },
+// ✅ NEW: fallback logo shown only if a company has no logo on file yet
+const DEFAULT_LOGO = '/static/assets/img/nav/DACCESS.png';
+
+// ✅ NEW: builds "Address, City, State, Country, Pincode" from the
+// Company model's Address sub-document (same shape as companyModel.js)
+const formatCompanyAddress = (address) => {
+  if (!address) return '';
+  return [address.add, address.city, address.state, address.country, address.pincode]
+    .filter(Boolean)
+    .join(', ');
 };
 
-// ── NEW: path to the signature image, shown automatically once a PO is
-// Approved. Sits alongside the DAccess/Entero logos under the same
-// public/static/assets/img folder. ──
 const SIGNATURE_IMAGE_URL = '/static/assets/img/sign.png';
 
-// ── NEW: who is allowed to Approve a Pending PO from this popup.
-// Mirrors the checks already used elsewhere in the app:
-//   - PurchaseOrderMasterGrid.js:  user?.permissions?.includes('updatePurchaseOrder') || user.user === 'company'
-//   - EmployeeLeadFollowUpSection.js: dept includes "purchase"+"store" AND designation === "ceo"
-// Reads straight from localStorage so this popup doesn't need a UserContext
-// import to work correctly from BOTH places it's rendered. ──
 const canUserApprovePO = () => {
   try {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -73,10 +58,6 @@ const canUserApprovePO = () => {
   }
 };
 
-// ── NEW: onApproved is optional — parent grids that pass it (e.g. the PO
-// Approval tab) get a callback to refresh their list; if not passed, we
-// simply close the popup after a successful approve (safe default for
-// PurchaseOrderMasterGrid, which doesn't pass this prop). ──
 const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
   const po         = selectedPO || {};
   const items      = po.items      || [];
@@ -86,20 +67,19 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
   const cgst       = totalTax / 2;
   const sgst       = totalTax / 2;
 
-  // ── NEW: is this PO approved? drives whether the signature auto-shows ──
   const isApproved = po.status === 'Approved';
 
-  // ── NEW: tracks whether sign.png actually loaded, so we can fall back
-  // to the original "Authorised Signatory" placeholder text if the image
-  // is missing/broken, instead of showing a blank/broken image icon. ──
   const [signatureLoadFailed, setSignatureLoadFailed] = useState(false);
-
-  // ── NEW: Approve button loading state ──
   const [approving, setApproving] = useState(false);
 
-  // ── Default is DAccess ───────────────────────────────────────────────────
-  const [printAs, setPrintAs] = useState('daccess');
-  const company = COMPANY_CONFIGS[printAs];
+  // ✅ CHANGED: company details now come straight from the populated
+  // po.company (name, logo, GST, Address) — no more DAccess/Entero toggle.
+  const company = po.company || {};
+  const companyName    = company.name || 'N/A';
+  const companyAddress = formatCompanyAddress(company.Address);
+  const companyGstin   = company.GST || 'N/A';
+  const companyLogo    = company.logo || DEFAULT_LOGO;
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5443';
 
@@ -135,7 +115,9 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
     const toastId = toast.loading('Generating PDF...');
     try {
       const response = await axios.get(
-        `${API_URL}/api/purchaseOrder/${po._id}/pdf?printAs=${printAs}`,
+        // ✅ CHANGED: no more ?printAs=... — backend resolves company from
+        // the PO's own company field automatically
+        `${API_URL}/api/purchaseOrder/${po._id}/pdf`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           responseType: 'blob',
@@ -156,8 +138,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
     }
   };
 
-  // ── NEW: Approve handler — mirrors handleApprovePO in
-  // EmployeeLeadFollowUpSection.js (same mailStatus toast logic) ──
   const handleApprove = async () => {
     if (!po._id || approving) return;
     setApproving(true);
@@ -216,30 +196,12 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
               )}
             </h5>
 
-            {/* Company Toggle — DAccess / Entero */}
-            <div className="d-flex align-items-center gap-2 ms-auto me-3">
-              <span className="text-white small fw-bold">Print As:</span>
-              <div className="btn-group btn-group-sm" role="group">
-                <button
-                  type="button"
-                  className={`btn ${printAs === 'daccess' ? 'btn-warning' : 'btn-outline-warning'}`}
-                  onClick={() => setPrintAs('daccess')}
-                >
-                  DAccess
-                </button>
-                <button
-                  type="button"
-                  className={`btn ${printAs === 'entero' ? 'btn-info' : 'btn-outline-info'}`}
-                  onClick={() => setPrintAs('entero')}
-                >
-                  Entero
-                </button>
-              </div>
-            </div>
+            {/* ✅ REMOVED: "Print As" DAccess/Entero toggle — company is now
+            always resolved automatically from the PO's own company field */}
 
             <button
               type="button"
-              className="btn-close btn-close-white"
+              className="btn-close btn-close-white ms-auto"
               onClick={closePopUp}
             ></button>
           </div>
@@ -247,21 +209,23 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
           {/* Modal Body */}
           <div className="modal-body p-0" style={{ overflowY: 'auto', backgroundColor: '#fff' }}>
 
-            {/* Company Header — changes based on toggle */}
+            {/* Company Header — dynamic, per logged-in company */}
             <div className="px-4 pt-3 pb-2 border-bottom">
               <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
-                  <img
-                    src={company.logoUrl}
-                    alt={company.logoAlt}
-                    style={{ height: '45px', objectFit: 'contain', marginBottom: '6px' }}
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                  />
-                  <div className="fw-bold" style={{ fontSize: '14px' }}>{company.name}</div>
-                  <div className="text-muted" style={{ fontSize: '11px' }}>{company.address}</div>
+                  {!logoLoadFailed && (
+                    <img
+                      src={companyLogo}
+                      alt={companyName}
+                      style={{ height: '45px', objectFit: 'contain', marginBottom: '6px' }}
+                      onError={() => setLogoLoadFailed(true)}
+                    />
+                  )}
+                  <div className="fw-bold" style={{ fontSize: '14px' }}>{companyName}</div>
+                  <div className="text-muted" style={{ fontSize: '11px' }}>{companyAddress}</div>
                 </div>
                 <div className="text-end">
-                  <div className="fw-bold" style={{ fontSize: '11px' }}>GSTIN/UIN: {company.gstin}</div>
+                  <div className="fw-bold" style={{ fontSize: '11px' }}>GSTIN/UIN: {companyGstin}</div>
                   <h4 className="text-danger fw-bold mt-1 mb-0">Purchase Order</h4>
                 </div>
               </div>
@@ -467,13 +431,13 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
               </div>
             </div>
 
-            {/* Payment Terms + Signature — uses company.name */}
+            {/* Payment Terms + Signature — uses companyName */}
             <div className="row g-0 mx-0 border-top">
               <div className="col-6 border-end p-3" style={{ fontSize: '11px', minHeight: '65px' }}>
                 <strong>Payment Terms:</strong>{' '}{getPaymentText()}
               </div>
               <div className="col-6 p-2 text-end" style={{ fontSize: '11px' }}>
-                <div className="mb-1">For, {company.name}</div>
+                <div className="mb-1">For, {companyName}</div>
                 <div className="border mx-auto mt-2 d-flex align-items-center justify-content-center"
                   style={{ width: '220px', height: '70px', overflow: 'hidden' }}>
                   {isApproved && !signatureLoadFailed ? (
@@ -502,7 +466,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
 
           {/* Modal Footer */}
           <div className="modal-footer py-2 bg-light">
-            {/* ── NEW: Approve button — only for Pending POs + allowed users ── */}
             {showApproveButton && (
               <button
                 onClick={handleApprove}
@@ -513,8 +476,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                 <i className="fa-solid fa-check me-1"></i> {approving ? 'Approving...' : 'Approve'}
               </button>
             )}
+            {/* ✅ CHANGED: removed "(DAccess)"/"(Entero)" suffix — company is
+            now resolved automatically, no toggle to reflect in the label */}
             <button onClick={handleDownloadPDF} className="btn btn-warning btn-sm fw-bold">
-              <i className="fa-solid fa-file-pdf me-1"></i> Download PDF ({printAs === 'daccess' ? 'DAccess' : 'Entero'})
+              <i className="fa-solid fa-file-pdf me-1"></i> Download PDF
             </button>
             <button onClick={closePopUp} className="btn btn-secondary btn-sm">
               <i className="fa-solid fa-times me-1"></i> Close
