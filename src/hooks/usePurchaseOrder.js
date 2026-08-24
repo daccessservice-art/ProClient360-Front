@@ -5,10 +5,6 @@ const url = baseUrl + "/api/purchaseOrder";
 
 const getPurchaseOrders = async (page = 1, limit = 20, search = "") => {
   try {
-    // ── FIX: same null/undefined-as-literal-string bug as useProduct.js —
-    // `search` could be null/undefined and get embedded as the text
-    // "null"/"undefined" in the querystring. Defaulting + encodeURIComponent
-    // fixes this and makes special characters in search terms URL-safe. ──
     const q = encodeURIComponent(search ?? "");
     const response = await axios.get(`${url}?q=${q}&page=${page}&limit=${limit}`, {
       headers: {
@@ -113,6 +109,21 @@ const approvePurchaseOrder = async (poId) => {
   }
 };
 
+// ✅ NEW: fetch the logged-in user's own company profile (name + Address)
+const getMyCompanyProfile = async () => {
+  try {
+    const response = await axios.get(`${url}/company-profile`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
 export { 
-  getPurchaseOrders, getPurchaseOrderById, getPurchaseOrderHistory, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, approvePurchaseOrder 
+  getPurchaseOrders, getPurchaseOrderById, getPurchaseOrderHistory, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, approvePurchaseOrder, getMyCompanyProfile 
 };

@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from "react";
 import toast from "react-hot-toast";
 import { getVendors } from "../../../../../hooks/useVendor";
 import { getProducts, getProductBrands } from "../../../../../hooks/useProduct";
-import { updatePurchaseOrder } from "../../../../../hooks/usePurchaseOrder";
+import { updatePurchaseOrder, getMyCompanyProfile } from "../../../../../hooks/usePurchaseOrder";
 import Select from "react-select";
 import { UserContext } from "../../../../../context/UserContext";
 
@@ -65,14 +65,30 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
         }]
   );
 
-  const DEFAULT_DELIVERY_ADDRESS = "Office No.05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India";
-  const DEFAULT_LOCATION = "Baner, Pune";
+  // ✅ CHANGED: no longer hardcoded — fetched dynamically per company
+  const [DEFAULT_DELIVERY_ADDRESS, setDefaultDeliveryAddress] = useState("");
+  const [DEFAULT_LOCATION, setDefaultLocation] = useState("");
 
   useEffect(() => {
-    if (deliveryAddress === DEFAULT_DELIVERY_ADDRESS && location === DEFAULT_LOCATION) {
+    const loadCompanyProfile = async () => {
+      const data = await getMyCompanyProfile();
+      if (data?.success && data.company?.Address) {
+        const addr = data.company.Address;
+        const fullAddress = [addr.add, addr.city, addr.state, addr.country, addr.pincode]
+          .filter(Boolean)
+          .join(', ');
+        setDefaultDeliveryAddress(fullAddress);
+        setDefaultLocation([addr.city, addr.state].filter(Boolean).join(', '));
+      }
+    };
+    loadCompanyProfile();
+  }, []);
+
+  useEffect(() => {
+    if (DEFAULT_DELIVERY_ADDRESS && deliveryAddress === DEFAULT_DELIVERY_ADDRESS && location === DEFAULT_LOCATION) {
       setUseDefaultAddress(true);
     }
-  }, []);
+  }, [DEFAULT_DELIVERY_ADDRESS, DEFAULT_LOCATION]);
 
   const handleToggleDefaultAddress = () => {
     const newToggleState = !useDefaultAddress;
@@ -105,7 +121,6 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
     loadVendors();
   }, [vendorSearch, selectedPO]);
 
-  // ── FIX: Brands from DATABASE, products from API ──
   useEffect(() => {
     const loadInitialData = async () => {
       let dbBrands = [];
@@ -122,7 +137,7 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
 
       let allProducts = [];
       let currentPage = 1;
-      const pageSize = 500; // ── FIX: fewer pages, less tie-break risk
+      const pageSize = 500;
       let hasMore = true;
 
       try {
@@ -130,7 +145,7 @@ const UpdatePurchaseOrderPopUp = ({ handleUpdate, selectedPO, projects }) => {
           const data = await getProducts(currentPage, pageSize, "");
           if (data.success && data.products && data.products.length > 0) {
             allProducts = [...allProducts, ...data.products];
-            hasMore = !!data.pagination?.hasNextPage; // ── FIX: trust backend flag
+            hasMore = !!data.pagination?.hasNextPage;
             currentPage++;
           } else {
             hasMore = false;

@@ -2,13 +2,10 @@ import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { getVendors } from "../../../../../hooks/useVendor";
 import { getProducts, getProductBrands, createProduct } from "../../../../../hooks/useProduct";
-import { createPurchaseOrder } from "../../../../../hooks/usePurchaseOrder";
+import { createPurchaseOrder, getMyCompanyProfile } from "../../../../../hooks/usePurchaseOrder";
 import Select from "react-select";
 import AddInventoryPopup from "../../InventryMaster/PopUp/AddInventoryPopUp";
 
-// ── NEW: normalize brand/model strings before comparing them so that
-// trailing spaces or different casing (e.g. "Honeywell" vs "honeywell ")
-// don't cause products to be silently excluded from the model dropdown. ──
 const normalizeStr = (s) => (s || "").toString().trim().toLowerCase();
 
 const mapToProductMasterCategory = (cat) => {
@@ -76,8 +73,25 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     warranty: ""
   }]);
 
-  const DEFAULT_DELIVERY_ADDRESS = "Office No. - 05, 3rd Floor, Revati Arcade-II, Opposite to Kapil Malhar Society, Baner, Pune - 411045, Maharashtra, India";
-  const DEFAULT_LOCATION = "Baner, Pune";
+  // ✅ CHANGED: no longer hardcoded — fetched from the logged-in user's
+  // own company profile, so each company sees ITS OWN office address here.
+  const [DEFAULT_DELIVERY_ADDRESS, setDefaultDeliveryAddress] = useState("");
+  const [DEFAULT_LOCATION, setDefaultLocation] = useState("");
+
+  useEffect(() => {
+    const loadCompanyProfile = async () => {
+      const data = await getMyCompanyProfile();
+      if (data?.success && data.company?.Address) {
+        const addr = data.company.Address;
+        const fullAddress = [addr.add, addr.city, addr.state, addr.country, addr.pincode]
+          .filter(Boolean)
+          .join(', ');
+        setDefaultDeliveryAddress(fullAddress);
+        setDefaultLocation([addr.city, addr.state].filter(Boolean).join(', '));
+      }
+    };
+    loadCompanyProfile();
+  }, []);
 
   const handleToggleDefaultAddress = () => {
     const newToggleState = !useDefaultAddress;
@@ -126,7 +140,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       setLoadingProducts(true);
       let allProducts = [];
       let currentPage = 1;
-      const pageSize = 500; // ── FIX: bigger page size, fewer paginated calls, less tie-break risk
+      const pageSize = 500;
       let hasMore = true;
 
       try {
@@ -134,11 +148,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
           const data = await getProducts(currentPage, pageSize, "");
           if (data.success && data.products && data.products.length > 0) {
             allProducts = [...allProducts, ...data.products];
-            // ── FIX: trust the backend's authoritative hasNextPage flag
-            // instead of inferring "last page" from array length. Length
-            // comparison could stop early or misjudge boundaries when a
-            // page returns fewer items for reasons unrelated to being the
-            // actual last page. ──
             hasMore = !!data.pagination?.hasNextPage;
             currentPage++;
           } else {
@@ -146,11 +155,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
           }
         }
 
-        setProducts(allProducts);        // ── FIX: Merge DB brands with any brands found on products,
-        // deduped case/whitespace-insensitively so the SAME brand typed
-        // differently across products (e.g. "Honeywell" vs "honeywell ")
-        // doesn't split into two separate dropdown entries — which is what
-        // was silently hiding some products' models from the list. ──
+        setProducts(allProducts);
         const productBrands = allProducts.map(p => (p.brandName || "").trim()).filter(Boolean);
         const brandMap = new Map();
         [...dbBrands, ...productBrands].forEach((b) => {
@@ -275,7 +280,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     setItems([...items, newItem]);
     setShowAddProductPopup(false);
 
-    // Refresh products so the newly saved product is immediately selectable
     refreshProducts();
   };
 
@@ -286,11 +290,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
     }
   };
 
-  // ── FIXED: Each row computes modelOptions directly from the `products`
-  //    array in the render (same working approach as UpdatePurchaseOrderPopUp).
-  //    No shared `models` state, no `brandModelsMap`, no stale closure.
-  //    Brand/model comparisons are normalized (trim + lowercase) so products
-  //    with slightly different-cased or spaced brand/model text still show. ──
   const handleItemChange = (index, field, value) => {
     const newItems = [...items];
     newItems[index][field] = value;
@@ -335,7 +334,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
     let allProducts = [];
     let currentPage = 1;
-    const pageSize = 500; // ── FIX: same as loadInitialData
+    const pageSize = 500;
     let hasMore = true;
 
     try {
@@ -343,7 +342,7 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
         const data = await getProducts(currentPage, pageSize, "");
         if (data.success && data.products && data.products.length > 0) {
           allProducts = [...allProducts, ...data.products];
-          hasMore = !!data.pagination?.hasNextPage; // ── FIX: trust backend flag
+          hasMore = !!data.pagination?.hasNextPage;
           currentPage++;
         } else {
           hasMore = false;
@@ -352,7 +351,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
       setProducts(allProducts);
       
-      // ── FIX: same case/whitespace-insensitive brand dedupe as above ──
       const productBrands = allProducts.map(p => (p.brandName || "").trim()).filter(Boolean);
       const brandMap = new Map();
       [...dbBrands, ...productBrands].forEach((b) => {
@@ -667,10 +665,6 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                       </thead>
                       <tbody>
                         {items.map((item, index) => {
-                          // ── FIX: Compute model options directly from `products` array
-                          //    for THIS row's brand, using normalized (trim + lowercase)
-                          //    comparison so every model for the brand always appears,
-                          //    even if brand/model text has minor casing/space differences. ──
                           const brandProducts = products.filter(
                             (p) => normalizeStr(p.brandName) === normalizeStr(item.brandName)
                           );
