@@ -49,6 +49,26 @@ const UpdatedCompanyPopup = ({ handleUpdate, selectedCompany }) => {
     }
   };
 
+  // ✅ NEW: handles a new logo file selection, converts to base64,
+  // and stores it on company.logo. The backend (updateCompany) detects
+  // base64 data URLs and uploads them to Firebase Storage automatically.
+  const handleLogoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const maxSize = 1 * 1024 * 1024;
+      if (file.size > maxSize) {
+        toast.error("File size must be less than or equal to 1MB.");
+        e.target.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCompany((prev) => ({ ...prev, logo: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleCompanyUpdate = async (event) => {
     event.preventDefault();
 
@@ -292,21 +312,36 @@ const UpdatedCompanyPopup = ({ handleUpdate, selectedCompany }) => {
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="mb-3">
                       <label htmlFor="LOGO" className="form-label label_text">
-                        Logo
+                        Logo <span style={{ fontSize: '11px', color: '#888' }}>[Max size: 1MB — leave empty to keep current logo]</span>
                       </label>
+                      <input
+                        type="file"
+                        className="form-control rounded-0"
+                        id="LOGO"
+                        accept="image/*"
+                        onChange={handleLogoChange}
+                      />
                     </div>
                   </div>
 
                   <div className="col-12 col-lg-6 mt-2">
                     <div className="mb-3">
-                      {company.logo &&
-                        <img
-                          src={company.logo}
-                          alt="Company Logo"
-                          className="img-fluid rounded"
-                          style={{ maxWidth: '200px', maxHeight: '100px' }}
-                        />
-                      }
+                      <label className="form-label label_text">Current Logo Preview</label>
+                      <div>
+                        {company.logo &&
+                          <img
+                            src={company.logo}
+                            alt="Company Logo"
+                            className="img-fluid rounded"
+                            style={{ maxWidth: '200px', maxHeight: '100px', display: 'block' }}
+                          />
+                        }
+                        {!company.logo && (
+                          <span className="text-muted" style={{ fontSize: '12px' }}>
+                            No logo uploaded for this company yet.
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

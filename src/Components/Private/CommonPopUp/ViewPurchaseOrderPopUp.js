@@ -28,11 +28,10 @@ const numberToWords = (num) => {
   return result;
 };
 
-// ✅ NEW: fallback logo shown only if a company has no logo on file yet
-const DEFAULT_LOGO = '/static/assets/img/nav/DACCESS.png';
+// No hardcoded fallback to a specific company's logo — if a company has
+// no logo uploaded, we simply don't render an image (name text still shows).
+const DEFAULT_LOGO = null;
 
-// ✅ NEW: builds "Address, City, State, Country, Pincode" from the
-// Company model's Address sub-document (same shape as companyModel.js)
 const formatCompanyAddress = (address) => {
   if (!address) return '';
   return [address.add, address.city, address.state, address.country, address.pincode]
@@ -72,8 +71,8 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
   const [signatureLoadFailed, setSignatureLoadFailed] = useState(false);
   const [approving, setApproving] = useState(false);
 
-  // ✅ CHANGED: company details now come straight from the populated
-  // po.company (name, logo, GST, Address) — no more DAccess/Entero toggle.
+  // Company details resolved from the populated po.company field
+  // (name, logo, GST, Address) — dynamic per logged-in company.
   const company = po.company || {};
   const companyName    = company.name || 'N/A';
   const companyAddress = formatCompanyAddress(company.Address);
@@ -115,8 +114,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
     const toastId = toast.loading('Generating PDF...');
     try {
       const response = await axios.get(
-        // ✅ CHANGED: no more ?printAs=... — backend resolves company from
-        // the PO's own company field automatically
         `${API_URL}/api/purchaseOrder/${po._id}/pdf`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -196,9 +193,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
               )}
             </h5>
 
-            {/* ✅ REMOVED: "Print As" DAccess/Entero toggle — company is now
-            always resolved automatically from the PO's own company field */}
-
             <button
               type="button"
               className="btn-close btn-close-white ms-auto"
@@ -213,7 +207,7 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
             <div className="px-4 pt-3 pb-2 border-bottom">
               <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
-                  {!logoLoadFailed && (
+                  {companyLogo && !logoLoadFailed && (
                     <img
                       src={companyLogo}
                       alt={companyName}
@@ -476,8 +470,6 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                 <i className="fa-solid fa-check me-1"></i> {approving ? 'Approving...' : 'Approve'}
               </button>
             )}
-            {/* ✅ CHANGED: removed "(DAccess)"/"(Entero)" suffix — company is
-            now resolved automatically, no toggle to reflect in the label */}
             <button onClick={handleDownloadPDF} className="btn btn-warning btn-sm fw-bold">
               <i className="fa-solid fa-file-pdf me-1"></i> Download PDF
             </button>
