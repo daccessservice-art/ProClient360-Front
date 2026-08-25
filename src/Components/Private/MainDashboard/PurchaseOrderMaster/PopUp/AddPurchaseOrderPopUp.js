@@ -157,12 +157,10 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
 
         setProducts(allProducts);
         const productBrands = allProducts.map(p => (p.brandName || "").trim()).filter(Boolean);
-        const brandMap = new Map();
-        [...dbBrands, ...productBrands].forEach((b) => {
-          const key = normalizeStr(b);
-          if (key && !brandMap.has(key)) brandMap.set(key, b.trim());
-        });
-        const mergedBrands = [...brandMap.values()];
+        const mergedBrands = [...new Set([
+          ...dbBrands.map(b => (b || "").trim()).filter(Boolean),
+          ...productBrands
+        ])];
         const brandOptions = mergedBrands.map(brand => ({ value: brand, label: brand }));
         setBrands(brandOptions);
         setAllBrands(brandOptions);
@@ -352,12 +350,10 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       setProducts(allProducts);
       
       const productBrands = allProducts.map(p => (p.brandName || "").trim()).filter(Boolean);
-      const brandMap = new Map();
-      [...dbBrands, ...productBrands].forEach((b) => {
-        const key = normalizeStr(b);
-        if (key && !brandMap.has(key)) brandMap.set(key, b.trim());
-      });
-      const mergedBrands = [...brandMap.values()];
+      const mergedBrands = [...new Set([
+        ...dbBrands.map(b => (b || "").trim()).filter(Boolean),
+        ...productBrands
+      ])];
       setAllBrands(mergedBrands.map(brand => ({ value: brand, label: brand })));
 
       console.log(`Refreshed: ${allProducts.length} products, ${mergedBrands.length} brands`);
