@@ -159,6 +159,45 @@ const getCampaignReplyCustomers = async (page = 1, limit = 15, search = '') => {
   }
 };
 
+// NEW — searches customers via their linked Leads' product name
+const searchCustomersByProduct = async (product) => {
+  try {
+    const response = await axios.get(`${url}/customers-by-product?product=${encodeURIComponent(product)}`, authHeaders());
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
+// NEW — uploads a CSV/Excel, gets back a parsed list of {name, phone}
+const parseRecipientFile = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await axios.post(`${url}/parse-recipient-file`, formData, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    if (error?.response?.data) return error.response.data;
+    return { success: false, error: error.message || 'Could not reach the server.' };
+  }
+};
+
+// NEW — sends a campaign directly to an uploaded list of phone numbers
+const sendCampaignToNumbers = async (templateId, recipients) => {
+  try {
+    const response = await axios.post(`${url}/send-to-numbers`, { templateId, recipients }, authHeaders());
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
 export {
   getCampaignTemplates,
   getApprovedCampaignTemplates,
@@ -173,4 +212,7 @@ export {
   getCampaignSessions,
   uploadCampaignImage,
   getCampaignReplyCustomers,
+  searchCustomersByProduct,
+  parseRecipientFile,
+  sendCampaignToNumbers,
 };

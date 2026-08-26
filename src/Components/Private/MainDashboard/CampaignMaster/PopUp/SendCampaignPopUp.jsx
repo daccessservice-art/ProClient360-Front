@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
 import { getCustomers } from "../../../../../hooks/useCustomer";
-import { getApprovedCampaignTemplates, sendCampaign } from "../../../../../hooks/useCampaign";
+import { getApprovedCampaignTemplates, sendCampaign, searchCustomersByProduct, parseRecipientFile, sendCampaignToNumbers } from "../../../../../hooks/useCampaign";
 
 // Usage: <SendCampaignPopUp handleClose={...} onSent={...} />
 // Lets the user pick a Meta-approved product template, then search/select
@@ -21,6 +21,21 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
+  const [selectingAllPages, setSelectingAllPages] = useState(false);
+
+  // ── NEW: mode toggle between the 3 ways to pick recipients ──
+  const [recipientMode, setRecipientMode] = useState("customer"); // "customer" | "product" | "upload"
+
+  // NEW — Search by Product tab
+  const [productSearchText, setProductSearchText] = useState("");
+  const [productResults, setProductResults] = useState([]);
+  const [productSearchLoading, setProductSearchLoading] = useState(false);
+  const [productChecked, setProductChecked] = useState(new Set());
+
+  // NEW — Upload File tab
+  const [uploadedRecipients, setUploadedRecipients] = useState([]); // [{name, phone}]
+  const [uploadChecked, setUploadChecked] = useState(new Set()); // indices into uploadedRecipients
+  const [fileParsing, setFileParsing] = useState(false);
 
   const itemsPerPage = 40;
 
@@ -77,11 +92,167 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
     });
   };
 
+  // NEW — selects every customer matching the current search across ALL
+  // pages in one go, not just the currently-visible page. Fetches with a
+  // very high limit so everything comes back in a single request.
+  const selectAllAcrossPages = async () => {
+    setSelectingAllPages(true);
+    try {
+      const data = await getCustomers(1, 10000, search);
+      if (data?.success) {
+        const allMatching = (data.customers || []).filter((c) => c.phoneNumber1);
+        setCheckedIds(new Set(allMatching.map((c) => c._id)));
+        toast.success(`Selected ${allMatching.length} customer${allMatching.length === 1 ? "" : "s"} across all pages`);
+      } else {
+        toast.error("Failed to select all customers");
+      }
+    } catch (error) {
+      toast.error("Error selecting all customers");
+    } finally {
+      setSelectingAllPages(false);
+    }
+  };
+
+  const clearAllSelection = () => {
+    setCheckedIds(new Set());
+  };
+
+  // ── NEW: Search by Product handlers ──
+  const handleProductSearch = async (e) => {
+    e.preventDefault();
+    if (!productSearchText.trim()) return;
+    setProductSearchLoading(true);
+    try {
+      const data = await searchCustomersByProduct(productSearchText.trim());
+      if (data?.success) {
+        setProductResults(data.customers || []);
+        setProductChecked(new Set()); // reset selection on new search
+        if ((data.customers || []).length === 0) toast("No customers found for this product.");
+      } else {
+        toast.error(data?.error || "Search failed");
+      }
+    } catch (error) {
+      toast.error("Error searching by product");
+    } finally {
+      setProductSearchLoading(false);
+    }
+  };
+
+  const toggleProductCustomer = (id) => {
+    setProductChecked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllProductResults = () => {
+    setProductChecked((prev) => {
+      const eligible = productResults.filter((c) => c.phoneNumber1);
+      const allChecked = eligible.every((c) => prev.has(c._id));
+      const next = new Set(prev);
+      if (allChecked) {
+        eligible.forEach((c) => next.delete(c._id));
+      } else {
+        eligible.forEach((c) => next.add(c._id));
+      }
+      return next;
+    });
+  };
+
+  // ── NEW: Upload File handlers ──
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileParsing(true);
+    try {
+      const data = await parseRecipientFile(file);
+      if (data?.success) {
+        setUploadedRecipients(data.recipients || []);
+        setUploadChecked(new Set((data.recipients || []).map((_, i) => i))); // select all by default
+        toast.success(`Found ${data.recipients.length} recipient(s) in the file`);
+      } else {
+        toast.error(data?.error || "Failed to read file");
+      }
+    } catch (error) {
+      toast.error("Error reading file");
+    } finally {
+      setFileParsing(false);
+      e.target.value = "";
+    }
+  };
+
+  const toggleUploadRecipient = (i) => {
+    setUploadChecked((prev) => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+  };
+
   const handleSend = async () => {
     if (!selectedTemplateId) {
       toast.error("Select a product template first.");
       return;
     }
+
+    // ── NEW: Upload File mode ──
+    if (recipientMode === "upload") {
+      const selectedRecipients = uploadedRecipients.filter((_, i) => uploadChecked.has(i));
+      if (selectedRecipients.length === 0) {
+        toast.error("Select at least one recipient from the uploaded file.");
+        return;
+      }
+      setSending(true);
+      try {
+        toast.loading(`Sending to ${selectedRecipients.length} recipient(s)...`);
+        const data = await sendCampaignToNumbers(selectedTemplateId, selectedRecipients);
+        toast.dismiss();
+        if (data?.success) {
+          toast.success(data.message);
+          setResult(data.log);
+          onSent && onSent(data.log);
+        } else {
+          toast.error(data?.error || "Failed to send campaign");
+        }
+      } catch (error) {
+        toast.dismiss();
+        toast.error("Error sending campaign");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    // ── NEW: Search by Product mode — still uses the same sendCampaign
+    // endpoint as Customer Master, since these are real customer IDs ──
+    if (recipientMode === "product") {
+      if (productChecked.size === 0) {
+        toast.error("Select at least one customer.");
+        return;
+      }
+      setSending(true);
+      try {
+        toast.loading(`Sending to ${productChecked.size} customer(s)...`);
+        const data = await sendCampaign(selectedTemplateId, Array.from(productChecked));
+        toast.dismiss();
+        if (data?.success) {
+          toast.success(data.message);
+          setResult(data.log);
+          onSent && onSent(data.log);
+        } else {
+          toast.error(data?.error || "Failed to send campaign");
+        }
+      } catch (error) {
+        toast.dismiss();
+        toast.error("Error sending campaign");
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
+    // ── ORIGINAL Customer Master mode — completely unchanged ──
     if (checkedIds.size === 0) {
       toast.error("Select at least one customer.");
       return;
@@ -148,6 +319,126 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
                 )}
               </div>
 
+              {/* ── NEW: mode toggle between the 3 ways to pick recipients ── */}
+              <div className="col-12 mb-3">
+                <div className="btn-group w-100" role="group">
+                  <button type="button" className={`btn btn-sm ${recipientMode === "customer" ? "btn-dark" : "btn-outline-dark"}`} onClick={() => setRecipientMode("customer")}>
+                    Customer Master
+                  </button>
+                  <button type="button" className={`btn btn-sm ${recipientMode === "product" ? "btn-dark" : "btn-outline-dark"}`} onClick={() => setRecipientMode("product")}>
+                    Search by Product
+                  </button>
+                  <button type="button" className={`btn btn-sm ${recipientMode === "upload" ? "btn-dark" : "btn-outline-dark"}`} onClick={() => setRecipientMode("upload")}>
+                    Upload File
+                  </button>
+                </div>
+              </div>
+
+              {/* ── NEW: Search by Product tab ── */}
+              {recipientMode === "product" && (
+                <>
+                  <div className="col-12 mb-2">
+                    <div className="form">
+                      <i className="fa fa-search"></i>
+                      <form onSubmit={handleProductSearch}>
+                        <input
+                          type="text"
+                          value={productSearchText}
+                          onChange={(e) => setProductSearchText(e.target.value)}
+                          className="form-control form-input"
+                          placeholder='Search by product, e.g. "CCTV Camera"'
+                        />
+                      </form>
+                    </div>
+                    <small className="text-muted d-block mt-1">
+                      Shows customers who have an inquiry/lead for a matching product.
+                    </small>
+                  </div>
+
+                  {productResults.length > 0 && (
+                    <div className="col-12 mb-2 d-flex justify-content-between align-items-center">
+                      <label className="form-label fw-bold mb-0">
+                        {productChecked.size} of {productResults.filter((c) => c.phoneNumber1).length} selected
+                      </label>
+                      <button type="button" className="btn btn-sm btn-outline-secondary" onClick={toggleAllProductResults}>
+                        Select all
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="col-12">
+                    <div className="border rounded" style={{ maxHeight: 280, overflowY: "auto" }}>
+                      {productSearchLoading && <div className="p-3 text-center text-muted">Searching...</div>}
+                      {!productSearchLoading && productResults.length === 0 && (
+                        <div className="p-3 text-center text-muted">Search a product name above to find matching customers.</div>
+                      )}
+                      {!productSearchLoading && productResults.map((cust) => {
+                        const hasPhone = !!cust.phoneNumber1;
+                        return (
+                          <div key={cust._id} className="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style={{ opacity: hasPhone ? 1 : 0.5 }}>
+                            <input type="checkbox" checked={productChecked.has(cust._id)} disabled={!hasPhone} onChange={() => toggleProductCustomer(cust._id)} />
+                            <div>
+                              <div className="fw-semibold">{cust.custName}</div>
+                              <small className="text-muted">{cust.phoneNumber1 || "No phone number on file"}</small>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ── NEW: Upload File tab ── */}
+              {recipientMode === "upload" && (
+                <>
+                  <div className="col-12 mb-2">
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      id="recipientFileUpload"
+                      style={{ display: "none" }}
+                      onChange={handleFileSelect}
+                      disabled={fileParsing}
+                    />
+                    <label htmlFor="recipientFileUpload" className={`btn btn-sm btn-outline-secondary ${fileParsing ? "disabled" : ""}`}>
+                      <i className="fa-solid fa-upload me-1"></i>
+                      {fileParsing ? "Reading file..." : "+ Upload CSV or Excel"}
+                    </label>
+                    <small className="text-muted d-block mt-1">
+                      File needs a column named "phone" or "mobile" (and optionally "name").
+                    </small>
+                  </div>
+
+                  {uploadedRecipients.length > 0 && (
+                    <div className="col-12 mb-2 d-flex justify-content-between align-items-center">
+                      <label className="form-label fw-bold mb-0">
+                        {uploadChecked.size} of {uploadedRecipients.length} selected
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="col-12">
+                    <div className="border rounded" style={{ maxHeight: 280, overflowY: "auto" }}>
+                      {uploadedRecipients.length === 0 && (
+                        <div className="p-3 text-center text-muted">Upload a file above to see recipients here.</div>
+                      )}
+                      {uploadedRecipients.map((r, i) => (
+                        <div key={i} className="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                          <input type="checkbox" checked={uploadChecked.has(i)} onChange={() => toggleUploadRecipient(i)} />
+                          <div>
+                            <div className="fw-semibold">{r.name}</div>
+                            <small className="text-muted">{r.phone}</small>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ── ORIGINAL Customer Master tab — completely unchanged, just now conditional ── */}
+              {recipientMode === "customer" && (
               <div className="col-12 mb-2">
                 <div className="form">
                   <i className="fa fa-search"></i>
@@ -162,16 +453,30 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
                   </form>
                 </div>
               </div>
+              )}
 
-              <div className="col-12 mb-2 d-flex justify-content-between align-items-center">
+              {recipientMode === "customer" && (
+              <div className="col-12 mb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <label className="form-label fw-bold mb-0">
                   {checkedIds.size} customer{checkedIds.size === 1 ? "" : "s"} selected (across all pages)
                 </label>
-                <button type="button" className="btn btn-sm btn-outline-secondary" onClick={toggleAllOnPage} disabled={customersLoading}>
-                  {selectedCountOnPage === eligibleOnPage.length && eligibleOnPage.length > 0 ? "Deselect page" : "Select page"}
-                </button>
+                <div className="d-flex gap-2">
+                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={toggleAllOnPage} disabled={customersLoading || selectingAllPages}>
+                    {selectedCountOnPage === eligibleOnPage.length && eligibleOnPage.length > 0 ? "Deselect page" : "Select page"}
+                  </button>
+                  <button type="button" className="btn btn-sm btn-outline-primary" onClick={selectAllAcrossPages} disabled={customersLoading || selectingAllPages}>
+                    {selectingAllPages ? "Selecting..." : "Select all pages"}
+                  </button>
+                  {checkedIds.size > 0 && (
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={clearAllSelection} disabled={selectingAllPages}>
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
+              )}
 
+              {recipientMode === "customer" && (
               <div className="col-12">
                 <div className="border rounded" style={{ maxHeight: 280, overflowY: "auto" }}>
                   {customersLoading && <div className="p-3 text-center text-muted">Loading customers...</div>}
@@ -230,6 +535,7 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
                   </div>
                 )}
               </div>
+              )}
 
               {result && (
                 <div className="col-12 mt-3">
@@ -240,14 +546,19 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
               )}
 
               <div className="col-12 pt-3 mt-2">
-                <button
-                  type="button"
-                  disabled={sending || !selectedTemplateId || checkedIds.size === 0}
-                  onClick={handleSend}
-                  className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
-                >
-                  {sending ? "Sending..." : `Send to ${checkedIds.size} customer${checkedIds.size === 1 ? "" : "s"}`}
-                </button>
+                {(() => {
+                  const activeCount = recipientMode === "upload" ? uploadChecked.size : recipientMode === "product" ? productChecked.size : checkedIds.size;
+                  return (
+                    <button
+                      type="button"
+                      disabled={sending || !selectedTemplateId || activeCount === 0}
+                      onClick={handleSend}
+                      className="w-80 btn addbtn rounded-0 add_button m-2 px-4"
+                    >
+                      {sending ? "Sending..." : `Send to ${activeCount} recipient${activeCount === 1 ? "" : "s"}`}
+                    </button>
+                  );
+                })()}
                 <button type="button" onClick={handleClose} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">
                   {result ? "Close" : "Cancel"}
                 </button>
