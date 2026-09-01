@@ -299,6 +299,7 @@ export const OldAMCHistoryGrid = () => {
                             <th className="text-center align-middle">Phone 1</th>
                             <th className="text-center align-middle">City / State</th>
                             <th className="text-center align-middle">GST No</th>
+                            <th className="text-center align-middle">Remark</th>  {/* ── NEW ── */}
                             <th className="text-center align-middle">Zone</th>
                             <th className="text-center align-middle">Start Date</th>
                             <th className="text-center align-middle">End Date</th>
@@ -339,6 +340,16 @@ export const OldAMCHistoryGrid = () => {
                                     {[r.billingAddress?.city, r.billingAddress?.state].filter(Boolean).join(", ") || "N/A"}
                                   </td>
                                   <td style={{ textAlign: "center" }}>{r.GSTNo || "N/A"}</td>
+                                  {/* ── NEW: Remark cell, truncated with full text on hover ── */}
+<td
+  style={{ textAlign: "center", maxWidth: "180px" }}
+  title={r.remark || ""}
+>
+  {r.remark
+    ? (r.remark.length > 40 ? `${r.remark.slice(0, 40)}...` : r.remark)
+    : "N/A"}
+</td>
+
                                   <td style={{ textAlign: "center" }}>{r.zone || "N/A"}</td>
                                   <td style={{ textAlign: "center" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString() : "N/A"}</td>
                                   <td style={{ textAlign: "center" }}>

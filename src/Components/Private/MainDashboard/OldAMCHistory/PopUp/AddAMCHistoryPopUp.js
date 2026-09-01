@@ -13,6 +13,8 @@ const industryOptions = [
   "Facility Services", "Labour Contractor", "Security Systems Dealer", "Other"
 ];
 
+const REMARK_MAX_LENGTH = 2000; // ── NEW ──
+
 const AddAMCHistoryPopUp = ({ handleAdd }) => {
   const [custName, setCustName] = useState("");
   const [customerType, setCustomerType] = useState("main");
@@ -29,6 +31,7 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
   const [pincode, setPincode] = useState("");
   const [GSTNo, setGSTNo] = useState("");
   const [zone, setZone] = useState("");
+  const [remark, setRemark] = useState(""); // ── NEW ──
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -40,6 +43,10 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
   };
   const handlePincodeChange = (e) => {
     if (/^\d{0,6}$/.test(e.target.value)) setPincode(e.target.value);
+  };
+  // ── NEW: Remark change handler with 2000 char cap ──
+  const handleRemarkChange = (e) => {
+    if (e.target.value.length <= REMARK_MAX_LENGTH) setRemark(e.target.value);
   };
 
   const handleSubmit = async (event) => {
@@ -57,6 +64,10 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
     if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
       return toast.error("End Date cannot be before Start Date");
     }
+    // ── NEW: Remark length guard ──
+    if (remark && remark.length > REMARK_MAX_LENGTH) {
+      return toast.error(`Remark cannot exceed ${REMARK_MAX_LENGTH} characters`);
+    }
 
     const payload = {
       custName: custName.trim(),
@@ -72,6 +83,7 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
       billingAddress: { city: city.trim(), state: state.trim(), pincode: pincode.trim() },
       GSTNo: GSTNo.trim(),
       zone,
+      remark: remark.trim(), // ── NEW ──
       startDate: startDate || null,
       endDate: endDate || null,
     };
@@ -263,6 +275,18 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
                     <label className="form-label label_text">End Date</label>
                     <input type="date" className="form-control rounded-0"
                       value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                  </div>
+                </div>
+
+                {/* ── NEW: Remark field ── */}
+                <div className="col-12">
+                  <div className="mb-3">
+                    <label className="form-label label_text">
+                      Remark <small className="text-muted">({remark.length}/{REMARK_MAX_LENGTH})</small>
+                    </label>
+                    <textarea className="form-control rounded-0" rows={3} maxLength={REMARK_MAX_LENGTH}
+                      value={remark} onChange={handleRemarkChange}
+                      placeholder="Enter any remark/note..." />
                   </div>
                 </div>
 

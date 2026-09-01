@@ -13,6 +13,8 @@ const industryOptions = [
   "Facility Services", "Labour Contractor", "Security Systems Dealer", "Other"
 ];
 
+const REMARK_MAX_LENGTH = 2000; // ── NEW ──
+
 const toDateInputValue = (val) => {
   if (!val) return "";
   const d = new Date(val);
@@ -28,6 +30,7 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
       state: selectedRecord?.billingAddress?.state || "",
       pincode: selectedRecord?.billingAddress?.pincode || "",
     },
+    remark: selectedRecord?.remark || "", // ── NEW ──
     startDate: toDateInputValue(selectedRecord?.startDate),
     endDate: toDateInputValue(selectedRecord?.endDate),
   });
@@ -58,6 +61,12 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
   const handleGSTChange = (e) => {
     setRecord((prev) => ({ ...prev, GSTNo: e.target.value.toUpperCase() }));
   };
+  // ── NEW: Remark change handler with 2000 char cap ──
+  const handleRemarkChange = (e) => {
+    if (e.target.value.length <= REMARK_MAX_LENGTH) {
+      setRecord((prev) => ({ ...prev, remark: e.target.value }));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -74,11 +83,16 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
     if (record.startDate && record.endDate && new Date(record.endDate) < new Date(record.startDate)) {
       return toast.error("End Date cannot be before Start Date");
     }
+    // ── NEW: Remark length guard ──
+    if (record.remark && record.remark.length > REMARK_MAX_LENGTH) {
+      return toast.error(`Remark cannot exceed ${REMARK_MAX_LENGTH} characters`);
+    }
 
     const payload = {
       ...record,
       custName: record.custName.trim(),
       email: (record.email || "").trim(),
+      remark: (record.remark || "").trim(), // ── NEW ──
       startDate: record.startDate || null,
       endDate: record.endDate || null,
     };
@@ -259,6 +273,18 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
                     <label className="form-label label_text">End Date</label>
                     <input type="date" className="form-control rounded-0"
                       name="endDate" value={record.endDate || ""} onChange={handleChange} />
+                  </div>
+                </div>
+
+                {/* ── NEW: Remark field ── */}
+                <div className="col-12">
+                  <div className="mb-3">
+                    <label className="form-label label_text">
+                      Remark <small className="text-muted">({(record.remark || "").length}/{REMARK_MAX_LENGTH})</small>
+                    </label>
+                    <textarea className="form-control rounded-0" rows={3} maxLength={REMARK_MAX_LENGTH}
+                      name="remark" value={record.remark || ""} onChange={handleRemarkChange}
+                      placeholder="Enter any remark/note..." />
                   </div>
                 </div>
 
