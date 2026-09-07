@@ -22,6 +22,7 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
   const [selectingAllPages, setSelectingAllPages] = useState(false);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   // ── NEW: mode toggle between the 3 ways to pick recipients ──
   const [recipientMode, setRecipientMode] = useState("customer"); // "customer" | "product" | "upload"
@@ -63,7 +64,10 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
     fetchCustomers();
   }, [fetchCustomers]);
 
-  const eligibleOnPage = useMemo(() => customers.filter((c) => c.phoneNumber1), [customers]);
+  const eligibleOnPage = useMemo(
+    () => customers.filter((c) => c.phoneNumber1 && (!verifiedOnly || c.isChecked)),
+    [customers, verifiedOnly]
+  );
 
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
@@ -100,7 +104,7 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
     try {
       const data = await getCustomers(1, 10000, search);
       if (data?.success) {
-        const allMatching = (data.customers || []).filter((c) => c.phoneNumber1);
+        const allMatching = (data.customers || []).filter((c) => c.phoneNumber1 && (!verifiedOnly || c.isChecked));
         setCheckedIds(new Set(allMatching.map((c) => c._id)));
         toast.success(`Selected ${allMatching.length} customer${allMatching.length === 1 ? "" : "s"} across all pages`);
       } else {
@@ -452,6 +456,19 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
                     />
                   </form>
                 </div>
+                <div className="form-check mt-2">
+                  <input
+                    type="checkbox"
+                    className="form-check-input"
+                    id="verifiedOnlyCheck"
+                    checked={verifiedOnly}
+                    onChange={(e) => setVerifiedOnly(e.target.checked)}
+                  />
+                  <label className="form-check-label" htmlFor="verifiedOnlyCheck" style={{ cursor: "pointer" }}>
+                    <i className="fa-solid fa-circle-check text-success me-1"></i>
+                    Verified customers only
+                  </label>
+                </div>
               </div>
               )}
 
@@ -485,7 +502,7 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
                     <div className="p-3 text-center text-muted">No customers found.</div>
                   )}
 
-                  {!customersLoading && customers.map((cust) => {
+                  {!customersLoading && customers.filter((c) => !verifiedOnly || c.isChecked).map((cust) => {
                     const hasPhone = !!cust.phoneNumber1;
                     const isChecked = checkedIds.has(cust._id);
                     const outcome = result?.recipients?.find((r) => r.customerId === cust._id);
@@ -504,7 +521,10 @@ const SendCampaignPopUp = ({ handleClose, onSent }) => {
                             onChange={() => toggleCustomer(cust._id)}
                           />
                           <div>
-                            <div className="fw-semibold">{cust.custName}</div>
+                            <div className="fw-semibold">
+                              {cust.custName}
+                              {cust.isChecked && <i className="fa-solid fa-circle-check text-success ms-1" title="Verified" style={{ fontSize: "12px" }}></i>}
+                            </div>
                             <small className="text-muted">{cust.phoneNumber1 || "No phone number on file"}</small>
                           </div>
                         </div>
