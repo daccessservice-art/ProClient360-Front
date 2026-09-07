@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { updateProduct, getProductBrands, getProductCategories } from "../../../../../hooks/useProduct";
+import { updateProduct, getProductBrands, getProductCategories, getProductUOMs } from "../../../../../hooks/useProduct";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { toast } from "react-hot-toast";
 
@@ -15,7 +15,12 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
   const [allCategories, setAllCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
-  const uomOptions = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton", "nos"];
+  // ── UOM: now loaded from DATABASE (see getProductUOMs) ──
+  const [uomOptions, setUomOptions] = useState([]);
+  const [uomsLoading, setUomsLoading] = useState(true);
+  const [showAddUOM, setShowAddUOM] = useState(false);
+  const [newUOM, setNewUOM] = useState("");
+  const [uomTargetField, setUomTargetField] = useState("base"); // "base" | "alternate"
 
   const categoryOptions = [
     { value: "raw material", label: "Raw Material" },
@@ -54,6 +59,21 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
       setCategoriesLoading(false);
     };
     loadCategories();
+  }, []);
+
+  // ── NEW: UOMs from DATABASE ──
+  useEffect(() => {
+    const loadUOMs = async () => {
+      setUomsLoading(true);
+      const data = await getProductUOMs();
+      if (data?.success && Array.isArray(data.uoms) && data.uoms.length > 0) {
+        setUomOptions(data.uoms);
+      } else {
+        setUomOptions(["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton", "nos"]);
+      }
+      setUomsLoading(false);
+    };
+    loadUOMs();
   }, []);
 
   useEffect(() => {
@@ -143,6 +163,26 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
     } else { toast.error("Please enter a brand name"); }
   };
 
+  // ── NEW: add a custom UOM to either Base UOM or Alternate UOM ──
+  const handleAddNewUOM = () => {
+    if (newUOM.trim()) {
+      if (uomOptions.includes(newUOM.trim())) {
+        toast.error("UOM already exists");
+        return;
+      }
+      setUomOptions((prev) => [...prev, newUOM.trim()]);
+      setProduct((prev) => ({
+        ...prev,
+        [uomTargetField === "base" ? "baseUOM" : "alternateUOM"]: newUOM.trim(),
+      }));
+      setNewUOM("");
+      setShowAddUOM(false);
+      toast.success("New UOM added successfully");
+    } else {
+      toast.error("Please enter a UOM name");
+    }
+  };
+
   return (
     <>
       <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000090" }}>
@@ -216,7 +256,6 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                     </div>
                   </div>
 
-                  {/* ── Product Category — now from DATABASE ── */}
                   <div className="row mt-3">
                     <div className="col-12">
                       <label htmlFor="productCategory" className="form-label label_text">Product Category</label>
@@ -250,20 +289,33 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
                     </div>
                   </div>
 
+                  {/* ── Base UOM / Alternate UOM — from DATABASE, "+" adds a custom unit ── */}
                   <div className="row mt-3">
                     <div className="col-12 col-md-4">
                       <label htmlFor="baseUOM" className="form-label label_text">Base UOM <RequiredStar /></label>
-                      <select className="form-select rounded-0" id="baseUOM" name="baseUOM" value={product.baseUOM || ""} onChange={handleChange} required>
-                        <option value="">Select Base UOM</option>
-                        {uomOptions.map((uom, index) => (<option key={index} value={uom}>{uom}</option>))}
-                      </select>
+                      <div className="input-group">
+                        <select className="form-select rounded-0" id="baseUOM" name="baseUOM" value={product.baseUOM || ""} onChange={handleChange} disabled={uomsLoading} required>
+                          <option value="">{uomsLoading ? "Loading UOMs..." : "Select Base UOM"}</option>
+                          {uomOptions.map((uom, index) => (<option key={index} value={uom}>{uom}</option>))}
+                        </select>
+                        <button type="button" className="btn btn-outline-secondary"
+                          onClick={() => { setUomTargetField("base"); setShowAddUOM(true); }}>
+                          <i className="fa-solid fa-plus"></i>
+                        </button>
+                      </div>
                     </div>
                     <div className="col-12 col-md-4 mt-3 mt-md-0">
                       <label htmlFor="alternateUOM" className="form-label label_text">Alternate UOM</label>
-                      <select className="form-select rounded-0" id="alternateUOM" name="alternateUOM" value={product.alternateUOM || ""} onChange={handleChange}>
-                        <option value="">Select Alternate UOM</option>
-                        {uomOptions.map((uom, index) => (<option key={index} value={uom}>{uom}</option>))}
-                      </select>
+                      <div className="input-group">
+                        <select className="form-select rounded-0" id="alternateUOM" name="alternateUOM" value={product.alternateUOM || ""} onChange={handleChange} disabled={uomsLoading}>
+                          <option value="">{uomsLoading ? "Loading UOMs..." : "Select Alternate UOM"}</option>
+                          {uomOptions.map((uom, index) => (<option key={index} value={uom}>{uom}</option>))}
+                        </select>
+                        <button type="button" className="btn btn-outline-secondary"
+                          onClick={() => { setUomTargetField("alternate"); setShowAddUOM(true); }}>
+                          <i className="fa-solid fa-plus"></i>
+                        </button>
+                      </div>
                     </div>
                     <div className="col-12 col-md-4 mt-3 mt-md-0">
                       <label htmlFor="uomConversion" className="form-label label_text">UOM Conversion</label>
@@ -347,6 +399,16 @@ const UpdateProductPopUp = ({ handleUpdate, selectedProduct, categories = [] }) 
             <div className="modal-header"><h5 className="modal-title">Add New Brand</h5><button type="button" className="btn-close" onClick={() => setShowAddBrand(false)}></button></div>
             <div className="modal-body"><input type="text" className="form-control" value={newBrand} onChange={(e) => setNewBrand(e.target.value)} placeholder="Enter new brand" /></div>
             <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setShowAddBrand(false)}>Cancel</button><button type="button" className="btn btn-primary" onClick={handleAddNewBrand}>Add</button></div>
+          </div></div>
+        </div>
+      )}
+
+      {showAddUOM && (
+        <div className="modal fade show" style={{ display: "block", backgroundColor: "#00000050", position: "absolute", zIndex: 9999, width: "100%" }}>
+          <div className="modal-dialog modal-sm"><div className="modal-content">
+            <div className="modal-header"><h5 className="modal-title">Add New UOM</h5><button type="button" className="btn-close" onClick={() => setShowAddUOM(false)}></button></div>
+            <div className="modal-body"><input type="text" className="form-control" value={newUOM} onChange={(e) => setNewUOM(e.target.value)} placeholder="Enter new UOM (e.g. dozen, roll)" /></div>
+            <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setShowAddUOM(false)}>Cancel</button><button type="button" className="btn btn-primary" onClick={handleAddNewUOM}>Add</button></div>
           </div></div>
         </div>
       )}

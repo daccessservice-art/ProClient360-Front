@@ -141,7 +141,6 @@ const getProductBrands = async () => {
   }
 };
 
-// ── NEW: fetch distinct product categories from the DB ──
 const getProductCategories = async () => {
   try {
     const response = await axios.get(`${url}/categories`, {
@@ -153,6 +152,21 @@ const getProductCategories = async () => {
   } catch (error) {
     console.error(error?.response?.data);
     return error?.response?.data || { success: false, error: "Network error while fetching categories" };
+  }
+};
+
+// ── NEW: fetch distinct UOMs from the DB ──
+const getProductUOMs = async () => {
+  try {
+    const response = await axios.get(`${url}/uoms`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: "Network error while fetching UOMs" };
   }
 };
 
@@ -168,4 +182,5 @@ export {
   getAllProductsForReport,
   getProductBrands,
   getProductCategories,
+  getProductUOMs,
 };
