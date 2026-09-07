@@ -28,7 +28,7 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
           questionText: q.questionText,
           options: (q.options || []).map((o) => ({ title: o.title, description: o.description || "" })),
         })),
-        images: (template.images || []).map((img) => ({ mediaId: img.mediaId, caption: img.caption || "" })),
+        images: (template.images || []).map((img) => ({ mediaId: img.mediaId, headerHandle: img.headerHandle || null, caption: img.caption || "" })),
       });
     } else {
       setForm(emptyForm);
@@ -49,8 +49,15 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
     try {
       const data = await uploadCampaignImage(file);
       if (data?.success) {
-        setForm((f) => ({ ...f, images: [...f.images, { mediaId: data.mediaId, caption: "" }] }));
-        toast.success("Image uploaded");
+        const isFirstImage = form.images.length === 0;
+        setForm((f) => ({ ...f, images: [...f.images, { mediaId: data.mediaId, headerHandle: data.headerHandle || null, caption: "" }] }));
+        if (isFirstImage && data.headerHandle) {
+          toast.success("Image uploaded — will be sent with the Initial Message once approved");
+        } else if (isFirstImage && !data.headerHandle) {
+          toast.error(`Image uploaded, but can't be attached to the Initial Message (${data.headerHandleError || "unknown reason"}). It will still send after the customer's first reply instead.`, { duration: 6000 });
+        } else {
+          toast.success("Image uploaded");
+        }
       } else {
         toast.error(data?.error || "Failed to upload image");
       }
@@ -287,14 +294,18 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
                   Images <span className="text-muted fw-normal">(optional, max 5)</span>
                 </label>
                 <small className="text-muted d-block mb-2">
-                  Images are sent right after the customer's first reply, before the questions. The <strong>first image</strong> is also attempted immediately after the Initial Message — this succeeds for customers who've messaged your business before (e.g. repeat testing), and falls back to sending after their reply otherwise.
+                  The <strong>first image</strong> gets attached to the Initial Message itself once approved — customers see it immediately, even before replying. This requires Meta re-approval. Additional images are sent after the customer's first reply, before the questions, and never need re-approval.
                 </small>
                 <div className="d-flex flex-wrap gap-3 mb-2">
                   {form.images.map((img, i) => (
                     <div key={i} className="border rounded p-2" style={{ width: 160, borderColor: i === 0 ? "#25D366" : undefined, borderWidth: i === 0 ? 2 : undefined }}>
                       <div className="d-flex justify-content-between align-items-center mb-1">
                         {i === 0 ? (
-                          <span className="badge bg-success" style={{ fontSize: "9px" }}>Sent first (if possible)</span>
+                          img.headerHandle ? (
+                            <span className="badge bg-success" style={{ fontSize: "9px" }}>With Initial Message</span>
+                          ) : (
+                            <span className="badge bg-warning text-dark" style={{ fontSize: "9px" }}>Sent first (if possible)</span>
+                          )
                         ) : (
                           <i className="fa-solid fa-image text-muted"></i>
                         )}
@@ -332,7 +343,7 @@ const AddEditCampaignTemplatePopUp = ({ handleClose, template, onSaved }) => {
                   </div>
                 )}
                 <small className="text-muted d-block mt-1">
-                  Images are session content — adding, removing, or changing them never requires Meta re-approval.
+                  Changing the <strong>first image</strong> requires Meta re-approval (it's attached to the template). Other images don't — they're session content sent after the customer's reply.
                 </small>
               </div>
 
