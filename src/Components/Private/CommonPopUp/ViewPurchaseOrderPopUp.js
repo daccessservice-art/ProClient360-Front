@@ -28,6 +28,33 @@ const numberToWords = (num) => {
   return result;
 };
 
+// ✅ NEW: amount in words for USD (Million / Thousand system, Dollars & Cents)
+const numberToWordsUSD = (num) => {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven',
+    'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen',
+    'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty',
+    'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const convert = (n) => {
+    if (n === 0) return '';
+    if (n < 20) return ones[n] + ' ';
+    if (n < 100) return tens[Math.floor(n / 10)] + ' ' + ones[n % 10] + ' ';
+    if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred ' + convert(n % 100);
+    if (n < 1000000) return convert(Math.floor(n / 1000)) + 'Thousand ' + convert(n % 1000);
+    if (n < 1000000000) return convert(Math.floor(n / 1000000)) + 'Million ' + convert(n % 1000000);
+    return convert(Math.floor(n / 1000000000)) + 'Billion ' + convert(n % 1000000000);
+  };
+  if (!num || num === 0) return 'Zero US Dollar';
+  const dollars = Math.floor(num);
+  const cents   = Math.round((num - dollars) * 100);
+  let result    = (convert(dollars).trim() || 'Zero') + ' US Dollar';
+  if (cents > 0) result += ' and ' + convert(cents).trim() + ' Cents';
+  return result;
+};
+
+// ✅ NEW: fallback rate used only if the live INR→USD rate can't be fetched
+const DEFAULT_INR_PER_USD = 88;
+
 // No hardcoded fallback to a specific company's logo — if a company has
 // no logo uploaded, we simply don't render an image (name text still shows).
 const DEFAULT_LOGO = null;
@@ -71,6 +98,42 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
   const [signatureLoadFailed, setSignatureLoadFailed] = useState(false);
   const [approving, setApproving] = useState(false);
 
+  // ✅ NEW: INR ⇄ USD toggle — only for THIS PO view, display only
+  const [showUSD, setShowUSD] = useState(false);
+  const [inrPerUsd, setInrPerUsd] = useState(null);
+  const [rateLoading, setRateLoading] = useState(false);
+
+  const isUSD   = showUSD && !!inrPerUsd;
+  const CUR     = isUSD ? '$' : '₹';
+  const money   = (val) => {
+    const n = Number(val) || 0;
+    return (isUSD ? n / inrPerUsd : n).toFixed(2);
+  };
+
+  const handleToggleUSD = async () => {
+    const next = !showUSD;
+    setShowUSD(next);
+    if (next && !inrPerUsd) {
+      setRateLoading(true);
+      try {
+        const res  = await fetch('https://open.er-api.com/v6/latest/USD');
+        const json = await res.json();
+        const inr  = json?.rates?.INR;
+        if (json?.result === 'success' && inr) {
+          setInrPerUsd(inr);
+        } else {
+          throw new Error('Rate not available');
+        }
+      } catch (err) {
+        console.error('Error fetching USD rate:', err);
+        setInrPerUsd(DEFAULT_INR_PER_USD);
+        toast(`Live rate unavailable, using ₹${DEFAULT_INR_PER_USD} = $1`);
+      } finally {
+        setRateLoading(false);
+      }
+    }
+  };
+
   // Company details resolved from the populated po.company field
   // (name, logo, GST, Address) — dynamic per logged-in company.
   const company = po.company || {};
@@ -113,17 +176,20 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
   const handleDownloadPDF = async () => {
     const toastId = toast.loading('Generating PDF...');
     try {
+      // ✅ NEW: if USD toggle is ON, ask backend for a USD PDF with the same rate
+      const params = isUSD ? { currency: 'USD', rate: inrPerUsd } : {};
       const response = await axios.get(
         `${API_URL}/api/purchaseOrder/${po._id}/pdf`,
         {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           responseType: 'blob',
+          params,
         }
       );
       const url      = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link     = document.createElement('a');
       link.href      = url;
-      link.download  = `PO_${po.orderNumber || po._id}.pdf`;
+      link.download  = `PO_${po.orderNumber || po._id}${isUSD ? '_USD' : ''}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -193,9 +259,31 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
               )}
             </h5>
 
+            {/* ✅ NEW: small INR ⇄ USD toggle */}
+            <div className="d-flex align-items-center gap-2 ms-auto me-3">
+              <span className="small fw-semibold" style={{ color: showUSD ? '#94a3b8' : '#facc15' }}>INR</span>
+              <div className="form-check form-switch m-0" style={{ minHeight: 'auto' }}>
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="viewPoCurrencyToggle"
+                  checked={showUSD}
+                  onChange={handleToggleUSD}
+                  disabled={rateLoading}
+                  style={{ cursor: 'pointer' }}
+                />
+              </div>
+              <span className="small fw-semibold" style={{ color: showUSD ? '#facc15' : '#94a3b8' }}>USD</span>
+              {showUSD && (
+                <span className="small" style={{ color: '#cbd5e1' }}>
+                  {rateLoading ? 'Loading...' : inrPerUsd ? `($1 = ₹${Number(inrPerUsd).toFixed(2)})` : ''}
+                </span>
+              )}
+            </div>
+
             <button
               type="button"
-              className="btn-close btn-close-white ms-auto"
+              className="btn-close btn-close-white"
               onClick={closePopUp}
             ></button>
           </div>
@@ -249,8 +337,9 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                   {[
                     ['Order No.',        po.orderNumber],
                     ['Order Date:',      po.orderDate ? new Date(po.orderDate).toLocaleDateString('en-GB').replace(/\//g,'-') : 'N/A'],
-                    ['Currency:',        'INR'],
-                    ['Conversion Rate:', '1.00'],
+                    // ✅ CHANGED: currency + rate follow the toggle
+                    ['Currency:',        isUSD ? 'USD' : 'INR'],
+                    ['Conversion Rate:', isUSD ? Number(inrPerUsd).toFixed(2) : '1.00'],
                   ].map(([lbl, val]) => (
                     <div className="row mb-1" key={lbl}>
                       <div className="col-5 fw-bold">{lbl}</div>
@@ -274,10 +363,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                     <th>RATE</th>
                     <th>DISC.%</th>
                     <th>WARRANTY</th>
-                    <th>TOTAL AMT.(₹)</th>
-                    <th>GROSS AMT.(₹)</th>
+                    <th>TOTAL AMT.({CUR})</th>
+                    <th>GROSS AMT.({CUR})</th>
                     <th>GST%/AMT.</th>
-                    <th>NET AMT.(₹)</th>
+                    <th>NET AMT.({CUR})</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -310,15 +399,15 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                         <td className="text-center">{item.hsnSac || '-'}</td>
                         <td className="text-center">{item.baseUOM || item.unit || '-'}</td>
                         <td className="text-end">{qty.toFixed(2)}</td>
-                        <td className="text-end">{rate.toFixed(2)}</td>
+                        <td className="text-end">{money(rate)}</td>
                         <td className="text-center">{disc > 0 ? `${disc}%` : '-'}</td>
                         <td className="text-center">{item.warranty || '-'}</td>
-                        <td className="text-end">{lineAmt.toFixed(2)}</td>
-                        <td className="text-end">{lineAmt.toFixed(2)}</td>
+                        <td className="text-end">{money(lineAmt)}</td>
+                        <td className="text-end">{money(lineAmt)}</td>
                         <td className="text-center">
-                          {taxPct > 0 ? <><div>@{taxPct}%</div><div>{taxAmt.toFixed(2)}</div></> : '-'}
+                          {taxPct > 0 ? <><div>@{taxPct}%</div><div>{money(taxAmt)}</div></> : '-'}
                         </td>
-                        <td className="text-end fw-semibold">{netVal.toFixed(2)}</td>
+                        <td className="text-end fw-semibold">{money(netVal)}</td>
                       </tr>
                     );
                   })}
@@ -333,10 +422,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                     <td></td><td></td>
                     <td className="text-end">{items.reduce((s,i) => s+(Number(i.quantity)||0),0).toFixed(2)}</td>
                     <td></td><td></td><td></td>
-                    <td className="text-end">{totalAmt.toFixed(2)}</td>
-                    <td className="text-end">{totalAmt.toFixed(2)}</td>
-                    <td className="text-end">{totalTax.toFixed(2)}</td>
-                    <td className="text-end">{grandTotal.toFixed(2)}</td>
+                    <td className="text-end">{money(totalAmt)}</td>
+                    <td className="text-end">{money(totalAmt)}</td>
+                    <td className="text-end">{money(totalTax)}</td>
+                    <td className="text-end">{money(grandTotal)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -369,10 +458,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                       return (
                         <tr key={idx}>
                           <td>{item.hsnSac || '-'}</td>
-                          <td className="text-end">{lineAmt.toFixed(2)}</td>
+                          <td className="text-end">{money(lineAmt)}</td>
                           <td className="text-center">{taxPct}%</td>
-                          <td className="text-end">{(taxAmt/2).toFixed(2)}</td>
-                          <td className="text-end">{(taxAmt/2).toFixed(2)}</td>
+                          <td className="text-end">{money(taxAmt / 2)}</td>
+                          <td className="text-end">{money(taxAmt / 2)}</td>
                         </tr>
                       );
                     })}
@@ -383,10 +472,10 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                     ))}
                     <tr className="fw-bold" style={{ backgroundColor: '#f5f5f5' }}>
                       <td>Total</td>
-                      <td className="text-end">{totalAmt.toFixed(2)}</td>
+                      <td className="text-end">{money(totalAmt)}</td>
                       <td></td>
-                      <td className="text-end">{cgst.toFixed(2)}</td>
-                      <td className="text-end">{sgst.toFixed(2)}</td>
+                      <td className="text-end">{money(cgst)}</td>
+                      <td className="text-end">{money(sgst)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -395,12 +484,12 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
                 <table className="table table-bordered mb-0" style={{ fontSize: '11px' }}>
                   <tbody>
                     {[
-                      ['Total Amount',        totalAmt.toFixed(2),   false],
-                      ['Total Gross Amount',  totalAmt.toFixed(2),   false],
-                      ['CGST',               cgst.toFixed(2),        false],
-                      ['SGST',               sgst.toFixed(2),        false],
-                      ['Total Net Amount',    grandTotal.toFixed(2), true ],
-                      ['Round-Off',           '0.00',                false],
+                      ['Total Amount',        money(totalAmt),   false],
+                      ['Total Gross Amount',  money(totalAmt),   false],
+                      ['CGST',               money(cgst),        false],
+                      ['SGST',               money(sgst),        false],
+                      ['Total Net Amount',    money(grandTotal), true ],
+                      ['Round-Off',           '0.00',            false],
                     ].map(([lbl, val, bold]) => (
                       <tr key={lbl} style={bold ? { backgroundColor: '#ebebeb' } : {}}>
                         <td className={bold ? 'fw-bold' : ''}>{lbl}</td>
@@ -416,12 +505,14 @@ const ViewPurchaseOrderPopUp = ({ closePopUp, selectedPO, onApproved }) => {
             <div className="row g-0 mx-0 border-top">
               <div className="col-7 border-end p-2" style={{ fontSize: '11px' }}>
                 <strong>Total Amount in Words:</strong>{' '}
-                <span className="text-muted">{numberToWords(grandTotal)}</span>
+                <span className="text-muted">
+                  {isUSD ? numberToWordsUSD(grandTotal / inrPerUsd) : numberToWords(grandTotal)}
+                </span>
               </div>
               <div className="col-5 p-2 d-flex justify-content-between align-items-center fw-bold"
                 style={{ backgroundColor: '#ffd2d2', fontSize: '12px' }}>
-                <span>Total Amount (₹)</span>
-                <span>{grandTotal.toFixed(2)}</span>
+                <span>Total Amount ({CUR})</span>
+                <span>{money(grandTotal)}</span>
               </div>
             </div>
 
