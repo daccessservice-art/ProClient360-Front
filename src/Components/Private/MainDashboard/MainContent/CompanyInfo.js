@@ -1,79 +1,75 @@
-import { CompanyInfoPieChart } from "./CompanyInfoPieChart"
+import { CompanyInfoPieChart } from "./CompanyInfoPieChart";
+import "../../EmployeeDashboard/EmployeeDashboard.css";
+import "./MainDashboard.css";
 
+export const CompanyInfo = ({ categorywise }) => {
 
-export const CompanyInfo = ({categorywise}) => {
+  const completed = Number(categorywise?.completed) || 0;
+  const inprocess = Number(categorywise?.inprocess) || 0;
+  const upcoming = Number(categorywise?.upcoming) || 0;
+  const total = completed + inprocess + upcoming;
 
+  const pct = (v) => (total ? Math.round((v / total) * 100) : 0);
+
+  const cards = [
+    {
+      label: "Total projects",
+      value: total,
+      icon: "fa-folder-open",
+      accent: "#7c5cfc",
+      tint: "#f3efff",
+      foot: <>Across all categories</>,
+    },
+    {
+      label: "Completed projects",
+      value: completed,
+      icon: "fa-circle-check",
+      accent: "#22b35e",
+      tint: "#ecf9f1",
+      foot: <><b>{pct(completed)}%</b> completion rate</>,
+    },
+    {
+      label: "In progress",
+      value: inprocess,
+      icon: "fa-hourglass-half",
+      accent: "#f59e0b",
+      tint: "#fff5e8",
+      foot: <><b>{pct(inprocess)}%</b> of all projects</>,
+    },
+    {
+      label: "Upcoming projects",
+      value: upcoming,
+      icon: "fa-calendar-plus",
+      accent: "#3b82f6",
+      tint: "#edf4ff",
+      foot: <><b>{pct(upcoming)}%</b> scheduled to start</>,
+    },
+  ];
 
   return (
-    <div className="row  bg-white p-2 m-1 border rounded" >
-      <div className="col-12 col-lg-8 py-1 " >
-
-        <span className="text-dark  py-4 heading_fontsize_first">Total Projects <span className="count_fontsize" style={{ color: '#4FB4FE' }}> |
-           </span> <span className="count_fontsize">{categorywise.completed+categorywise.inprocess+categorywise.upcoming}</span></span>
-        <div className="row pt-3">
-
-          <div className="col-12 col-md-4 pb-3 cursor-pointer"
-            // onClick={() => navigate('/')}
+    <div className="md-overview">
+      <div className="ed-kpi-grid md-kpi-2x2">
+        {cards.map((c) => (
+          <div
+            key={c.label}
+            className="ed-kpi"
+            style={{ "--accent": c.accent, "--tint": c.tint }}
           >
-            <div className="p-4 background_style PurpleColor" >
-              <div className="row">
-                <div className="col-9">
-                  <h6 className=" text-dark card_heading">
-                  Completed Projects
-                  </h6>
-                  <h2 className="pt-2 fw-bold card_count">{categorywise.completed}</h2>
-                  
-                </div>
-                <div className="col-3 d-flex align-items-center justify-content-center ">
-                  <img src="./static/assets/img/check.png" className="img_opacity all_card_img_size" alt="img not found" srcSet="" />
-                </div>
+            <div className="ed-kpi-top">
+              <div style={{ minWidth: 0 }}>
+                <div className="ed-kpi-label">{c.label}</div>
+                <div className="ed-kpi-value">{c.value}</div>
+              </div>
+              <div className="ed-kpi-icon">
+                <i className={`fa-solid ${c.icon}`}></i>
               </div>
             </div>
+            <div className="ed-kpi-foot">{c.foot}</div>
           </div>
-
-          <div className="col-12 col-md-4 pb-3 cursor-pointer"
-            // onClick={() => navigate('/')}
-          >
-            <div className="p-4 background_style pinkcolor">
-              <div className="row">
-                <div className="col-9">
-                  <h6 className=" text-dark card_heading">
-                    Inprocess Projects
-                  </h6>
-                  <h2 className="pt-2 fw-bold card_count">{categorywise.inprocess}</h2>
-                </div>
-                <div className="col-3 d-flex align-items-center justify-content-center ">
-                  <img src="./static/assets/img/agile.png" className="img_opacity all_card_img_size" alt="img not found" srcSet="" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-
-          <div className="col-12 col-md-4 pb-3 cursor-pointer"
-            // onClick={() => navigate('/')}
-          >
-            <div className="p-4 background_style bg_sky">
-              <div className="row">
-                <div className="col-9">
-                  <h6 className=" text-dark card_heading">
-                    Upcoming Projects
-                  </h6>
-                  <h2 className="pt-2 fw-bold card_count">{categorywise.upcoming}</h2>
-                </div>
-                <div className="col-3 d-flex align-items-center justify-content-center ">
-                  <img src="./static/assets/img/upcoming.png" className="img_opacity all_card_img_size" alt="" srcSet="" />
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
+        ))}
       </div>
 
-
-      <CompanyInfoPieChart categorywise={categorywise}/>
+      <CompanyInfoPieChart categorywise={categorywise} />
     </div>
-  )
-}
+  );
+};

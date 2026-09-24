@@ -1,103 +1,66 @@
-import { AdminInfoPieChart } from "./AdminInfoPieChart"
+export const AdminDashboardCards = ({ activateCompanys, inactiveSubscriptions, totalCompaines }) => {
 
-export const AdminDashboardCards = ({ activateCompanys,inactiveSubscriptions,totalCompaines}) => {
+    const total = Number(totalCompaines) || 0;
+    const active = Number(activateCompanys) || 0;
+    const inactive = Number(inactiveSubscriptions) || 0;
+    const activeRate = total ? Math.round((active / total) * 100) : 0;
+    const inactiveRate = total ? Math.round((inactive / total) * 100) : 0;
+
+    const cards = [
+        {
+            label: "Registered companies",
+            value: totalCompaines || 0,
+            icon: "fa-building",
+            accent: "#7c5cfc",
+            tint: "#f3efff",
+            foot: <>All companies on the platform</>,
+        },
+        {
+            label: "Active companies",
+            value: activateCompanys || 0,
+            icon: "fa-circle-check",
+            accent: "#22b35e",
+            tint: "#ecf9f1",
+            foot: <><b>{activeRate}%</b> of registered companies</>,
+        },
+        {
+            label: "Deactivated companies",
+            value: inactiveSubscriptions || 0,
+            icon: "fa-circle-pause",
+            accent: "#ef4444",
+            tint: "#fdeeee",
+            foot: <><b>{inactiveRate}%</b> of registered companies</>,
+        },
+        {
+            label: "Activation rate",
+            value: `${activeRate}%`,
+            icon: "fa-chart-line",
+            accent: "#3b82f6",
+            tint: "#edf4ff",
+            foot: <>Companies with an active subscription</>,
+        },
+    ];
 
     return (
-        <div className="row  bg-white p-2 m-1 border rounded" >
-            <div className="col-12 col-lg-8 mx-auto py-1 " >
-                <div className="row pt-3">
-
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer"
-                    // onClick={() => navigate('/')}
-                    >
-                        <div className="p-4 background_style PurpleColor ">
-                            <div className="row">
-                                <div className="col-9">
-                                    <h6 className=" text-dark card_heading">
-
-                                    Registered Companies
-                                    </h6>
-                                    <h2 className="pt-2 fw-bold card_count">
-                                        {/* {categorywise.inprocess} */}
-                                        {/* {completedProjectCount} */}
-                                        {totalCompaines}
-                                    </h2>
-                                </div>
-                                <div className="col-3 d-flex align-items-center justify-content-center ">
-                                    <img src="./static/assets/img/checked.png" className="img_opacity all_card_img_size" alt="img not found" srcSet="" />
-                                </div>
-                            </div>
+        <div className="ed-kpi-grid ad-kpi-4">
+            {cards.map((c) => (
+                <div
+                    key={c.label}
+                    className="ed-kpi"
+                    style={{ "--accent": c.accent, "--tint": c.tint }}
+                >
+                    <div className="ed-kpi-top">
+                        <div style={{ minWidth: 0 }}>
+                            <div className="ed-kpi-label">{c.label}</div>
+                            <div className="ed-kpi-value">{c.value}</div>
+                        </div>
+                        <div className="ed-kpi-icon">
+                            <i className={`fa-solid ${c.icon}`}></i>
                         </div>
                     </div>
-
-
-
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer"
-                    // onClick={() => navigate('/')}
-                    >
-                        <div className="p-4 background_style bg_sky" >
-                            <div className="row">
-                                <div className="col-9">
-                                    <h6 className=" text-dark card_heading">
-                                        Activate Companies
-                                    </h6>
-                                    <h2 className="pt-2 fw-bold card_count demo_bottom">
-                                        {/* {categorywise.finished} */}
-                                        {/* {totalProjectCount} */}
-                                        {activateCompanys}
-                                    </h2>
-                                </div>
-                                <div className="col-3 d-flex align-items-center justify-content-center ">
-                                    <img src="./static/assets/img/planning.png" className="img_opacity all_card_img_size" alt="img not found" srcSet="" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-
-
-
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer"
-                    // onClick={() => navigate('/')}
-                    >
-                        <div className="p-4 background_style pinkcolor ">
-                            <div className="row">
-                                <div className="col-9">
-                                    <h6 className=" text-dark card_heading">
-                                        Deactivated Companies
-                                    </h6>
-                                    <h2 className="pt-2 fw-bold card_count">
-                                        {/* {categorywise.upcoming} */}
-                                        {/* {inproccessProjectCount} */}
-                                        {inactiveSubscriptions}
-                                    </h2>
-                                </div>
-                                <div className="col-3 d-flex align-items-center justify-content-center ">
-                                    <img src="./static/assets/img/cloud.png" className="img_opacity all_card_img_size" alt="" srcSet="" />
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-
-
-
+                    <div className="ed-kpi-foot">{c.foot}</div>
                 </div>
-            </div>
-            {/* 
-            <CompanyInfEmployeeDashboardPieChartoPieChart 
-                    totalProjectCount={totalProjectCount} 
-                    completedProjectCount={completedProjectCount} 
-                    inproccessProjectCount={inproccessProjectCount} /> */}
-
-
-            <AdminInfoPieChart
-              activateCompanys={activateCompanys}
-              inactiveSubscriptions={inactiveSubscriptions}
-              totalCompaines={totalCompaines}
-
-             />
+            ))}
         </div>
-    )
-}
+    );
+};

@@ -2,10 +2,12 @@ import React, { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { removeNotification } from "../../../../redux/slices/notificationSlice";
 import { Trash2 } from "lucide-react";
+import "./Notification.css";
 
 const Notification = ({ notification }) => {
     const dispatch = useDispatch();
     const [timeAgoRefresh, setTimeAgoRefresh] = useState(0);
+    const [imgFailed, setImgFailed] = useState(false);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -14,43 +16,40 @@ const Notification = ({ notification }) => {
         return () => clearInterval(interval);
     }, []);
 
+    const name = notification?.sender?.name || "System";
+    const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+    const src = notification?.sender?.profilePic;
+
     return (
-        <div 
-            className="p-3 my-2 text-white rounded d-flex justify-content-between align-items-center"
-            style={{
-                background: "rgba(0, 0, 0, 0.6)", 
-                backdropFilter: "blur(5px)", 
-                borderRadius: "8px"
-            }}
-        >
-            <div className="d-flex align-items-center">
-                <img 
-                    className="img-thumbnail rounded-circle me-3"
-                    style={{ width: "3rem" }}
-                    src={notification?.sender?.profilePic}
-                    alt="Sender-Profile" 
+        <div className={`nt-toast ${!notification.isSeen ? "unread" : ""}`} data-refresh={timeAgoRefresh}>
+            {src && !imgFailed ? (
+                <img
+                    className="nt-avatar"
+                    src={src}
+                    alt=""
                     loading="lazy"
+                    onError={() => setImgFailed(true)}
                 />
-                <div>
-                    <h6 className="mb-0">{notification?.sender?.name}</h6>
-                    <p className={`mb-0 ${!notification.isSeen ? "fw-bold text-warning" : ""}`}>
-                        {notification?.message}
-                    </p>
+            ) : (
+                <div className="nt-avatar nt-avatar-fallback">{initials}</div>
+            )}
+
+            <div className="nt-content">
+                <div className="nt-sender">
+                    <span>{name}</span>
+                    {!notification.isSeen && <span className="nt-dot" aria-label="Unread" />}
                 </div>
+                <p className="nt-msg">{notification?.message}</p>
             </div>
-            
-            <button 
-                onClick={() => dispatch(removeNotification(notification._id))} 
-                className="border-0 bg-transparent p-2 d-flex align-items-center"
-                style={{
-                    cursor: "pointer",
-                    color: "white",
-                    transition: "color 0.3s ease",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.color = "red"}
-                onMouseLeave={(e) => e.currentTarget.style.color = "white"}
+
+            <button
+                type="button"
+                className="nt-del"
+                onClick={() => dispatch(removeNotification(notification._id))}
+                title="Dismiss notification"
+                aria-label="Dismiss notification"
             >
-                <Trash2 size={20} />
+                <Trash2 size={17} />
             </button>
         </div>
     );

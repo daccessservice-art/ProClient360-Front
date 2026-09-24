@@ -6,6 +6,7 @@ import { CompanyInfo } from "./MainContent/CompanyInfo";
 import { ProjectBar } from "./MainContent/ProjectBar";
 import { ProjectDuration } from "./MainContent/ProjectDuration";
 import { getDashboardData } from "../../../hooks/useCompany";
+import "../EmployeeDashboard/EmployeeDashboard.css";
 
 function MainDashboard() {
   const [isopen, setIsOpen] = useState(false);
@@ -21,10 +22,10 @@ function MainDashboard() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         const data = await getDashboardData();
         console.log(data);
-        
+
         if (data) {
           setCustCount(data.customerCount || []);
           setCategorywise(data.category.total || []);
@@ -39,65 +40,47 @@ function MainDashboard() {
         setLoading(false);
       }
     };
-  
+
     fetchData();
   }, []);
-  
-
-  // console.log("dashboard",dashboardData);
 
   const toggle = () => {
     setIsOpen(!isopen);
   };
 
-  // const [Language, setLanguage] = useState({
-  //   DDL: [],
-  //   ID: 0,
-  //   Label: sessionStorage.getItem('LanguageChange')
-  // })
-
   return (
     <>
-        {loading && (
-                <div className="overlay">
-                    <span className="loader"></span>
-                </div>
-            )}
-            
+      {loading && (
+        <div className="overlay">
+          <span className="loader"></span>
+        </div>
+      )}
+
       <div className="container-scroller">
-        <div className="row background_main_all">
-          <Header
-            // Language={Language}
-            // setLanguage={setLanguage}
-            toggle={toggle} isopen={isopen}
-          />
+        <div className="row background_main_all ed-page">
+          <Header toggle={toggle} isopen={isopen} />
           <div className="container-fluid page-body-wrapper">
             <Sidebar isopen={isopen} active="dashboard" />
             <div className="main-panel" style={{ width: isopen ? "" : "calc(100%  - 120px )", marginLeft: isopen ? "" : "125px" }}>
-              <div className="content-wrapper ps-3 ps-md-0">
+              <div className="content-wrapper ps-3 ps-md-0 ed-wrap">
 
-                {/* MainContent */}
-
+                {/* Heading + customers + monthly review */}
                 <DashboardGroupBtn custCount={custCount} />
 
-                {/* CompanyInfo */}
+                {/* KPI cards + status donut */}
                 <CompanyInfo categorywise={categorywise} />
 
-
-                {/* ProjectBar */}
+                {/* Category wise + value wise charts */}
                 <ProjectBar forbar={forbar} valueWise={valueWise} />
 
-                {/* ProjectDuration */}
+                {/* Delayed projects chart */}
                 <ProjectDuration duration={duration} />
-
 
               </div>
             </div>
           </div>
         </div>
       </div>
-    
-      {/* </div> */}
     </>
   );
 }

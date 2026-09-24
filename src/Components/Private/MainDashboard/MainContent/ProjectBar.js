@@ -1,25 +1,13 @@
-
 import { Categorywiseproject } from "./Categorywiseproject";
 import { Valuewiseproject } from "./Valuewiseproject";
+import "../../EmployeeDashboard/EmployeeDashboard.css";
+import "./MainDashboard.css";
 
-
-export const ProjectBar = ({forbar,valueWise}) => {
-
-    
-
+export const ProjectBar = ({ forbar, valueWise }) => {
   return (
-    <div className="row  bg-white p-2 mx-1 mt-4 border rounded" >
-
-      <div className="col-12 col-md-12">
-         <Categorywiseproject categorywise={forbar}/>
-      </div>
-
-      <div className="col-12 col-md-12">
-
-         <Valuewiseproject valueWise={valueWise}/>
-      </div>
-    
-
+    <div className="md-stack ed-section">
+      <Categorywiseproject categorywise={forbar} />
+      <Valuewiseproject valueWise={valueWise} />
     </div>
-  )
-}
+  );
+};

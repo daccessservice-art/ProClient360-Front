@@ -1,41 +1,17 @@
-import Chart from "react-google-charts"
+// ⚠️ Reuses the donut chart from the employee dashboard – adjust the path if your folder names differ
+import { CompanyInfEmployeeDashboardPieChartoPieChart } from "../EmployeeDashboard/EmployeeDashboardPieChart";
 
-export const AdminInfoPieChart = ({activateCompanys,inactiveSubscriptions}) => {
+export const AdminInfoPieChart = ({ activateCompanys, inactiveSubscriptions }) => {
 
-  const data = [
-    ["Projects", "Hours per Day"],
-    ["Active",activateCompanys],
-    ["Inactive",inactiveSubscriptions],
+  const segments = [
+    { label: "Active", value: Number(activateCompanys) || 0, color: "#22b35e" },
+    { label: "Deactivated", value: Number(inactiveSubscriptions) || 0, color: "#ef4444" },
   ];
 
-  const options = {
-    pieSliceText: "label",
-    is3D: true,
-    pieSliceText: 'percentage',
-    chartArea: {
-      height: "100%",
-      width: "100%",
-      backgroundColor: {
-        opacity: 0
-      },
-    },
-    slices: { 0: { color: '#80C783' }, 1: { color: '#56AFFE' } } //56AFFE
-
-
-  };
-
-
   return (
-    <>
-      <div className="col-12 col-lg-4 p-2 mx-auto" >
-        <Chart
-          chartType="PieChart"
-          data={data}
-          options={options}
-          width={"100%"}
-        />
-      </div>
-
-    </>
-  )
-}
+    <CompanyInfEmployeeDashboardPieChartoPieChart
+      segments={segments}
+      centerLabel="Total companies"
+    />
+  );
+};

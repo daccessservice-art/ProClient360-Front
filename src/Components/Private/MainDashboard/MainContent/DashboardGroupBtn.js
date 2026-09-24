@@ -1,47 +1,56 @@
 import { useState } from "react";
 import HRReviewMasterGrid from "../HRReviewMaster/HRReviewMasterGrid";
+import "./MainDashboard.css";
+import "../../EmployeeDashboard/EmployeeDashboard.css";
+
+const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+};
 
 export const DashboardGroupBtn = ({ custCount }) => {
     const [showReviewModal, setShowReviewModal] = useState(false);
 
+    const todayLabel = new Date().toLocaleDateString("en-GB", {
+        weekday: "short", day: "2-digit", month: "short", year: "numeric",
+    });
+
     return (
         <>
-            <div className="row p-2">
-                <div className="col-12 col-lg-6">
-                    <h5 className="text-white fw-bold py-2">
-                        Dashboard
-                    </h5>
+            <div className="ed-pagehead">
+                <div>
+                    <div className="ed-title">Dashboard</div>
+                    <div className="ed-welcome">
+                        {getGreeting()}! Here's an overview of your projects and customers.
+                    </div>
                 </div>
 
-                <div className="col-12 col-lg-6 ms-auto">
-                    <div className="d-flex align-items-center justify-content-end gap-3">
+                <div className="ed-head-actions">
+                    <span className="ed-date-chip">
+                        <i className="fa-solid fa-calendar-days"></i>
+                        {todayLabel}
+                    </span>
 
-                        <button
-                            onClick={() => setShowReviewModal(true)}
-                            style={{
-                                background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-                                border: "none",
-                                borderRadius: "8px",
-                                padding: "8px 18px",
-                                color: "#fff",
-                                fontWeight: 700,
-                                fontSize: "0.82rem",
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                boxShadow: "0 4px 14px rgba(245,158,11,0.4)",
-                            }}
-                        >
-                            📋 Monthly Review
-                        </button>
-
-                        <img src="static/assets/img/people.png" className="customer_img" alt="logo" />
-                        <span className="Customer_fs ps-3 text-white">
-                            Customer |
-                            <span className="Customer_count ms-2">{custCount}</span>
+                    <span className="md-cust-chip" title="Total customers">
+                        <span className="md-cust-icon">
+                            <i className="fa-solid fa-users"></i>
                         </span>
-                    </div>
+                        <span>
+                            <span className="md-cust-label">Customers</span>
+                            <span className="md-cust-value">{custCount ?? 0}</span>
+                        </span>
+                    </span>
+
+                    <button
+                        type="button"
+                        className="md-review-btn"
+                        onClick={() => setShowReviewModal(true)}
+                    >
+                        <i className="fa-solid fa-clipboard-list"></i>
+                        Monthly review
+                    </button>
                 </div>
             </div>
 

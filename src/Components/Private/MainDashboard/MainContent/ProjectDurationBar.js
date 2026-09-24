@@ -1,99 +1,59 @@
 import { Chart } from "chart.js";
 import { Bar } from "react-chartjs-2";
+import { makeBarOptions, chartMinWidth } from "./dashboardChartTheme";
 
+// Kept from original – affects other charts that show a legend
 Chart.Legend.prototype.afterFit = function () {
   this.height = this.height + 40;
 };
 
-export const ProjectDurationBar = ({duration}) => {
+const DELAY_SHADES = ["#6d5dfc", "#8b7bff", "#a996ff", "#c4b8ff", "#ddd6ff"];
 
+export const ProjectDurationBar = ({ duration }) => {
 
-    const rangeData = duration.map(data => data.range);
-    const delayData = duration.map(data => data.delayedProjects);
+  const safe = duration || [];
+  const rangeData = safe.map((data) => data.range);
+  const delayData = safe.map((data) => data.delayedProjects);
 
-    const FirstCompdata = {
-        labels: rangeData,  
-        datasets: [
-            {
-                label: 'Days',
-                data: delayData,  
-                fill: true,
-                backgroundColor: ['#7F7FD5', '#A3A3D8', '#B7B7CE'],
-                borderWidth: 1,
-            },
-        ],
-    };
+  const chartData = {
+    labels: rangeData,
+    datasets: [
+      {
+        label: "Delayed projects",
+        data: delayData,
+        backgroundColor: rangeData.map((_, i) => DELAY_SHADES[i % DELAY_SHADES.length]),
+      },
+    ],
+  };
 
-    const FirstCompBar = {
-        responsive: true,
-        maintainAspectRatio: true,
-        layout: {
-            padding: {
-                top: 15,
-                bottom: 0,
-            },
-        },
-        legend: {
-            display: true,
-            position: 'top',
-            align: 'start',
-        },
-        plugins: {
-            datalabels: {
-                anchor: 'end',
-                align: 'end',
-                rotation: -90,
-                color: 'black',
-            },
-        },
-        scales: {
-            xAxes: [{
-                stacked: false,
-                gridLines: {
-                    drawOnChartArea: false,
-                    color: '#1b4b7b',
-                },
-                barThickness: 25,
-                barPercentage: 9.0,
-                categoryPercentage: 9.0,
-                ticks: {
-                    autoSkip: false,
-                    fontSize: '13',
-                    fontColor: '#1b4b7b',
-                    maxRotation: 90,
-                    minRotation: 90,
-                }
-            }],
-            yAxes: [{
-                stacked: false,
-                gridLines: {
-                    drawOnChartArea: false,
-                    color: '#1b4b7b',
-                },
-                ticks: {
-                    beginAtZero: true,
-                    fontSize: '12',
-                    fontColor: '#1b4b7b',
-                    callback: function(value) {
-                        return Number.isInteger(value) ? value : ''; // Show only integer values
-                    }
-                }
-            }]
-        }
-    };
+  const totalDelayed = delayData.reduce((s, v) => s + (Number(v) || 0), 0);
 
-    return (
-        <div className="row  bg-white p-2 m-1 border">
-            <div className="col-12 col-lg-6 py-1">
-                <span className="text-dark  py-4 heading_fontsize_first">Project Duration</span>
-            </div>
-            <div className="col-12 col-lg-12 p-2 mx-auto" style={{ overflowX: 'auto' }}>
-                <Bar
-                    options={FirstCompBar}
-                    data={FirstCompdata}
-                    height={'65px'}
-                />
-            </div>
+  return (
+    <div className="ed-card">
+      <div className="ed-card-head">
+        <div>
+          <div className="ed-card-title">Project duration</div>
+          <div className="ed-card-sub">Delayed projects grouped by how many days they're late</div>
         </div>
-    );
-}
+        <span className="ed-chip" style={{ color: "#5a48f0", background: "#f3f1ff", borderColor: "#dcd6ff" }}>
+          <span className="ed-chip-dot" style={{ background: "#6d5dfc" }} />
+          {totalDelayed} delayed
+        </span>
+      </div>
+      <div className="ed-card-body">
+        {rangeData.length === 0 ? (
+          <div className="ed-empty">
+            <i className="fa-solid fa-circle-check"></i>
+            No delayed projects. Everything is on schedule.
+          </div>
+        ) : (
+          <div className="md-chart-scroll">
+            <div className="ed-chart-box" style={{ minWidth: chartMinWidth(rangeData.length) }}>
+              <Bar data={chartData} options={makeBarOptions({ yLabel: "Delayed projects" })} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

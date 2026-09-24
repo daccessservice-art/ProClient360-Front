@@ -1,0 +1,306 @@
+/* ==========================================================================
+   Notifications – panel + card (all classes prefixed "nt-")
+   ========================================================================== */
+
+/* ---------- Slide-in panel ---------- */
+.nt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1060;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(20, 18, 40, 0.35);
+  backdrop-filter: blur(2px);
+  animation: ntFade 0.18s ease-out;
+}
+
+.nt-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, calc(100% - 24px));
+  height: calc(100% - 24px);
+  margin: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px -20px rgba(30, 34, 53, 0.45);
+  animation: ntSlide 0.24s ease-out;
+}
+
+@keyframes ntFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes ntSlide {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.nt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #f0f1f6;
+}
+
+.nt-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e2235;
+}
+
+.nt-count {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #6d5dfc;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.nt-sub {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: #8a90a6;
+}
+
+.nt-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #eceef5;
+  background: #ffffff;
+  color: #5b6178;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.nt-close:hover {
+  background: #f5f3ff;
+  color: #6d5dfc;
+}
+
+.nt-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+
+.nt-body::-webkit-scrollbar { width: 4px; }
+.nt-body::-webkit-scrollbar-track { box-shadow: none; background: transparent; }
+.nt-body::-webkit-scrollbar-thumb { background-color: #dcd8fb !important; }
+
+/* ---------- Notification row ---------- */
+.nt-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.nt-item + .nt-item {
+  margin-top: 4px;
+}
+
+.nt-item:hover {
+  background: #f7f6ff;
+}
+
+.nt-item.unread {
+  background: #f5f3ff;
+}
+
+.nt-item.unread:hover {
+  background: #efebff;
+}
+
+.nt-avatar {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #eceef5;
+}
+
+.nt-avatar-fallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #6d5dfc, #a996ff);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.nt-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-sender {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #1e2235;
+}
+
+.nt-sender span:first-child {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6d5dfc;
+}
+
+.nt-msg {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #5b6178;
+  word-break: break-word;
+}
+
+.nt-item.unread .nt-msg,
+.nt-toast.unread .nt-msg {
+  color: #1e2235;
+  font-weight: 500;
+}
+
+.nt-time {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 0.7rem;
+  color: #9a9fb5;
+}
+
+.nt-del {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #9a9fb5;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nt-del:hover {
+  background: #fdecec;
+  color: #dc2626;
+}
+
+/* ---------- Empty / loading ---------- */
+.nt-empty {
+  padding: 60px 20px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #8a90a6;
+}
+
+.nt-empty i {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 1.8rem;
+  color: #cfd2e3;
+}
+
+.nt-empty-title {
+  margin-bottom: 4px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e2235;
+}
+
+.nt-spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 10px;
+  border: 3px solid #e6e3ff;
+  border-top-color: #6d5dfc;
+  border-radius: 50%;
+  animation: ntSpin 0.8s linear infinite;
+}
+
+@keyframes ntSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Footer ---------- */
+.nt-foot {
+  padding: 12px 16px;
+  border-top: 1px solid #f0f1f6;
+}
+
+.nt-clear {
+  width: 100%;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #f6cfd3;
+  background: #ffffff;
+  color: #dc2626;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nt-clear:hover {
+  background: #fdf0f0;
+}
+
+/* ---------- Single notification card (Notification.jsx) ---------- */
+.nt-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #eceef5;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px -14px rgba(30, 34, 53, 0.35);
+}
+
+.nt-toast.unread {
+  border-color: #e2dcff;
+  background: #faf9ff;
+}
+
+.nt-close:focus-visible,
+.nt-del:focus-visible,
+.nt-clear:focus-visible {
+  outline: 2px solid #6d5dfc !important;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nt-overlay,
+  .nt-panel { animation: none; }
+}

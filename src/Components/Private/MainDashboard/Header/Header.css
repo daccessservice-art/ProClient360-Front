@@ -1,0 +1,255 @@
+/* ==========================================================================
+   Header – redesigned UI (all classes prefixed "hd-")
+   ========================================================================== */
+
+.navbar.header.hd-bar {
+  padding: 0 16px;
+  background: #ffffff;
+  border: 1px solid #eceef5;
+  border-radius: 16px;
+  box-shadow: 0 6px 24px -14px rgba(30, 34, 53, 0.25) !important;
+  transition: margin-top 0.2s ease, box-shadow 0.2s ease;
+}
+
+.navbar.header.hd-bar.hd-scrolled {
+  box-shadow: 0 12px 30px -12px rgba(30, 34, 53, 0.3) !important;
+}
+
+.hd-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: 64px;
+}
+
+.hd-left,
+.hd-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.hd-logo {
+  display: block;
+  width: auto;
+  max-height: 42px;
+}
+
+/* ---------- Icon buttons (menu / bell) ---------- */
+.hd-icon-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid #eceef5;
+  background: #ffffff;
+  color: #4b5168;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.hd-icon-btn:hover,
+.hd-icon-btn.active {
+  background: #f5f3ff;
+  border-color: #e2dcff;
+  color: #6d5dfc;
+}
+
+.hd-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.64rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.hd-sep {
+  width: 1px;
+  height: 32px;
+  background: #eceef5;
+}
+
+/* ---------- Profile button ---------- */
+.hd-profile {
+  position: relative;
+}
+
+.hd-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.hd-profile-btn:hover,
+.hd-profile-btn.open {
+  background: #f7f6ff;
+  border-color: #e2dcff;
+}
+
+.hd-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 2px #e2dcff;
+}
+
+.hd-profile-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.hd-name {
+  max-width: 170px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #1e2235;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hd-role {
+  max-width: 170px;
+  font-size: 0.72rem;
+  color: #8a90a6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hd-chevron {
+  font-size: 0.7rem;
+  color: #8a90a6;
+  transition: transform 0.2s ease;
+}
+
+.hd-profile-btn.open .hd-chevron {
+  transform: rotate(180deg);
+}
+
+/* ---------- Profile dropdown ---------- */
+.hd-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 30;
+  width: 250px;
+  padding: 8px;
+  background: #ffffff;
+  border: 1px solid #eceef5;
+  border-radius: 14px;
+  box-shadow: 0 18px 40px -16px rgba(30, 34, 53, 0.3);
+  animation: hdPop 0.16s ease-out;
+}
+
+@keyframes hdPop {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.hd-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #f0f1f6;
+}
+
+.hd-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #4b5168;
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.hd-menu-item i {
+  width: 18px;
+  text-align: center;
+  color: #8a90a6;
+}
+
+.hd-menu-item:hover {
+  background: #f5f3ff;
+  color: #5a48f0;
+}
+
+.hd-menu-item:hover i {
+  color: #6d5dfc;
+}
+
+.hd-menu-item.danger,
+.hd-menu-item.danger i {
+  color: #dc2626;
+}
+
+.hd-menu-item.danger:hover {
+  background: #fdf0f0;
+  color: #b91c1c;
+}
+
+.hd-menu-sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: #f0f1f6;
+}
+
+.hd-icon-btn:focus-visible,
+.hd-profile-btn:focus-visible,
+.hd-menu-item:focus-visible {
+  outline: 2px solid #6d5dfc !important;
+  outline-offset: 2px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 767px) {
+  .hd-profile-text,
+  .hd-sep,
+  .hd-chevron { display: none; }
+  .hd-profile-btn { padding: 2px; }
+  .hd-logo { max-height: 34px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hd-menu { animation: none; }
+  .hd-chevron,
+  .hd-icon-btn,
+  .hd-profile-btn { transition: none; }
+}

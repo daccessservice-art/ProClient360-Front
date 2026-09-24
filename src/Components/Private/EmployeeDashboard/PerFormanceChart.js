@@ -17,6 +17,8 @@ export const PerFormanceChart = () => {
   const maxVal = Math.max(...values);
   const avgVal = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
 
+  const LINE = "#6d5dfc";
+
   const chartData = {
     labels: labels,
     datasets: [
@@ -24,26 +26,18 @@ export const PerFormanceChart = () => {
         label: "Performance",
         data: values,
         fill: true,
-        backgroundColor: function(context) {
-          const chart = context.chart;
-          const {ctx, chartArea} = chart;
-          if (!chartArea) return "rgba(79, 125, 249, 0.1)";
-          const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-          gradient.addColorStop(0, "rgba(79, 125, 249, 0.28)");
-          gradient.addColorStop(0.6, "rgba(79, 125, 249, 0.06)");
-          gradient.addColorStop(1, "rgba(79, 125, 249, 0.0)");
-          return gradient;
-        },
-        borderColor: "#4f7df9",
+        // Plain soft fill (no canvas gradient) – avoids the "non-finite" crash
+        backgroundColor: "rgba(109, 93, 252, 0.12)",
+        borderColor: LINE,
         borderWidth: 3,
         pointBackgroundColor: "#ffffff",
-        pointBorderColor: "#4f7df9",
-        pointBorderWidth: 3,
-        pointRadius: 5,
-        pointHoverRadius: 9,
+        pointBorderColor: LINE,
+        pointBorderWidth: 2.5,
+        pointRadius: 4.5,
+        pointHoverRadius: 8,
         pointHoverBorderWidth: 3,
         pointHoverBackgroundColor: "#ffffff",
-        pointHoverBorderColor: "#4f7df9",
+        pointHoverBorderColor: LINE,
         lineTension: 0.4,
       },
     ],
@@ -52,195 +46,109 @@ export const PerFormanceChart = () => {
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    layout: {
-      padding: {
-        top: 5,
-        right: 5,
-        left: 0,
-        bottom: 0,
-      },
-    },
-    plugins: {
-      legend: {
-        display: false,
-      },
-      tooltip: {
-        backgroundColor: "rgba(30, 41, 59, 0.95)",
-        titleColor: "#f8fafc",
-        bodyColor: "#e2e8f0",
-        titleFont: { size: 12, weight: "bold", family: "Segoe UI" },
-        bodyFont: { size: 14, weight: "600", family: "Segoe UI" },
-        padding: { top: 10, bottom: 10, left: 14, right: 14 },
-        cornerRadius: 10,
-        displayColors: false,
-        borderColor: "rgba(79, 125, 249, 0.3)",
-        borderWidth: 1,
-        callbacks: {
-          title: function (context) {
-            return isYearView ? "Year " + context[0].label : context[0].label;
-          },
-          label: function (context) {
-            return "Performance: " + context.parsed.y + "%";
-          },
+    layout: { padding: { top: 10, right: 8, left: 0, bottom: 0 } },
+    legend: { display: false },
+    hover: { mode: "index", intersect: false },
+    tooltips: {
+      mode: "index",
+      intersect: false,
+      backgroundColor: "rgba(30, 34, 53, 0.95)",
+      titleFontColor: "#f8fafc",
+      bodyFontColor: "#e2e8f0",
+      titleFontSize: 12,
+      bodyFontSize: 13,
+      bodyFontStyle: "bold",
+      xPadding: 14,
+      yPadding: 10,
+      cornerRadius: 10,
+      displayColors: false,
+      callbacks: {
+        title: function (items) {
+          const label = items && items[0] ? items[0].label || items[0].xLabel : "";
+          return isYearView ? "Year " + label : label;
+        },
+        label: function (item) {
+          return "Performance: " + item.yLabel + "%";
         },
       },
     },
     scales: {
       xAxes: [
         {
-          gridLines: {
-            display: false,
-            drawBorder: false,
-          },
-          ticks: {
-            color: "#94a3b8",
-            fontSize: 11,
-            font: {
-              family: "Segoe UI",
-              weight: "500",
-            },
-            padding: 8,
-          },
+          gridLines: { display: false, drawBorder: false },
+          ticks: { fontColor: "#8a90a6", fontSize: 11, padding: 8 },
         },
       ],
       yAxes: [
         {
           gridLines: {
-            color: "#f1f5f9",
+            color: "#eef0f6",
             drawBorder: false,
-            lineWidth: 1,
-            zeroLineColor: "#e2e8f0",
-            zeroLineWidth: 1,
+            borderDash: [4, 4],
+            zeroLineColor: "#e2e5ef",
+            zeroLineBorderDash: [4, 4],
           },
           ticks: {
-            color: "#94a3b8",
+            fontColor: "#8a90a6",
             fontSize: 11,
-            font: {
-              family: "Segoe UI",
-            },
-            padding: 12,
+            padding: 10,
+            min: 0,
+            max: 100,
+            stepSize: 20,
             callback: function (value) {
               return value + "%";
             },
-            maxTicksLimit: 6,
-            stepSize: 20,
           },
-          min: 0,
-          max: 120,
         },
       ],
     },
-    animation: {
-      duration: 1000,
-      easing: "easeOutQuart",
-    },
-    elements: {
-      line: {
-        capBezierPoints: true,
-      },
-    },
+    animation: { duration: 900, easing: "easeOutQuart" },
   };
 
   return (
-    <div className="w-100" style={{ padding: "4px 0 0 0" }}>
-      <div style={{
-        background: "#fff",
-        borderRadius: "16px",
-        border: "1px solid rgba(0,0,0,0.08)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
-        overflow: "hidden",
-        width: "100%",
-      }}>
-        {/* Header */}
-        <div style={{
-          background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-          borderBottom: "1px solid rgba(0,0,0,0.07)",
-          padding: "16px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{
-              width: 36,
-              height: 36,
-              borderRadius: "10px",
-              background: "linear-gradient(135deg, #4f7df9 0%, #6c8cff 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 3px 12px rgba(79,125,249,0.35)",
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-            </div>
-            <div>
-              <h6 className="mb-0 fw-bold" style={{ color: "#1e293b", fontSize: "0.95rem" }}>
-                Performance
-              </h6>
-              <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
-                {isYearView ? "Yearly overview" : "Monthly overview"}
-              </span>
-            </div>
-          </div>
-
-          {/* Badges + Toggle */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: "6px",
-              background: "#f0fdf4", border: "1px solid #bbf7d0",
-              borderRadius: "50px", padding: "4px 12px",
-            }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e" }} />
-              <span style={{ fontSize: "0.73rem", fontWeight: 700, color: "#16a34a" }}>Peak: {maxVal}%</span>
-            </div>
-            <div style={{
-              display: "flex", alignItems: "center", gap: "6px",
-              background: "#eff6ff", border: "1px solid #bfdbfe",
-              borderRadius: "50px", padding: "4px 12px",
-            }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4f7df9" }} />
-              <span style={{ fontSize: "0.73rem", fontWeight: 700, color: "#2563eb" }}>Avg: {avgVal}%</span>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{
-                fontSize: "0.76rem", fontWeight: 600,
-                color: !isYearView ? "#4f7df9" : "#94a3b8",
-                transition: "color 0.2s",
-              }}>Monthly</span>
-              <div
-                onClick={() => setIsYearView(!isYearView)}
-                style={{
-                  width: 46, height: 24, borderRadius: 50,
-                  background: isYearView ? "linear-gradient(135deg, #4f7df9, #6c8cff)" : "#e2e8f0",
-                  cursor: "pointer", position: "relative",
-                  transition: "background 0.3s ease",
-                  boxShadow: isYearView ? "0 2px 10px rgba(79,125,249,0.4)" : "inset 0 1px 3px rgba(0,0,0,0.1)",
-                }}
-              >
-                <div style={{
-                  width: 18, height: 18, borderRadius: "50%",
-                  background: "#fff", position: "absolute",
-                  top: 3, left: isYearView ? 25 : 3,
-                  transition: "left 0.3s cubic-bezier(0.68,-0.55,0.265,1.55)",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
-                }} />
-              </div>
-              <span style={{
-                fontSize: "0.76rem", fontWeight: 600,
-                color: isYearView ? "#4f7df9" : "#94a3b8",
-                transition: "color 0.2s",
-              }}>Yearly</span>
-            </div>
+    <div className="ed-card">
+      <div className="ed-card-head">
+        <div>
+          <div className="ed-card-title">Performance overview</div>
+          <div className="ed-card-sub">
+            {isYearView ? "Yearly performance score" : "Monthly performance score"}
           </div>
         </div>
 
-        {/* Chart */}
-        <div style={{ padding: "8px 20px 20px 20px", height: "330px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="ed-chip" style={{ color: "#15803d", background: "#effaf3", borderColor: "#c9eed8" }}>
+            <span className="ed-chip-dot" style={{ background: "#22b35e" }} />
+            Peak {maxVal}%
+          </span>
+          <span className="ed-chip" style={{ color: "#5a48f0", background: "#f3f1ff", borderColor: "#dcd6ff" }}>
+            <span className="ed-chip-dot" style={{ background: LINE }} />
+            Avg {avgVal}%
+          </span>
+          <div className="ed-seg" role="tablist" aria-label="Chart period">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isYearView}
+              className={!isYearView ? "active" : ""}
+              onClick={() => setIsYearView(false)}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isYearView}
+              className={isYearView ? "active" : ""}
+              onClick={() => setIsYearView(true)}
+            >
+              Yearly
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="ed-card-body">
+        <div className="ed-chart-box">
           <Line data={chartData} options={chartOptions} />
         </div>
       </div>

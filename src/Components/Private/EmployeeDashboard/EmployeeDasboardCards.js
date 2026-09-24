@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { CompanyInfEmployeeDashboardPieChartoPieChart } from "./EmployeeDashboardPieChart";
 
 const isSalesDesignation = (designation = "") => {
     const d = designation.toLowerCase();
@@ -13,7 +12,13 @@ const isSalesDesignation = (designation = "") => {
     );
 };
 
-export const EmployeeDasboardCards = ({ totalProjectCount, completedProjectCount, inproccessProjectCount }) => {
+export const EmployeeDasboardCards = ({
+    totalProjectCount,
+    completedProjectCount,
+    inproccessProjectCount,
+    assignedTaskCount = 0,
+    activeTaskCount = 0,
+}) => {
     const [isSalesEmployee, setIsSalesEmployee] = useState(false);
 
     useEffect(() => {
@@ -28,61 +33,75 @@ export const EmployeeDasboardCards = ({ totalProjectCount, completedProjectCount
     // ── HIDE for Sales, Marketing, AMC, BDE, Sr.BDE, Tender ──
     if (isSalesEmployee) return null;
 
+    const total = Number(totalProjectCount) || 0;
+    const completed = Number(completedProjectCount) || 0;
+    const inprocess = Number(inproccessProjectCount) || 0;
+    const completionRate = total ? Math.round((completed / total) * 100) : 0;
+    const inprocessShare = total ? Math.round((inprocess / total) * 100) : 0;
+
+    const cards = [
+        {
+            label: "Total projects",
+            value: totalProjectCount ?? 0,
+            icon: "fa-folder-open",
+            accent: "#7c5cfc",
+            tint: "#f3efff",
+            foot: <>All projects assigned to you</>,
+        },
+        {
+            label: "Completed projects",
+            value: completedProjectCount ?? 0,
+            icon: "fa-circle-check",
+            accent: "#22b35e",
+            tint: "#ecf9f1",
+            foot: <><b>{completionRate}%</b> completion rate</>,
+        },
+        {
+            label: "In progress",
+            value: inproccessProjectCount ?? 0,
+            icon: "fa-hourglass-half",
+            accent: "#f59e0b",
+            tint: "#fff5e8",
+            foot: <><b>{inprocessShare}%</b> of your projects</>,
+        },
+        {
+            label: "Assigned tasks",
+            value: assignedTaskCount,
+            icon: "fa-clipboard-list",
+            accent: "#3b82f6",
+            tint: "#edf4ff",
+            foot: <>Waiting to be started</>,
+        },
+        {
+            label: "Active tasks",
+            value: activeTaskCount,
+            icon: "fa-bolt",
+            accent: "#8b5cf6",
+            tint: "#f5efff",
+            foot: <>Currently being worked on</>,
+        },
+    ];
+
     return (
-        <div className="row  bg-white p-2 m-1 border rounded">
-            <div className="col-12 col-lg-8 py-1">
-                <div className="row pt-3">
-
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer">
-                        <div className="p-4 background_style bg_sky">
-                            <div className="row">
-                                <div className="col-9">
-                                    <h6 className="text-dark card_heading">Total Projects</h6>
-                                    <h2 className="pt-2 fw-bold card_count demo_bottom">{totalProjectCount}</h2>
-                                </div>
-                                <div className="col-3 d-flex align-items-center justify-content-center">
-                                    <img src="./static/assets/img/planning.png" className="img_opacity all_card_img_size" alt="img not found" srcSet="" />
-                                </div>
-                            </div>
+        <div className="ed-kpi-grid">
+            {cards.map((c) => (
+                <div
+                    key={c.label}
+                    className="ed-kpi"
+                    style={{ "--accent": c.accent, "--tint": c.tint }}
+                >
+                    <div className="ed-kpi-top">
+                        <div style={{ minWidth: 0 }}>
+                            <div className="ed-kpi-label">{c.label}</div>
+                            <div className="ed-kpi-value">{c.value}</div>
+                        </div>
+                        <div className="ed-kpi-icon">
+                            <i className={`fa-solid ${c.icon}`}></i>
                         </div>
                     </div>
-
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer">
-                        <div className="p-4 background_style PurpleColor">
-                            <div className="row">
-                                <div className="col-9">
-                                    <h6 className="text-dark card_heading">Completed Projects</h6>
-                                    <h2 className="pt-2 fw-bold card_count">{completedProjectCount}</h2>
-                                </div>
-                                <div className="col-3 d-flex align-items-center justify-content-center">
-                                    <img src="./static/assets/img/checked.png" className="img_opacity all_card_img_size" alt="img not found" srcSet="" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="col-12 col-md-4 pb-3 cursor-pointer">
-                        <div className="p-4 background_style pinkcolor">
-                            <div className="row">
-                                <div className="col-9">
-                                    <h6 className="text-dark card_heading">Inprocess Projects</h6>
-                                    <h2 className="pt-2 fw-bold card_count">{inproccessProjectCount}</h2>
-                                </div>
-                                <div className="col-3 d-flex align-items-center justify-content-center">
-                                    <img src="./static/assets/img/Inprocess.png" className="img_opacity all_card_img_size" alt="" srcSet="" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
+                    <div className="ed-kpi-foot">{c.foot}</div>
                 </div>
-            </div>
-
-            <CompanyInfEmployeeDashboardPieChartoPieChart
-                totalProjectCount={totalProjectCount}
-                completedProjectCount={completedProjectCount}
-                inproccessProjectCount={inproccessProjectCount}
-            />
+            ))}
         </div>
     );
 };

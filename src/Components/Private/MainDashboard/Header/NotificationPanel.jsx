@@ -9,6 +9,19 @@ import {
   removeNotification,
 } from "../../../../redux/slices/notificationSlice";
 import { getNotifications, deleteNotification } from "../../../../hooks/useNotification";
+import "./Notification.css";
+
+// ── avatar with initials fallback when the photo is missing or fails to load ──
+const SenderAvatar = ({ src, name }) => {
+  const [failed, setFailed] = useState(false);
+  const initials = (name || "?")
+    .split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+  if (!src || failed) {
+    return <div className="nt-avatar nt-avatar-fallback">{initials}</div>;
+  }
+  return <img className="nt-avatar" src={src} alt="" onError={() => setFailed(true)} />;
+};
 
 const NotificationPanel = ({ closePopUp }) => {
   const dispatch = useDispatch();
@@ -21,7 +34,7 @@ const NotificationPanel = ({ closePopUp }) => {
       try {
         const fetchedNotifications = await getNotifications();
         console.log("Fetched notifications:", fetchedNotifications);
-        
+
         if (fetchedNotifications.success && fetchedNotifications.notifications) {
           dispatch(setNotifications(fetchedNotifications.notifications));
         } else {
@@ -34,9 +47,16 @@ const NotificationPanel = ({ closePopUp }) => {
         setLoading(false);
       }
     };
-    
+
     fetchNotifications();
   }, [dispatch]);
+
+  // ── close with Esc key ──
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && closePopUp();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [closePopUp]);
 
   const handleNotificationClick = (id) => {
     dispatch(markAsSeen(id));
@@ -59,15 +79,15 @@ const NotificationPanel = ({ closePopUp }) => {
 
   const getTimeAgo = (timestamp) => {
     if (!timestamp) return "Just now";
-    
+
     const timeNow = Date.now();
     const time = new Date(timestamp).getTime();
-    
+
     if (isNaN(time)) {
-        console.warn("Invalid timestamp:", timestamp);
-        return "Just now";
+      console.warn("Invalid timestamp:", timestamp);
+      return "Just now";
     }
-          
+
     const difference = timeNow - time;
     const seconds = Math.floor(difference / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -85,117 +105,94 @@ const NotificationPanel = ({ closePopUp }) => {
 
   return (
     <div
-      className="modal fade show"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        height: "100vh",
-        position: "fixed",
-        width: "100%",
-        right: 0,
-        justifyContent: "center",
-      }}
-      tabIndex="-1"
+      className="nt-overlay"
       role="dialog"
-      onClick={(e) => e.target.classList.contains("modal") && closePopUp()}
+      aria-modal="true"
+      aria-labelledby="nt-title"
+      onClick={(e) => e.target === e.currentTarget && closePopUp()}
     >
-      <div
-        className="modal-dialog position-fixed end-0 top-50 translate-middle-y"
-        style={{
-          height: "86%",
-          width: "30%",
-          minWidth: "300px",
-        }}
-      >
-        <div className="modal-content h-100 d-flex flex-column">
-          {/* Modal Header */}
-          <div className="modal-header d-flex justify-content-between align-items-center">
-            <h5 className="modal-title mb-0">
+      <div className="nt-panel">
+
+        {/* ── Header ── */}
+        <div className="nt-head">
+          <div>
+            <div className="nt-title" id="nt-title">
               Notifications
-              {unseenCount > 0 && (
-                <span className="badge bg-danger ms-2">{unseenCount}</span>
-              )}
-            </h5>
-            <button
-              type="button"
-              className="btn-close"
-              onClick={closePopUp}
-              aria-label="Close"
-            ></button>
+              {unseenCount > 0 && <span className="nt-count">{unseenCount}</span>}
+            </div>
+            <div className="nt-sub">
+              {unseenCount > 0
+                ? `You have ${unseenCount} unread notification${unseenCount !== 1 ? "s" : ""}`
+                : "You're all caught up"}
+            </div>
           </div>
+          <button type="button" className="nt-close" onClick={closePopUp} aria-label="Close notifications">
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
 
-          <div className="modal-body" style={{ overflowY: "auto", maxHeight: "calc(90vh - 56px)" }}>
-            {loading ? (
-              <div className="text-center py-4">
-                <div className="spinner-border" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
-                <p className="mt-2">Loading notifications...</p>
-              </div>
-            ) : notifications && notifications.length > 0 ? (
-              notifications.map((notification) => (
-                <div 
-                  key={notification._id} 
-                  className={`p-3 my-2 rounded d-flex justify-content-between align-items-center ${!notification.isSeen ? 'bg-light' : 'bg-white'}`}
-                  style={{ 
-                    borderLeft: !notification.isSeen ? '4px solid #0d6efd' : 'none',
-                    cursor: "pointer"
-                  }}
-                  // When clicking on the notification, mark it as seen
-                  onClick={() => handleNotificationClick(notification._id)}
-                >
-                  <div className="d-flex align-items-center">
-                    <img
-                      className="img-thumbnail rounded-circle me-3"
-                      style={{ width: "3rem" }}
-                      src={notification?.sender?.profilePic || '/default-avatar.png'}
-                      alt="Sender-Profile"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = '/default-avatar.png';
-                      }}
-                    />
-                    <div>
-                      <h6 className="mb-0">{notification?.sender?.name}</h6>
-                      <p className={`mb-0 ${!notification.isSeen ? "fw-bold" : ""}`}>
-                        {notification?.message}
-                      </p>
-                      <p className="mb-0 text-muted small">{getTimeAgo(notification?.createdAt)}</p>
-                    </div>
-                  </div>
-
-                  {/* Delete Button */}
-                  <button
-                    className="border-0 bg-transparent p-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteNotification(notification._id);
-                    }}
-                    style={{ cursor: "pointer", color: "red" }}
-                  >
-                    <RiDeleteBin6Line size={20} />
-                  </button>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-muted">No Notifications</p>
-              </div>
-            )}
-          </div>
-
-          {/* ClearAll button using dispatch send action to the redux store */}
-          {notifications && notifications.length > 0 && (
-            <div className="modal-footer">
-              <button 
-                className="btn btn-outline-danger w-100" 
-                onClick={() =>dispatch(clearAllNotifications())} 
+        {/* ── List ── */}
+        <div className="nt-body">
+          {loading ? (
+            <div className="nt-empty">
+              <span className="nt-spinner"></span>
+              <div>Loading notifications…</div>
+            </div>
+          ) : notifications && notifications.length > 0 ? (
+            notifications.map((notification) => (
+              <div
+                key={notification._id}
+                className={`nt-item ${!notification.isSeen ? "unread" : ""}`}
+                onClick={() => handleNotificationClick(notification._id)}
               >
-                <i className="fa-solid fa-trash me-2"></i> Clear All Notifications
-              </button>
+                <SenderAvatar
+                  src={notification?.sender?.profilePic}
+                  name={notification?.sender?.name}
+                />
+
+                <div className="nt-content">
+                  <div className="nt-sender">
+                    <span>{notification?.sender?.name || "System"}</span>
+                    {!notification.isSeen && <span className="nt-dot" aria-label="Unread" />}
+                  </div>
+                  <p className="nt-msg">{notification?.message}</p>
+                  <div className="nt-time">
+                    <i className="fa-regular fa-clock"></i>
+                    {getTimeAgo(notification?.createdAt)}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="nt-del"
+                  title="Delete notification"
+                  aria-label="Delete notification"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteNotification(notification._id);
+                  }}
+                >
+                  <RiDeleteBin6Line size={17} />
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="nt-empty">
+              <i className="fa-solid fa-bell-slash"></i>
+              <div className="nt-empty-title">No notifications</div>
+              <div>New updates about your work will appear here.</div>
             </div>
           )}
         </div>
+
+        {/* ── Footer ── */}
+        {notifications && notifications.length > 0 && (
+          <div className="nt-foot">
+            <button type="button" className="nt-clear" onClick={() => dispatch(clearAllNotifications())}>
+              <i className="fa-solid fa-trash"></i> Clear all notifications
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

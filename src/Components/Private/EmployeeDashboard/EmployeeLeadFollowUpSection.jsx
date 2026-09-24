@@ -2,22 +2,37 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { getPurchaseOrders, approvePurchaseOrder } from "../../../hooks/usePurchaseOrder";
-// ── NEW: reuse the same View PO popup used in PurchaseOrderMasterGrid ──
+// ── reuse the same View PO popup used in PurchaseOrderMasterGrid ──
 // ⚠️ Adjust this relative path if this file lives somewhere other than
 // Components/Private/EmployeeDashboard/ — it must resolve to
 // Components/Private/CommonPopUp/ViewPurchaseOrderPopUp
 import ViewPurchaseOrderPopUp from "../CommonPopUp/ViewPurchaseOrderPopUp";
-// ── NEW: Old AMC History expiry alerts (AMC Executive / Vice President / Service Manager only) ──
+// ── Old AMC History expiry alerts (AMC Executive / Vice President / Service Manager only) ──
 import { getOldAMCHistory } from "../../../hooks/useOldAMCHistory";
 
-// ── NEW: how many days before an AMC contract's End Date the blinker should
-// start showing. Example: End Date 20 Sep 2026 → blinker starts 1 Aug 2026
-// (50 days before). Change this single number to adjust the window. ──
+// ── how many days before an AMC contract's End Date the blinker should start showing ──
 const ALERT_WINDOW_DAYS = 50;
 
-// ── NEW: designations allowed to see the AMC Expiry Alerts tab. Matched
-// case-insensitively, so "AMC Executive" / "amc executives" etc. all work. ──
+// ── designations allowed to see the AMC Expiry Alerts tab (case-insensitive) ──
 const AMC_ALERT_DESIGNATIONS = ["amc executive", "amc executives", "vice president", "service manager"];
+
+// ── soft coloured badge for any status text ──
+const softBadge = (status = "") => {
+  const s = String(status).toLowerCase();
+  if (s.includes("won") || s.includes("complete") || s.includes("finish")) return { background: "#e8f8ef", color: "#15803d" };
+  if (s.includes("lost") || s.includes("reject")) return { background: "#fdecec", color: "#dc2626" };
+  if (s.includes("pending")) return { background: "#fff4e5", color: "#c2410c" };
+  if (s.includes("ongoing") || s.includes("process") || s.includes("progress")) return { background: "#eaf2ff", color: "#2563eb" };
+  if (s.includes("assign")) return { background: "#f1edff", color: "#6d28d9" };
+  return { background: "#f1f3f7", color: "#475467" };
+};
+
+const progressColor = (lvl) => {
+  if (lvl >= 70) return "#22b35e";
+  if (lvl >= 40) return "#6d5dfc";
+  if (lvl > 0) return "#f59e0b";
+  return "#c9cde0";
+};
 
 export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], inprocessTasks = [] }) => {
 
@@ -32,18 +47,16 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   const [approvingId, setApprovingId] = useState(null);
   const poPollRef = useRef(null);
 
-  // ── NEW: View PO popup state ──
+  // ── View PO popup state ──
   const [viewPopUpShow, setViewPopUpShow] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
 
-  // ── NEW: AMC expiry alert state ──
+  // ── AMC expiry alert state ──
   const [amcAlerts, setAmcAlerts] = useState([]);
   const [amcLoading, setAmcLoading] = useState(false);
   const amcPollRef = useRef(null);
 
-  // ── NEW: "Show More" pagination — every tab (Assigned Tasks, Active Tasks,
-  // Today/Overdue/Pending, PO Approval, AMC Expiry Alerts) starts by showing
-  // only 10 rows; clicking "Show More" reveals 10 more at a time. ──
+  // ── "Show More" pagination — 10 rows at a time on every tab ──
   const SHOW_MORE_STEP = 10;
   const [visibleCount, setVisibleCount] = useState(SHOW_MORE_STEP);
 
@@ -97,7 +110,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return dept.includes("purchase") && dept.includes("store") && desig === "ceo";
   }, [userDepartment, userDesignation]);
 
-  // ── NEW: is this user allowed to see AMC expiry alerts? ──
+  // ── is this user allowed to see AMC expiry alerts? ──
   const isAMCAlertRole = useMemo(() => {
     const d = (userDesignation || "").toLowerCase().trim();
     if (!d) return false;
@@ -123,10 +136,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     }
   };
 
-  // ── initial fetch + background polling every 20s so the count/list
-  // stays live when POs are created/approved elsewhere, without needing
-  // a manual refresh or page reload. Polling is silent (no loading spinner
-  // flicker) and only runs while this user is the Purchase & Store CEO. ──
+  // ── initial fetch + silent 20s polling (Purchase & Store CEO only) ──
   useEffect(() => {
     if (!isPurchaseCEO) return;
 
@@ -141,9 +151,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     };
   }, [isPurchaseCEO]);
 
-  // ── NEW: fetch AMC records whose End Date falls inside the alert window
-  // (already expired, or expiring within ALERT_WINDOW_DAYS days from today).
-  // Pulls the full old-AMC-history list and filters client-side. ──
+  // ── fetch AMC records whose End Date is expired or within ALERT_WINDOW_DAYS ──
   const fetchAMCAlerts = async (silent = false) => {
     if (!silent) setAmcLoading(true);
     try {
@@ -160,7 +168,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
             const end = new Date(r.endDate);
             if (isNaN(end.getTime())) return false;
             end.setHours(0, 0, 0, 0);
-            return end <= windowEnd; // includes already-expired + expiring within window
+            return end <= windowEnd;
           })
           .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
 
@@ -176,7 +184,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     }
   };
 
-  // ── NEW: initial fetch + 20s poll, only for allowed designations ──
+  // ── initial fetch + 20s poll, only for allowed designations ──
   useEffect(() => {
     if (!isAMCAlertRole) return;
 
@@ -212,7 +220,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     }
   };
 
-  // ── NEW: open the View PO popup for a given row ──
+  // ── open the View PO popup for a given row ──
   const handleViewPO = (po) => {
     setSelectedPO(po);
     setViewPopUpShow(true);
@@ -254,17 +262,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return '₹' + Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  const statusBadge = (status) => {
-    const map = {
-      Won:     { bg: "#198754", color: "#fff" },
-      Ongoing: { bg: "#0d6efd", color: "#fff" },
-      Pending: { bg: "#ffc107", color: "#333" },
-      Lost:    { bg: "#dc3545", color: "#fff" },
-    };
-    return map[status] || { bg: "#6c757d", color: "#fff" };
-  };
-
-  // ── NEW: expired vs expiring-soon status + days-left label for AMC alerts ──
+  // ── expired vs expiring-soon status + days-left label for AMC alerts ──
   const getAMCStatus = (endDateStr) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -285,14 +283,13 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   });
 
   const allTabs = [
-    { key: "today",    label: "Today Follow-up",  count: todayLeads.length,            color: "#0d6efd", pulse: "pulseBlue",   leadTab: true  },
-    { key: "pending",  label: "Pending Enquiries", count: pendingLeads.length,           color: "#f97316", pulse: "pulseOrange", leadTab: true  },
-    { key: "overdue",  label: "Overdue Follow-up", count: overdueLeads.length,           color: "#dc2626", pulse: "pulseRed",    leadTab: true  },
-    { key: "assigned", label: "Assigned Tasks",    count: (assignedTasks || []).length,  color: "#8b5cf6", pulse: "pulsePurple", leadTab: false },
-    { key: "active",   label: "Active Tasks",      count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
-    { key: "poApproval", label: "PO Approval", count: pendingPOs.length, color: "#0891b2", pulse: "pulseBlue", leadTab: false, poTab: true },
-    // ── NEW: AMC Expiry Alerts tab ──
-    { key: "amcExpiry", label: "AMC Expiry Alerts", count: amcAlerts.length, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
+    { key: "today",    label: "Today follow-up",  count: todayLeads.length,            color: "#0d6efd", pulse: "pulseBlue",   leadTab: true  },
+    { key: "pending",  label: "Pending enquiries", count: pendingLeads.length,           color: "#f97316", pulse: "pulseOrange", leadTab: true  },
+    { key: "overdue",  label: "Overdue follow-up", count: overdueLeads.length,           color: "#dc2626", pulse: "pulseRed",    leadTab: true  },
+    { key: "assigned", label: "Assigned tasks",    count: (assignedTasks || []).length,  color: "#7c5cfc", pulse: "pulsePurple", leadTab: false },
+    { key: "active",   label: "Active tasks",      count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
+    { key: "poApproval", label: "PO approval", count: pendingPOs.length, color: "#0891b2", pulse: "pulseBlue", leadTab: false, poTab: true },
+    { key: "amcExpiry", label: "AMC expiry alerts", count: amcAlerts.length, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
   ];
 
   const tabs = allTabs.filter(tab => {
@@ -325,12 +322,11 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   const isAMCTab = activeTab === "amcExpiry";
   const activeTabInfo = tabs.find(t => t.key === activeTab);
 
-  // ── NEW: reset "Show More" back to 10 whenever the active tab changes ──
+  // ── reset "Show More" back to 10 whenever the active tab changes ──
   useEffect(() => {
     setVisibleCount(SHOW_MORE_STEP);
   }, [activeTab]);
 
-  // ── NEW: only render the first `visibleCount` rows; "Show More" bumps this up ──
   const displayedData = currentData.slice(0, visibleCount);
   const hasMore = currentData.length > visibleCount;
 
@@ -343,445 +339,231 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   const getDotColor = () => {
     if (activeTab === "overdue") return "#8b0000";
     if (activeTab === "today")   return "#dc3545";
-    return activeTabInfo?.color;
+    return activeTabInfo?.color || "#6d5dfc";
+  };
+
+  // ── small context chip in the card header ──
+  const headerChip = () => {
+    const chip = (text, color, bg, border) => (
+      <span className="ed-chip" style={{ color, background: bg, borderColor: border }}>{text}</span>
+    );
+    if (activeTab === "today")      return chip(<><i className="fa-solid fa-calendar-day"></i> {todayDate}</>, "#b91c1c", "#fdf0f0", "#f6cfd3");
+    if (activeTab === "overdue")    return chip(<><i className="fa-solid fa-triangle-exclamation"></i> Action required</>, "#8b0000", "#fbeeee", "#efc9c9");
+    if (activeTab === "pending")    return chip(<><i className="fa-solid fa-clock"></i> Pending</>, "#c2410c", "#fff4e8", "#fbd9b5");
+    if (activeTab === "poApproval") return chip(<><i className="fa-solid fa-file-invoice"></i> Awaiting approval</>, "#0e7490", "#ecf8fb", "#bfe5ee");
+    if (activeTab === "amcExpiry")  return chip(<><i className="fa-solid fa-bell"></i> Expiring within {ALERT_WINDOW_DAYS} days</>, "#b91c1c", "#fdf0f0", "#f6cfd3");
+    if (activeTab === "assigned")   return chip(<><i className="fa-solid fa-clipboard-list"></i> Not started</>, "#6d28d9", "#f3efff", "#ddd3ff");
+    if (activeTab === "active")     return chip(<><i className="fa-solid fa-bolt"></i> In progress</>, "#15803d", "#effaf3", "#c9eed8");
+    return null;
+  };
+
+  const idxBox = (idx) => (
+    <span className="ed-row-idx">{String(idx + 1).padStart(2, "0")}</span>
+  );
+
+  const renderRows = () => {
+    if (isPOTab && poLoading) {
+      return <div className="ed-empty"><span className="ed-spinner"></span><div>Loading pending purchase orders…</div></div>;
+    }
+    if (isAMCTab && amcLoading) {
+      return <div className="ed-empty"><span className="ed-spinner"></span><div>Loading AMC expiry alerts…</div></div>;
+    }
+    if (currentData.length === 0) {
+      return (
+        <div className="ed-empty">
+          <i className="fa-solid fa-inbox"></i>
+          Nothing here right now. New items will appear automatically.
+        </div>
+      );
+    }
+
+    // ── AMC expiry rows ──
+    if (isAMCTab) {
+      return displayedData.map((r, idx) => {
+        const status = getAMCStatus(r.endDate);
+        const c = status.expired ? "#8b0000" : "#dc2626";
+        return (
+          <div
+            key={r._id}
+            className="ed-row"
+            style={{ animation: status.expired ? "blinkDarkRed 1.4s infinite" : "blinkRed 1.4s infinite" }}
+          >
+            {idxBox(idx)}
+            <div className="ed-row-main">
+              <div className="ed-row-title"><span>{r.custName || "N/A"}</span></div>
+              <div className="ed-row-sub">
+                <span><i className="fa-solid fa-location-dot"></i>{r.zone || "N/A"}</span>
+                <span><i className="fa-solid fa-user"></i>{r.ownedBy || "N/A"}</span>
+              </div>
+            </div>
+            <div className="ed-row-right">
+              <span className="ed-date-pill" style={{ color: c, background: `${c}10`, borderColor: `${c}33` }}>
+                <i className="fa-solid fa-calendar-xmark"></i>{formatDate(r.endDate)}
+              </span>
+              <span className="ed-badge" style={{ background: c, color: "#fff" }}>{status.label}</span>
+            </div>
+          </div>
+        );
+      });
+    }
+
+    // ── PO approval rows ──
+    if (isPOTab) {
+      return displayedData.map((po, idx) => (
+        <div key={po._id} className="ed-row">
+          {idxBox(idx)}
+          <div className="ed-row-main">
+            <div className="ed-row-title"><span>{po.orderNumber || "N/A"}</span></div>
+            <div className="ed-row-sub">
+              <span><i className="fa-solid fa-truck"></i>{po.vendor?.vendorName || "N/A"}</span>
+              <span><i className="fa-solid fa-calendar-days"></i>{formatDate(po.orderDate)}</span>
+            </div>
+          </div>
+          <div className="ed-row-right">
+            <span className="ed-row-amount">{formatAmount(po.grandTotal)}</span>
+            <button
+              type="button"
+              className="ed-icon-btn"
+              onClick={() => handleViewPO(po)}
+              title="View purchase order"
+              aria-label="View purchase order"
+            >
+              <i className="fa-solid fa-eye"></i>
+            </button>
+            <button
+              type="button"
+              className="ed-approve-btn"
+              disabled={approvingId === po._id}
+              onClick={() => handleApprovePO(po._id)}
+            >
+              {approvingId === po._id ? "Approving…" : "Approve"}
+            </button>
+          </div>
+        </div>
+      ));
+    }
+
+    // ── Task rows ──
+    if (isTaskTab) {
+      return displayedData.map((item, idx) => {
+        const lvl = Math.max(0, Math.min(100, Number(item.taskLevel) || 0));
+        const status = item.taskStatus || (activeTab === "assigned" ? "Assigned" : "In progress");
+        const pc = progressColor(lvl);
+        return (
+          <div key={item._id} className="ed-row">
+            {idxBox(idx)}
+            <div className="ed-row-main">
+              <div className="ed-row-title">
+                <span className="ed-tab-dot" style={{ background: activeTabInfo?.color }} />
+                <span>{item.taskName?.name || "N/A"}</span>
+              </div>
+              <div className="ed-row-sub">
+                <span><i className="fa-solid fa-play"></i>{formatDate(item.startDate)}</span>
+                <span><i className="fa-solid fa-flag-checkered"></i>{formatDate(item.endDate)}</span>
+              </div>
+            </div>
+            <div className="ed-row-right">
+              <span className="ed-badge" style={softBadge(status)}>{status}</span>
+              <div className="ed-progress-wrap">
+                <div className="ed-progress"><span style={{ width: `${lvl}%`, background: pc }} /></div>
+                <span className="ed-pct" style={{ color: lvl > 0 ? pc : "#8a90a6" }}>{lvl}%</span>
+              </div>
+            </div>
+          </div>
+        );
+      });
+    }
+
+    // ── Lead rows (today / pending / overdue) ──
+    const dc = getDotColor();
+    return displayedData.map((item, idx) => (
+      <div key={item._id} className="ed-row" style={{ animation: getRowAnimation() }}>
+        {idxBox(idx)}
+        <div className="ed-row-main">
+          <div className="ed-row-title">
+            <span className="ed-tab-dot" style={{ background: dc }} />
+            <span>{item.SENDER_COMPANY || "N/A"}</span>
+          </div>
+          <div className="ed-row-sub">
+            <span><i className="fa-solid fa-user"></i>{item.SENDER_NAME || "N/A"}</span>
+            <span><i className="fa-solid fa-box"></i>{item.QUERY_PRODUCT_NAME || "N/A"}</span>
+          </div>
+        </div>
+        <div className="ed-row-right">
+          <span
+            className="ed-date-pill"
+            style={{ color: dc, background: `${dc}12`, borderColor: `${dc}33` }}
+            title={activeTab === "overdue" ? "Overdue since" : "Next follow-up"}
+          >
+            <i className="fa-solid fa-calendar-days"></i>{formatDate(item.nextFollowUpDate)}
+          </span>
+          <span className="ed-badge" style={softBadge(item.STATUS)}>{item.STATUS || "N/A"}</span>
+        </div>
+      </div>
+    ));
   };
 
   return (
-    <div className="w-100" style={{ padding: "4px 0 0 0" }}>
-      <div style={{
-        background: "#fff",
-        borderRadius: "16px",
-        border: "1px solid rgba(0,0,0,0.08)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
-        overflow: "hidden",
-        width: "100%",
-      }}>
-
-        {/* ── Header ── */}
-        <div style={{
-          background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-          borderBottom: "1px solid rgba(0,0,0,0.07)",
-          padding: "14px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "8px",
-        }}>
-          <h6 className="mb-0 fw-bold" style={{ color: "#1e293b", fontSize: "0.95rem" }}>
-            Work Status Overview
-          </h6>
-          {activeTab === "today" && (
-            <span style={{
-              fontSize: "0.72rem", color: "#b91c1c",
-              background: "rgba(220,53,69,0.07)",
-              border: "1px solid rgba(220,53,69,0.18)",
-              borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
-            }}>📅 {todayDate}</span>
-          )}
-          {activeTab === "overdue" && (
-            <span style={{
-              fontSize: "0.72rem", color: "#8b0000",
-              background: "rgba(139,0,0,0.07)",
-              border: "1px solid rgba(139,0,0,0.18)",
-              borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
-            }}>⚠️ Action Required</span>
-          )}
-          {activeTab === "pending" && (
-            <span style={{
-              fontSize: "0.72rem", color: "#4338ca",
-              background: "rgba(99,102,241,0.07)",
-              border: "1px solid rgba(99,102,241,0.18)",
-              borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
-            }}>🕐 Pending</span>
-          )}
-          {activeTab === "poApproval" && (
-            <span style={{
-              fontSize: "0.72rem", color: "#0e7490",
-              background: "rgba(8,145,178,0.07)",
-              border: "1px solid rgba(8,145,178,0.18)",
-              borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
-            }}>🧾 Awaiting Approval</span>
-          )}
-          {activeTab === "amcExpiry" && (
-            <span style={{
-              fontSize: "0.72rem", color: "#b91c1c",
-              background: "rgba(220,53,69,0.07)",
-              border: "1px solid rgba(220,53,69,0.18)",
-              borderRadius: "8px", padding: "3px 10px", fontWeight: 600,
-            }}>⏰ Expiring / Expired within {ALERT_WINDOW_DAYS} days</span>
-          )}
+    <div className="ed-card">
+      <div className="ed-card-head">
+        <div>
+          <div className="ed-card-title">Work status overview</div>
+          <div className="ed-card-sub">Your tasks and follow-ups in one place</div>
         </div>
-
-        {/* ── Pill Tabs ── */}
-        <div style={{
-          padding: "14px 20px 12px",
-          display: "flex",
-          flexWrap: "nowrap",
-          gap: "8px",
-          width: "100%",
-          boxSizing: "border-box",
-        }}>
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                style={{
-                  flex: 1,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "6px",
-                  padding: "7px 8px",
-                  borderRadius: "50px",
-                  border: `1.5px solid ${isActive ? tab.color : "rgba(0,0,0,0.12)"}`,
-                  background: isActive ? `${tab.color}12` : "#fff",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  fontWeight: 600,
-                  fontSize: "0.75rem",
-                  color: isActive ? tab.color : "#64748b",
-                  boxShadow: isActive ? `0 2px 12px ${tab.color}30` : "none",
-                  whiteSpace: "nowrap",
-                  minWidth: 0,
-                }}
-              >
-                <span style={{
-                  width: 7, height: 7, borderRadius: "50%",
-                  background: tab.color, flexShrink: 0,
-                  animation: `${tab.pulse} 1.4s infinite`,
-                }} />
-                {tab.label}
-                <span style={{
-                  minWidth: "20px", height: "20px", borderRadius: "50px",
-                  background: tab.color, color: "#fff",
-                  fontSize: "0.68rem", fontWeight: 700,
-                  display: "inline-flex", alignItems: "center",
-                  justifyContent: "center", padding: "0 5px",
-                  boxShadow: `0 2px 6px ${tab.color}44`,
-                  flexShrink: 0,
-                }}>
-                  {String(tab.count).padStart(2, "0")}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── Table ── */}
-        <div style={{ padding: "0 20px 20px", width: "100%" }}>
-          <div
-            className="table-responsive"
-            style={{
-              borderRadius: "10px",
-              border: `1px solid ${activeTabInfo?.color}22`,
-              maxHeight: "320px",
-              overflowY: "auto",
-              overflowX: "auto",
-              width: "100%",
-            }}
-          >
-            <table
-              className="table mb-0"
-              style={{
-                fontSize: "0.82rem",
-                borderCollapse: "collapse",
-                width: "100%",
-                minWidth: isTaskTab ? "620px" : "680px",
-              }}
-            >
-              <thead>
-                <tr style={{
-                  background: "#f8fafc",
-                  borderBottom: `2px solid ${activeTabInfo?.color}30`,
-                }}>
-                  {(isAMCTab
-                    ? [
-                        { h: "SR NO.",        w: "60px"  },
-                        { h: "CUSTOMER NAME", w: ""      },
-                        { h: "ZONE",          w: "110px" },
-                        { h: "OWNED BY",      w: "140px" },
-                        { h: "END DATE",      w: "120px" },
-                        { h: "STATUS",        w: "150px" },
-                      ]
-                    : isPOTab
-                    ? [
-                        { h: "SR NO.",      w: "60px"  },
-                        { h: "ORDER NO.",   w: "140px" },
-                        { h: "VENDOR",      w: ""      },
-                        { h: "ORDER DATE",  w: "110px" },
-                        { h: "GRAND TOTAL", w: "130px" },
-                        { h: "ACTION",      w: "140px" },
-                      ]
-                    : isTaskTab
-                    ? [
-                        { h: "SR NO.",     w: "60px"  },
-                        { h: "TASK NAME",  w: ""      },
-                        { h: "START DATE", w: "120px" },
-                        { h: "END DATE",   w: "120px" },
-                        { h: "STATUS",     w: "110px" },
-                        { h: "COMPLETION", w: "90px"  },
-                      ]
-                    : [
-                        { h: "SR NO.",       w: "60px"  },
-                        { h: "COMPANY NAME", w: ""      },
-                        { h: "CONTACT",      w: "150px" },
-                        { h: "PRODUCTS",     w: "150px" },
-                        { h: activeTab === "overdue" ? "OVERDUE SINCE" : "FOLLOW-UP", w: "120px" },
-                        { h: "STATUS",       w: "90px"  },
-                      ]
-                  ).map((col, i) => (
-                    <th
-                      key={col.h}
-                      style={{
-                        backgroundColor: "#f8fafc",
-                        color: "#64748b",
-                        fontWeight: 700,
-                        fontSize: "0.72rem",
-                        border: "none",
-                        borderBottom: `2px solid ${activeTabInfo?.color}30`,
-                        padding: "11px 14px",
-                        letterSpacing: "0.5px",
-                        whiteSpace: "nowrap",
-                        position: "sticky",
-                        top: 0,
-                        zIndex: 2,
-                        width: col.w || undefined,
-                        textAlign: i === 0 ? "center" : "left",
-                      }}
-                    >
-                      {col.h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {isPOTab && poLoading ? (
-                  <tr>
-                    <td colSpan="6" className="text-center text-muted py-5" style={{ fontSize: "0.82rem", border: "none" }}>
-                      Loading pending purchase orders...
-                    </td>
-                  </tr>
-                ) : isAMCTab && amcLoading ? (
-                  <tr>
-                    <td colSpan="6" className="text-center text-muted py-5" style={{ fontSize: "0.82rem", border: "none" }}>
-                      Loading AMC expiry alerts...
-                    </td>
-                  </tr>
-                ) : currentData.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="text-center text-muted py-5"
-                      style={{ fontSize: "0.82rem", border: "none" }}>
-                      No records found
-                    </td>
-                  </tr>
-                ) : isAMCTab ? (
-                  displayedData.map((r, idx) => {
-                    const status = getAMCStatus(r.endDate);
-                    return (
-                      <tr
-                        key={r._id}
-                        style={{
-                          borderBottom: "1px solid rgba(0,0,0,0.05)",
-                          background: idx % 2 === 0 ? "#fff" : "#fafbfc",
-                          animation: status.expired ? "blinkDarkRed 1.4s infinite" : "blinkRed 1.4s infinite",
-                        }}
-                      >
-                        <td style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>
-                          {String(idx + 1).padStart(2, "0")}.
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", fontWeight: 600, color: "#1e293b" }}>
-                          {r.custName || "N/A"}
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", color: "#555" }}>
-                          {r.zone || "N/A"}
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", color: "#555" }}>
-                          {r.ownedBy || "N/A"}
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>
-                          {formatDate(r.endDate)}
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", textAlign: "center" }}>
-                          <span style={{
-                            background: status.expired ? "#8b0000" : "#dc2626",
-                            color: "#fff",
-                            borderRadius: "6px", padding: "3px 10px",
-                            fontSize: "0.7rem", fontWeight: 700,
-                            whiteSpace: "nowrap",
-                          }}>
-                            {status.label}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : isPOTab ? (
-                  displayedData.map((po, idx) => (
-                    <tr
-                      key={po._id}
-                      style={{
-                        borderBottom: "1px solid rgba(0,0,0,0.05)",
-                        background: idx % 2 === 0 ? "#fff" : "#fafbfc",
-                      }}
-                    >
-                      <td style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>
-                        {String(idx + 1).padStart(2, "0")}.
-                      </td>
-                      <td style={{ border: "none", padding: "10px 14px", fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap" }}>
-                        {po.orderNumber || "N/A"}
-                      </td>
-                      <td style={{ border: "none", padding: "10px 14px", color: "#555" }}>
-                        {po.vendor?.vendorName || "N/A"}
-                      </td>
-                      <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>
-                        {formatDate(po.orderDate)}
-                      </td>
-                      <td style={{ border: "none", padding: "10px 14px", fontWeight: 700, color: "#15803d", whiteSpace: "nowrap" }}>
-                        {formatAmount(po.grandTotal)}
-                      </td>
-                      <td style={{ border: "none", padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
-                        {/* ── NEW: View (eye) button — opens ViewPurchaseOrderPopUp ── */}
-                        <span
-                          onClick={() => handleViewPO(po)}
-                          title="View Purchase Order"
-                          style={{ cursor: "pointer", marginRight: "10px" }}
-                        >
-                          <i className="fa-solid fa-eye text-primary"></i>
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-success"
-                          disabled={approvingId === po._id}
-                          onClick={() => handleApprovePO(po._id)}
-                          style={{ fontSize: "0.72rem", padding: "4px 12px" }}
-                        >
-                          {approvingId === po._id ? "Approving..." : "Approve"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  displayedData.map((item, idx) =>
-                    isTaskTab ? (
-                      <tr
-                        key={item._id}
-                        style={{
-                          borderBottom: "1px solid rgba(0,0,0,0.05)",
-                          background: idx % 2 === 0 ? "#fff" : "#fafbfc",
-                          transition: "background 0.15s",
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = `${activeTabInfo?.color}08`}
-                        onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fafbfc"}
-                      >
-                        <td style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>
-                          {String(idx + 1).padStart(2, "0")}.
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: activeTabInfo?.color, flexShrink: 0 }} />
-                            <span style={{ fontWeight: 600, color: "#1e293b" }}>{item.taskName?.name || "N/A"}</span>
-                          </div>
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>{formatDate(item.startDate)}</td>
-                        <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>{formatDate(item.endDate)}</td>
-                        <td style={{ border: "none", padding: "10px 14px", textAlign: "center" }}>
-                          <span style={{
-                            ...statusBadge(item.taskStatus),
-                            borderRadius: "6px", padding: "3px 10px",
-                            fontSize: "0.7rem", fontWeight: 600,
-                          }}>
-                            {item.taskStatus || "N/A"}
-                          </span>
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", fontWeight: 700, color: activeTabInfo?.color, textAlign: "center" }}>
-                          {item.taskLevel || 0}%
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr
-                        key={item._id}
-                        style={{
-                          borderBottom: "1px solid rgba(0,0,0,0.05)",
-                          background: idx % 2 === 0 ? "#fff" : "#fafbfc",
-                          transition: "background 0.15s",
-                          animation: getRowAnimation(),
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.background = `${activeTabInfo?.color}08`}
-                        onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#fafbfc"}
-                      >
-                        <td style={{ border: "none", padding: "10px 14px", color: "#94a3b8", fontWeight: 700, textAlign: "center" }}>
-                          {String(idx + 1).padStart(2, "0")}.
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: getDotColor(), flexShrink: 0 }} />
-                            <span style={{ fontWeight: 600, color: "#1e293b" }}>{item.SENDER_COMPANY || "N/A"}</span>
-                          </div>
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", color: "#555", whiteSpace: "nowrap" }}>{item.SENDER_NAME || "N/A"}</td>
-                        <td style={{ border: "none", padding: "10px 14px", color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.QUERY_PRODUCT_NAME || "N/A"}</td>
-                        <td style={{ border: "none", padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
-                          <span style={{
-                            fontWeight: 700,
-                            color: getDotColor(),
-                            fontSize: "0.76rem",
-                            background: `${getDotColor()}15`,
-                            borderRadius: "6px",
-                            padding: "3px 9px",
-                            border: `1px solid ${getDotColor()}30`,
-                            display: "inline-block",
-                          }}>
-                            {formatDate(item.nextFollowUpDate)}
-                          </span>
-                        </td>
-                        <td style={{ border: "none", padding: "10px 14px", textAlign: "center" }}>
-                          <span style={{
-                            ...statusBadge(item.STATUS),
-                            borderRadius: "6px", padding: "3px 10px",
-                            fontSize: "0.7rem", fontWeight: 600,
-                            whiteSpace: "nowrap",
-                          }}>
-                            {item.STATUS || "N/A"}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ── NEW: Show More — reveals 10 more rows at a time for whichever tab is active ── */}
-          {hasMore && (
-            <div className="text-center mt-2">
-              <button
-                type="button"
-                onClick={() => setVisibleCount((c) => c + SHOW_MORE_STEP)}
-                style={{
-                  border: `1.5px solid ${activeTabInfo?.color || "#64748b"}`,
-                  color: activeTabInfo?.color || "#64748b",
-                  background: "#fff",
-                  borderRadius: "50px",
-                  padding: "6px 18px",
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Show More ({currentData.length - visibleCount} remaining)
-              </button>
-            </div>
-          )}
-        </div>
-
+        {headerChip()}
       </div>
 
-      {/* ── NEW: View Purchase Order popup ── */}
+      {/* ── Pill tabs ── */}
+      <div className="ed-tabs" role="tablist">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              className="ed-tab"
+              onClick={() => setActiveTab(tab.key)}
+              style={isActive ? {
+                borderColor: tab.color,
+                color: tab.color,
+                background: `${tab.color}12`,
+                boxShadow: `0 4px 12px -4px ${tab.color}55`,
+              } : undefined}
+            >
+              <span
+                className="ed-tab-dot"
+                style={{ background: tab.color, animation: `${tab.pulse} 1.4s infinite` }}
+              />
+              {tab.label}
+              <span className="ed-tab-count" style={{ background: tab.color }}>
+                {String(tab.count).padStart(2, "0")}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── List ── */}
+      <div className="ed-card-body">
+        <div className="ed-list" style={{ borderColor: `${activeTabInfo?.color || "#eceef5"}22` }}>
+          {renderRows()}
+        </div>
+
+        {/* ── Show More — 10 more rows at a time ── */}
+        {hasMore && (
+          <button
+            type="button"
+            className="ed-btn-ghost"
+            onClick={() => setVisibleCount((c) => c + SHOW_MORE_STEP)}
+          >
+            Show more ({currentData.length - visibleCount} remaining)
+          </button>
+        )}
+      </div>
+
+      {/* ── View Purchase Order popup ── */}
       {viewPopUpShow && (
         <ViewPurchaseOrderPopUp
           closePopUp={() => setViewPopUpShow(false)}
@@ -791,17 +573,17 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
 
       <style>{`
         @keyframes blinkRed {
-          0%, 100% { background-color: rgba(255, 50, 50, 0.03); }
+          0%, 100% { background-color: rgba(255, 50, 50, 0.02); }
           50%       { background-color: rgba(255, 130, 130, 0.12); }
         }
         @keyframes blinkDarkRed {
-          0%, 100% { background-color: rgba(139, 0, 0, 0.03); }
+          0%, 100% { background-color: rgba(139, 0, 0, 0.02); }
           50%       { background-color: rgba(139, 0, 0, 0.10); }
         }
         @keyframes pulseBlue   { 0%{box-shadow:0 0 0 0 rgba(13,110,253,0.7)}  70%{box-shadow:0 0 0 7px rgba(13,110,253,0)}   100%{box-shadow:0 0 0 0 rgba(13,110,253,0)}  }
         @keyframes pulseOrange { 0%{box-shadow:0 0 0 0 rgba(249,115,22,0.7)}  70%{box-shadow:0 0 0 7px rgba(249,115,22,0)}   100%{box-shadow:0 0 0 0 rgba(249,115,22,0)}  }
         @keyframes pulseRed    { 0%{box-shadow:0 0 0 0 rgba(220,38,38,0.7)}   70%{box-shadow:0 0 0 7px rgba(220,38,38,0)}    100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}   }
-        @keyframes pulsePurple { 0%{box-shadow:0 0 0 0 rgba(139,92,246,0.7)}  70%{box-shadow:0 0 0 7px rgba(139,92,246,0)}   100%{box-shadow:0 0 0 0 rgba(139,92,246,0)}  }
+        @keyframes pulsePurple { 0%{box-shadow:0 0 0 0 rgba(124,92,252,0.7)}  70%{box-shadow:0 0 0 7px rgba(124,92,252,0)}   100%{box-shadow:0 0 0 0 rgba(124,92,252,0)}  }
         @keyframes pulseGreen  { 0%{box-shadow:0 0 0 0 rgba(22,163,74,0.7)}   70%{box-shadow:0 0 0 7px rgba(22,163,74,0)}    100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}   }
       `}</style>
     </div>

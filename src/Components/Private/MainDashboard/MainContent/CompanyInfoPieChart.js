@@ -1,54 +1,29 @@
-import { Bar } from "react-chartjs-2";
-import Chart from "react-google-charts"
-
-
+import { CompanyInfEmployeeDashboardPieChartoPieChart } from "../../EmployeeDashboard/EmployeeDashboardPieChart";
 
 export const CompanyInfoPieChart = ({ categorywise }) => {
 
-  const data = [
-    ["Projects", "Hours per Day"],
-    ["Finish", categorywise.completed],
-    ["Inprocess", categorywise.inprocess],
-    ["Upcoming", categorywise.upcoming],
+  const segments = [
+    { label: "Completed", value: Number(categorywise?.completed) || 0, color: "#22b35e" },
+    { label: "In progress", value: Number(categorywise?.inprocess) || 0, color: "#f59e0b" },
+    { label: "Upcoming", value: Number(categorywise?.upcoming) || 0, color: "#3b82f6" },
   ];
 
-  const options = {
-    pieSliceText: "label",
-    is3D: true,
-    pieSliceText: 'percentage',
-    chartArea: {
-      height: "100%",
-      width: "100%",
-      backgroundColor: {
-        opacity: 0
-      },
-    },
-    slices: { 
-      0: { color: '#80C783',  
-        // offset: 0.2 
-      }, 
-      1: { color: '#56AFFE', 
-        //  offset: 0.3 
-        }, 
-      2: { color: '#F0BC5E' },  
-      // offset: 0.4
-     } //56AFFE
-
-
-  };
-
-
   return (
-    <>
-      <div className="col-12 col-lg-4 p-2 mx-auto" >
-        <Chart
-          chartType="PieChart"
-          data={data}
-          options={options}
-          width={"100%"}
-        />
+    <div className="ed-card">
+      <div className="ed-card-head">
+        <div>
+          <div className="ed-card-title">Projects by status</div>
+          <div className="ed-card-sub">Hover a slice to see its share</div>
+        </div>
       </div>
-
-    </>
-  )
-}
+      <div className="ed-card-body" style={{ display: "flex", alignItems: "center" }}>
+        <div style={{ width: "100%" }}>
+          <CompanyInfEmployeeDashboardPieChartoPieChart
+            segments={segments}
+            centerLabel="Total projects"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};

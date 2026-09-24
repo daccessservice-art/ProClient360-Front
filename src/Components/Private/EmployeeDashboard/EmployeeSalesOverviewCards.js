@@ -17,7 +17,7 @@ export const EmployeeSalesOverviewCards = ({
     totalCustomers = 0,
     activeQuotationFunnel = "₹0",
     wonLeads = 0,
-    lostLeads = 2,
+    lostLeads = 0,
 }) => {
     const [isSalesEmployee, setIsSalesEmployee] = useState(false);
 
@@ -32,79 +32,73 @@ export const EmployeeSalesOverviewCards = ({
 
     if (!isSalesEmployee) return null;
 
+    const closed = (Number(wonLeads) || 0) + (Number(lostLeads) || 0);
+    const winRate = closed ? Math.round((wonLeads / closed) * 100) : 0;
+    const lossRate = closed ? 100 - winRate : 0;
+
+    const cards = [
+        {
+            label: "Target",
+            value: targetAmount,
+            icon: "fa-bullseye",
+            accent: "#7c5cfc",
+            tint: "#f3efff",
+            foot: <>Your assigned sales target</>,
+        },
+        {
+            label: "Total customers",
+            value: totalCustomers,
+            icon: "fa-users",
+            accent: "#3b82f6",
+            tint: "#edf4ff",
+            foot: <>Customers owned by you</>,
+        },
+        {
+            label: "Active quotation funnel",
+            value: activeQuotationFunnel,
+            icon: "fa-filter-circle-dollar",
+            accent: "#f59e0b",
+            tint: "#fff5e8",
+            foot: <>Value of open quotations</>,
+        },
+        {
+            label: "Won leads",
+            value: wonLeads,
+            icon: "fa-trophy",
+            accent: "#22b35e",
+            tint: "#ecf9f1",
+            foot: <><b>{winRate}%</b> win rate</>,
+        },
+        {
+            label: "Lost leads",
+            value: lostLeads,
+            icon: "fa-circle-xmark",
+            accent: "#ef4444",
+            tint: "#fdeeee",
+            foot: <><b>{lossRate}%</b> of closed leads</>,
+        },
+    ];
+
     return (
-        <div className="row bg-white p-2 m-1 border rounded">
-
-            <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style" style={{ background: "#F6FCFD" }}>
-                    <div className="row">
-                        <div className="col-9">
-                            <h6 className="text-dark card_heading">Target</h6>
-                            <h2 className="pt-2 fw-bold card_count demo_bottom">{targetAmount}</h2>
+        <div className="ed-kpi-grid">
+            {cards.map((c) => (
+                <div
+                    key={c.label}
+                    className="ed-kpi"
+                    style={{ "--accent": c.accent, "--tint": c.tint }}
+                >
+                    <div className="ed-kpi-top">
+                        <div style={{ minWidth: 0 }}>
+                            <div className="ed-kpi-label">{c.label}</div>
+                            <div className="ed-kpi-value">{c.value}</div>
                         </div>
-                        <div className="col-3 d-flex align-items-center justify-content-center">
-                            <img src="./static/assets/img/target.png" className="img_opacity all_card_img_size" alt="Target" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style" style={{ background: "#FDF8DA" }}>
-                    <div className="row">
-                        <div className="col-9">
-                            <h6 className="text-dark card_heading">Total Customers</h6>
-                            <h2 className="pt-2 fw-bold card_count">{totalCustomers}</h2>
-                        </div>
-                        <div className="col-3 d-flex align-items-center justify-content-center">
-                            <img src="./static/assets/img/totalcustomer.png" className="img_opacity all_card_img_size" alt="Customers" />
+                        <div className="ed-kpi-icon">
+                            <i className={`fa-solid ${c.icon}`}></i>
                         </div>
                     </div>
+                    <div className="ed-kpi-foot">{c.foot}</div>
                 </div>
-            </div>
-
-            <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style" style={{ background: "#FEFAF6" }}>
-                    <div className="row">
-                        <div className="col-9">
-                            <h6 className="text-dark card_heading">Active Quotation Funnel</h6>
-                            <h2 className="pt-2 fw-bold card_count demo_bottom">{activeQuotationFunnel}</h2>
-                        </div>
-                        <div className="col-3 d-flex align-items-center justify-content-center">
-                            <img src="./static/assets/img/activequotation.png" className="img_opacity all_card_img_size" alt="Funnel" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style" style={{ background: "#F6F8FE" }}>
-                    <div className="row">
-                        <div className="col-9">
-                            <h6 className="text-dark card_heading">Won Leads</h6>
-                            <h2 className="pt-2 fw-bold card_count">{wonLeads}</h2>
-                        </div>
-                        <div className="col-3 d-flex align-items-center justify-content-center">
-                            <img src="./static/assets/img/planning.png" className="img_opacity all_card_img_size" alt="Won" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="col-12 col-md-4 col-lg pb-3 cursor-pointer">
-                <div className="p-4 background_style" style={{ background: "#FBFDF2" }}>
-                    <div className="row">
-                        <div className="col-9">
-                            <h6 className="text-dark card_heading">Lost Leads</h6>
-                            <h2 className="pt-2 fw-bold card_count">{lostLeads}</h2>
-                        </div>
-                        <div className="col-3 d-flex align-items-center justify-content-center">
-                            <img src="./static/assets/img/lost.png" className="img_opacity all_card_img_size" alt="Lost" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+            ))}
         </div>
     );
 };

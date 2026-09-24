@@ -1,0 +1,118 @@
+/* ==========================================================================
+   Company main dashboard – extras on top of EmployeeDashboard.css
+   ========================================================================== */
+
+/* KPI cards (2 x 2) + donut side by side */
+.md-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.ed-kpi-grid.md-kpi-2x2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.md-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.md-chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* ---------- Chart legend (in card header) ---------- */
+.md-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.md-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #5b6178;
+}
+
+.md-legend-sw {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ---------- Customer chip ---------- */
+.md-cust-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px 5px 5px;
+  background: #ffffff;
+  border: 1px solid #eceef5;
+  border-radius: 12px;
+}
+
+.md-cust-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #eaf2ff;
+  color: #2563eb;
+  font-size: 0.85rem;
+}
+
+.md-cust-label {
+  display: block;
+  font-size: 0.7rem;
+  color: #8a90a6;
+  line-height: 1.1;
+}
+
+.md-cust-value {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e2235;
+  line-height: 1.2;
+}
+
+/* ---------- Monthly review button ---------- */
+.md-review-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #f59e0b;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 16px -6px rgba(245, 158, 11, 0.7);
+}
+
+.md-review-btn:hover {
+  background: #d97706;
+}
+
+.md-review-btn:focus-visible {
+  outline: 2px solid #6d5dfc !important;
+  outline-offset: 2px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1199px) {
+  .md-overview { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .ed-kpi-grid.md-kpi-2x2 { grid-template-columns: minmax(0, 1fr); }
+}

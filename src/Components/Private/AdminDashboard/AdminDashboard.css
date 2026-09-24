@@ -1,0 +1,80 @@
+/* ==========================================================================
+   Admin dashboard – extras on top of EmployeeDashboard.css
+   ========================================================================== */
+
+/* 4 KPI cards per row instead of 5 */
+.ed-kpi-grid.ad-kpi-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1199px) {
+  .ed-kpi-grid.ad-kpi-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 480px) {
+  .ed-kpi-grid.ad-kpi-4 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- Quick actions ---------- */
+.ad-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ad-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #eceef5;
+  border-radius: 14px;
+  color: #1e2235;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.ad-link:hover {
+  border-color: #dcd6ff;
+  background: #faf9ff;
+  color: #1e2235;
+}
+
+.ad-link:focus-visible {
+  outline: 2px solid #6d5dfc !important;
+  outline-offset: 2px;
+}
+
+.ad-link-icon {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+}
+
+.ad-link-title {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1e2235;
+}
+
+.ad-link-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: #8a90a6;
+}
+
+.ad-link-arrow {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #b5b9cc;
+}
+
+.ad-link:hover .ad-link-arrow {
+  color: #6d5dfc;
+}

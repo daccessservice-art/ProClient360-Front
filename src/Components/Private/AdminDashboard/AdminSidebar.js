@@ -1,164 +1,68 @@
-import React, { useState } from "react";
+import { useContext } from "react";
 import { Link } from "react-router-dom";
-import $ from 'jquery'
-import { useTranslation } from "react-i18next";
+import { UserContext } from "../../../context/UserContext";
+// ⚠️ Reuses the main sidebar styles – adjust the path if your folder names differ
+import "../MainDashboard/Sidebar/Sidebar.css";
 
+export const AdminSidebar = ({ isopen, active }) => {
+    const { user } = useContext(UserContext);
 
-export const AdminSidebar = ({ isopen, active, subMenu }) => {
- 
-    const [Open, setOpen] = useState(false)
+    const name = user?.name || "Admin";
+    const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "A";
 
-    var body = $('body');
-
-    const SidebarHideShow = () => {
-        if ((body.hasClass('sidebar-icon-only'))) {
-            body.toggleClass('sidebar-icon-only');
-        }
-        // else {
-        //     body.toggleClass('sidebar-icon-only');
-        // }
-    }
-
-    const handelOnCardClick = () => {
-
-        body.toggleClass('sidebar-icon-only');
-    }
-
-    const { t } = useTranslation()
+    const items = [
+        { to: "/AdminMainDashboard", key: "AdminMainDashboard", label: "Dashboard", icon: "fa-solid fa-house" },
+        { to: "/AdminCompanyMasterGrid", key: "AdminCompanyMasterGrid", label: "Company", icon: "fa-solid fa-building" },
+        { to: "/AdminmasterGrid", key: "AdminmasterGrid", label: "Admin", icon: "fa-solid fa-user-tie" },
+    ];
 
     return (
         <div
-            className={
-                isopen
-                    ? "left-slidebar dark-shadow sidebar-block"
-                    : "left-slidebar dark-shadow sidebar-none"
-            }
+            className={`left-slidebar sb-shell ${isopen ? "sidebar-block sb-open" : "sidebar-none sb-collapsed"}`}
             style={{ width: isopen ? "210px" : "97px" }}
         >
-            <div className="navbar-brand-wrapper d-flex align-items-center justify-content-center">
-                <span className="navbar-brand brand-logo">
-                    <img
-                        style={{ width: isopen ? "100%" : "100%" }}
-                        src="static/assets/img/nav/DACCESS.png"
-                        className="logo"
-                        alt="logo"
-                    />
-                </span>
-
+            {/* ── Logo ── */}
+            <div className="sb-brand">
+                <img src="static/assets/img/nav/DACCESS.png" alt="Logo" />
             </div>
-            <nav
 
-
-                className="sidebar  sidebar-offcanvas" id="sidebar"
-                style={{ maxHeight: isopen ? "" : " calc(100vh - 150px)" }}
-            >
-                <ul className="nav d-block">
-
-
-                    <li
-                        title="Dashboard"
-                        className={Open || active === "AdminMainDashboard" ? " nav-item active" : "nav-item sidebar_item"}>
-                        <Link to='/AdminMainDashboard' className="nav-link ">
-                            <img src="static/assets/img/nav/dashboard.png" className="menu-icon" />
-                            <span
-                                className="menu-title"
-                                style={{ display: isopen ? "" : "none" }}
-                            >
-                                Dashboard
-                            </span>
-                        </Link>
-                    </li>
-
-                    <li
-                        title="Company"
-                        className={Open || active === "AdminCompanyMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-                        <Link to='/AdminCompanyMasterGrid' className="nav-link ">
-                            <i className="fa-brands fa-medium  ps-3 side_icon_fs"></i>
-                            <span
-                                className="menu-title_m"
-                                style={{ display: isopen ? "" : "none" }}
-                            >
-                                Company
-                            </span>
-                        </Link>
-                    </li>
-
-                    <li
-                        title="Admin"
-                        className={Open || active === "AdminmasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-                        <Link to='/AdminmasterGrid' className="nav-link ">
-                            <i className="fa-solid fa-user-tie ps-3 side_icon_fs"></i>
-                            <span
-                                className="menu-title_m"
-                                style={{ display: isopen ? "" : "none" }}
-                            >
-                                Admin
-                            </span>
-                        </Link>
-                    </li>
-
-
-                    {/* <li
-                        className={Open || active === "ProjectMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-                        <Link to='/ProjectMasterGrid' className="nav-link ">
-
-                            <span
-                                className="menu-title_m"
-                                style={{ display: isopen ? "" : "none" }}
-                            >
-                                Project Master
-                            </span>
-                        </Link>
-                    </li> */}
-
-                    {/* 
-                    <li
-                        className={Open || active === "DepartmentMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-                        <Link to='/DepartmentMasterGrid' className="nav-link ">
-                            <i className="fa-brands fa-usps ps-3 side_icon_fs"></i>
-
-                            <span
-                                className="menu-title_m"
-                                style={{ display: isopen ? "" : "none" }}
-                            >
-                                Department Master
-                            </span>
-                        </Link>
-                    </li> */}
-
-
-                    {/* <li
-                        className={Open || active === "DesignationMasterGird" ? " nav-item active" : "nav-item sidebar_item"}>
-                        <Link to='/DesignationMasterGird' className="nav-link ">
-                            <i className="fa-brands fa-usps ps-3 side_icon_fs"></i>
-                            <span
-                                className="menu-title_m"
-                                style={{ display: isopen ? "" : "none" }}
-                            >
-                                Designation Master
-                            </span>
-                        </Link>
-                    </li> */}
-
-
-                    {/* <li
-                        className={Open || active === "TaskMasterGrid" ? " nav-item active" : "nav-item sidebar_item"}>
-                        <Link to='/TaskMasterGrid' className="nav-link ">
-                            <i className="fa-brands fa-usps ps-3 side_icon_fs"></i>
-
-                            <span
-                                className="menu-title_m"
-                                style={{ display: isopen ? "" : "none" }}
-                            >
-                                Task Master
-                            </span>
-                        </Link>
-                    </li> */}
-
-
-
-                </ul>
+            {/* ── Menu ── */}
+            <nav id="sidebar" className="sb-nav" aria-label="Admin menu">
+                <div className="sb-section">
+                    <ul className="sb-list">
+                        {items.map((item) => {
+                            const isActive = active === item.key;
+                            return (
+                                <li key={item.to} title={item.label}>
+                                    <Link
+                                        to={item.to}
+                                        className={`sb-link ${isActive ? "active" : ""}`}
+                                        aria-current={isActive ? "page" : undefined}
+                                    >
+                                        <span className="sb-icon">
+                                            <i className={item.icon}></i>
+                                        </span>
+                                        {isopen && <span className="sb-label">{item.label}</span>}
+                                    </Link>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
             </nav>
+
+            {/* ── Logged-in admin ── */}
+            <div className="sb-footer">
+                <div className="sb-user" title={`${name} – Super admin`}>
+                    <div className="sb-avatar">{initials}</div>
+                    {isopen && (
+                        <div style={{ minWidth: 0 }}>
+                            <div className="sb-user-name">{name}</div>
+                            <div className="sb-user-role">Super admin</div>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
-}
+};
