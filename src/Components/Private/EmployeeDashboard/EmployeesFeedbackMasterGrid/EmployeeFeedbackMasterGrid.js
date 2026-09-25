@@ -157,6 +157,43 @@ export const EmployeeFeedbackMasterGrid = () => {
     return map;
   }, [allFeedbacks, leaderMonth, leaderYear]);
 
+  // ─── 🔧 NEW: Highest Jobs This Month — Service Engineers ──────────────
+  // Counts ALL completed services per engineer in the selected month
+  // (with or without customer feedback)
+  const topJobEngineers = useMemo(() => {
+    const map = {};
+    allFeedbacks.forEach((fb) => {
+      const dateVal = fb.actualCompletionDate || fb.completionDate;
+      if (!dateVal) return;
+      const d = new Date(dateVal);
+      if (isNaN(d) || d.getMonth() !== leaderMonth || d.getFullYear() !== leaderYear) return;
+
+      (fb.allotTo || []).forEach((eng) => {
+        if (!eng?._id || !eng?.name) return;
+        const id = eng._id.toString();
+        if (!map[id]) {
+          map[id] = { id, name: eng.name, jobCount: 0, feedbackCount: 0, totalRating: 0, highRating: 0 };
+        }
+        map[id].jobCount++;
+        if (fb.feedback && fb.feedback.rating) {
+          map[id].feedbackCount++;
+          map[id].totalRating += fb.feedback.rating;
+          if (fb.feedback.rating >= 4) map[id].highRating++;
+        }
+      });
+    });
+
+    return Object.values(map)
+      .map((e) => ({
+        ...e,
+        avgRating: e.feedbackCount > 0 ? parseFloat((e.totalRating / e.feedbackCount).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.jobCount - a.jobCount || b.avgRating - a.avgRating || a.name.localeCompare(b.name))
+      .slice(0, 5);
+  }, [allFeedbacks, leaderMonth, leaderYear]);
+
+  const maxJobCount = topJobEngineers.length > 0 ? topJobEngineers[0].jobCount : 0;
+
   const serviceReviewMap = useMemo(() => {
     const map = {};
     serviceReviews.filter((r) => r.month === leaderMonth && r.year === leaderYear)
@@ -287,6 +324,13 @@ export const EmployeeFeedbackMasterGrid = () => {
     if (index === 0) return { icon: '🥇', label: 'Champion', color: '#FFD700' };
     if (index === 1) return { icon: '🥈', label: 'Runner Up', color: '#C0C0C0' };
     return { icon: '🥉', label: '3rd Place', color: '#CD7F32' };
+  };
+
+  const getJobRankIcon = (index) => {
+    if (index === 0) return '🥇';
+    if (index === 1) return '🥈';
+    if (index === 2) return '🥉';
+    return `#${index + 1}`;
   };
 
   const getExpBadge = (jobCount) => {
@@ -534,6 +578,94 @@ export const EmployeeFeedbackMasterGrid = () => {
                               })}
                             </div>
                           </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ══════════════════════════════════════════════════════════
+                    🔧 NEW: HIGHEST JOBS THIS MONTH — Service Engineers
+                    (uses the same Period month/year selected above)
+                ══════════════════════════════════════════════════════════ */}
+                <div className="row px-2 pb-3">
+                  <div className="col-12">
+                    <div className="card shadow">
+                      <div className="card-header py-2 d-flex flex-row align-items-center justify-content-between flex-wrap gap-2">
+                        <h6 className="m-0 font-weight-bold text-primary">
+                          <i className="fa-solid fa-screwdriver-wrench me-2 text-success"></i>
+                          Highest Jobs — Service Engineers
+                          <small className="text-muted ms-2" style={{ fontSize: '11px', fontWeight: 'normal' }}>
+                            Completed services in {MONTHS[leaderMonth]} {leaderYear}
+                          </small>
+                        </h6>
+                        {topJobEngineers.length > 0 && (
+                          <span className="badge bg-success" style={{ fontSize: '12px' }}>
+                            <i className="fa fa-crown me-1"></i>
+                            {topJobEngineers[0].name} — {topJobEngineers[0].jobCount} jobs
+                          </span>
+                        )}
+                      </div>
+                      <div className="card-body py-2">
+                        {topJobEngineers.length === 0 ? (
+                          <div className="text-center text-muted py-4" style={{ fontSize: "0.85rem" }}>
+                            <div style={{ fontSize: "2rem", marginBottom: 8 }}>🔧</div>
+                            No completed jobs for <strong>{MONTHS[leaderMonth]} {leaderYear}</strong>.
+                          </div>
+                        ) : (
+                          <div className="table-responsive">
+                            <table className="table table-sm table-hover align-middle mb-0" style={{ fontSize: '13px' }}>
+                              <thead style={{ backgroundColor: '#f8f9fa' }}>
+                                <tr>
+                                  <th style={{ width: '60px' }} className="text-center">Rank</th>
+                                  <th>Service Engineer</th>
+                                  <th style={{ width: '35%' }}>Jobs Completed</th>
+                                  <th className="text-center" style={{ width: '110px' }}>Feedback Got</th>
+                                  <th className="text-center" style={{ width: '110px' }}>Avg Rating</th>
+                                  <th className="text-center" style={{ width: '100px' }}>High (4-5★)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {topJobEngineers.map((eng, index) => {
+                                  const expBadge = getExpBadge(eng.jobCount);
+                                  const barWidth = maxJobCount > 0 ? (eng.jobCount / maxJobCount) * 100 : 0;
+                                  return (
+                                    <tr key={eng.id} style={index === 0 ? { backgroundColor: '#f0fdf4' } : undefined}>
+                                      <td className="text-center" style={{ fontSize: index < 3 ? '1.3rem' : '13px', fontWeight: 600 }}>
+                                        {getJobRankIcon(index)}
+                                      </td>
+                                      <td>
+                                        <div className="fw-bold text-dark">{eng.name}</div>
+                                        <span className={`badge ${expBadge.color}`} style={{ fontSize: '10px' }}>{expBadge.label}</span>
+                                      </td>
+                                      <td>
+                                        <div className="d-flex align-items-center gap-2">
+                                          <div className="progress flex-grow-1" style={{ height: '8px', borderRadius: 4 }}>
+                                            <div
+                                              className="progress-bar"
+                                              style={{ width: `${barWidth}%`, backgroundColor: index === 0 ? '#16a34a' : '#4e73df', borderRadius: 4 }}
+                                            />
+                                          </div>
+                                          <span className="fw-bold" style={{ minWidth: '28px' }}>{eng.jobCount}</span>
+                                        </div>
+                                      </td>
+                                      <td className="text-center">{eng.feedbackCount}/{eng.jobCount}</td>
+                                      <td className="text-center">
+                                        {eng.avgRating > 0 ? (
+                                          <span className="fw-bold" style={{ color: scoreBarColor(eng.avgRating) }}>
+                                            <i className="fa fa-star text-warning me-1"></i>{eng.avgRating}
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted">—</span>
+                                        )}
+                                      </td>
+                                      <td className="text-center">{eng.highRating}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         )}
                       </div>
                     </div>

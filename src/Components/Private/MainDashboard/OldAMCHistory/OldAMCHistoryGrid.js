@@ -128,10 +128,11 @@ const STATUS_STYLES = {
     inset: "rgba(139,0,0,0.10)", badgeBg: "#8b0000", badgeText: "#fff",
     glow: "0 0 6px rgba(139,0,0,0.9)",
   },
+  // ── UPDATED: Expiring within 50 days → DARK YELLOW ──
   expiring: {
-    animation: "amcBlinkRed 1s infinite", border: "#dc2626",
-    inset: "rgba(220,38,38,0.08)", badgeBg: "#dc2626", badgeText: "#fff",
-    glow: "0 0 6px rgba(220,38,38,0.9)",
+    animation: "amcBlinkDarkYellow 1s infinite", border: "#a16207",
+    inset: "rgba(161,98,7,0.08)", badgeBg: "#a16207", badgeText: "#fff",
+    glow: "0 0 6px rgba(161,98,7,0.9)",
   },
 };
 
@@ -605,6 +606,11 @@ export const OldAMCHistoryGrid = () => {
         @keyframes amcBlinkRed {
           0%, 100% { background-color: rgba(220, 38, 38, 0.06); }
           50%       { background-color: rgba(255, 90, 90, 0.35); }
+        }
+        /* ── NEW: dark yellow blinker for contracts expiring within 50 days ── */
+        @keyframes amcBlinkDarkYellow {
+          0%, 100% { background-color: rgba(161, 98, 7, 0.06); }
+          50%       { background-color: rgba(202, 138, 4, 0.35); }
         }
         @keyframes amcBlinkDarkRed {
           0%, 100% { background-color: rgba(139, 0, 0, 0.10); }
