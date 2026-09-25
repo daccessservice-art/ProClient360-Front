@@ -13,7 +13,8 @@ const industryOptions = [
   "Facility Services", "Labour Contractor", "Security Systems Dealer", "Other"
 ];
 
-const REMARK_MAX_LENGTH = 2000; // ── NEW ──
+const REMARK_MAX_LENGTH = 2000;
+const SYSTEM_MAX_LENGTH = 500; // ── NEW ──
 
 const AddAMCHistoryPopUp = ({ handleAdd }) => {
   const [custName, setCustName] = useState("");
@@ -31,7 +32,8 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
   const [pincode, setPincode] = useState("");
   const [GSTNo, setGSTNo] = useState("");
   const [zone, setZone] = useState("");
-  const [remark, setRemark] = useState(""); // ── NEW ──
+  const [system, setSystem] = useState(""); // ── NEW ──
+  const [remark, setRemark] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -44,7 +46,10 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
   const handlePincodeChange = (e) => {
     if (/^\d{0,6}$/.test(e.target.value)) setPincode(e.target.value);
   };
-  // ── NEW: Remark change handler with 2000 char cap ──
+  // ── NEW: System change handler with 500 char cap ──
+  const handleSystemChange = (e) => {
+    if (e.target.value.length <= SYSTEM_MAX_LENGTH) setSystem(e.target.value);
+  };
   const handleRemarkChange = (e) => {
     if (e.target.value.length <= REMARK_MAX_LENGTH) setRemark(e.target.value);
   };
@@ -64,7 +69,10 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
     if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
       return toast.error("End Date cannot be before Start Date");
     }
-    // ── NEW: Remark length guard ──
+    // ── NEW: System length guard ──
+    if (system && system.length > SYSTEM_MAX_LENGTH) {
+      return toast.error(`System cannot exceed ${SYSTEM_MAX_LENGTH} characters`);
+    }
     if (remark && remark.length > REMARK_MAX_LENGTH) {
       return toast.error(`Remark cannot exceed ${REMARK_MAX_LENGTH} characters`);
     }
@@ -83,7 +91,8 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
       billingAddress: { city: city.trim(), state: state.trim(), pincode: pincode.trim() },
       GSTNo: GSTNo.trim(),
       zone,
-      remark: remark.trim(), // ── NEW ──
+      system: system.trim(), // ── NEW ──
+      remark: remark.trim(),
       startDate: startDate || null,
       endDate: endDate || null,
     };
@@ -278,7 +287,18 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
                   </div>
                 </div>
 
-                {/* ── NEW: Remark field ── */}
+                {/* ── NEW: System field ── */}
+                <div className="col-12">
+                  <div className="mb-3">
+                    <label className="form-label label_text">
+                      System <small className="text-muted">({system.length}/{SYSTEM_MAX_LENGTH})</small>
+                    </label>
+                    <input type="text" className="form-control rounded-0" maxLength={SYSTEM_MAX_LENGTH}
+                      value={system} onChange={handleSystemChange}
+                      placeholder="Enter System (e.g. CCTV, Fire Alarm, Access Control)..." />
+                  </div>
+                </div>
+
                 <div className="col-12">
                   <div className="mb-3">
                     <label className="form-label label_text">

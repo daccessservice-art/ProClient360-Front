@@ -13,7 +13,8 @@ const industryOptions = [
   "Facility Services", "Labour Contractor", "Security Systems Dealer", "Other"
 ];
 
-const REMARK_MAX_LENGTH = 2000; // ── NEW ──
+const REMARK_MAX_LENGTH = 2000;
+const SYSTEM_MAX_LENGTH = 500; // ── NEW ──
 
 const toDateInputValue = (val) => {
   if (!val) return "";
@@ -30,7 +31,12 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
       state: selectedRecord?.billingAddress?.state || "",
       pincode: selectedRecord?.billingAddress?.pincode || "",
     },
-    remark: selectedRecord?.remark || "", // ── NEW ──
+    system: selectedRecord?.system || "", // ── NEW ──
+    remark: selectedRecord?.remark || "",
+    inProcess: !!selectedRecord?.inProcess,
+    nextFollowUpDate: toDateInputValue(selectedRecord?.nextFollowUpDate),
+    lost: !!selectedRecord?.lost,
+    sentToSales: !!selectedRecord?.sentToSales, // ── NEW ──
     startDate: toDateInputValue(selectedRecord?.startDate),
     endDate: toDateInputValue(selectedRecord?.endDate),
   });
@@ -61,11 +67,51 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
   const handleGSTChange = (e) => {
     setRecord((prev) => ({ ...prev, GSTNo: e.target.value.toUpperCase() }));
   };
-  // ── NEW: Remark change handler with 2000 char cap ──
+  // ── NEW: System change handler with 500 char cap ──
+  const handleSystemChange = (e) => {
+    if (e.target.value.length <= SYSTEM_MAX_LENGTH) {
+      setRecord((prev) => ({ ...prev, system: e.target.value }));
+    }
+  };
   const handleRemarkChange = (e) => {
     if (e.target.value.length <= REMARK_MAX_LENGTH) {
       setRecord((prev) => ({ ...prev, remark: e.target.value }));
     }
+  };
+  // In Process toggle — turning it OFF also clears the follow-up date
+  const handleInProcessToggle = (e) => {
+    const checked = e.target.checked;
+    setRecord((prev) => ({
+      ...prev,
+      inProcess: checked,
+      nextFollowUpDate: checked ? prev.nextFollowUpDate : "",
+      lost: checked ? false : prev.lost, // ── NEW: In Process removes Lost ──
+    }));
+  };
+  // ── NEW: selecting a follow-up date automatically turns In Process ON ──
+  const handleFollowUpDateChange = (e) => {
+    const value = e.target.value;
+    setRecord((prev) => ({
+      ...prev,
+      nextFollowUpDate: value,
+      inProcess: value ? true : prev.inProcess,
+      lost: value ? false : prev.lost, // ── NEW ──
+    }));
+  };
+  // ── NEW: Sales Lead toggle ──
+  const handleSalesToggle = (e) => {
+    const checked = e.target.checked;
+    setRecord((prev) => ({ ...prev, sentToSales: checked }));
+  };
+  // Lost toggle — turns In Process OFF, clears follow-up, Remark becomes required ──
+  const handleLostToggle = (e) => {
+    const checked = e.target.checked;
+    setRecord((prev) => ({
+      ...prev,
+      lost: checked,
+      inProcess: checked ? false : prev.inProcess,
+      nextFollowUpDate: checked ? "" : prev.nextFollowUpDate,
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -83,7 +129,14 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
     if (record.startDate && record.endDate && new Date(record.endDate) < new Date(record.startDate)) {
       return toast.error("End Date cannot be before Start Date");
     }
-    // ── NEW: Remark length guard ──
+    // ── NEW: System length guard ──
+    if (record.system && record.system.length > SYSTEM_MAX_LENGTH) {
+      return toast.error(`System cannot exceed ${SYSTEM_MAX_LENGTH} characters`);
+    }
+    // ── NEW: Remark required when Lost ──
+    if (record.lost && !(record.remark || "").trim()) {
+      return toast.error("Remark is required when marking the record as Lost");
+    }
     if (record.remark && record.remark.length > REMARK_MAX_LENGTH) {
       return toast.error(`Remark cannot exceed ${REMARK_MAX_LENGTH} characters`);
     }
@@ -92,7 +145,12 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
       ...record,
       custName: record.custName.trim(),
       email: (record.email || "").trim(),
-      remark: (record.remark || "").trim(), // ── NEW ──
+      system: (record.system || "").trim(), // ── NEW ──
+      remark: (record.remark || "").trim(),
+      lost: !!record.lost,
+      sentToSales: !!record.sentToSales, // ── NEW ──
+      inProcess: record.lost ? false : (!!record.inProcess || !!record.nextFollowUpDate),
+      nextFollowUpDate: record.lost ? null : (record.nextFollowUpDate || null),
       startDate: record.startDate || null,
       endDate: record.endDate || null,
     };
@@ -276,15 +334,103 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
                   </div>
                 </div>
 
-                {/* ── NEW: Remark field ── */}
+                {/* ── In Process toggle ── */}
+                <div className="col-12 col-lg-6">
+                  <div className="mb-3">
+                    <label className="form-label label_text d-block">Status</label>
+                    <div className="form-check form-switch" style={{ paddingTop: "6px" }}>
+                      <input className="form-check-input" type="checkbox" role="switch" id="inProcessSwitch"
+                        style={{ cursor: "pointer" }}
+                        checked={!!record.inProcess} onChange={handleInProcessToggle} />
+                      <label className="form-check-label label_text" htmlFor="inProcessSwitch" style={{ cursor: "pointer" }}>
+                        {record.inProcess
+                          ? <span className="badge" style={{ background: "#1d4ed8" }}><i className="fa-solid fa-hourglass-half me-1"></i>In Process</span>
+                          : <span className="text-muted">Not In Process</span>}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Next Follow-up Date (selecting it turns In Process ON automatically) */}
+                <div className="col-12 col-lg-6">
+                  <div className="mb-3">
+                    <label className="form-label label_text">
+                      Next Follow-up Date <small className="text-muted">(auto sets In Process)</small>
+                    </label>
+                    <input type="date" className="form-control rounded-0"
+                      name="nextFollowUpDate" value={record.nextFollowUpDate || ""} onChange={handleFollowUpDateChange} />
+                  </div>
+                </div>
+
+                {/* ── NEW: Lost toggle ── */}
+                <div className="col-12">
+                  <div className="mb-3">
+                    <div className="form-check form-switch">
+                      <input className="form-check-input" type="checkbox" role="switch" id="lostSwitch"
+                        style={{ cursor: "pointer", ...(record.lost ? { backgroundColor: "#475569", borderColor: "#475569" } : {}) }}
+                        checked={!!record.lost} onChange={handleLostToggle} />
+                      <label className="form-check-label label_text" htmlFor="lostSwitch" style={{ cursor: "pointer" }}>
+                        {record.lost
+                          ? <span className="badge" style={{ background: "#475569" }}><i className="fa-solid fa-ban me-1"></i>Lost</span>
+                          : <span className="text-muted">Mark as Lost</span>}
+                        <small className="text-muted ms-2">(Remark is required)</small>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── NEW: Sales Lead toggle ── */}
+                <div className="col-12">
+                  <div className="mb-3 p-2" style={{
+                    border: record.sentToSales ? "1px solid #16a34a" : "1px dashed #cbd5e1",
+                    background: record.sentToSales ? "rgba(22,163,74,0.06)" : "transparent",
+                  }}>
+                    <div className="form-check form-switch mb-0">
+                      <input className="form-check-input" type="checkbox" role="switch" id="salesSwitch"
+                        style={{ cursor: "pointer", ...(record.sentToSales ? { backgroundColor: "#16a34a", borderColor: "#16a34a" } : {}) }}
+                        checked={!!record.sentToSales} onChange={handleSalesToggle} />
+                      <label className="form-check-label label_text" htmlFor="salesSwitch" style={{ cursor: "pointer" }}>
+                        {record.sentToSales
+                          ? <span className="badge" style={{ background: "#16a34a" }}><i className="fa-solid fa-handshake me-1"></i>Assigned to Sales</span>
+                          : <span className="text-muted">Send to Sales Leads</span>}
+                      </label>
+                    </div>
+                    <small className="d-block text-muted mt-1">
+                      {record.sentToSales
+                        ? (selectedRecord?.sentToSales && selectedRecord?.sentToSalesAt
+                            ? `Sent to Sales on ${new Date(selectedRecord.sentToSalesAt).toLocaleDateString()}${selectedRecord.sentToSalesByName ? ` by ${selectedRecord.sentToSalesByName}` : ""}`
+                            : "This AMC will be marked as a Sales lead when you click Update.")
+                        : "Turn on to show everyone that this AMC is assigned to the Sales team."}
+                    </small>
+                  </div>
+                </div>
+
+                {/* System field */}
                 <div className="col-12">
                   <div className="mb-3">
                     <label className="form-label label_text">
-                      Remark <small className="text-muted">({(record.remark || "").length}/{REMARK_MAX_LENGTH})</small>
+                      System <small className="text-muted">({(record.system || "").length}/{SYSTEM_MAX_LENGTH})</small>
                     </label>
-                    <textarea className="form-control rounded-0" rows={3} maxLength={REMARK_MAX_LENGTH}
+                    <input type="text" className="form-control rounded-0" maxLength={SYSTEM_MAX_LENGTH}
+                      name="system" value={record.system || ""} onChange={handleSystemChange}
+                      placeholder="Enter System (e.g. CCTV, Fire Alarm, Access Control)..." />
+                  </div>
+                </div>
+
+                <div className="col-12">
+                  <div className="mb-3">
+                    <label className="form-label label_text">
+                      Remark {record.lost && <RequiredStar />}{" "}
+                      <small className="text-muted">({(record.remark || "").length}/{REMARK_MAX_LENGTH})</small>
+                    </label>
+                    <textarea
+                      className={`form-control rounded-0 ${record.lost && !(record.remark || "").trim() ? "is-invalid" : ""}`}
+                      rows={3} maxLength={REMARK_MAX_LENGTH}
                       name="remark" value={record.remark || ""} onChange={handleRemarkChange}
-                      placeholder="Enter any remark/note..." />
+                      placeholder={record.lost ? "Why was this AMC lost? (required)" : "Enter any remark/note..."} />
+                    {record.lost && !(record.remark || "").trim() && (
+                      <div className="invalid-feedback">Remark is required when marking as Lost</div>
+                    )}
                   </div>
                 </div>
 

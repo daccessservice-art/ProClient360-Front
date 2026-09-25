@@ -63,6 +63,17 @@ const updateOldAMCHistory = async (payload) => {
   }
 };
 
+// ── NEW: toggle "In Process" for one record ──
+const toggleOldAMCHistoryInProcess = async (id, inProcess) => {
+  try {
+    const response = await axios.patch(`${url}/${id}/in-process`, { inProcess }, { headers: authHeader() });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: 'Failed to update In Process' };
+  }
+};
+
 const deleteOldAMCHistory = async (id) => {
   try {
     const response = await axios.delete(`${url}/${id}`, { headers: authHeader() });
@@ -132,6 +143,7 @@ export {
   importOldAMCHistory,
   createOldAMCHistory,
   updateOldAMCHistory,
+  toggleOldAMCHistoryInProcess, // ── NEW ──
   deleteOldAMCHistory,
   deleteImportBatch,
   exportOldAMCHistoryPDF,

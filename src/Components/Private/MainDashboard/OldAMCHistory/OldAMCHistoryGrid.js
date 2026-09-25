@@ -13,15 +13,12 @@ import {
 } from "../../../../hooks/useOldAMCHistory";
 import toast from "react-hot-toast";
 
-// ── NEW: how many days before an AMC contract's End Date the row should
-// start blinking. Example: End Date 20 Sep 2026 → blinker starts 1 Aug 2026
-// (50 days before). Keep this in sync with the same constant used on the
-// Employee Dashboard's "AMC Expiry Alerts" tab. ──
+// How many days before an AMC contract's End Date the row should start blinking.
+// Keep this in sync with the same constant used on the Employee Dashboard's "AMC Expiry Alerts" tab.
 const ALERT_WINDOW_DAYS = 50;
 
-// ── NEW: figure out if a record's End Date is expired / expiring soon,
-// and how it should blink. Returns null if it's outside the alert window
-// (i.e. no highlight needed). ──
+// Figure out if a record's End Date is expired / expiring soon.
+// Returns null if it's outside the alert window (no highlight needed).
 const getAMCExpiryInfo = (endDateStr) => {
   if (!endDateStr) return null;
   const end = new Date(endDateStr);
@@ -34,7 +31,7 @@ const getAMCExpiryInfo = (endDateStr) => {
   const windowEnd = new Date(today);
   windowEnd.setDate(windowEnd.getDate() + ALERT_WINDOW_DAYS);
 
-  if (end > windowEnd) return null; // still far away, no highlight
+  if (end > windowEnd) return null;
 
   const diffDays = Math.round((end - today) / (1000 * 60 * 60 * 24));
   if (diffDays < 0) {
@@ -44,6 +41,134 @@ const getAMCExpiryInfo = (endDateStr) => {
     return { expired: true, label: "Expires Today" };
   }
   return { expired: false, label: `${diffDays}d left` };
+};
+
+// ── NEW: Active / Running contract info.
+// Active = End Date is still more than ALERT_WINDOW_DAYS away AND Start Date has already
+// started (or no Start Date). Returns null otherwise. ──
+const getActiveInfo = (startDateStr, endDateStr) => {
+  if (!endDateStr) return null;
+  const end = new Date(endDateStr);
+  if (isNaN(end.getTime())) return null;
+  end.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (startDateStr) {
+    const start = new Date(startDateStr);
+    if (!isNaN(start.getTime())) {
+      start.setHours(0, 0, 0, 0);
+      if (start > today) return null; // contract not started yet
+    }
+  }
+
+  const diffDays = Math.round((end - today) / (1000 * 60 * 60 * 24));
+  if (diffDays <= ALERT_WINDOW_DAYS) return null; // expiring / expired handled by red blinker
+  return { label: `Active · ${diffDays}d left` };
+};
+
+// Next Follow-up Date info. Returns null if no date.
+// due = true when follow-up is today or already passed (→ YELLOW blinker) ──
+const getFollowUpInfo = (dateStr) => {
+  if (!dateStr) return null;
+  const fu = new Date(dateStr);
+  if (isNaN(fu.getTime())) return null;
+  fu.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.round((fu - today) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return { due: true, label: `Follow-up ${Math.abs(diffDays)}d ago` };
+  if (diffDays === 0) return { due: true, label: "Follow-up Today" };
+  return { due: false, label: `in ${diffDays}d` };
+};
+
+// ── Row status priority:
+// 1) In Process + follow-up due/passed → "followup" (YELLOW)
+// 2) In Process + in expiry window     → "inprocess" (BLUE)
+// 3) Expired                           → "expired"   (DARK RED)
+// 4) Expiring soon                     → "expiring"  (RED)
+// 5) Otherwise                         → null (no blink) ──
+const getRowStatus = (expiryInfo, followUpInfo, inProcess, lost, activeInfo) => {
+  if (lost) return "lost"; // Lost overrides everything, no blinker
+  if (inProcess && followUpInfo?.due) return "followup";
+  if (inProcess && expiryInfo) return "inprocess";
+  if (expiryInfo) return expiryInfo.expired ? "expired" : "expiring";
+  if (activeInfo) return "active"; // ── NEW: running contract → GREEN blinker ──
+  return null;
+};
+
+const STATUS_STYLES = {
+  // ── NEW: Active / Running — green blinker ──
+  active: {
+    animation: "amcBlinkGreen 1.6s infinite", border: "#15803d",
+    inset: "rgba(34,197,94,0.06)", badgeBg: "#22c55e", badgeText: "#052e16",
+    glow: "0 0 6px rgba(34,197,94,0.9)",
+  },
+  // ── NEW: Lost — grey, NOT blinking ──
+  lost: {
+    animation: "none", border: "#475569",
+    inset: "rgba(71,85,105,0.10)", badgeBg: "#475569", badgeText: "#fff",
+    glow: "none",
+  },
+  followup: {
+    animation: "amcBlinkYellow 1s infinite", border: "#ca8a04",
+    inset: "rgba(234,179,8,0.12)", badgeBg: "#facc15", badgeText: "#422006",
+    glow: "0 0 6px rgba(234,179,8,0.95)",
+  },
+  inprocess: {
+    animation: "amcBlinkBlue 1s infinite", border: "#1d4ed8",
+    inset: "rgba(37,99,235,0.08)", badgeBg: "#1d4ed8", badgeText: "#fff",
+    glow: "0 0 6px rgba(37,99,235,0.9)",
+  },
+  expired: {
+    animation: "amcBlinkDarkRed 1s infinite", border: "#8b0000",
+    inset: "rgba(139,0,0,0.10)", badgeBg: "#8b0000", badgeText: "#fff",
+    glow: "0 0 6px rgba(139,0,0,0.9)",
+  },
+  expiring: {
+    animation: "amcBlinkRed 1s infinite", border: "#dc2626",
+    inset: "rgba(220,38,38,0.08)", badgeBg: "#dc2626", badgeText: "#fff",
+    glow: "0 0 6px rgba(220,38,38,0.9)",
+  },
+};
+
+const getRowStyle = (status) => {
+  if (!status) return undefined;
+  const st = STATUS_STYLES[status];
+  return {
+    animation: st.animation,
+    borderLeft: `5px solid ${st.border}`,
+    boxShadow: `inset 0 0 0 9999px ${st.inset}`,
+  };
+};
+
+// Small blinking badge used in End Date + Follow-up cells
+const StatusBadge = ({ status, icon, text }) => {
+  const st = STATUS_STYLES[status];
+  return (
+    <span style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "4px",
+      marginTop: "3px",
+      fontSize: "0.7rem",
+      fontWeight: 800,
+      color: st.badgeText,
+      background: st.badgeBg,
+      borderRadius: "6px",
+      padding: "2px 7px",
+      whiteSpace: "nowrap",
+      boxShadow: st.glow,
+      animation: status === "lost" ? "none" : "amcIconBlink 1s infinite",
+    }}>
+      <i className={icon}></i>
+      {text}
+    </span>
+  );
 };
 
 export const OldAMCHistoryGrid = () => {
@@ -299,32 +424,42 @@ export const OldAMCHistoryGrid = () => {
                             <th className="text-center align-middle">Phone 1</th>
                             <th className="text-center align-middle">City / State</th>
                             <th className="text-center align-middle">GST No</th>
-                            <th className="text-center align-middle">Remark</th>  {/* ── NEW ── */}
+                            <th className="text-center align-middle">System</th>      {/* ── NEW ── */}
+                            <th className="text-center align-middle">Remark</th>
                             <th className="text-center align-middle">Zone</th>
                             <th className="text-center align-middle">Start Date</th>
                             <th className="text-center align-middle">End Date</th>
+                            <th className="text-center align-middle">Next Follow-up</th>  {/* ── NEW ── */}
                             <th className="text-center align-middle">Action</th>
                           </tr>
                         </thead>
                         <tbody>
                           {records.length > 0 ? (
                             records.map((r, index) => {
-                              {/* ── NEW: expiry blinker for this row's End Date ── */}
                               const expiryInfo = getAMCExpiryInfo(r.endDate);
+                              const followUpInfo = r.inProcess && !r.lost ? getFollowUpInfo(r.nextFollowUpDate) : null;
+                              const activeInfo = !r.lost ? getActiveInfo(r.startDate, r.endDate) : null; // ── NEW ──
+                              const status = getRowStatus(expiryInfo, followUpInfo, !!r.inProcess, !!r.lost, activeInfo);
                               return (
                                 <tr
                                   className="border my-4"
                                   key={r._id}
-                                  style={expiryInfo ? {
-                                    animation: expiryInfo.expired ? "amcBlinkDarkRed 1s infinite" : "amcBlinkRed 1s infinite",
-                                    borderLeft: expiryInfo.expired ? "5px solid #8b0000" : "5px solid #dc2626",
-                                    boxShadow: expiryInfo.expired
-                                      ? "inset 0 0 0 9999px rgba(139,0,0,0.10)"
-                                      : "inset 0 0 0 9999px rgba(220,38,38,0.08)",
-                                  } : undefined}
+                                  style={getRowStyle(status)}
                                 >
                                   <td style={{ textAlign: "center" }}>{index + 1 + (currentPage - 1) * itemsPerPage}</td>
-                                  <td className="align_left_td td_width wrap-text-of-col">{r.custName}</td>
+                                  <td className="align_left_td td_width wrap-text-of-col">
+                                    {r.custName}
+                                    {/* ── NEW: Sales Lead badge — hover to see when & who sent it ── */}
+                                    {r.sentToSales && (
+                                      <span
+                                        className="badge d-inline-flex align-items-center mt-1"
+                                        style={{ background: "#16a34a", fontSize: "0.68rem", whiteSpace: "nowrap", cursor: "help" }}
+                                        title={`Assigned to Sales${r.sentToSalesAt ? ` on ${new Date(r.sentToSalesAt).toLocaleDateString()}` : ""}${r.sentToSalesByName ? ` by ${r.sentToSalesByName}` : ""}`}
+                                      >
+                                        <i className="fa-solid fa-handshake me-1"></i>Sales Lead
+                                      </span>
+                                    )}
+                                  </td>
                                   <td style={{ textAlign: "center" }}>
                                     {r.customerType === "branch"
                                       ? <span className="badge bg-info"><i className="fa-solid fa-code-branch me-1"></i>Branch</span>
@@ -340,44 +475,73 @@ export const OldAMCHistoryGrid = () => {
                                     {[r.billingAddress?.city, r.billingAddress?.state].filter(Boolean).join(", ") || "N/A"}
                                   </td>
                                   <td style={{ textAlign: "center" }}>{r.GSTNo || "N/A"}</td>
-                                  {/* ── NEW: Remark cell, truncated with full text on hover ── */}
-<td
-  style={{ textAlign: "center", maxWidth: "180px" }}
-  title={r.remark || ""}
->
-  {r.remark
-    ? (r.remark.length > 40 ? `${r.remark.slice(0, 40)}...` : r.remark)
-    : "N/A"}
-</td>
+
+                                  {/* ── NEW: System cell, truncated with full text on hover ── */}
+                                  <td style={{ textAlign: "center", maxWidth: "160px", whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "anywhere" }} title={r.system || ""}>
+                                    {r.system
+                                      ? (r.system.length > 30 ? `${r.system.slice(0, 30)}...` : r.system)
+                                      : "N/A"}
+                                  </td>
+
+                                  {/* ── UPDATED: Remark wraps inside its own column (long words no longer overflow) ── */}
+                                  <td
+                                    style={{
+                                      textAlign: "center",
+                                      minWidth: "140px",
+                                      maxWidth: "180px",
+                                      whiteSpace: "normal",
+                                      wordBreak: "break-word",
+                                      overflowWrap: "anywhere",
+                                    }}
+                                    title={r.remark || ""}
+                                  >
+                                    {r.remark ? (
+                                      <span style={r.lost ? { color: "#475569", fontWeight: 600 } : undefined}>
+                                        {r.lost && <i className="fa-solid fa-ban me-1"></i>}
+                                        {r.remark.length > 60 ? `${r.remark.slice(0, 60)}...` : r.remark}
+                                      </span>
+                                    ) : "N/A"}
+                                  </td>
 
                                   <td style={{ textAlign: "center" }}>{r.zone || "N/A"}</td>
                                   <td style={{ textAlign: "center" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString() : "N/A"}</td>
                                   <td style={{ textAlign: "center" }}>
-                                    {/* ── NEW: End Date cell shows the expiry badge next to the date when in the alert window ── */}
                                     {r.endDate ? new Date(r.endDate).toLocaleDateString() : "N/A"}
-                                    {expiryInfo && (
-                                      <span style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "4px",
-                                        marginTop: "3px",
-                                        fontSize: "0.7rem",
-                                        fontWeight: 800,
-                                        color: "#fff",
-                                        background: expiryInfo.expired ? "#8b0000" : "#dc2626",
-                                        borderRadius: "6px",
-                                        padding: "2px 7px",
-                                        boxShadow: expiryInfo.expired
-                                          ? "0 0 6px rgba(139,0,0,0.9)"
-                                          : "0 0 6px rgba(220,38,38,0.9)",
-                                        animation: "amcIconBlink 1s infinite",
-                                      }}>
-                                        <i className="fa-solid fa-triangle-exclamation"></i>
-                                        {expiryInfo.label}
-                                      </span>
+                                    {/* End Date badge: grey "Lost" OR blue "In Process" OR red expiry label */}
+                                    {r.lost ? (
+                                      <StatusBadge status="lost" icon="fa-solid fa-ban" text="Lost" />
+                                    ) : r.inProcess && (expiryInfo || followUpInfo) ? (
+                                      <StatusBadge status="inprocess" icon="fa-solid fa-hourglass-half" text="In Process" />
+                                    ) : expiryInfo ? (
+                                      <StatusBadge
+                                        status={expiryInfo.expired ? "expired" : "expiring"}
+                                        icon="fa-solid fa-triangle-exclamation"
+                                        text={expiryInfo.label}
+                                      />
+                                    ) : activeInfo ? (
+                                      /* ── NEW: green Active / Running badge ── */
+                                      <StatusBadge status="active" icon="fa-solid fa-circle-play" text={activeInfo.label} />
+                                    ) : null}
+                                  </td>
+
+                                  {/* ── NEW: Next Follow-up cell — yellow blinking badge when due / overdue ── */}
+                                  <td style={{ textAlign: "center" }}>
+                                    {!r.lost && r.inProcess && r.nextFollowUpDate ? (
+                                      <>
+                                        {new Date(r.nextFollowUpDate).toLocaleDateString()}
+                                        {followUpInfo?.due ? (
+                                          <StatusBadge status="followup" icon="fa-solid fa-bell" text={followUpInfo.label} />
+                                        ) : followUpInfo ? (
+                                          <small className="d-block text-primary fw-bold" style={{ fontSize: "0.7rem" }}>
+                                            {followUpInfo.label}
+                                          </small>
+                                        ) : null}
+                                      </>
+                                    ) : (
+                                      <span className="text-muted">—</span>
                                     )}
                                   </td>
+
                                   <td style={{ textAlign: "center" }}>
                                     <span onClick={() => handleUpdateOpen(r)} className="update me-2" title="Edit">
                                       <i className="fa-solid fa-pen text-success cursor-pointer"></i>
@@ -390,7 +554,7 @@ export const OldAMCHistoryGrid = () => {
                               );
                             })
                           ) : (
-                            <tr><td colSpan="15" style={{ textAlign: "center" }}>No data found — import an Excel/CSV file or click Add to get started</td></tr>
+                            <tr><td colSpan="18" style={{ textAlign: "center" }}>No data found — import an Excel/CSV file or click Add to get started</td></tr>
                           )}
                         </tbody>
                       </table>
@@ -436,7 +600,7 @@ export const OldAMCHistoryGrid = () => {
         <UpdateAMCHistoryPopUp selectedRecord={selectedRecord} handleUpdate={handleUpdateClose} />
       )}
 
-      {/* ── NEW: blink animations for expiring / expired End Date rows ── */}
+      {/* Blink animations: green (active), red (expiring), dark red (expired), blue (in process), yellow (follow-up due) */}
       <style>{`
         @keyframes amcBlinkRed {
           0%, 100% { background-color: rgba(220, 38, 38, 0.06); }
@@ -445,6 +609,21 @@ export const OldAMCHistoryGrid = () => {
         @keyframes amcBlinkDarkRed {
           0%, 100% { background-color: rgba(139, 0, 0, 0.10); }
           50%       { background-color: rgba(139, 0, 0, 0.40); }
+        }
+        /* blue blinker for In Process rows */
+        @keyframes amcBlinkBlue {
+          0%, 100% { background-color: rgba(37, 99, 235, 0.06); }
+          50%       { background-color: rgba(59, 130, 246, 0.35); }
+        }
+        /* ── NEW: green blinker for Active / Running contracts ── */
+        @keyframes amcBlinkGreen {
+          0%, 100% { background-color: rgba(34, 197, 94, 0.04); }
+          50%       { background-color: rgba(34, 197, 94, 0.22); }
+        }
+        /* yellow blinker for due / overdue follow-ups */
+        @keyframes amcBlinkYellow {
+          0%, 100% { background-color: rgba(250, 204, 21, 0.10); }
+          50%       { background-color: rgba(250, 204, 21, 0.45); }
         }
         @keyframes amcIconBlink {
           0%, 100% { opacity: 1; transform: scale(1); }
