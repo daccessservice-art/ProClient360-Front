@@ -4,8 +4,12 @@
  * Changes vs previous version:
  *  - Manager can assign a Tester alongside employees when creating a task
  *  - Assignment table shows a Tester column + QA Status badge with bug-report access
- *  - NEW: Back button now returns to the exact Project Master page/search/filters
- *    the user came from (via location.state), instead of always jumping to page 1
+ *  - Back button returns to the exact Project Master page/search/filters
+ *  - NEW: Per-employee completion. When one task is assigned to many employees,
+ *    each row now shows THAT employee's own progress. One employee finishing
+ *    no longer marks every other employee as completed.
+ *    New "Employee Progress" column shows: progress bar, % , status
+ *    (Completed / In Progress / Not Started) and "Team: X/Y done".
  *  - Everything else (sub-task tree, Gantt, original handlers) is untouched
  */
 
@@ -44,9 +48,65 @@ const formatTaskDate = (dateStr) => {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+// ── NEW: get ONE employee's own completion % on a (possibly shared) task ──
+const getEmployeeLevel = (task, empId) => {
+  // Tester passed the whole task → everyone on it is done
+  if (task.qaStatus === 'passed') return 100;
+
+  const progress = task.employeeProgress || {};
+  const own = Number(progress[empId?.toString()] || 0);
+  const empCount = Array.isArray(task.employees) ? task.employees.length : 0;
+
+  // Single employee → shared taskLevel is theirs anyway
+  if (empCount <= 1) return Math.max(own, task.taskLevel || 0);
+
+  // Multiple employees → only their own logged work counts
+  return own;
+};
+
+// ── NEW: how many employees on this task have finished their own part ──
+const getTeamDoneCount = (task) => {
+  const emps = Array.isArray(task.employees) ? task.employees : [];
+  return emps.filter(emp => {
+    const eid = typeof emp === 'object' ? emp._id : emp;
+    return getEmployeeLevel(task, eid) === 100;
+  }).length;
+};
+
+// ── NEW: progress cell used by both parent rows and sub-task rows ──
+const EmployeeProgressCell = ({ level, teamSize, teamDoneCount, small = false }) => {
+  const lvl = Number(level) || 0;
+  const status =
+    lvl === 100 ? { text: "Completed", color: "#16a34a", icon: "fa-circle-check" } :
+    lvl > 0 ? { text: "In Progress", color: "#2563eb", icon: "fa-spinner" } :
+    { text: "Not Started", color: "#6c757d", icon: "fa-circle" };
+  const barClass = lvl === 100 ? "bg-success" : lvl > 50 ? "bg-primary" : "bg-warning";
+
+  return (
+    <div style={{ minWidth: "140px" }}>
+      <div className="d-flex align-items-center gap-2">
+        <div className="progress flex-grow-1" style={{ height: small ? "6px" : "8px" }}>
+          <div className={`progress-bar ${barClass}`} role="progressbar" style={{ width: `${lvl}%` }}></div>
+        </div>
+        <span className="fw-bold" style={{ fontSize: small ? "11px" : "12px", minWidth: "34px" }}>{lvl}%</span>
+      </div>
+      <small style={{ color: status.color, fontWeight: 600, fontSize: small ? "11px" : "12px" }}>
+        <i className={`fa-solid ${status.icon} me-1`}></i>{status.text}
+      </small>
+      {teamSize > 1 && (
+        <div>
+          <small className="text-muted" style={{ fontSize: "11px" }}>
+            <i className="fa-solid fa-users me-1"></i>Team: {teamDoneCount}/{teamSize} done
+          </small>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const TaskSheetMaster = () => {
   const navigate = useNavigate();
-  // ── NEW: state passed in from ProjectMasterGrid (page/search/filters) ──
+  // ── state passed in from ProjectMasterGrid (page/search/filters) ──
   const location = useLocation();
 
   const [isopen, setIsOpen] = useState(false);
@@ -79,7 +139,7 @@ export const TaskSheetMaster = () => {
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
 
-  // ✅ NEW — Optional Tester assigned alongside the developer(s)
+  // ✅ Optional Tester assigned alongside the developer(s)
   const [selectedTester, setSelectedTester] = useState(null);
 
   const [projectName, setProjectName] = useState("");
@@ -101,9 +161,7 @@ export const TaskSheetMaster = () => {
   // Track which parent rows are expanded to show sub-tasks
   const [expandedParents, setExpandedParents] = useState(new Set());
 
-  // ── NEW: go back to Project Master, restoring the page/search/filters
-  // the user came from (falls back to a plain navigate if this page was
-  // opened directly, e.g. via a bookmark or refresh) ──
+  // ── go back to Project Master, restoring the page/search/filters ──
   const handleBackToProjects = () => {
     navigate('/ProjectMasterGrid', { state: location.state });
   };
@@ -336,7 +394,10 @@ export const TaskSheetMaster = () => {
             const rows = [];
             (result.subTasks || []).forEach(st => {
               if (st.employees && Array.isArray(st.employees)) {
+                const teamSize = st.employees.length;
+                const teamDoneCount = getTeamDoneCount(st);
                 st.employees.forEach(emp => {
+                  const empId = typeof emp === 'object' ? emp._id : emp;
                   rows.push({
                     taskId: st._id,
                     taskName: st.taskName?.name || 'Unknown Task',
@@ -347,9 +408,12 @@ export const TaskSheetMaster = () => {
                     assignedBy: st.assignedBy?.name || 'Team Lead',
                     assignedById: st.assignedBy?._id || null,
                     remark: st.remark || '',
-                    taskLevel: st.taskLevel || 0,
+                    // ✅ UPDATED — each sub-task employee's OWN progress
+                    taskLevel: getEmployeeLevel(st, empId),
+                    teamSize,
+                    teamDoneCount,
                     employeeName: typeof emp === 'object' ? emp.name : emp,
-                    employeeId: typeof emp === 'object' ? emp._id : emp,
+                    employeeId: empId,
                     isSubTask: true,
                   });
                 });
@@ -402,6 +466,10 @@ export const TaskSheetMaster = () => {
               if (task.assignedByRole === 'teamlead') return;
 
               if (task.employees && Array.isArray(task.employees)) {
+                // ✅ NEW — team summary for this shared task
+                const teamSize = task.employees.length;
+                const teamDoneCount = getTeamDoneCount(task);
+
                 task.employees.forEach(emp => {
                   const empId = typeof emp === 'object' ? emp._id : emp;
                   if (empId && employeeMap[empId]) {
@@ -417,8 +485,12 @@ export const TaskSheetMaster = () => {
                       assignedBy: task.assignedBy?.name || 'Not Assigned',
                       assignedById: task.assignedBy?._id || null,
                       remark: task.remark || '',
-                      taskLevel: task.taskLevel || 0,
-                      // ✅ NEW — QA / Tester workflow fields
+                      // ✅ UPDATED — this employee's OWN progress, not the shared task level
+                      taskLevel: getEmployeeLevel(task, empId),
+                      overallTaskLevel: task.taskLevel || 0,
+                      teamSize,
+                      teamDoneCount,
+                      // ✅ QA / Tester workflow fields
                       assignedTesterName: task.assignedTester?.name || null,
                       qaStatus: task.qaStatus || 'none',
                       bugHistory: task.bugHistory || [],
@@ -449,7 +521,11 @@ export const TaskSheetMaster = () => {
                 assignedById: assignment.assignedById,
                 remark: assignment.remark,
                 taskLevel: assignment.taskLevel,
-                // ✅ NEW — carry QA/Tester fields into the grouped table rows
+                // ✅ NEW — per-employee / team info
+                overallTaskLevel: assignment.overallTaskLevel,
+                teamSize: assignment.teamSize,
+                teamDoneCount: assignment.teamDoneCount,
+                // ✅ QA/Tester fields
                 assignedTesterName: assignment.assignedTesterName,
                 qaStatus: assignment.qaStatus,
                 bugHistory: assignment.bugHistory,
@@ -549,7 +625,7 @@ export const TaskSheetMaster = () => {
           endDate,
           remark,
           priority,
-          // ✅ NEW — Optional tester for the QA workflow
+          // ✅ Optional tester for the QA workflow
           assignedTester: selectedTester?.value || undefined,
         };
 
@@ -594,7 +670,7 @@ export const TaskSheetMaster = () => {
     setRemark("");
     setSelectedEmployees([]);
     setPriority("medium");
-    setSelectedTester(null); // ✅ NEW
+    setSelectedTester(null);
   };
 
   useEffect(() => {
@@ -657,10 +733,7 @@ export const TaskSheetMaster = () => {
                 <div className="content-wrapper ps-3 ps-md-0 pt-3">
 
                   <div className="col-12 col-lg-12 mx-auto mb-4 mb-lg-0 pt-4">
-                    {/* ── UPDATED: Back button now restores the page/search/filters
-                         the user came from on Project Master, instead of always
-                         jumping to page 1. ── */}
-                    <button className="btn btn-outline-light d-flex align-items-center" onClick={handleBackToProjects}>
+                    <button type="button" className="btn btn-outline-light d-flex align-items-center" onClick={handleBackToProjects}>
                       <i className="fa-solid text-light fa-angle-left me-2"></i> Back
                     </button>
                   </div>
@@ -682,7 +755,7 @@ export const TaskSheetMaster = () => {
                           Employee Task Assignments
                         </label>
 
-                        {/* ✅ Legend for sub-task rows */}
+                        {/* ✅ Legend */}
                         <div className="d-flex align-items-center gap-3 mb-2 flex-wrap">
                           <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
                             <span style={{ width: "14px", height: "14px", background: "#e7f1ff", border: "2px solid #0d6efd", display: "inline-block", borderRadius: "2px" }}></span>
@@ -692,7 +765,11 @@ export const TaskSheetMaster = () => {
                             <span style={{ width: "14px", height: "14px", background: "#f0fdf4", border: "2px solid #16a34a", display: "inline-block", borderRadius: "2px" }}></span>
                             Team Lead Sub-Task
                           </span>
-                          {/* ✅ NEW — QA legend */}
+                          {/* ✅ NEW — per-employee completed legend */}
+                          <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
+                            <span style={{ width: "14px", height: "14px", background: "#d4edda", border: "2px solid #28a745", display: "inline-block", borderRadius: "2px" }}></span>
+                            This Employee Completed
+                          </span>
                           <span className="d-flex align-items-center gap-1" style={{ fontSize: "12px" }}>
                             <span style={{ width: "14px", height: "14px", background: "#f0f9ff", border: "2px solid #0dcaf0", display: "inline-block", borderRadius: "2px" }}></span>
                             With Tester
@@ -715,7 +792,8 @@ export const TaskSheetMaster = () => {
                                   <th>Subtask Name</th>
                                   <th>Start Date</th>
                                   <th>End Date</th>
-                                  {/* ✅ NEW columns */}
+                                  {/* ✅ NEW column — each employee's own progress */}
+                                  <th style={{ minWidth: "160px" }}>Employee Progress</th>
                                   <th className="text-center">Tester</th>
                                   <th className="text-center">QA Status</th>
                                   <th className="text-center" style={{ minWidth: "180px" }}>Actions</th>
@@ -726,7 +804,7 @@ export const TaskSheetMaster = () => {
                                   assignment.tasks.flatMap((task, index) => {
                                     const rowId = `${assignment.employeeId}-${task.taskId}-${index}`;
                                     const isSelected = selectedRowId === rowId;
-                                    // ✅ UPDATED — "completed" now also requires QA to have passed (or no tester assigned)
+                                    // ✅ UPDATED — uses THIS employee's own level (task.taskLevel is now per-employee)
                                     const isCompleted = task.taskLevel === 100 && (!task.qaStatus || task.qaStatus === 'none' || task.qaStatus === 'passed');
                                     const isPendingTest = task.qaStatus === 'pending_test' || task.qaStatus === 'testing';
                                     const isBugFound = task.qaStatus === 'bug_found';
@@ -776,12 +854,21 @@ export const TaskSheetMaster = () => {
                                         <td className="align-middle">{formatTaskDate(task.startDate)}</td>
                                         <td className="align-middle">{formatTaskDate(task.endDate)}</td>
 
-                                        {/* ✅ NEW — Tester column */}
+                                        {/* ✅ NEW — Employee Progress cell */}
+                                        <td className="align-middle">
+                                          <EmployeeProgressCell
+                                            level={task.taskLevel}
+                                            teamSize={task.teamSize}
+                                            teamDoneCount={task.teamDoneCount}
+                                          />
+                                        </td>
+
+                                        {/* Tester column */}
                                         <td className="align-middle text-center">
                                           <small className="text-muted">{task.assignedTesterName || "-"}</small>
                                         </td>
 
-                                        {/* ✅ NEW — QA Status column */}
+                                        {/* QA Status column */}
                                         <td className="align-middle text-center">
                                           {task.assignedTesterName ? (
                                             <>
@@ -847,7 +934,7 @@ export const TaskSheetMaster = () => {
                                               <i className="fa-solid fa-list-check me-1"></i> View
                                             </button>
 
-                                            {/* ✅ Toggle Sub-Tasks button */}
+                                            {/* Toggle Sub-Tasks button */}
                                             <button
                                               type="button"
                                               className="btn btn-sm px-2 py-1 d-inline-flex align-items-center"
@@ -915,7 +1002,7 @@ export const TaskSheetMaster = () => {
                                       ? subRows.length === 0
                                         ? [(
                                           <tr key={`${task.taskId}-empty`} style={{ backgroundColor: "#f8fffe" }}>
-                                            <td colSpan="10" className="text-center text-muted py-2" style={{ paddingLeft: "48px", fontSize: "13px" }}>
+                                            <td colSpan="11" className="text-center text-muted py-2" style={{ paddingLeft: "48px", fontSize: "13px" }}>
                                               <i className="fa-solid fa-info-circle me-1"></i>
                                               No sub-tasks assigned by Team Lead yet
                                             </td>
@@ -955,23 +1042,22 @@ export const TaskSheetMaster = () => {
                                               <td className="align-middle" style={{ fontSize: "13px" }}>{formatTaskDate(sub.startDate)}</td>
                                               <td className="align-middle" style={{ fontSize: "13px" }}>{formatTaskDate(sub.endDate)}</td>
 
-                                              {/* ✅ NEW — placeholder cells to keep column alignment */}
+                                              {/* ✅ NEW — sub-task employee's own progress */}
+                                              <td className="align-middle">
+                                                <EmployeeProgressCell
+                                                  level={sub.taskLevel}
+                                                  teamSize={sub.teamSize}
+                                                  teamDoneCount={sub.teamDoneCount}
+                                                  small
+                                                />
+                                              </td>
+
+                                              {/* placeholder cells to keep column alignment */}
                                               <td className="align-middle text-center"><small className="text-muted">-</small></td>
                                               <td className="align-middle text-center"><small className="text-muted">-</small></td>
 
                                               <td className="align-middle text-center">
                                                 <div className="d-flex align-items-center justify-content-center gap-1">
-                                                  {/* Progress badge */}
-                                                  <span
-                                                    className="badge"
-                                                    style={{
-                                                      backgroundColor: subCompleted ? "#16a34a" : sub.taskLevel > 50 ? "#2563eb" : "#f59e0b",
-                                                      fontSize: "12px",
-                                                      minWidth: "52px"
-                                                    }}
-                                                  >
-                                                    {sub.taskLevel}%
-                                                  </span>
                                                   {/* View sub-task actions */}
                                                   <button
                                                     type="button"
@@ -1127,7 +1213,7 @@ export const TaskSheetMaster = () => {
                       </div>
                     </div>
 
-                    {/* ✅ NEW — Assign Tester (optional, enables QA workflow) */}
+                    {/* ✅ Assign Tester (optional, enables QA workflow) */}
                     <div className="col-12 col-md-6 col-lg-6">
                       <div className="mb-3">
                         <label htmlFor="testerSelect" className="form-label label_text">
