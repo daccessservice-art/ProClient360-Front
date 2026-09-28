@@ -278,6 +278,9 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return { label: `${diffDays} day${diffDays === 1 ? "" : "s"} left`, expired: false };
   };
 
+  // ── CHANGED: only already-expired contracts (incl. "Expires Today") count in the tab badge ──
+  const amcExpiredCount = amcAlerts.filter((r) => getAMCStatus(r.endDate).expired).length;
+
   const todayDate = new Date().toLocaleDateString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
   });
@@ -289,7 +292,8 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     { key: "assigned", label: "Assigned tasks",    count: (assignedTasks || []).length,  color: "#7c5cfc", pulse: "pulsePurple", leadTab: false },
     { key: "active",   label: "Active tasks",      count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
     { key: "poApproval", label: "PO approval", count: pendingPOs.length, color: "#0891b2", pulse: "pulseBlue", leadTab: false, poTab: true },
-    { key: "amcExpiry", label: "AMC expiry alerts", count: amcAlerts.length, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
+    // ── CHANGED: badge shows expired contracts only ──
+    { key: "amcExpiry", label: "AMC expiry alerts", count: amcExpiredCount, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
   ];
 
   const tabs = allTabs.filter(tab => {
