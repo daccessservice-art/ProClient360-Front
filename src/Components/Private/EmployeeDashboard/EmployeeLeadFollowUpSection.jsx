@@ -10,9 +10,6 @@ import ViewPurchaseOrderPopUp from "../CommonPopUp/ViewPurchaseOrderPopUp";
 // ── Old AMC History expiry alerts (AMC Executive / Vice President / Service Manager only) ──
 import { getOldAMCHistory } from "../../../hooks/useOldAMCHistory";
 
-// ── how many days before an AMC contract's End Date the blinker should start showing ──
-const ALERT_WINDOW_DAYS = 50;
-
 // ── designations allowed to see the AMC Expiry Alerts tab (case-insensitive) ──
 const AMC_ALERT_DESIGNATIONS = ["amc executive", "amc executives", "vice president", "service manager"];
 
@@ -151,7 +148,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     };
   }, [isPurchaseCEO]);
 
-  // ── fetch AMC records whose End Date is expired or within ALERT_WINDOW_DAYS ──
+  // ── CHANGED: fetch only AMC records that are already expired (End Date today or earlier) ──
   const fetchAMCAlerts = async (silent = false) => {
     if (!silent) setAmcLoading(true);
     try {
@@ -159,8 +156,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
       if (data?.success) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const windowEnd = new Date(today);
-        windowEnd.setDate(windowEnd.getDate() + ALERT_WINDOW_DAYS);
 
         const alerts = (data.records || [])
           .filter((r) => {
@@ -168,7 +163,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
             const end = new Date(r.endDate);
             if (isNaN(end.getTime())) return false;
             end.setHours(0, 0, 0, 0);
-            return end <= windowEnd;
+            return end <= today; // expired or expiring today only – no "days left" rows
           })
           .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
 
@@ -262,7 +257,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return '₹' + Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  // ── expired vs expiring-soon status + days-left label for AMC alerts ──
+  // ── expired label for AMC alerts ──
   const getAMCStatus = (endDateStr) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -278,9 +273,6 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return { label: `${diffDays} day${diffDays === 1 ? "" : "s"} left`, expired: false };
   };
 
-  // ── CHANGED: only already-expired contracts (incl. "Expires Today") count in the tab badge ──
-  const amcExpiredCount = amcAlerts.filter((r) => getAMCStatus(r.endDate).expired).length;
-
   const todayDate = new Date().toLocaleDateString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
   });
@@ -292,8 +284,8 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     { key: "assigned", label: "Assigned tasks",    count: (assignedTasks || []).length,  color: "#7c5cfc", pulse: "pulsePurple", leadTab: false },
     { key: "active",   label: "Active tasks",      count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
     { key: "poApproval", label: "PO approval", count: pendingPOs.length, color: "#0891b2", pulse: "pulseBlue", leadTab: false, poTab: true },
-    // ── CHANGED: badge shows expired contracts only ──
-    { key: "amcExpiry", label: "AMC expiry alerts", count: amcExpiredCount, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
+    // ── CHANGED: list now holds expired contracts only, so count = list length ──
+    { key: "amcExpiry", label: "AMC expiry alerts", count: amcAlerts.length, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
   ];
 
   const tabs = allTabs.filter(tab => {
@@ -355,7 +347,8 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (activeTab === "overdue")    return chip(<><i className="fa-solid fa-triangle-exclamation"></i> Action required</>, "#8b0000", "#fbeeee", "#efc9c9");
     if (activeTab === "pending")    return chip(<><i className="fa-solid fa-clock"></i> Pending</>, "#c2410c", "#fff4e8", "#fbd9b5");
     if (activeTab === "poApproval") return chip(<><i className="fa-solid fa-file-invoice"></i> Awaiting approval</>, "#0e7490", "#ecf8fb", "#bfe5ee");
-    if (activeTab === "amcExpiry")  return chip(<><i className="fa-solid fa-bell"></i> Expiring within {ALERT_WINDOW_DAYS} days</>, "#b91c1c", "#fdf0f0", "#f6cfd3");
+    // ── CHANGED: header chip text ──
+    if (activeTab === "amcExpiry")  return chip(<><i className="fa-solid fa-bell"></i> Expired contracts</>, "#b91c1c", "#fdf0f0", "#f6cfd3");
     if (activeTab === "assigned")   return chip(<><i className="fa-solid fa-clipboard-list"></i> Not started</>, "#6d28d9", "#f3efff", "#ddd3ff");
     if (activeTab === "active")     return chip(<><i className="fa-solid fa-bolt"></i> In progress</>, "#15803d", "#effaf3", "#c9eed8");
     return null;
@@ -376,7 +369,9 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
       return (
         <div className="ed-empty">
           <i className="fa-solid fa-inbox"></i>
-          Nothing here right now. New items will appear automatically.
+          {isAMCTab
+            ? "No expired AMC contracts. All contracts are active."
+            : "Nothing here right now. New items will appear automatically."}
         </div>
       );
     }
@@ -385,12 +380,12 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (isAMCTab) {
       return displayedData.map((r, idx) => {
         const status = getAMCStatus(r.endDate);
-        const c = status.expired ? "#8b0000" : "#dc2626";
+        const c = "#8b0000";
         return (
           <div
             key={r._id}
             className="ed-row"
-            style={{ animation: status.expired ? "blinkDarkRed 1.4s infinite" : "blinkRed 1.4s infinite" }}
+            style={{ animation: "blinkDarkRed 1.4s infinite" }}
           >
             {idxBox(idx)}
             <div className="ed-row-main">
