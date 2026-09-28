@@ -14,28 +14,36 @@ const industryOptions = [
 ];
 
 const REMARK_MAX_LENGTH = 2000;
-const SYSTEM_MAX_LENGTH = 500; // ── NEW ──
+const SYSTEM_MAX_LENGTH = 500;
 
-const AddAMCHistoryPopUp = ({ handleAdd }) => {
-  const [custName, setCustName] = useState("");
-  const [customerType, setCustomerType] = useState("main");
-  const [email, setEmail] = useState("");
-  const [ownedBy, setOwnedBy] = useState("");
-  const [industryType, setIndustryType] = useState("");
-  const [customerPriority, setCustomerPriority] = useState("");
-  const [customerContactPersonName1, setCustomerContactPersonName1] = useState("");
-  const [phoneNumber1, setPhoneNumber1] = useState("");
-  const [customerContactPersonEmail1, setCustomerContactPersonEmail1] = useState("");
-  const [customerContactPersonDesignation1, setCustomerContactPersonDesignation1] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [pincode, setPincode] = useState("");
-  const [GSTNo, setGSTNo] = useState("");
-  const [zone, setZone] = useState("");
-  const [system, setSystem] = useState(""); // ── NEW ──
-  const [remark, setRemark] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+// ── NEW: `prefill` is optional. It is passed when user clicks "Create AMC"
+// on a project in the Project AMC Alerts panel. Normal "Add" works exactly as before. ──
+const AddAMCHistoryPopUp = ({ handleAdd, prefill = null }) => {
+  const pf = prefill || {};
+  const fromProject = !!pf.sourceProject;
+
+  const [custName, setCustName] = useState(pf.custName || "");
+  const [customerType, setCustomerType] = useState(pf.customerType || "main");
+  const [email, setEmail] = useState(pf.email || "");
+  const [ownedBy, setOwnedBy] = useState(pf.ownedBy || "");
+  const [industryType, setIndustryType] = useState(pf.industryType || "");
+  const [customerPriority, setCustomerPriority] = useState(pf.customerPriority || "");
+  const [customerContactPersonName1, setCustomerContactPersonName1] = useState(pf.customerContactPersonName1 || "");
+  const [phoneNumber1, setPhoneNumber1] = useState(pf.phoneNumber1 || "");
+  const [customerContactPersonEmail1, setCustomerContactPersonEmail1] = useState(pf.customerContactPersonEmail1 || "");
+  const [customerContactPersonDesignation1, setCustomerContactPersonDesignation1] = useState(pf.customerContactPersonDesignation1 || "");
+  const [city, setCity] = useState(pf.city || "");
+  const [state, setState] = useState(pf.state || "");
+  const [pincode, setPincode] = useState(pf.pincode || "");
+  const [GSTNo, setGSTNo] = useState(pf.GSTNo || "");
+  const [zone, setZone] = useState(pf.zone || "");
+  const [system, setSystem] = useState(pf.system || "");
+  const [remark, setRemark] = useState(pf.remark || "");
+  const [startDate, setStartDate] = useState(pf.startDate || "");
+  const [endDate, setEndDate] = useState(pf.endDate || "");
+  // ── NEW: Next Follow-up Date (optional; if set, record becomes In Process) ──
+  const [nextFollowUpDate, setNextFollowUpDate] = useState(pf.nextFollowUpDate || "");
+  const [saving, setSaving] = useState(false);
 
   const handleCustNameChange = (e) => {
     if (/^[a-zA-Z0-9\s()&\-.]*$/.test(e.target.value)) setCustName(e.target.value);
@@ -46,7 +54,6 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
   const handlePincodeChange = (e) => {
     if (/^\d{0,6}$/.test(e.target.value)) setPincode(e.target.value);
   };
-  // ── NEW: System change handler with 500 char cap ──
   const handleSystemChange = (e) => {
     if (e.target.value.length <= SYSTEM_MAX_LENGTH) setSystem(e.target.value);
   };
@@ -56,6 +63,7 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (saving) return;
 
     if (!custName.trim()) {
       return toast.error("Customer Name is required");
@@ -69,7 +77,6 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
     if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
       return toast.error("End Date cannot be before Start Date");
     }
-    // ── NEW: System length guard ──
     if (system && system.length > SYSTEM_MAX_LENGTH) {
       return toast.error(`System cannot exceed ${SYSTEM_MAX_LENGTH} characters`);
     }
@@ -91,15 +98,20 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
       billingAddress: { city: city.trim(), state: state.trim(), pincode: pincode.trim() },
       GSTNo: GSTNo.trim(),
       zone,
-      system: system.trim(), // ── NEW ──
+      system: system.trim(),
       remark: remark.trim(),
       startDate: startDate || null,
       endDate: endDate || null,
+      nextFollowUpDate: nextFollowUpDate || null, // ── NEW ──
+      inProcess: !!nextFollowUpDate,              // ── NEW ──
+      ...(fromProject ? { sourceProject: pf.sourceProject, sourceProjectName: pf.sourceProjectName || "" } : {}), // ── NEW ──
     };
 
-    toast.loading("Adding AMC History Record...");
+    setSaving(true);
+    toast.loading(fromProject ? "Creating AMC from Project..." : "Adding AMC History Record...");
     const data = await createOldAMCHistory(payload);
     toast.dismiss();
+    setSaving(false);
 
     if (data?.success) {
       toast.success(data.message || "Record added successfully");
@@ -115,7 +127,9 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
         <div className="modal-content p-3">
           <form onSubmit={handleSubmit}>
             <div className="modal-header pt-0">
-              <h5 className="card-title fw-bold">Add Old AMC History Record</h5>
+              <h5 className="card-title fw-bold">
+                {fromProject ? "Create AMC from Project" : "Add Old AMC History Record"}
+              </h5>
               <button onClick={() => handleAdd()} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
                 <span aria-hidden="true">&times;</span>
               </button>
@@ -123,6 +137,19 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
 
             <div className="modal-body">
               <div className="row modal_body_height">
+
+                {/* ── NEW: project info strip (only when opened from Project AMC Alerts) ── */}
+                {fromProject && (
+                  <div className="col-12">
+                    <div className="alert alert-success py-2 mb-3" style={{ fontSize: "13px" }}>
+                      <i className="fa-solid fa-diagram-project me-2"></i>
+                      Project: <strong>{pf.sourceProjectName}</strong>
+                      <div className="text-muted" style={{ fontSize: "12px" }}>
+                        Details are filled from Project Master. Check the AMC dates and follow-up date, then save.
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
@@ -273,7 +300,9 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
 
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
-                    <label className="form-label label_text">Start Date</label>
+                    <label className="form-label label_text">
+                      Start Date {fromProject && <small className="text-muted">(AMC start)</small>}
+                    </label>
                     <input type="date" className="form-control rounded-0"
                       value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                   </div>
@@ -281,13 +310,25 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
 
                 <div className="col-12 col-lg-6">
                   <div className="mb-3">
-                    <label className="form-label label_text">End Date</label>
+                    <label className="form-label label_text">
+                      End Date {fromProject && <small className="text-muted">(AMC end)</small>}
+                    </label>
                     <input type="date" className="form-control rounded-0"
                       value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                   </div>
                 </div>
 
-                {/* ── NEW: System field ── */}
+                {/* ── NEW: Next Follow-up Date ── */}
+                <div className="col-12 col-lg-6">
+                  <div className="mb-3">
+                    <label className="form-label label_text">
+                      Next Follow-up Date <small className="text-muted">(auto sets In Process)</small>
+                    </label>
+                    <input type="date" className="form-control rounded-0"
+                      value={nextFollowUpDate} onChange={(e) => setNextFollowUpDate(e.target.value)} />
+                  </div>
+                </div>
+
                 <div className="col-12">
                   <div className="mb-3">
                     <label className="form-label label_text">
@@ -312,8 +353,10 @@ const AddAMCHistoryPopUp = ({ handleAdd }) => {
 
                 <div className="row">
                   <div className="col-12 pt-3 mt-2">
-                    <button type="submit" className="w-80 btn addbtn rounded-0 add_button m-2 px-4">Add</button>
-                    <button type="button" onClick={handleAdd} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">Cancel</button>
+                    <button type="submit" disabled={saving} className="w-80 btn addbtn rounded-0 add_button m-2 px-4">
+                      {saving ? "Saving..." : fromProject ? "Create AMC" : "Add"}
+                    </button>
+                    <button type="button" onClick={() => handleAdd()} className="w-80 btn addbtn rounded-0 Cancel_button m-2 px-4">Cancel</button>
                   </div>
                 </div>
 

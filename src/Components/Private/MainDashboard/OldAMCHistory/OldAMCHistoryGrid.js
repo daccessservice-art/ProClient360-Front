@@ -4,6 +4,8 @@ import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddAMCHistoryPopUp from "./PopUp/AddAMCHistoryPopUp";
 import UpdateAMCHistoryPopUp from "./PopUp/UpdateAMCHistoryPopUp";
+// ── NEW: Project AMC Alerts panel (completed / ending projects from Project Master) ──
+import ProjectAMCAlertsPanel from "./ProjectAMCAlertsPanel";
 import {
   getOldAMCHistory,
   importOldAMCHistory,
@@ -17,8 +19,6 @@ import toast from "react-hot-toast";
 // Keep this in sync with the same constant used on the Employee Dashboard's "AMC Expiry Alerts" tab.
 const ALERT_WINDOW_DAYS = 50;
 
-// Figure out if a record's End Date is expired / expiring soon.
-// Returns null if it's outside the alert window (no highlight needed).
 const getAMCExpiryInfo = (endDateStr) => {
   if (!endDateStr) return null;
   const end = new Date(endDateStr);
@@ -43,9 +43,6 @@ const getAMCExpiryInfo = (endDateStr) => {
   return { expired: false, label: `${diffDays}d left` };
 };
 
-// ── NEW: Active / Running contract info.
-// Active = End Date is still more than ALERT_WINDOW_DAYS away AND Start Date has already
-// started (or no Start Date). Returns null otherwise. ──
 const getActiveInfo = (startDateStr, endDateStr) => {
   if (!endDateStr) return null;
   const end = new Date(endDateStr);
@@ -59,17 +56,15 @@ const getActiveInfo = (startDateStr, endDateStr) => {
     const start = new Date(startDateStr);
     if (!isNaN(start.getTime())) {
       start.setHours(0, 0, 0, 0);
-      if (start > today) return null; // contract not started yet
+      if (start > today) return null;
     }
   }
 
   const diffDays = Math.round((end - today) / (1000 * 60 * 60 * 24));
-  if (diffDays <= ALERT_WINDOW_DAYS) return null; // expiring / expired handled by red blinker
+  if (diffDays <= ALERT_WINDOW_DAYS) return null;
   return { label: `Active · ${diffDays}d left` };
 };
 
-// Next Follow-up Date info. Returns null if no date.
-// due = true when follow-up is today or already passed (→ YELLOW blinker) ──
 const getFollowUpInfo = (dateStr) => {
   if (!dateStr) return null;
   const fu = new Date(dateStr);
@@ -85,29 +80,21 @@ const getFollowUpInfo = (dateStr) => {
   return { due: false, label: `in ${diffDays}d` };
 };
 
-// ── Row status priority:
-// 1) In Process + follow-up due/passed → "followup" (YELLOW)
-// 2) In Process + in expiry window     → "inprocess" (BLUE)
-// 3) Expired                           → "expired"   (DARK RED)
-// 4) Expiring soon                     → "expiring"  (RED)
-// 5) Otherwise                         → null (no blink) ──
 const getRowStatus = (expiryInfo, followUpInfo, inProcess, lost, activeInfo) => {
-  if (lost) return "lost"; // Lost overrides everything, no blinker
+  if (lost) return "lost";
   if (inProcess && followUpInfo?.due) return "followup";
   if (inProcess && expiryInfo) return "inprocess";
   if (expiryInfo) return expiryInfo.expired ? "expired" : "expiring";
-  if (activeInfo) return "active"; // ── NEW: running contract → GREEN blinker ──
+  if (activeInfo) return "active";
   return null;
 };
 
 const STATUS_STYLES = {
-  // ── NEW: Active / Running — green blinker ──
   active: {
     animation: "amcBlinkGreen 1.6s infinite", border: "#15803d",
     inset: "rgba(34,197,94,0.06)", badgeBg: "#22c55e", badgeText: "#052e16",
     glow: "0 0 6px rgba(34,197,94,0.9)",
   },
-  // ── NEW: Lost — grey, NOT blinking ──
   lost: {
     animation: "none", border: "#475569",
     inset: "rgba(71,85,105,0.10)", badgeBg: "#475569", badgeText: "#fff",
@@ -128,7 +115,6 @@ const STATUS_STYLES = {
     inset: "rgba(139,0,0,0.10)", badgeBg: "#8b0000", badgeText: "#fff",
     glow: "0 0 6px rgba(139,0,0,0.9)",
   },
-  // ── UPDATED: Expiring within 50 days → DARK YELLOW ──
   expiring: {
     animation: "amcBlinkDarkYellow 1s infinite", border: "#a16207",
     inset: "rgba(161,98,7,0.08)", badgeBg: "#a16207", badgeText: "#fff",
@@ -146,7 +132,6 @@ const getRowStyle = (status) => {
   };
 };
 
-// Small blinking badge used in End Date + Follow-up cells
 const StatusBadge = ({ status, icon, text }) => {
   const st = STATUS_STYLES[status];
   return (
@@ -200,6 +185,10 @@ export const OldAMCHistoryGrid = () => {
   const [AddPopUpShow, setAddPopUpShow] = useState(false);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  // ── NEW: prefill data when creating AMC from a project + refresh trigger for alert panel ──
+  const [amcPrefill, setAmcPrefill] = useState(null);
+  const [alertsRefreshKey, setAlertsRefreshKey] = useState(0);
 
   const fetchData = async () => {
     try {
@@ -264,6 +253,7 @@ export const OldAMCHistoryGrid = () => {
     else toast.error(data?.error || "Failed to delete");
     setDeletePopUpShow(false);
     fetchData();
+    setAlertsRefreshKey((k) => k + 1); // ── NEW: deleting a project-AMC brings the project back to alerts ──
   };
 
   const handleExportPDF = async () => {
@@ -282,7 +272,20 @@ export const OldAMCHistoryGrid = () => {
     setSearch(""); setSearchText(""); setCustomerTypeFilter(""); setZoneFilter(""); setPriorityFilter(""); setCurrentPage(1);
   };
 
-  const handleAdd = () => setAddPopUpShow((prev) => !prev);
+  // ── UPDATED: when the Add popup closes, clear project prefill and refresh the alert panel ──
+  const handleAdd = () => {
+    if (AddPopUpShow) {
+      setAmcPrefill(null);
+      setAlertsRefreshKey((k) => k + 1);
+    }
+    setAddPopUpShow(!AddPopUpShow);
+  };
+
+  // ── NEW: "Create AMC" clicked on a project in the alert panel ──
+  const handleCreateAMCFromProject = (prefill) => {
+    setAmcPrefill(prefill);
+    setAddPopUpShow(true);
+  };
 
   const handleUpdateOpen = (record) => {
     setSelectedRecord(record);
@@ -408,6 +411,12 @@ export const OldAMCHistoryGrid = () => {
                   </div>
                 </div>
 
+                {/* ── NEW: Project AMC Alerts (completed / ending projects from Project Master) ── */}
+                <ProjectAMCAlertsPanel
+                  refreshKey={alertsRefreshKey}
+                  onCreateAMC={handleCreateAMCFromProject}
+                />
+
                 <div className="row bg-white p-2 m-1 border rounded">
                   <div className="col-12 py-2">
                     <div className="table-responsive">
@@ -425,12 +434,12 @@ export const OldAMCHistoryGrid = () => {
                             <th className="text-center align-middle">Phone 1</th>
                             <th className="text-center align-middle">City / State</th>
                             <th className="text-center align-middle">GST No</th>
-                            <th className="text-center align-middle">System</th>      {/* ── NEW ── */}
+                            <th className="text-center align-middle">System</th>
                             <th className="text-center align-middle">Remark</th>
                             <th className="text-center align-middle">Zone</th>
                             <th className="text-center align-middle">Start Date</th>
                             <th className="text-center align-middle">End Date</th>
-                            <th className="text-center align-middle">Next Follow-up</th>  {/* ── NEW ── */}
+                            <th className="text-center align-middle">Next Follow-up</th>
                             <th className="text-center align-middle">Action</th>
                           </tr>
                         </thead>
@@ -439,7 +448,7 @@ export const OldAMCHistoryGrid = () => {
                             records.map((r, index) => {
                               const expiryInfo = getAMCExpiryInfo(r.endDate);
                               const followUpInfo = r.inProcess && !r.lost ? getFollowUpInfo(r.nextFollowUpDate) : null;
-                              const activeInfo = !r.lost ? getActiveInfo(r.startDate, r.endDate) : null; // ── NEW ──
+                              const activeInfo = !r.lost ? getActiveInfo(r.startDate, r.endDate) : null;
                               const status = getRowStatus(expiryInfo, followUpInfo, !!r.inProcess, !!r.lost, activeInfo);
                               return (
                                 <tr
@@ -450,7 +459,6 @@ export const OldAMCHistoryGrid = () => {
                                   <td style={{ textAlign: "center" }}>{index + 1 + (currentPage - 1) * itemsPerPage}</td>
                                   <td className="align_left_td td_width wrap-text-of-col">
                                     {r.custName}
-                                    {/* ── NEW: Sales Lead badge — hover to see when & who sent it ── */}
                                     {r.sentToSales && (
                                       <span
                                         className="badge d-inline-flex align-items-center mt-1"
@@ -458,6 +466,16 @@ export const OldAMCHistoryGrid = () => {
                                         title={`Assigned to Sales${r.sentToSalesAt ? ` on ${new Date(r.sentToSalesAt).toLocaleDateString()}` : ""}${r.sentToSalesByName ? ` by ${r.sentToSalesByName}` : ""}`}
                                       >
                                         <i className="fa-solid fa-handshake me-1"></i>Sales Lead
+                                      </span>
+                                    )}
+                                    {/* ── NEW: record created from a Project Master project ── */}
+                                    {r.sourceProject && (
+                                      <span
+                                        className="badge d-inline-flex align-items-center mt-1 ms-1"
+                                        style={{ background: "#0e7490", fontSize: "0.68rem", whiteSpace: "nowrap", cursor: "help" }}
+                                        title={`Created from Project: ${r.sourceProjectName || ""}`}
+                                      >
+                                        <i className="fa-solid fa-diagram-project me-1"></i>From Project
                                       </span>
                                     )}
                                   </td>
@@ -477,14 +495,12 @@ export const OldAMCHistoryGrid = () => {
                                   </td>
                                   <td style={{ textAlign: "center" }}>{r.GSTNo || "N/A"}</td>
 
-                                  {/* ── NEW: System cell, truncated with full text on hover ── */}
                                   <td style={{ textAlign: "center", maxWidth: "160px", whiteSpace: "normal", wordBreak: "break-word", overflowWrap: "anywhere" }} title={r.system || ""}>
                                     {r.system
                                       ? (r.system.length > 30 ? `${r.system.slice(0, 30)}...` : r.system)
                                       : "N/A"}
                                   </td>
 
-                                  {/* ── UPDATED: Remark wraps inside its own column (long words no longer overflow) ── */}
                                   <td
                                     style={{
                                       textAlign: "center",
@@ -508,7 +524,6 @@ export const OldAMCHistoryGrid = () => {
                                   <td style={{ textAlign: "center" }}>{r.startDate ? new Date(r.startDate).toLocaleDateString() : "N/A"}</td>
                                   <td style={{ textAlign: "center" }}>
                                     {r.endDate ? new Date(r.endDate).toLocaleDateString() : "N/A"}
-                                    {/* End Date badge: grey "Lost" OR blue "In Process" OR red expiry label */}
                                     {r.lost ? (
                                       <StatusBadge status="lost" icon="fa-solid fa-ban" text="Lost" />
                                     ) : r.inProcess && (expiryInfo || followUpInfo) ? (
@@ -520,12 +535,10 @@ export const OldAMCHistoryGrid = () => {
                                         text={expiryInfo.label}
                                       />
                                     ) : activeInfo ? (
-                                      /* ── NEW: green Active / Running badge ── */
                                       <StatusBadge status="active" icon="fa-solid fa-circle-play" text={activeInfo.label} />
                                     ) : null}
                                   </td>
 
-                                  {/* ── NEW: Next Follow-up cell — yellow blinking badge when due / overdue ── */}
                                   <td style={{ textAlign: "center" }}>
                                     {!r.lost && r.inProcess && r.nextFollowUpDate ? (
                                       <>
@@ -595,19 +608,18 @@ export const OldAMCHistoryGrid = () => {
         />
       )}
 
-      {AddPopUpShow && <AddAMCHistoryPopUp handleAdd={handleAdd} />}
+      {/* ── UPDATED: pass project prefill (null for normal Add) ── */}
+      {AddPopUpShow && <AddAMCHistoryPopUp handleAdd={handleAdd} prefill={amcPrefill} />}
 
       {updatePopUpShow && selectedRecord && (
         <UpdateAMCHistoryPopUp selectedRecord={selectedRecord} handleUpdate={handleUpdateClose} />
       )}
 
-      {/* Blink animations: green (active), red (expiring), dark red (expired), blue (in process), yellow (follow-up due) */}
       <style>{`
         @keyframes amcBlinkRed {
           0%, 100% { background-color: rgba(220, 38, 38, 0.06); }
           50%       { background-color: rgba(255, 90, 90, 0.35); }
         }
-        /* ── NEW: dark yellow blinker for contracts expiring within 50 days ── */
         @keyframes amcBlinkDarkYellow {
           0%, 100% { background-color: rgba(161, 98, 7, 0.06); }
           50%       { background-color: rgba(202, 138, 4, 0.35); }
@@ -616,17 +628,14 @@ export const OldAMCHistoryGrid = () => {
           0%, 100% { background-color: rgba(139, 0, 0, 0.10); }
           50%       { background-color: rgba(139, 0, 0, 0.40); }
         }
-        /* blue blinker for In Process rows */
         @keyframes amcBlinkBlue {
           0%, 100% { background-color: rgba(37, 99, 235, 0.06); }
           50%       { background-color: rgba(59, 130, 246, 0.35); }
         }
-        /* ── NEW: green blinker for Active / Running contracts ── */
         @keyframes amcBlinkGreen {
           0%, 100% { background-color: rgba(34, 197, 94, 0.04); }
           50%       { background-color: rgba(34, 197, 94, 0.22); }
         }
-        /* yellow blinker for due / overdue follow-ups */
         @keyframes amcBlinkYellow {
           0%, 100% { background-color: rgba(250, 204, 21, 0.10); }
           50%       { background-color: rgba(250, 204, 21, 0.45); }

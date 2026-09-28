@@ -28,6 +28,17 @@ const getOldAMCHistory = async (
   }
 };
 
+// ── NEW: Completed / ending projects (from Project Master) that need an AMC ──
+const getProjectAMCAlerts = async () => {
+  try {
+    const response = await axios.get(`${url}/project-alerts`, { headers: authHeader() });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: 'Failed to load project AMC alerts' };
+  }
+};
+
 const importOldAMCHistory = async (file) => {
   try {
     const formData = new FormData();
@@ -63,7 +74,6 @@ const updateOldAMCHistory = async (payload) => {
   }
 };
 
-// ── NEW: toggle "In Process" for one record ──
 const toggleOldAMCHistoryInProcess = async (id, inProcess) => {
   try {
     const response = await axios.patch(`${url}/${id}/in-process`, { inProcess }, { headers: authHeader() });
@@ -140,10 +150,11 @@ const exportOldAMCHistoryExcel = async () => {
 
 export {
   getOldAMCHistory,
+  getProjectAMCAlerts, // ── NEW ──
   importOldAMCHistory,
   createOldAMCHistory,
   updateOldAMCHistory,
-  toggleOldAMCHistoryInProcess, // ── NEW ──
+  toggleOldAMCHistoryInProcess,
   deleteOldAMCHistory,
   deleteImportBatch,
   exportOldAMCHistoryPDF,
