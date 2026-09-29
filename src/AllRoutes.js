@@ -27,7 +27,7 @@ import { AdminCompanyMasterGrid } from "./Components/Private/AdminDashboard/Admi
 import { UserProfile } from "./Components/Private/MainDashboard/UserProfile";
 import NotFound from "./Components/NotFound";
 import { TicketMasterGrid } from "./Components/Private/MainDashboard/TicketMaster/TicketMaserGrid";
-import Feedback  from "./Components/Public/Feedback";
+import Feedback from "./Components/Public/Feedback";
 import { ServiceMasterGrid } from "./Components/Private/MainDashboard/ServiceMaster/ServiceMasterGrid";
 
 import { SalesMasterGrid } from "./Components/Private/MainDashboard/SalesMaster/SalesMasterGrid";
@@ -52,19 +52,20 @@ import { ChangePassword } from "./Components/Public/ChangePassword";
 import { ForgotPasswordConfirm } from "./Components/Public/ForgotPasswordConfirm";
 import ProtectRoute from "./utils/ProtectRoute";
 
-// Import new vendor registration components
+// ✅ NEW: auto logout watcher
+import SessionWatcher from "./utils/SessionWatcher";
+
+// Vendor registration components
 import VendorRegistrationForm from "./Components/Private/MainDashboard/VendorMaster/PopUp/VendorRegistrationForm";
 import VendorRegistrationSuccess from "./Components/Private/MainDashboard/VendorMaster/PopUp/VendorRegistrationSuccess";
 
 import { CallUnansweredLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/CallUnansweredLeadPage';
 
-// Import Activity Log and Report Components
+// Activity Log and Report Components
 import ActivityLogReport from "./Components/Private/MainDashboard/ActivityLogReport/ActivityLogReport";
 import AnnualReport from "./Components/Private/MainDashboard/AnnualReport/AnnualReport";
 
 import { NotFeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/NotFeasibleLeadPage';
-
-// ✅ Match exact filename case on disk
 import { FeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/Feasibleleadspage';
 
 import { ExhibitionMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionMasterGrid";
@@ -82,99 +83,63 @@ import { ProjectPurchaseMasterGrid } from "./Components/Private/MainDashboard/Pr
 
 import { AccountFollowUpMasterGrid } from "./Components/Private/MainDashboard/AccountMaster/AccountFollowUpMasterGrid";
 
-// ── NEW: Old AMC History (separate, read/write history page — does not touch AMCMasterGrid) ──
 import { OldAMCHistoryGrid } from "./Components/Private/MainDashboard/OldAMCHistory/OldAMCHistoryGrid";
 
 
-// Custom component to check if user has required permissions
+const AccessDenied = ({ message }) => (
+    <div className="container-fluid">
+        <div className="row justify-content-center">
+            <div className="col-md-6">
+                <div className="card mt-5">
+                    <div className="card-body text-center">
+                        <h4 className="card-title">Access Denied</h4>
+                        <p className="card-text">{message}</p>
+                        <p className="card-text">Please contact your administrator if you believe this is an error.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+// Sales Manager permission check
 const SalesManagerRoute = () => {
     const { user } = useContext(UserContext);
-    
-    // Check if user has required permissions (less strict - check for either permission)
-    const hasPermission = user?.permissions?.includes("viewLead") || 
-                         user?.permissions?.includes("viewSalesManagerMaster") ||
-                         user?.user === 'company';
-    
+
+    const hasPermission = user?.permissions?.includes("viewLead") ||
+                          user?.permissions?.includes("viewSalesManagerMaster") ||
+                          user?.user === 'company';
+
     if (hasPermission) {
         return <SalesManagerMasterGrid />;
     }
-    
-    // If user doesn't have permission, show access denied
-    return (
-        <div className="container-fluid">
-            <div className="row justify-content-center">
-                <div className="col-md-6">
-                    <div className="card mt-5">
-                        <div className="card-body text-center">
-                            <h4 className="card-title">Access Denied</h4>
-                            <p className="card-text">You don't have permission to access the Sales Manager Master page.</p>
-                            <p className="card-text">Please contact your administrator if you believe this is an error.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+    return <AccessDenied message="You don't have permission to access the Sales Manager Master page." />;
 };
 
-// Custom component for Activity Log Report with permission check
+// Activity Log Report permission check
 const ActivityLogReportRoute = () => {
     const { user } = useContext(UserContext);
-    
-    // Check if user has required permissions
-    const hasPermission = user?.permissions?.includes("viewActivityLog") || 
-                         user?.user === 'company';
-    
+
+    const hasPermission = user?.permissions?.includes("viewActivityLog") ||
+                          user?.user === 'company';
+
     if (hasPermission) {
         return <ActivityLogReport />;
     }
-    
-    // If user doesn't have permission, show access denied
-    return (
-        <div className="container-fluid">
-            <div className="row justify-content-center">
-                <div className="col-md-6">
-                    <div className="card mt-5">
-                        <div className="card-body text-center">
-                            <h4 className="card-title">Access Denied</h4>
-                            <p className="card-text">You don't have permission to access the Activity Log Report.</p>
-                            <p className="card-text">Please contact your administrator if you believe this is an error.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+    return <AccessDenied message="You don't have permission to access the Activity Log Report." />;
 };
 
-// Custom component for Annual Report with permission check
+// Annual Report permission check
 const AnnualReportRoute = () => {
     const { user } = useContext(UserContext);
-    
-    // Check if user has required permissions
-    const hasPermission = user?.permissions?.includes("viewAnnualReport") || 
-                         user?.user === 'company';
-    
+
+    const hasPermission = user?.permissions?.includes("viewAnnualReport") ||
+                          user?.user === 'company';
+
     if (hasPermission) {
         return <AnnualReport />;
     }
-    
-    // If user doesn't have permission, show access denied
-    return (
-        <div className="container-fluid">
-            <div className="row justify-content-center">
-                <div className="col-md-6">
-                    <div className="card mt-5">
-                        <div className="card-body text-center">
-                            <h4 className="card-title">Access Denied</h4>
-                            <p className="card-text">You don't have permission to access the Annual Report.</p>
-                            <p className="card-text">Please contact your administrator if you believe this is an error.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+    return <AccessDenied message="You don't have permission to access the Annual Report." />;
 };
 
 const AllRoutes = () => {
@@ -182,6 +147,9 @@ const AllRoutes = () => {
 
     return (
         <Router>
+            {/* ✅ NEW: checks token on every page + auto logout on expiry */}
+            <SessionWatcher />
+
             <Routes>
                 {/* Public Routes */}
                 <Route exact path="/" element={<AutoLoggedIn Component={LogIn} />} />
@@ -189,17 +157,16 @@ const AllRoutes = () => {
                 <Route exact path="/Mailsentsuccessfully" element={<Mailsentsuccessfully />} />
                 <Route exact path="/reset-password/:id/:token" element={<ForgotPasswordConfirm />} />
                 <Route exact path="/feedback/:id" element={<Feedback />} />
-                
-                {/* New Public Routes for Vendor Registration */}
+
                 <Route exact path="/vendor-registration/:linkId" element={<VendorRegistrationForm />} />
                 <Route exact path="/vendor-registration-success" element={<VendorRegistrationSuccess />} />
-                
+
                 <Route exact path="/asset/:assetId" element={<AssetView />} />
 
                 {/* Protected Routes */}
                 <Route exact path="/ChangePassword" element={<ProtectRoute Component={ChangePassword} />} />
                 <Route exact path="/UserProfile" element={<ProtectRoute Component={UserProfile} />} />
-                
+
                 {/* Master Grid Routes */}
                 <Route exact path="/CustomerMasterGrid" element={<ProtectRoute Component={CustomerMasterGrid} />} />
                 <Route exact path="/CampaignMasterGrid" element={<ProtectRoute Component={CampaignMasterGrid} />} />
@@ -215,12 +182,9 @@ const AllRoutes = () => {
                 {/* Sales & Marketing Routes */}
                 <Route exact path="/SalesMasterGrid" element={<ProtectRoute Component={SalesMasterGrid} />} />
                 <Route exact path="/MarketingMasterGrid" element={<ProtectRoute Component={MarketingMasterGrid} />} />
-                
-                {/* Sales Manager Master Route with special permission check */}
                 <Route exact path="/SalesManagerMasterGrid" element={<ProtectRoute Component={SalesManagerRoute} />} />
-
                 <Route exact path="/HRReviewMasterGrid" element={<ProtectRoute Component={HRReviewMasterGrid} />} />
-                
+
                 {/* Inventory Management Routes */}
                 <Route exact path="/AMCMasterGrid" element={<ProtectRoute Component={AMCMasterGrid} />} />
                 <Route exact path="/InventoryMasterGrid" element={<ProtectRoute Component={InventoryMasterGrid} />} />
@@ -231,30 +195,30 @@ const AllRoutes = () => {
                 <Route exact path="/QCMasterGrid" element={<ProtectRoute Component={QCMasterGrid} />} />
                 <Route exact path="/DCMasterGrid" element={<ProtectRoute Component={DCMasterGrid} />} />
                 <Route exact path="/MRFMasterGrid" element={<ProtectRoute Component={MRFMasterGrid} />} />
-                
+
                 <Route path="/call-unanswered-leads" element={<ProtectRoute Component={CallUnansweredLeadsPage} />} />
 
-                {/* REPORT ROUTES - Permission Based */}
+                {/* Report Routes */}
                 <Route exact path="/ActivityLogReport" element={<ProtectRoute Component={ActivityLogReportRoute} />} />
                 <Route exact path="/AnnualReport" element={<ProtectRoute Component={AnnualReportRoute} />} />
                 <Route path="/not-feasible-leads" element={<ProtectRoute Component={NotFeasibleLeadsPage} />} />
                 <Route path="/feasible-leads" element={<ProtectRoute Component={FeasibleLeadsPage} />} />
-                
+
                 <Route exact path="/ExhibitionMasterGrid" element={<ProtectRoute Component={ExhibitionMasterGrid} />} />
                 <Route exact path="/ExhibitionVisitMasterGrid" element={<ProtectRoute Component={ExhibitionVisitMasterGrid} />} />
                 <Route exact path="/AccountMasterGrid" element={<ProtectRoute Component={AccountMasterGrid} />} />
-                
-                <Route exact path="/SurveyEngineerDashboard" element={<ProtectRoute Component={SurveyEngineerDashboard} />} /> 
-                
+
+                <Route exact path="/SurveyEngineerDashboard" element={<ProtectRoute Component={SurveyEngineerDashboard} />} />
+
                 <Route exact path="/OldSalesHistory" element={<ProtectRoute Component={OldSalesHistoryGrid} />} />
-                
+
                 <Route exact path="/ProjectPurchaseMasterGrid" element={<ProtectRoute Component={ProjectPurchaseMasterGrid} />} />
 
                 <Route exact path="/AccountFollowUpMasterGrid" element={<ProtectRoute Component={AccountFollowUpMasterGrid} />} />
-                
+
                 <Route exact path="/OldAMCHistoryGrid" element={<ProtectRoute Component={OldAMCHistoryGrid} />} />
 
-                               {/* Company Routes */}
+                {/* Company Routes */}
                 {user && user?.user === 'company' && (
                     <>
                         <Route exact path="/MainDashboard" element={<MainDashboard />} />

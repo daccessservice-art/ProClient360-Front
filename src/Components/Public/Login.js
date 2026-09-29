@@ -1,12 +1,11 @@
 import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import "././login.css";
+import "./login.css";
 import toast from "react-hot-toast";
 import { loginUser } from "../../hooks/useAuth";
 import { UserContext } from "../../context/UserContext";
 import { requestForToken } from '../../firebase';
 
-// ✅ NEW: Customer Support Modal
 import CustomerTicketModal from "./CustomerTicketModal";
 
 export const LogIn = () => {
@@ -17,32 +16,48 @@ export const LogIn = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ✅ NEW: Customer Support modal state
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const openCustomerSupport = () => setIsCustomerModalOpen(true);
   const closeCustomerSupport = () => setIsCustomerModalOpen(false);
 
   const { setUser } = useContext(UserContext);
 
-  const requestNotificationPermission = async () => {
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      console.log("Notification permission granted.");
-    } else {
-      console.warn("Notification permission denied.");
+  // ✅ Show "session expired" message after auto logout
+  useEffect(() => {
+    const msg = sessionStorage.getItem("logoutMsg");
+    if (msg) {
+      toast.error(msg);
+      sessionStorage.removeItem("logoutMsg");
     }
-  };
+  }, []);
 
+  // ✅ FIXED: runs only once (before it ran on every render)
   useEffect(() => {
+    const requestNotificationPermission = async () => {
+      try {
+        if (!("Notification" in window)) return;
+        const permission = await Notification.requestPermission();
+        if (permission === "granted") {
+          console.log("Notification permission granted.");
+        } else {
+          console.warn("Notification permission denied.");
+        }
+      } catch (err) {
+        console.warn("Notification permission error:", err);
+      }
+    };
     requestNotificationPermission();
-  });
-
-  const getFcmToken = async () => {
-    await requestForToken();
-  };
+  }, []);
 
   useEffect(() => {
-    console.log("Requesting FCM token...");
+    const getFcmToken = async () => {
+      try {
+        console.log("Requesting FCM token...");
+        await requestForToken();
+      } catch (err) {
+        console.warn("FCM token error:", err);
+      }
+    };
     getFcmToken();
   }, []);
 
@@ -52,13 +67,18 @@ export const LogIn = () => {
     setLoading(true);
     try {
       const data = await loginUser(username, password, fcmToken);
+
+      // ✅ loginUser already showed the error toast
+      if (!data) return;
+
       setUser(data);
+
       if (data.newUser === true) {
         toast.success("Please complete your profile to continue.");
         navigation("/ChangePassword");
       } else if (data.user === "employee" || data.user === "company") {
         navigation("/MainDashboard");
-        toast.success("Welcome back " + data?.name);
+        toast.success("Welcome back " + (data?.name || ""));
       } else if (data.user === "admin") {
         navigation("/AdminMainDashboard");
       }
@@ -90,13 +110,11 @@ export const LogIn = () => {
 
   return (
     <div className="login-page-wrapper loginbody_text">
-      {/* Card Container */}
       <div className="login-card">
 
         {/* LEFT — Form Panel */}
         <div className="login-form-panel">
           <div className="login-form-inner">
-            {/* Logo */}
             <img
               src="./static/assets/img/Proclient360_Originalon.svg"
               className="login-logo"
@@ -182,7 +200,7 @@ export const LogIn = () => {
                 <span>Terms &amp; Conditions</span>
               </div>
 
-              {/* ✅ NEW — Customer Support Link (small, below footer) */}
+              {/* Customer Support Link */}
               <div className="customer-support-link-row">
                 <button
                   type="button"
@@ -210,13 +228,11 @@ export const LogIn = () => {
 
       </div>
 
-      {/* ✅ NEW — Customer Ticket Modal */}
       {isCustomerModalOpen && (
         <CustomerTicketModal onClose={closeCustomerSupport} />
       )}
     </div>
-  );  
+  );
 };
 
-// ✅ Keep default export too (in case any file imports it default)
 export default LogIn;

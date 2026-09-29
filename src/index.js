@@ -1,33 +1,31 @@
-// import React from 'react';
-// import ReactDOM from 'react-dom/client';
-// import './index.css';
-// import App from './App';
-// import reportWebVitals from './reportWebVitals';
-
-// const root = ReactDOM.createRoot(document.getElementById('root'));
-// root.render(
-//   <React.StrictMode>
-//     <App />
-//   </React.StrictMode>
-// );
-
-// // If you want to start measuring performance in your app, pass a function
-// // to log results (for example: reportWebVitals(console.log))
-// // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-// reportWebVitals();
-
-
-
-// new index.js
-
+import "./utils/axiosInterceptor";
 import React from "react";
 import ReactDOM from "react-dom";
 import App from "./App";
 import { Provider } from "react-redux";
-import store from "./redux/store"; // Import your Redux store
+import store from "./redux/store";
+import {
+  isTokenValid,
+  isIdleExpired,
+  clearSession,
+  SESSION_EXPIRED_MSG,
+  IDLE_LOGOUT_MSG,
+} from "./utils/authSession";
+
+// ✅ Before the app opens: remove expired / idle session
+const hasToken = !!localStorage.getItem("token");
+
+if (hasToken && !isTokenValid()) {
+  clearSession();
+  sessionStorage.setItem("logoutMsg", SESSION_EXPIRED_MSG);
+} else if (hasToken && isIdleExpired()) {
+  // e.g. closed browser yesterday → open today → login page
+  clearSession();
+  sessionStorage.setItem("logoutMsg", IDLE_LOGOUT_MSG);
+}
 
 ReactDOM.render(
-  <Provider store={store}>  {/* Wrap App with Redux Provider */}
+  <Provider store={store}>
     <App />
   </Provider>,
   document.getElementById("root")
