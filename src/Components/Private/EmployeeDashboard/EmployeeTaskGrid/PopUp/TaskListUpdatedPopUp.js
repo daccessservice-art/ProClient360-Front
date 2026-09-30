@@ -8,7 +8,7 @@ import { updateAction } from "../../../../../hooks/useAction";
 import { submitForTesting } from "../../../../../hooks/useTaskSheet";
 import { getEmployees } from "../../../../../hooks/useEmployees";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
-import ProjectTaskAgentSuggestionHint from "./ProjectTaskAgentSuggestionHint"; // ✅ NEW
+import ProjectTaskAgentSuggestionHint from "./ProjectTaskAgentSuggestionHint";
 
 const PAGE_SIZE = 10;
 
@@ -28,7 +28,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const [submittingForTest, setSubmittingForTest] = useState(false);
 
   // ── developer's own tester pick — only used/shown when the Manager
-  // did NOT assign a tester on this task. ──
+  // did NOT assign any tester on this task. ──
   const [testerOptions, setTesterOptions] = useState([]);
   const [testerPage, setTesterPage] = useState(1);
   const [testerHasMore, setTesterHasMore] = useState(true);
@@ -42,7 +42,14 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const tableContainerRef = useRef(null);
 
   // ── derived QA flags ──
-  const hasTester = !!selectedTask?.assignedTester;
+  // ✅ UPDATED — task may have one OR many testers (assignedTesters)
+  const testerList = (Array.isArray(selectedTask?.assignedTesters) && selectedTask.assignedTesters.length
+    ? selectedTask.assignedTesters
+    : [selectedTask?.assignedTester]
+  ).filter(Boolean);
+  const hasTester = testerList.length > 0;
+  const testerNames = testerList.map(t => t?.name).filter(Boolean).join(', ');
+
   const qaStatus = selectedTask?.qaStatus || 'none';
   const isWithTester = qaStatus === 'pending_test' || qaStatus === 'testing';
   const isBugFound = qaStatus === 'bug_found';
@@ -89,8 +96,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   };
 
   // ── passes the developer's chosen tester only when the task
-  // doesn't already have one assigned by the Manager. testStartDate is set
-  // automatically on the backend — nothing to pick here. ──
+  // doesn't already have one assigned by the Manager. ──
   const handleSubmitForTesting = async () => {
     if (submittingForTest) return;
 
@@ -157,8 +163,6 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     setIsVisible(!isVisible);
   };
 
-  // ── UPDATED: removed the "process start date cannot be in the past"
-  // validation — users can now select back dates freely. ──
   const handelTaskUpdate = async (event) => {
     event.preventDefault();
     if (taskStatus === "completed") setTaskLevel(100); 
@@ -226,8 +230,6 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     setEditAction((prevAction) => ({ ...prevAction, [name]: value }));
   };
 
-  // ── UPDATED: removed the "process start date cannot be in the past"
-  // validation here too — same rule applies to editing an existing action. ──
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -312,8 +314,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                   </div>
                 )}
 
-                {/* ── QA / Testing Status block — shown whenever this task
-                    is in (or has entered) the testing workflow ── */}
+                {/* ── QA / Testing Status block ── */}
                 {(hasTester || canSubmitForTesting) && (
                   <div
                     className="row mt-3 p-3 border rounded shadow-sm"
@@ -337,12 +338,15 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                              isBugFound ? `Bug Reported (Cycle ${selectedTask.testCycles || 1})` :
                              'Not submitted for testing yet'}
                           </span>
-                          {selectedTask.assignedTester?.name && (
-                            <small className="text-muted ms-2">Tester: {selectedTask.assignedTester.name}</small>
+                          {/* ✅ UPDATED — shows all testers */}
+                          {testerNames && (
+                            <small className="text-muted ms-2">
+                              Tester{testerList.length > 1 ? 's' : ''}: {testerNames}
+                            </small>
                           )}
                         </div>
 
-                        {/* ── Automatic testing timestamps — read-only, no manual entry ── */}
+                        {/* Automatic testing timestamps — read-only */}
                         {(selectedTask.testStartDate || selectedTask.testEndDate) && (
                           <div className="mt-2" style={{ fontSize: '12px' }}>
                             {selectedTask.testStartDate && (
@@ -398,7 +402,6 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                                 styles={selectStyles}
                                 noOptionsMessage={() => testerLoading ? 'Loading...' : 'No employees found'}
                               />
-                              {/* ✅ NEW — Agent suggestion for least-busy tester */}
                               <ProjectTaskAgentSuggestionHint
                                 mode="tester"
                                 onApply={(s) => setPickedTester({ value: s.employeeId, label: s.name })}

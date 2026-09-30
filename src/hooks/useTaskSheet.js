@@ -185,11 +185,12 @@ const deleteTaskSheet = async (id) => {
   }
 };
 
-// ── UPDATED: now accepts an optional testerId — required only if the task
-// has no Manager-assigned tester, letting the developer choose their own. ──
+// Developer submits for testing. testerId is only needed if the task has no
+// tester yet (developer picks their own). Accepts one id or an array of ids.
 const submitForTesting = async (id, testerId = null) => {
   try {
-    const response = await axios.post(`${url}/${id}/submit-for-testing`, { testerId }, {
+    const body = Array.isArray(testerId) ? { testerIds: testerId } : { testerId };
+    const response = await axios.post(`${url}/${id}/submit-for-testing`, body, {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     return response.data;
@@ -199,7 +200,7 @@ const submitForTesting = async (id, testerId = null) => {
   }
 };
 
-// ── NEW: Tester updates their in-progress testing percentage ──
+// Tester updates their in-progress testing percentage
 const updateTestProgress = async (id, progress) => {
   try {
     const response = await axios.put(`${url}/${id}/test-progress`, { progress }, {
@@ -236,15 +237,66 @@ const submitTestResult = async (id, result, remark = "") => {
   }
 };
 
-const assignTester = async (id, testerId) => {
+// ✅ UPDATED — accepts one tester id OR an array of tester ids
+const assignTester = async (id, testerIds) => {
   try {
-    const response = await axios.put(`${url}/${id}/assign-tester`, { testerId }, {
+    const body = Array.isArray(testerIds) ? { testerIds } : { testerId: testerIds };
+    const response = await axios.put(`${url}/${id}/assign-tester`, body, {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     return response.data;
   } catch (error) {
     console.error(error);
     return { success: false, error: error.response?.data?.error || "Error assigning tester" };
+  }
+};
+
+// ✅ NEW — Senior downloads Excel: sub-tasks given to juniors + own tasks (one project)
+const downloadMyTeamReport = async (projectId) => {
+  try {
+    const response = await axios.get(`${url}/my-team-report/${projectId}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      responseType: 'blob',
+    });
+
+    const disposition = response.headers['content-disposition'] || '';
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const fileName = match ? match[1] : `Team_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(blobUrl);
+
+    toast.success("Excel report downloaded");
+    return true;
+  } catch (error) {
+    console.error(error);
+    let message = "Error downloading report";
+    try {
+      // error body comes back as a Blob because of responseType: 'blob'
+      const text = await error.response?.data?.text?.();
+      if (text) message = JSON.parse(text).error || message;
+    } catch (e) { /* keep default message */ }
+    toast.error(message);
+    return false;
+  }
+};
+
+// ✅ NEW — my open tasks that are overdue / due today, grouped by project
+const getMyDueStatus = async () => {
+  try {
+    const response = await axios.get(`${url}/my-due-status`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return { success: false, projects: {} };
   }
 };
 
@@ -259,8 +311,10 @@ export {
   getMyTaskSheet,
   updateSubtask,
   submitForTesting,
-  updateTestProgress,   // ✅ NEW
+  updateTestProgress,
   getTesterTasks,
   submitTestResult,
-  assignTester
+  assignTester,
+  downloadMyTeamReport,   // ✅ NEW
+  getMyDueStatus,         // ✅ NEW
 };

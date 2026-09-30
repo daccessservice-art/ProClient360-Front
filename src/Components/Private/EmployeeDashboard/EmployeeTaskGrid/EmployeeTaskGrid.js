@@ -1,15 +1,15 @@
 import { useState, useEffect, useContext } from "react";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import ViewTaskPopUp from "./PopUp/ViewTaskPopUp";
-import TesterQueuePopUp from "./PopUp/TesterQueuePopUp"; // ✅ NEW
-import MyFocusAgentPanel from "./MyFocusAgentPanel"; // ✅ NEW — Agent panel
-import FloatingAgentWidget from "./FloatingAgentWidget"; // ✅ NEW — voice Agent bubble
+import TesterQueuePopUp from "./PopUp/TesterQueuePopUp";
+import MyFocusAgentPanel from "./MyFocusAgentPanel";
+import FloatingAgentWidget from "./FloatingAgentWidget";
 import { getMyProjects } from "../../../../hooks/useProjects";
-import { getTesterTasks } from "../../../../hooks/useTaskSheet"; // ✅ NEW
+import { getTesterTasks, getMyDueStatus } from "../../../../hooks/useTaskSheet"; // ✅ UPDATED
 import { formatDate } from "../../../../utils/formatDate";
 import { Header } from "../../MainDashboard/Header/Header";
 import { Sidebar } from "../../MainDashboard/Sidebar/Sidebar";
-import { UserContext } from "../../../../context/UserContext"; // ✅ NEW — for greeting by name
+import { UserContext } from "../../../../context/UserContext";
 
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css';
@@ -41,8 +41,15 @@ const commonThStyle = {
   color: 'white',
 };
 
+// ✅ NEW — short tooltip list: "Login Page, API Setup +2 more"
+const listForTooltip = (items = []) => {
+  if (items.length === 0) return '';
+  const shown = items.slice(0, 3).join(', ');
+  return items.length > 3 ? `${shown} +${items.length - 3} more` : shown;
+};
+
 export const EmployeeTaskGrid = () => {
-  const { user } = useContext(UserContext); // ✅ NEW
+  const { user } = useContext(UserContext);
 
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => setIsOpen(!isopen);
@@ -71,9 +78,12 @@ export const EmployeeTaskGrid = () => {
 
   const [notifiedTomorrowProjects, setNotifiedTomorrowProjects] = useState(new Set());
 
-  // ✅ NEW — Tester's own testing queue
+  // Tester's own testing queue
   const [testerQueueShow, setTesterQueueShow] = useState(false);
   const [testerQueueCount, setTesterQueueCount] = useState(0);
+
+  // ✅ NEW — my tasks overdue / due today, per project → drives the blinkers
+  const [dueStatus, setDueStatus] = useState({});
 
   useEffect(() => {
     const styleId = 'beacon-indicator-styles';
@@ -141,15 +151,14 @@ export const EmployeeTaskGrid = () => {
     setdeletePopUpShow(!deletePopUpShow);
   };
 
-  // Only overdue (past) OR due today
-  const isDateAlertNeeded = (dateString, status) => {
-    if (status && status.toLowerCase() === 'completed') return false;
+  // ✅ NEW — days between project end date and today (negative = overdue)
+  const getProjectDiffDays = (dateString) => {
     const today = new Date();
-    const finishDate = new Date(dateString);
-    if (isNaN(finishDate.getTime())) return false;
+    const end = new Date(dateString);
+    if (isNaN(end.getTime())) return null;
     today.setHours(0, 0, 0, 0);
-    finishDate.setHours(0, 0, 0, 0);
-    return finishDate <= today;
+    end.setHours(0, 0, 0, 0);
+    return Math.round((end.getTime() - today.getTime()) / (1000 * 3600 * 24));
   };
 
   useEffect(() => {
@@ -182,7 +191,18 @@ export const EmployeeTaskGrid = () => {
     fetchData();
   }, []);
 
-  // ✅ NEW — Keep a live count of pending testing-queue items for the badge
+  // ✅ NEW — load my task due status; refresh after closing the Task List
+  // popup (the employee may have just updated work)
+  useEffect(() => {
+    if (TaskPopUpShow) return;
+    const loadDueStatus = async () => {
+      const res = await getMyDueStatus();
+      if (res?.success) setDueStatus(res.projects || {});
+    };
+    loadDueStatus();
+  }, [TaskPopUpShow]);
+
+  // Keep a live count of pending testing-queue items for the badge
   useEffect(() => {
     const fetchTesterCount = async () => {
       try {
@@ -266,12 +286,7 @@ export const EmployeeTaskGrid = () => {
       currentData.forEach(project => {
         const projectStatusLower = project.projectStatus ? project.projectStatus.toLowerCase() : "";
         if (projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess') {
-          const today = new Date();
-          const end = new Date(project.endDate);
-          if (isNaN(end.getTime())) return;
-          today.setHours(0, 0, 0, 0);
-          end.setHours(0, 0, 0, 0);
-          const diffDays = Math.round((end.getTime() - today.getTime()) / (1000 * 3600 * 24));
+          const diffDays = getProjectDiffDays(project.endDate);
           if (diffDays === 1 && !notifiedTomorrowProjects.has(project._id)) {
             Notification({ title: "Project Due Tomorrow", message: `Project "${project.name}" is due tomorrow.` });
             newNotificationsSent.add(project._id);
@@ -282,6 +297,57 @@ export const EmployeeTaskGrid = () => {
       if (updatedNotifiedSet) setNotifiedTomorrowProjects(newNotificationsSent);
     }
   }, [currentData, notifiedTomorrowProjects]);
+
+  // ✅ NEW — Work Status cell: orange = overdue, blue = due today.
+  // Checks BOTH the project end date AND my own tasks in that project,
+  // so a task due today shows the blue blinker even if the project
+  // itself ends later.
+  const renderWorkStatus = (project) => {
+    const projectStatusLower = project.projectStatus ? project.projectStatus.toLowerCase() : "";
+    const projectOpen = projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess';
+    const diffDays = getProjectDiffDays(project.endDate);
+    const myTasks = dueStatus[project._id] || { overdue: 0, dueToday: 0, overdueTasks: [], dueTodayTasks: [] };
+
+    const overdueLines = [];
+    const dueTodayLines = [];
+
+    if (projectOpen && diffDays !== null && diffDays < 0) {
+      const d = Math.abs(diffDays);
+      overdueLines.push(`Project overdue by ${d} day${d === 1 ? '' : 's'}`);
+    }
+    if (projectOpen && diffDays === 0) {
+      dueTodayLines.push('Project due today');
+    }
+    if (myTasks.overdue > 0) {
+      overdueLines.push(`${myTasks.overdue} task${myTasks.overdue === 1 ? '' : 's'} overdue: ${listForTooltip(myTasks.overdueTasks)}`);
+    }
+    if (myTasks.dueToday > 0) {
+      dueTodayLines.push(`${myTasks.dueToday} task${myTasks.dueToday === 1 ? '' : 's'} due today: ${listForTooltip(myTasks.dueTodayTasks)}`);
+    }
+
+    if (overdueLines.length === 0 && dueTodayLines.length === 0) return null;
+
+    return (
+      <span className="d-inline-flex align-items-center" style={{ gap: '16px' }}>
+        {overdueLines.length > 0 && (
+          <BeaconIndicator
+            color="#F29339"
+            size="14px"
+            title={overdueLines.join(' | ')}
+            className="indicate_width"
+          />
+        )}
+        {dueTodayLines.length > 0 && (
+          <BeaconIndicator
+            color="#40A2D3"
+            size="14px"
+            title={dueTodayLines.join(' | ')}
+            className="indicate_width"
+          />
+        )}
+      </span>
+    );
+  };
 
   return (
     <>
@@ -300,12 +366,10 @@ export const EmployeeTaskGrid = () => {
 
                 {/* ── Title + Search + Filter + Testing Queue + Legend ── */}
                 <div className="row px-2 py-1 align-items-center">
-                  {/* Title */}
                   <div className="col-12 col-lg-2">
                     <h5 className="text-white py-2 mb-0">My Projects</h5>
                   </div>
 
-                  {/* Search */}
                   <div className="col-12 col-lg-3">
                     <div className="input-group">
                       <input
@@ -324,7 +388,6 @@ export const EmployeeTaskGrid = () => {
                     </div>
                   </div>
 
-                  {/* Status Filter */}
                   <div className="col-12 col-lg-2">
                     <select className="form-select bg_edit" name="projectStatus" onChange={(e) => handleChange(e.target.value)}>
                       <option value="">All Status</option>
@@ -334,7 +397,6 @@ export const EmployeeTaskGrid = () => {
                     </select>
                   </div>
 
-                  {/* ✅ NEW — My Testing Queue button */}
                   <div className="col-12 col-lg-2 mt-2 mt-lg-0">
                     <button
                       type="button"
@@ -350,7 +412,6 @@ export const EmployeeTaskGrid = () => {
                     </button>
                   </div>
 
-                  {/* ── Blinker Legend beside search bar ── */}
                   <div className="col-12 col-lg-3 d-flex align-items-center justify-content-lg-end mt-2 mt-lg-0">
                     <div
                       className="d-inline-flex align-items-center px-3 py-2 rounded"
@@ -364,23 +425,18 @@ export const EmployeeTaskGrid = () => {
                       <span className="text-white" style={{ fontSize: '12px', fontWeight: 600 }}>
                         Work Status :
                       </span>
-
-                      {/* Overdue — orange */}
                       <span className="d-flex align-items-center" style={{ gap: '7px' }}>
-                        <BeaconIndicator color="#F29339" size="12px" title="Overdue" />
+                        <BeaconIndicator color="#F29339" size="12px" title="Project or one of your tasks is overdue" />
                         <span className="text-white" style={{ fontSize: '12px' }}>Overdue</span>
                       </span>
-
-                      {/* Due Today — sky blue */}
                       <span className="d-flex align-items-center" style={{ gap: '7px' }}>
-                        <BeaconIndicator color="#40A2D3" size="12px" title="Due Today" />
+                        <BeaconIndicator color="#40A2D3" size="12px" title="Project or one of your tasks is due today" />
                         <span className="text-white" style={{ fontSize: '12px' }}>Due Today</span>
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* ✅ Agent panel: shows what to focus on next, right under the title/search row */}
                 <div className="px-2">
                   <MyFocusAgentPanel />
                 </div>
@@ -395,7 +451,6 @@ export const EmployeeTaskGrid = () => {
                             <th style={commonThStyle}>Sr. No</th>
                             <th className="align_left_td td_width">Customer Name</th>
                             <th className="align_left_td td_width">Project Name</th>
-                            {/* ── NEW: PO Number column ── */}
                             <th style={commonThStyle}>PO Number</th>
                             <th>Project Status</th>
                             <th style={commonThStyle}>Finish Date</th>
@@ -405,63 +460,27 @@ export const EmployeeTaskGrid = () => {
                         </thead>
                         <tbody className="broder my-4">
                           {currentData && currentData.length > 0 ? (
-                            currentData.map((project, index) => {
-                              const projectStatusLower = project.projectStatus ? project.projectStatus.toLowerCase() : "";
-                              const needsAlert = isDateAlertNeeded(project.endDate, projectStatusLower);
-
-                              return (
-                                <tr className="border my-4" key={project._id}>
-                                  <td className="w-3">{index + 1 + (pagination.currentPage - 1) * itemsPerPage}</td>
-                                  <td className="align_left_td td_width wrap-text-of-col">{project.custId?.custName || "N/A"}</td>
-                                  <td className="align_left_td td_width wrap-text-of-col">{project.name}</td>
-                                  {/* ── NEW: PO Number cell ── */}
-                                  <td>{project.purchaseOrderNo || "N/A"}</td>
-                                  <td>{project.projectStatus}</td>
-                                  <td>{formatDate(project.endDate)}</td>
-                                  <td>
-                                    {needsAlert && (projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess') && (() => {
-                                      const today = new Date();
-                                      const end = new Date(project.endDate);
-                                      if (isNaN(end.getTime())) return null;
-                                      today.setHours(0, 0, 0, 0);
-                                      end.setHours(0, 0, 0, 0);
-                                      const diffDays = Math.round((end.getTime() - today.getTime()) / (1000 * 3600 * 24));
-
-                                      if (diffDays < 0) {
-                                        const daysOverdue = Math.abs(diffDays);
-                                        return (
-                                          <BeaconIndicator
-                                            color="#F29339"
-                                            size="14px"
-                                            title={`Overdue by ${daysOverdue} day${daysOverdue === 1 ? '' : 's'}`}
-                                            className="indicate_width"
-                                          />
-                                        );
-                                      } else if (diffDays === 0) {
-                                        return (
-                                          <BeaconIndicator
-                                            color="#40A2D3"
-                                            size="14px"
-                                            title="Due today"
-                                            className="indicate_width"
-                                          />
-                                        );
-                                      }
-                                      return null;
-                                    })()}
-                                  </td>
-                                  <td>
-                                    <i
-                                      onClick={() => handleViewTask(project._id)}
-                                      className="fa-solid fa-eye Task_View_icon cursor-pointer"
-                                      data-tooltip-id={APP_TOOLTIP_ID}
-                                      data-tooltip-content="View Tasks"
-                                      data-tooltip-place="bottom"
-                                    ></i>
-                                  </td>
-                                </tr>
-                              );
-                            })
+                            currentData.map((project, index) => (
+                              <tr className="border my-4" key={project._id}>
+                                <td className="w-3">{index + 1 + (pagination.currentPage - 1) * itemsPerPage}</td>
+                                <td className="align_left_td td_width wrap-text-of-col">{project.custId?.custName || "N/A"}</td>
+                                <td className="align_left_td td_width wrap-text-of-col">{project.name}</td>
+                                <td>{project.purchaseOrderNo || "N/A"}</td>
+                                <td>{project.projectStatus}</td>
+                                <td>{formatDate(project.endDate)}</td>
+                                {/* ✅ UPDATED — project + my tasks: orange overdue / blue due today */}
+                                <td>{renderWorkStatus(project)}</td>
+                                <td>
+                                  <i
+                                    onClick={() => handleViewTask(project._id)}
+                                    className="fa-solid fa-eye Task_View_icon cursor-pointer"
+                                    data-tooltip-id={APP_TOOLTIP_ID}
+                                    data-tooltip-content="View Tasks"
+                                    data-tooltip-place="bottom"
+                                  ></i>
+                                </td>
+                              </tr>
+                            ))
                           ) : (
                             <tr>
                               <td colSpan="8" className="text-center">No Projects Found Matching Criteria</td>
@@ -534,12 +553,10 @@ export const EmployeeTaskGrid = () => {
         />
       )}
 
-      {/* ✅ NEW — Tester's own testing queue popup */}
       {testerQueueShow && (
         <TesterQueuePopUp onClose={() => setTesterQueueShow(false)} />
       )}
 
-      {/* ✅ NEW — Floating voice Agent, bottom-right */}
       <FloatingAgentWidget userName={user?.name} />
 
       <Tooltip id={APP_TOOLTIP_ID} />

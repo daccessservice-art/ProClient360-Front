@@ -139,8 +139,8 @@ export const TaskSheetMaster = () => {
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
 
-  // ✅ Optional Tester assigned alongside the developer(s)
-  const [selectedTester, setSelectedTester] = useState(null);
+  // ✅ UPDATED — Optional tester(s): select MANY at once; any one can pass the task
+  const [selectedTesters, setSelectedTesters] = useState([]);
 
   const [projectName, setProjectName] = useState("");
   const [renderPage, setRenderPage] = useState(false);
@@ -491,7 +491,13 @@ export const TaskSheetMaster = () => {
                       teamSize,
                       teamDoneCount,
                       // ✅ QA / Tester workflow fields
-                      assignedTesterName: task.assignedTester?.name || null,
+                      // ✅ UPDATED — all testers' names (multi-tester), falls back to old single tester
+                      assignedTesterName: (
+                        (Array.isArray(task.assignedTesters) && task.assignedTesters.length
+                          ? task.assignedTesters
+                          : [task.assignedTester]
+                        ).filter(t => t && t.name).map(t => t.name).join(', ')
+                      ) || null,
                       qaStatus: task.qaStatus || 'none',
                       bugHistory: task.bugHistory || [],
                       testCycles: task.testCycles || 0,
@@ -625,8 +631,8 @@ export const TaskSheetMaster = () => {
           endDate,
           remark,
           priority,
-          // ✅ Optional tester for the QA workflow
-          assignedTester: selectedTester?.value || undefined,
+          // ✅ UPDATED — many testers at once (any one can pass)
+          assignedTesters: selectedTesters.map(t => t.value),
         };
 
         try {
@@ -670,7 +676,7 @@ export const TaskSheetMaster = () => {
     setRemark("");
     setSelectedEmployees([]);
     setPriority("medium");
-    setSelectedTester(null);
+    setSelectedTesters([]);
   };
 
   useEffect(() => {
@@ -794,7 +800,7 @@ export const TaskSheetMaster = () => {
                                   <th>End Date</th>
                                   {/* ✅ NEW column — each employee's own progress */}
                                   <th style={{ minWidth: "160px" }}>Employee Progress</th>
-                                  <th className="text-center">Tester</th>
+                                  <th className="text-center">Tester(s)</th>
                                   <th className="text-center">QA Status</th>
                                   <th className="text-center" style={{ minWidth: "180px" }}>Actions</th>
                                 </tr>
@@ -1217,13 +1223,15 @@ export const TaskSheetMaster = () => {
                     <div className="col-12 col-md-6 col-lg-6">
                       <div className="mb-3">
                         <label htmlFor="testerSelect" className="form-label label_text">
-                          Assign Tester <span className="text-muted small">(optional — enables QA pass/fail workflow)</span>
+                          Assign Tester(s) <span className="text-muted small">(optional — select one or more, any one can pass)</span>
                         </label>
                         <Select
                           id="testerSelect"
                           options={employeeOptions}
-                          value={selectedTester}
-                          onChange={opt => setSelectedTester(opt)}
+                          value={selectedTesters}
+                          isMulti
+                          closeMenuOnSelect={false}
+                          onChange={opts => setSelectedTesters(opts || [])}
                           onInputChange={val => { setEmployeeSearch(val); setEmployeePage(1); }}
                           onMenuScrollToBottom={() => {
                             if (employeeHasMore) {
@@ -1232,7 +1240,7 @@ export const TaskSheetMaster = () => {
                               loadEmployees(nextPage, employeeSearch);
                             }
                           }}
-                          placeholder="Search and select a tester..."
+                          placeholder="Search and select tester(s)..."
                           isClearable
                           isLoading={employeeLoading}
                           isDisabled={submitting}
@@ -1241,7 +1249,7 @@ export const TaskSheetMaster = () => {
                         />
                         <small className="text-muted d-block mt-1">
                           <i className="fa-solid fa-circle-info me-1"></i>
-                          If set, the developer must click "Submit for Testing" once done — the task only counts as fully completed after the tester passes it.
+                          If set, the developer must click "Submit for Testing" once done — the task counts as fully completed as soon as any one of the selected testers passes it.
                         </small>
                       </div>
                     </div>

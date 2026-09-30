@@ -1,17 +1,18 @@
 /**
- * ViewTaskPopUp.jsx  (UPDATED — Team Lead layer added)
+ * ViewTaskPopUp.jsx  (UPDATED — Team Lead layer + Excel export)
  *
- * Changes vs original:
- *  - Imports SubtaskAssignPopUp
- *  - Each task row now shows an "Assign Sub-Task" button
- *    (Team Lead clicks this to open SubtaskAssignPopUp)
+ * Changes:
+ *  - "Assign Sub-Task" button per task (Team Lead gives work to juniors)
+ *  - ✅ NEW: "Export Excel" button in the header — downloads, for THIS
+ *    project, the sub-tasks you gave your juniors (each junior's own
+ *    progress) + your own tasks.
  *  - All original logic, columns, and styling are untouched
  */
 
 import { useState, useEffect } from "react";
 import TaskListUpdatedPopUp from "./TaskListUpdatedPopUp";
-import SubtaskAssignPopUp from "./SubtaskAssignPopUp";          // ✅ NEW
-import { getMyTaskSheet } from "../../../../../hooks/useTaskSheet";
+import SubtaskAssignPopUp from "./SubtaskAssignPopUp";
+import { getMyTaskSheet, downloadMyTeamReport } from "../../../../../hooks/useTaskSheet";
 import { formatDate } from "../../../../../utils/formatDate";
 
 const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
@@ -19,9 +20,12 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
   const [tasks, setTasks] = useState([]);
   const [selectedTask, setSelectedTask] = useState({});
 
-  // ✅ NEW — Sub-task assign popup state
+  // Sub-task assign popup state
   const [subtaskPopupShow, setSubtaskPopupShow] = useState(false);
   const [subtaskParentTask, setSubtaskParentTask] = useState(null);
+
+  // ✅ NEW — Excel export state
+  const [exporting, setExporting] = useState(false);
 
   const handleUpdateTask = (id) => {
     setSelectedTask(id);
@@ -40,21 +44,29 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateTaskPopUpShow]);
 
-  // ✅ NEW — Open sub-task assign popup for a specific parent task
   const handleOpenSubtaskAssign = (task) => {
     setSubtaskParentTask(task);
     setSubtaskPopupShow(true);
   };
 
-  // ✅ NEW — Close sub-task popup
   const handleCloseSubtask = () => {
     setSubtaskPopupShow(false);
     setSubtaskParentTask(null);
   };
 
-  // ✅ NEW — After successfully assigning sub-task, refresh the list
   const handleSubtaskSuccess = () => {
     fetchTasks();
+  };
+
+  // ✅ NEW — download Excel for this project
+  const handleExportExcel = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await downloadMyTeamReport(selectedId);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -70,10 +82,27 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
         <div className="modal-dialog modal-xl modal_table_width">
           <div className="modal-content p-3">
             <form>
-              <div className="modal-header pt-0">
-                <h5 className="card-title fw-bold" id="exampleModalLongTitle">
+              <div className="modal-header pt-0 d-flex align-items-center">
+                <h5 className="card-title fw-bold mb-0" id="exampleModalLongTitle">
                   Task List
                 </h5>
+
+                {/* ✅ NEW — Export Excel button */}
+                <button
+                  type="button"
+                  className="btn btn-sm btn-success d-inline-flex align-items-center ms-3"
+                  onClick={handleExportExcel}
+                  disabled={exporting}
+                  title="Download Excel: sub-tasks you gave your juniors + your own tasks"
+                  style={{ borderRadius: "6px", fontWeight: 600 }}
+                >
+                  {exporting ? (
+                    <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Exporting...</>
+                  ) : (
+                    <><i className="fa-solid fa-file-excel me-2"></i>Export Excel</>
+                  )}
+                </button>
+
                 <button
                   onClick={() => handleViewTask()}
                   type="button"
@@ -97,7 +126,6 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
                             <th>End Date</th>
                             <th>Remarks</th>
                             <th>Status</th>
-                            {/* ✅ NEW column header */}
                             <th className="text-center" style={{ minWidth: "160px" }}>Action</th>
                           </tr>
                         </thead>
@@ -113,10 +141,8 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
                                 <td className="w-30">{task.remark || "N/A"}</td>
                                 <td className="w-20">{task.taskStatus}</td>
 
-                                {/* ✅ Action column — Edit + Assign Sub-Task */}
                                 <td className="text-center">
                                   <div className="d-flex align-items-center justify-content-center gap-2">
-                                    {/* Original edit button — untouched */}
                                     <span
                                       onClick={() => handleUpdateTask(task)}
                                       className="update_icon"
@@ -126,7 +152,6 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
                                       <i className="fa-solid fa-pen text-success me-1"></i>
                                     </span>
 
-                                    {/* ✅ NEW — Assign Sub-Task button (only if task not 100% complete) */}
                                     {task.taskLevel !== 100 && (
                                       <button
                                         type="button"
@@ -177,7 +202,6 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
         </div>
       </div>
 
-      {/* Original update popup — untouched */}
       {updateTaskPopUpShow && (
         <TaskListUpdatedPopUp
           selectedTask={selectedTask}
@@ -185,7 +209,6 @@ const ViewTaskPopUp = ({ handleViewTask, selectedId }) => {
         />
       )}
 
-      {/* ✅ NEW — Sub-task assign popup */}
       {subtaskPopupShow && subtaskParentTask && (
         <SubtaskAssignPopUp
           parentTask={subtaskParentTask}
