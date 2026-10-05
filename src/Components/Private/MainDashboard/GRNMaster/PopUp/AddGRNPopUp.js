@@ -626,9 +626,10 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
 
                                 {choice === "Against PO" && <td><input type="number" className="form-control form-control-sm rounded-0" value={alreadyReceived} readOnly /></td>}
 
+                                {/* ✅ UPDATED: removed max validation — any received qty allowed */}
                                 <td>
-                                  <input type="number" className="form-control form-control-sm rounded-0" value={item.receivedQuantity} onChange={e => handleItemChange(index, "receivedQuantity", Number(e.target.value))} min="0" max={choice === "Against PO" ? remainingQty : undefined} required />
-                                  {choice === "Against PO" && <small className="text-muted">Max: {remainingQty}</small>}
+                                  <input type="number" className="form-control form-control-sm rounded-0" value={item.receivedQuantity} onChange={e => handleItemChange(index, "receivedQuantity", Number(e.target.value))} min="0" required />
+                                  {choice === "Against PO" && <small className="text-muted">Pending: {remainingQty}</small>}
                                 </td>
 
                                 <td><input type="number" className="form-control form-control-sm rounded-0" value={item.price} onChange={e => handleItemChange(index, "price", Number(e.target.value))} min="0" step="0.01" readOnly={choice === "Against PO"} /></td>
