@@ -15,7 +15,6 @@ import useSubmitEnquiry from "../../../../hooks/leads/useSubmitEnquiry";
 import SalesFunnelView from "../SalesMaster/PopUp/SalesFunnelView";
 import ChatbotDrawer from "../SalesMaster/PopUp/ChatbotDrawer";
 import UpdateSalesPopUp from "../SalesMaster/PopUp/UpdateSalesPopUp";
-// ── NEW IMPORT ──
 import TransferOwnershipPopUp from "../SalesMaster/PopUp/TransferOwnershipPopUp";
 
 const ALL_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/all-leads`;
@@ -114,7 +113,6 @@ export const SalesManagerMasterGrid = () => {
   const [leadToDelete,      setLeadToDelete]      = useState(null);
   const [generatingPDF,     setGeneratingPDF]     = useState(false);
   const [UpdatePopUpShow,   setUpdatePopUpShow]   = useState(false);
-  // ── NEW STATE ──
   const [transferOwnershipShow, setTransferOwnershipShow] = useState(false);
 
   const { user } = useContext(UserContext);
@@ -125,8 +123,9 @@ export const SalesManagerMasterGrid = () => {
   const { deleteLead, loading: deleteLoading } = useDeleteLead();
   const { submitEnquiry } = useSubmitEnquiry();
 
+  // ── UPDATED: added followUp filter ('today' | 'overdue' | null) ──
   const [filters, setFilters] = useState({
-    status: null, date: null, callLeads: null, source: null, searchTerm: "",
+    status: null, date: null, callLeads: null, source: null, searchTerm: "", followUp: null,
   });
 
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -140,6 +139,9 @@ export const SalesManagerMasterGrid = () => {
     limit: 20, hasNextPage: true, hasPrevPage: false,
   });
   const itemsPerPage = 20;
+
+  // ── NEW: separate page state for follow-up mode (client-side pagination) ──
+  const [followUpPage, setFollowUpPage] = useState(1);
 
   const [funnelLeads,   setFunnelLeads]   = useState([]);
   const [funnelLoading, setFunnelLoading] = useState(false);
@@ -208,10 +210,20 @@ export const SalesManagerMasterGrid = () => {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
   }, [filters.status, filters.date, filters.source, filters.callLeads, debouncedSearch]);
 
+  // ── NEW: reset follow-up page whenever any filter / employee changes ──
+  useEffect(() => {
+    setFollowUpPage(1);
+  }, [filters.followUp, filters.status, filters.date, filters.source, filters.callLeads, debouncedSearch, selectedEmployee?._id]);
+
   const isAllMode      = selectedEmployee._id === "all";
   const hasAmountFilter = !!(filters.status || filters.source || filters.callLeads);
 
+  // ── UPDATED: page change works for both normal + follow-up mode ──
   const handlePageChange = (page) => {
+    if (filters.followUp) {
+      if (page >= 1 && page <= followUpTotalPages) setFollowUpPage(page);
+      return;
+    }
     if (page >= 1 && page <= pagination.totalPages)
       setPagination(prev => ({ ...prev, currentPage: page }));
   };
@@ -219,6 +231,12 @@ export const SalesManagerMasterGrid = () => {
   const handleDetailsPopUpClick = (lead) => { setSelectedLead(lead); setShowLeadPopUp(true); };
   const handleChange = (filterType, value) => setFilters(prev => ({ ...prev, [filterType]: value || null }));
   const handleSearchChange = (e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }));
+
+  // ── NEW: Today's Follow-Ups card click ──
+  const handleTodayFollowUpClick = () => {
+    setFilters(prev => ({ ...prev, followUp: "today" }));
+    setFollowUpPage(1);
+  };
 
   const handleUpdate = (lead = null) => {
     if (lead && (lead.STATUS === 'Won' || lead.STATUS === 'Lost')) {
@@ -245,14 +263,14 @@ export const SalesManagerMasterGrid = () => {
       setSelectedEmployee(employee || { _id: "all", name: "All Leads" });
     }
     setPagination(prev => ({ ...prev, currentPage: 1 }));
-    setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "" });
+    setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "", followUp: null });
     setDebouncedSearch("");
   };
 
   const resetSearch  = () => { setFilters(prev => ({ ...prev, searchTerm: "" })); setDebouncedSearch(""); };
   const resetFilters = () => {
-    setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "" });
-    setDebouncedSearch(""); setPagination(prev => ({ ...prev, currentPage: 1 })); refetch();
+    setFilters({ status: null, date: null, callLeads: null, source: null, searchTerm: "", followUp: null });
+    setDebouncedSearch(""); setPagination(prev => ({ ...prev, currentPage: 1 })); setFollowUpPage(1); refetch();
   };
 
   const handleDeleteClick   = (lead) => { setLeadToDelete(lead); setShowDeleteConfirm(true); };
@@ -289,6 +307,25 @@ export const SalesManagerMasterGrid = () => {
     return null;
   };
 
+  // ── NEW: Follow-up filter (client-side on full filtered list) ──
+  const isFollowUpMode     = !!filters.followUp;
+  const todayFollowUpLeads = funnelLeads.filter(l => getFollowUpStatus(l.nextFollowUpDate, l.STATUS) === "today");
+  const overdueLeads       = funnelLeads.filter(l => getFollowUpStatus(l.nextFollowUpDate, l.STATUS) === "overdue");
+  const followUpLeads      = filters.followUp === "today" ? todayFollowUpLeads
+                           : filters.followUp === "overdue" ? overdueLeads : [];
+  const followUpTotalPages = Math.max(1, Math.ceil(followUpLeads.length / itemsPerPage));
+  const followUpLabel      = filters.followUp === "today" ? "Today's Follow-Up" : "Overdue Follow-Up";
+
+  // Pagination object used by table + pager (works for both modes)
+  const pg = isFollowUpMode
+    ? {
+        currentPage: followUpPage,
+        totalPages:  followUpLeads.length > 0 ? followUpTotalPages : 0,
+        hasPrevPage: followUpPage > 1,
+        hasNextPage: followUpPage < followUpTotalPages,
+      }
+    : pagination;
+
   const fetchAllLeadsForPDF = async () => {
     try {
       const isAll = selectedEmployee?._id === "all";
@@ -311,7 +348,11 @@ export const SalesManagerMasterGrid = () => {
   const handlePrintReport = async () => {
     setGeneratingPDF(true); toast.loading("Preparing report...");
     try {
-      const leads = await fetchAllLeadsForPDF(); toast.dismiss();
+      let leads = await fetchAllLeadsForPDF(); toast.dismiss();
+      // ── NEW: apply follow-up filter to PDF too ──
+      if (filters.followUp) {
+        leads = leads.filter(l => getFollowUpStatus(l.nextFollowUpDate, l.STATUS) === filters.followUp);
+      }
       const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
       const employeeName = selectedEmployee._id === "all" ? "All Employees" : selectedEmployee.name;
       const filterSummary = [
@@ -320,6 +361,7 @@ export const SalesManagerMasterGrid = () => {
         filters.source    ? `Source: ${filters.source}`   : null,
         filters.status    ? `Status: ${filters.status}`   : null,
         filters.callLeads ? `Leads: ${filters.callLeads}` : null,
+        filters.followUp  ? `Follow-Up: ${filters.followUp === 'today' ? "Today's Follow-Ups" : 'Overdue'}` : null,
         debouncedSearch   ? `Search: "${debouncedSearch}"`: null,
       ].filter(Boolean).join(' | ');
       const counts = {
@@ -430,7 +472,12 @@ export const SalesManagerMasterGrid = () => {
   const canUpdateLead = user?.permissions?.includes('updateLead') || user?.user === 'company';
   const canDeleteLead = user?.permissions?.includes('deleteLead') || user?.user === 'company';
   const canTransferOwnership = user?.user === 'company' || user?.permissions?.includes('updateLead');
-  const displayLeads  = data?.leads;
+
+  // ── UPDATED: table rows come from follow-up list when follow-up filter is active ──
+  const displayLeads = isFollowUpMode
+    ? followUpLeads.slice((followUpPage - 1) * itemsPerPage, followUpPage * itemsPerPage)
+    : data?.leads;
+  const funnelViewLeads = isFollowUpMode ? followUpLeads : funnelLeads;
   const colSpan = isAllMode ? 12 : 11;
 
   return (
@@ -515,6 +562,7 @@ export const SalesManagerMasterGrid = () => {
                       warmLeadsCount={data.leadCounts?.warmLeadsCount  || 0}
                       coldLeadsCount={data.leadCounts?.coldLeadsCount  || 0}
                       invalidLeadsCount={data.leadCounts?.invalidLeadsCount || 0}
+                      onTodayFollowUpClick={handleTodayFollowUpClick}
                     />
 
                     {data.quotationFunnel && (
@@ -529,7 +577,7 @@ export const SalesManagerMasterGrid = () => {
                     )}
 
                     <div className="row align-items-center p-3 m-1 bg-light rounded mb-2">
-                      <div className="col-12 col-lg-6">
+                      <div className="col-12 col-lg-5">
                         <div className="input-group">
                           <input type="text" className="form-control"
                             placeholder="Search company, mobile, contact, assigned to..."
@@ -548,11 +596,20 @@ export const SalesManagerMasterGrid = () => {
                           </small>
                         )}
                       </div>
-                      <div className="col-12 col-lg-6 ms-auto text-end">
+                      <div className="col-12 col-lg-7 ms-auto text-end">
                         <div className="row g-2">
                           <div className="col">
                             <input type="date" className="form-control"
                               onChange={e => handleChange("date", e.target.value)} value={filters.date || ""}/>
+                          </div>
+                          {/* ── NEW: Follow-Up filter (Today's Follow-Ups / Overdue) ── */}
+                          <div className="col">
+                            <select className={`form-select ${isFollowUpMode ? "border-danger fw-semibold" : ""}`}
+                              onChange={e => handleChange("followUp", e.target.value)} value={filters.followUp || ""}>
+                              <option value="">Follow-Up...</option>
+                              <option value="today">Today's Follow-Ups ({todayFollowUpLeads.length})</option>
+                              <option value="overdue">Overdue ({overdueLeads.length})</option>
+                            </select>
                           </div>
                           <div className="col">
                             <select className="form-select"
@@ -565,14 +622,6 @@ export const SalesManagerMasterGrid = () => {
                             </select>
                           </div>
                           <div className="col">
-                            {/* ── UPDATED: Sources filter now lists the full
-                                set of sources (matches Add Lead form / Marketing
-                                Master page): Google, Tender, Exhibitions,
-                                JustDial, Facebook, LinkedIn, Twitter, YouTube,
-                                WhatsApp, Referral, Email Campaign, Cold Call,
-                                Website, Walk-In, Direct, Other — plus
-                                IndiaMart/TradeIndia kept since existing lead
-                                data already uses those values. ── */}
                             <select className="form-select"
                               onChange={e => handleChange("source", e.target.value)} value={filters.source || ""}>
                               <option value="">Sources...</option>
@@ -615,13 +664,28 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     </div>
 
+                    {/* ── NEW: Follow-up mode info bar ── */}
+                    {isFollowUpMode && !funnelLoading && (
+                      <div className={`alert ${filters.followUp === "today" ? "alert-warning" : "alert-danger"} d-flex align-items-center justify-content-between py-2 px-3 m-1 mb-2`}
+                        style={{ borderRadius: '8px', fontSize: '0.85rem' }}>
+                        <span>
+                          <i className={`fa-solid ${filters.followUp === "today" ? "fa-bell" : "fa-triangle-exclamation"} me-2`}></i>
+                          Showing <strong>{followUpLeads.length}</strong> {followUpLabel} lead{followUpLeads.length !== 1 ? 's' : ''}
+                          {!isAllMode && <> for <strong>{selectedEmployee.name}</strong></>}
+                        </span>
+                        <button type="button" className="btn btn-sm btn-outline-dark" onClick={() => handleChange("followUp", null)}>
+                          <i className="fa-solid fa-xmark me-1"></i>Clear
+                        </button>
+                      </div>
+                    )}
+
                     {hasAmountFilter && !funnelLoading && (
                       <div className="row px-3 mb-2" style={{ marginTop: '-2px' }}>
                         <div className="col-12 d-flex align-items-center gap-3 flex-wrap">
-                          <AmountTotalPopup funnelLeads={funnelLeads} filters={filters} />
+                          <AmountTotalPopup funnelLeads={funnelViewLeads} filters={filters} />
                           <small className="text-muted" style={{ fontSize: '0.73rem' }}>
                             <i className="fa-solid fa-circle-info me-1"></i>
-                            Total across all {funnelLeads.length} filtered lead{funnelLeads.length !== 1 ? 's' : ''}
+                            Total across all {funnelViewLeads.length} filtered lead{funnelViewLeads.length !== 1 ? 's' : ''}
                           </small>
                         </div>
                       </div>
@@ -637,7 +701,7 @@ export const SalesManagerMasterGrid = () => {
                             </div>
                           ) : (
                             <SalesFunnelView
-                              leads={funnelLeads}
+                              leads={funnelViewLeads}
                               onView={handleDetailsPopUpClick}
                               onUpdate={handleUpdate}
                               onAssign={() => {}}
@@ -683,7 +747,7 @@ export const SalesManagerMasterGrid = () => {
 
                                     return (
                                       <tr key={lead._id} className={isToday ? "row-today-followup" : isOverdue ? "row-overdue-followup" : ""}>
-                                        <td className="text-center">{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
+                                        <td className="text-center">{(pg.currentPage - 1) * itemsPerPage + index + 1}</td>
                                         <td>
                                           <div className="d-flex align-items-center">
                                             <span>{lead.SENDER_COMPANY || "Not available."}</span>
@@ -747,7 +811,11 @@ export const SalesManagerMasterGrid = () => {
                                     <td colSpan={colSpan} className="text-center py-4">
                                       <div className="text-muted">
                                         <i className="fa-solid fa-inbox fa-2x mb-2"></i>
-                                        <p className="mb-0">{debouncedSearch ? `No leads found for "${debouncedSearch}"` : "No leads found."}</p>
+                                        <p className="mb-0">
+                                          {isFollowUpMode
+                                            ? `No ${followUpLabel.toLowerCase()} leads found.`
+                                            : debouncedSearch ? `No leads found for "${debouncedSearch}"` : "No leads found."}
+                                        </p>
                                       </div>
                                     </td>
                                   </tr>
@@ -759,32 +827,32 @@ export const SalesManagerMasterGrid = () => {
                       </div>
                     )}
 
-                    {viewMode === "table" && !loading && pagination.totalPages > 1 && (
+                    {viewMode === "table" && !loading && pg.totalPages > 1 && (
                       <div className="d-flex justify-content-center mt-3">
                         <nav><ul className="pagination mb-0">
-                          <li className={`page-item ${!pagination.hasPrevPage ? "disabled" : ""}`}>
-                            <button className="page-link" onClick={() => handlePageChange(1)} disabled={!pagination.hasPrevPage}>First</button>
+                          <li className={`page-item ${!pg.hasPrevPage ? "disabled" : ""}`}>
+                            <button className="page-link" onClick={() => handlePageChange(1)} disabled={!pg.hasPrevPage}>First</button>
                           </li>
-                          <li className={`page-item ${!pagination.hasPrevPage ? "disabled" : ""}`}>
-                            <button className="page-link" onClick={() => handlePageChange(pagination.currentPage - 1)} disabled={!pagination.hasPrevPage}>Previous</button>
+                          <li className={`page-item ${!pg.hasPrevPage ? "disabled" : ""}`}>
+                            <button className="page-link" onClick={() => handlePageChange(pg.currentPage - 1)} disabled={!pg.hasPrevPage}>Previous</button>
                           </li>
                           {(() => {
                             const pages = []; const max = 5;
-                            let start = Math.max(1, pagination.currentPage - 2);
-                            let end   = Math.min(pagination.totalPages, start + max - 1);
+                            let start = Math.max(1, pg.currentPage - 2);
+                            let end   = Math.min(pg.totalPages, start + max - 1);
                             if (end - start < max - 1) start = Math.max(1, end - max + 1);
                             for (let i = start; i <= end; i++) pages.push(i);
                             return pages.map(n => (
-                              <li key={n} className={`page-item ${pagination.currentPage === n ? "active" : ""}`}>
+                              <li key={n} className={`page-item ${pg.currentPage === n ? "active" : ""}`}>
                                 <button className="page-link" onClick={() => handlePageChange(n)}>{n}</button>
                               </li>
                             ));
                           })()}
-                          <li className={`page-item ${!pagination.hasNextPage ? "disabled" : ""}`}>
-                            <button className="page-link" onClick={() => handlePageChange(pagination.currentPage + 1)} disabled={!pagination.hasNextPage}>Next</button>
+                          <li className={`page-item ${!pg.hasNextPage ? "disabled" : ""}`}>
+                            <button className="page-link" onClick={() => handlePageChange(pg.currentPage + 1)} disabled={!pg.hasNextPage}>Next</button>
                           </li>
-                          <li className={`page-item ${!pagination.hasNextPage ? "disabled" : ""}`}>
-                            <button className="page-link" onClick={() => handlePageChange(pagination.totalPages)} disabled={!pagination.hasNextPage}>Last</button>
+                          <li className={`page-item ${!pg.hasNextPage ? "disabled" : ""}`}>
+                            <button className="page-link" onClick={() => handlePageChange(pg.totalPages)} disabled={!pg.hasNextPage}>Last</button>
                           </li>
                         </ul></nav>
                       </div>
