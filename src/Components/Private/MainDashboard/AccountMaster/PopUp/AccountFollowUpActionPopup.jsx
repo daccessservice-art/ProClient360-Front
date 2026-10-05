@@ -157,6 +157,12 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
         return 'Pending';
     };
 
+    // ✅ NEW: 100% payment received → hide follow-up form
+    // While editing, use the live preview; otherwise use the saved status
+    const isFullyPaid = paymentEditMode
+        ? previewInvoiceStatus() === 'Paid'
+        : accountData.accountActions?.invoiceStatus === 'Paid';
+
     // ─── Payment Save ──────────────────────────────────────────────
     const handlePaymentSave = async () => {
         const rec = Number(paymentForm.receivedAmount);
@@ -217,6 +223,7 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
     // ─── Follow-Up Submit ──────────────────────────────────────────
     const handleFollowUpSubmit = async (e) => {
         e.preventDefault();
+        if (isFullyPaid) return toast.error('Payment already 100% received');
         if (!followUpData.nextFollowUpDate) return toast.error('Next follow-up date is required');
         if (!followUpData.remark.trim())    return toast.error('Remark is required');
         if (followUpData.contacts.length === 0) return toast.error('Please add at least one contact person');
@@ -613,8 +620,17 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
                                     ))}
                                 </ul>
 
-                                {/* ── TAB 1: ADD FOLLOW-UP ── */}
-                                {activeTab === 'followup' && (
+                                {/* ── TAB 1: 100% PAID MESSAGE (replaces follow-up form) ── */}
+                                {activeTab === 'followup' && isFullyPaid && (
+                                    <div className="alert alert-success text-center py-4">
+                                        <i className="fa-solid fa-circle-check fa-3x mb-3 d-block"></i>
+                                        <h6 className="fw-bold mb-1">100% Payment Received</h6>
+                                        <small>No follow-up is required for this account.</small>
+                                    </div>
+                                )}
+
+                                {/* ── TAB 1: ADD FOLLOW-UP (only when NOT fully paid) ── */}
+                                {activeTab === 'followup' && !isFullyPaid && (
                                     <form onSubmit={handleFollowUpSubmit}>
                                         <div className="row border p-3 mb-3 bg-light">
                                             <div className="col-12 mb-3">
