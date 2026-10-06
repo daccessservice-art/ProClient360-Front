@@ -4,7 +4,9 @@ import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddAMCHistoryPopUp from "./PopUp/AddAMCHistoryPopUp";
 import UpdateAMCHistoryPopUp from "./PopUp/UpdateAMCHistoryPopUp";
-// ── NEW: Project AMC Alerts panel (completed / ending projects from Project Master) ──
+// ── NEW: Call popup (log call + call history) ──
+import AMCCallPopUp, { OUTCOME_COLORS, fmtDateTime } from "./PopUp/AMCCallPopUp";
+// ── Project AMC Alerts panel (completed / ending projects from Project Master) ──
 import ProjectAMCAlertsPanel from "./ProjectAMCAlertsPanel";
 import {
   getOldAMCHistory,
@@ -13,10 +15,13 @@ import {
   exportOldAMCHistoryPDF,
   exportOldAMCHistoryExcel,
 } from "../../../../hooks/useOldAMCHistory";
+// ── NEW ──
+import { getAMCCallSummary, getAMCAlertCount } from "../../../../hooks/useAMCCallLog";
 import toast from "react-hot-toast";
 
 // How many days before an AMC contract's End Date the row should start blinking.
-// Keep this in sync with the same constant used on the Employee Dashboard's "AMC Expiry Alerts" tab.
+// Keep this in sync with the same constant used on the Employee Dashboard's "AMC Expiry Alerts" tab
+// and in backend controllers/amcCallLogController.js
 const ALERT_WINDOW_DAYS = 50;
 
 const getAMCExpiryInfo = (endDateStr) => {
@@ -78,6 +83,17 @@ const getFollowUpInfo = (dateStr) => {
   if (diffDays < 0) return { due: true, label: `Follow-up ${Math.abs(diffDays)}d ago` };
   if (diffDays === 0) return { due: true, label: "Follow-up Today" };
   return { due: false, label: `in ${diffDays}d` };
+};
+
+// ── NEW: was this AMC called inside its current expiry alert window? ──
+const isCalledThisCycle = (endDateStr, lastCallAt) => {
+  if (!endDateStr || !lastCallAt) return false;
+  const end = new Date(endDateStr);
+  if (isNaN(end.getTime())) return false;
+  end.setHours(0, 0, 0, 0);
+  const cycleStart = new Date(end);
+  cycleStart.setDate(cycleStart.getDate() - ALERT_WINDOW_DAYS);
+  return new Date(lastCallAt) >= cycleStart;
 };
 
 const getRowStatus = (expiryInfo, followUpInfo, inProcess, lost, activeInfo) => {
@@ -186,19 +202,48 @@ export const OldAMCHistoryGrid = () => {
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // ── NEW: prefill data when creating AMC from a project + refresh trigger for alert panel ──
+  // prefill data when creating AMC from a project + refresh trigger for alert panel
   const [amcPrefill, setAmcPrefill] = useState(null);
   const [alertsRefreshKey, setAlertsRefreshKey] = useState(0);
+
+  // ── NEW: calling ──
+  const [callRecord, setCallRecord] = useState(null);
+  const [callSummary, setCallSummary] = useState({});
+  const [alertCounts, setAlertCounts] = useState(null);
+
+  const loadCallSummary = async (recs) => {
+    const ids = (recs || []).map((r) => r._id).filter(Boolean);
+    if (ids.length === 0) {
+      setCallSummary({});
+      return;
+    }
+    const res = await getAMCCallSummary(ids);
+    if (res?.success) setCallSummary(res.summary || {});
+  };
+
+  const loadAlertCounts = async () => {
+    const res = await getAMCAlertCount();
+    if (res?.success) {
+      setAlertCounts({
+        total: res.totalAlerts || 0,
+        called: res.calledCount || 0,
+        pending: res.pendingCount || 0,
+        followUpDue: res.followUpDue || 0,
+      });
+    }
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
       const data = await getOldAMCHistory(currentPage, itemsPerPage, search, customerTypeFilter, zoneFilter, "", priorityFilter);
       if (data?.success) {
-        setRecords(data.records || []);
+        const recs = data.records || [];
+        setRecords(recs);
         setPagination(data.pagination || {
           currentPage: 1, totalPages: 0, totalRecords: 0, hasNextPage: false, hasPrevPage: false,
         });
+        loadCallSummary(recs); // ── NEW ──
       } else {
         toast.error(data?.error || "Failed to fetch old AMC history");
       }
@@ -213,6 +258,11 @@ export const OldAMCHistoryGrid = () => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, search, customerTypeFilter, zoneFilter, priorityFilter, AddPopUpShow, updatePopUpShow]);
+
+  // ── NEW: alert counts refresh after add / update ──
+  useEffect(() => {
+    loadAlertCounts();
+  }, [AddPopUpShow, updatePopUpShow]);
 
   const handleOnSearchSubmit = (e) => {
     e.preventDefault();
@@ -237,6 +287,7 @@ export const OldAMCHistoryGrid = () => {
       toast.success(data.message);
       setCurrentPage(1);
       fetchData();
+      loadAlertCounts();
     } else {
       toast.error(data?.error || "Import failed");
     }
@@ -253,7 +304,8 @@ export const OldAMCHistoryGrid = () => {
     else toast.error(data?.error || "Failed to delete");
     setDeletePopUpShow(false);
     fetchData();
-    setAlertsRefreshKey((k) => k + 1); // ── NEW: deleting a project-AMC brings the project back to alerts ──
+    loadAlertCounts();
+    setAlertsRefreshKey((k) => k + 1); // deleting a project-AMC brings the project back to alerts
   };
 
   const handleExportPDF = async () => {
@@ -272,7 +324,7 @@ export const OldAMCHistoryGrid = () => {
     setSearch(""); setSearchText(""); setCustomerTypeFilter(""); setZoneFilter(""); setPriorityFilter(""); setCurrentPage(1);
   };
 
-  // ── UPDATED: when the Add popup closes, clear project prefill and refresh the alert panel ──
+  // when the Add popup closes, clear project prefill and refresh the alert panel
   const handleAdd = () => {
     if (AddPopUpShow) {
       setAmcPrefill(null);
@@ -281,7 +333,7 @@ export const OldAMCHistoryGrid = () => {
     setAddPopUpShow(!AddPopUpShow);
   };
 
-  // ── NEW: "Create AMC" clicked on a project in the alert panel ──
+  // "Create AMC" clicked on a project in the alert panel
   const handleCreateAMCFromProject = (prefill) => {
     setAmcPrefill(prefill);
     setAddPopUpShow(true);
@@ -295,6 +347,16 @@ export const OldAMCHistoryGrid = () => {
   const handleUpdateClose = () => {
     setUpdatePopUpShow(false);
     setSelectedRecord(null);
+  };
+
+  // ── NEW: Call popup open / close ──
+  const handleCallOpen = (record) => setCallRecord(record);
+  const handleCallClose = (changed) => {
+    setCallRecord(null);
+    if (changed) {
+      fetchData();
+      loadAlertCounts();
+    }
   };
 
   const getPriorityBadgeClass = (priority) => {
@@ -340,6 +402,30 @@ export const OldAMCHistoryGrid = () => {
                         </span>
                       )}
                     </h5>
+                    {/* ── NEW: AMC expiry alert call counts ── */}
+                    {alertCounts && (
+                      <div className="d-flex flex-wrap gap-1 pb-1">
+                        <span
+                          className="badge"
+                          style={{
+                            background: "#8b0000", fontSize: "11px", cursor: "help",
+                            animation: alertCounts.pending > 0 ? "amcIconBlink 1s infinite" : "none",
+                          }}
+                          title="AMC expiring within 50 days / expired — not called yet in this cycle"
+                        >
+                          <i className="fa-solid fa-triangle-exclamation me-1"></i>Pending Call {alertCounts.pending}
+                        </span>
+                        <span className="badge bg-success" style={{ fontSize: "11px", cursor: "help" }}
+                          title="Expiry alerts where customer was already called">
+                          <i className="fa-solid fa-phone-volume me-1"></i>Called {alertCounts.called}/{alertCounts.total}
+                        </span>
+                        {alertCounts.followUpDue > 0 && (
+                          <span className="badge bg-warning text-dark" style={{ fontSize: "11px" }}>
+                            <i className="fa-solid fa-bell me-1"></i>Follow-up Due {alertCounts.followUpDue}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="col-12 col-lg-9">
@@ -411,7 +497,7 @@ export const OldAMCHistoryGrid = () => {
                   </div>
                 </div>
 
-                {/* ── NEW: Project AMC Alerts (completed / ending projects from Project Master) ── */}
+                {/* Project AMC Alerts (completed / ending projects from Project Master) */}
                 <ProjectAMCAlertsPanel
                   refreshKey={alertsRefreshKey}
                   onCreateAMC={handleCreateAMCFromProject}
@@ -440,6 +526,7 @@ export const OldAMCHistoryGrid = () => {
                             <th className="text-center align-middle">Start Date</th>
                             <th className="text-center align-middle">End Date</th>
                             <th className="text-center align-middle">Next Follow-up</th>
+                            <th className="text-center align-middle">Last Call</th>
                             <th className="text-center align-middle">Action</th>
                           </tr>
                         </thead>
@@ -450,6 +537,12 @@ export const OldAMCHistoryGrid = () => {
                               const followUpInfo = r.inProcess && !r.lost ? getFollowUpInfo(r.nextFollowUpDate) : null;
                               const activeInfo = !r.lost ? getActiveInfo(r.startDate, r.endDate) : null;
                               const status = getRowStatus(expiryInfo, followUpInfo, !!r.inProcess, !!r.lost, activeInfo);
+
+                              // ── NEW: call info ──
+                              const cs = callSummary[r._id];
+                              const calledThisCycle = isCalledThisCycle(r.endDate, cs?.lastCallAt);
+                              const needsCall = !r.lost && expiryInfo && !calledThisCycle;
+
                               return (
                                 <tr
                                   className="border my-4"
@@ -468,7 +561,7 @@ export const OldAMCHistoryGrid = () => {
                                         <i className="fa-solid fa-handshake me-1"></i>Sales Lead
                                       </span>
                                     )}
-                                    {/* ── NEW: record created from a Project Master project ── */}
+                                    {/* record created from a Project Master project */}
                                     {r.sourceProject && (
                                       <span
                                         className="badge d-inline-flex align-items-center mt-1 ms-1"
@@ -476,6 +569,17 @@ export const OldAMCHistoryGrid = () => {
                                         title={`Created from Project: ${r.sourceProjectName || ""}`}
                                       >
                                         <i className="fa-solid fa-diagram-project me-1"></i>From Project
+                                      </span>
+                                    )}
+                                    {/* ── NEW: total calls badge (click to open history) ── */}
+                                    {cs?.count > 0 && (
+                                      <span
+                                        className="badge d-inline-flex align-items-center mt-1 ms-1"
+                                        style={{ background: "#7c3aed", fontSize: "0.68rem", whiteSpace: "nowrap", cursor: "pointer" }}
+                                        title="Click to see call history"
+                                        onClick={() => handleCallOpen(r)}
+                                      >
+                                        <i className="fa-solid fa-phone me-1"></i>{cs.count} Call{cs.count > 1 ? "s" : ""}
                                       </span>
                                     )}
                                   </td>
@@ -537,6 +641,18 @@ export const OldAMCHistoryGrid = () => {
                                     ) : activeInfo ? (
                                       <StatusBadge status="active" icon="fa-solid fa-circle-play" text={activeInfo.label} />
                                     ) : null}
+                                    {/* ── NEW: called / not called marker for expiry alerts ── */}
+                                    {!r.lost && expiryInfo && (
+                                      calledThisCycle ? (
+                                        <small className="d-block fw-bold mt-1" style={{ fontSize: "0.68rem", color: "#15803d" }}>
+                                          <i className="fa-solid fa-circle-check me-1"></i>Called
+                                        </small>
+                                      ) : (
+                                        <small className="d-block fw-bold mt-1" style={{ fontSize: "0.68rem", color: "#b91c1c" }}>
+                                          <i className="fa-solid fa-phone-slash me-1"></i>Not called yet
+                                        </small>
+                                      )
+                                    )}
                                   </td>
 
                                   <td style={{ textAlign: "center" }}>
@@ -556,7 +672,39 @@ export const OldAMCHistoryGrid = () => {
                                     )}
                                   </td>
 
-                                  <td style={{ textAlign: "center" }}>
+                                  {/* ── NEW: Last Call column ── */}
+                                  <td
+                                    style={{ textAlign: "center", minWidth: "150px", maxWidth: "200px", whiteSpace: "normal", wordBreak: "break-word" }}
+                                    title={cs?.lastRemark || ""}
+                                  >
+                                    {cs?.lastCallAt ? (
+                                      <>
+                                        <div style={{ fontSize: "0.75rem", fontWeight: 700 }}>{fmtDateTime(cs.lastCallAt)}</div>
+                                        <span className="badge" style={{ background: OUTCOME_COLORS[cs.lastOutcome] || "#475569", fontSize: "0.65rem" }}>
+                                          {cs.lastOutcome}
+                                        </span>
+                                        {cs.lastRemark && (
+                                          <small className="d-block text-muted" style={{ fontSize: "0.7rem" }}>
+                                            {cs.lastRemark.length > 40 ? `${cs.lastRemark.slice(0, 40)}...` : cs.lastRemark}
+                                          </small>
+                                        )}
+                                        {cs.lastCalledByName && (
+                                          <small className="d-block text-muted" style={{ fontSize: "0.65rem" }}>
+                                            by {cs.lastCalledByName}
+                                          </small>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-muted">Not called</span>
+                                    )}
+                                  </td>
+
+                                  <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
+                                    {/* ── NEW: Call button ── */}
+                                    <span onClick={() => handleCallOpen(r)} className="me-2" title="Call customer / Call history"
+                                      style={{ cursor: "pointer", display: "inline-block", animation: needsCall ? "amcIconBlink 1s infinite" : "none" }}>
+                                      <i className="fa-solid fa-phone text-primary cursor-pointer"></i>
+                                    </span>
                                     <span onClick={() => handleUpdateOpen(r)} className="update me-2" title="Edit">
                                       <i className="fa-solid fa-pen text-success cursor-pointer"></i>
                                     </span>
@@ -568,7 +716,7 @@ export const OldAMCHistoryGrid = () => {
                               );
                             })
                           ) : (
-                            <tr><td colSpan="18" style={{ textAlign: "center" }}>No data found — import an Excel/CSV file or click Add to get started</td></tr>
+                            <tr><td colSpan="19" style={{ textAlign: "center" }}>No data found — import an Excel/CSV file or click Add to get started</td></tr>
                           )}
                         </tbody>
                       </table>
@@ -608,12 +756,15 @@ export const OldAMCHistoryGrid = () => {
         />
       )}
 
-      {/* ── UPDATED: pass project prefill (null for normal Add) ── */}
+      {/* pass project prefill (null for normal Add) */}
       {AddPopUpShow && <AddAMCHistoryPopUp handleAdd={handleAdd} prefill={amcPrefill} />}
 
       {updatePopUpShow && selectedRecord && (
         <UpdateAMCHistoryPopUp selectedRecord={selectedRecord} handleUpdate={handleUpdateClose} />
       )}
+
+      {/* ── NEW: Call popup ── */}
+      {callRecord && <AMCCallPopUp record={callRecord} handleClose={handleCallClose} />}
 
       <style>{`
         @keyframes amcBlinkRed {

@@ -3,15 +3,29 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { getPurchaseOrders, approvePurchaseOrder } from "../../../hooks/usePurchaseOrder";
 // ── reuse the same View PO popup used in PurchaseOrderMasterGrid ──
-// ⚠️ Adjust this relative path if this file lives somewhere other than
-// Components/Private/EmployeeDashboard/ — it must resolve to
-// Components/Private/CommonPopUp/ViewPurchaseOrderPopUp
 import ViewPurchaseOrderPopUp from "../CommonPopUp/ViewPurchaseOrderPopUp";
 // ── Old AMC History expiry alerts (AMC Executive / Vice President / Service Manager only) ──
 import { getOldAMCHistory } from "../../../hooks/useOldAMCHistory";
+// ── NEW: AMC call log (count goes down after calling) ──
+import { getAMCCallSummary } from "../../../hooks/useAMCCallLog";
+import AMCCallPopUp, { OUTCOME_COLORS, fmtDateTime } from "../MainDashboard/OldAMCHistory/PopUp/AMCCallPopUp";
 
 // ── designations allowed to see the AMC Expiry Alerts tab (case-insensitive) ──
 const AMC_ALERT_DESIGNATIONS = ["amc executive", "amc executives", "vice president", "service manager"];
+
+// ── NEW: keep in sync with OldAMCHistoryGrid.jsx + amcCallLogController.js ──
+const ALERT_WINDOW_DAYS = 50;
+
+// Was this AMC called inside its current expiry cycle (End Date − 50 days onwards)?
+const isCalledThisCycle = (endDateStr, lastCallAt) => {
+  if (!endDateStr || !lastCallAt) return false;
+  const end = new Date(endDateStr);
+  if (isNaN(end.getTime())) return false;
+  end.setHours(0, 0, 0, 0);
+  const cycleStart = new Date(end);
+  cycleStart.setDate(cycleStart.getDate() - ALERT_WINDOW_DAYS);
+  return new Date(lastCallAt) >= cycleStart;
+};
 
 // ── soft coloured badge for any status text ──
 const softBadge = (status = "") => {
@@ -52,6 +66,9 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   const [amcAlerts, setAmcAlerts] = useState([]);
   const [amcLoading, setAmcLoading] = useState(false);
   const amcPollRef = useRef(null);
+  // ── NEW: call summary per AMC + call popup ──
+  const [amcCallSummary, setAmcCallSummary] = useState({});
+  const [callRecord, setCallRecord] = useState(null);
 
   // ── "Show More" pagination — 10 rows at a time on every tab ──
   const SHOW_MORE_STEP = 10;
@@ -148,7 +165,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     };
   }, [isPurchaseCEO]);
 
-  // ── CHANGED: fetch only AMC records that are already expired (End Date today or earlier) ──
+  // ── fetch AMC records already expired (End Date today or earlier, not Lost) + their call summary ──
   const fetchAMCAlerts = async (silent = false) => {
     if (!silent) setAmcLoading(true);
     try {
@@ -159,15 +176,25 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
 
         const alerts = (data.records || [])
           .filter((r) => {
+            if (r.lost) return false; // Lost AMCs are not alerts
             if (!r.endDate) return false;
             const end = new Date(r.endDate);
             if (isNaN(end.getTime())) return false;
             end.setHours(0, 0, 0, 0);
-            return end <= today; // expired or expiring today only – no "days left" rows
+            return end <= today; // expired or expiring today only
           })
           .sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
 
         setAmcAlerts(alerts);
+
+        // ── NEW: who has already been called? ──
+        const ids = alerts.map((a) => a._id).filter(Boolean);
+        if (ids.length > 0) {
+          const summaryRes = await getAMCCallSummary(ids);
+          if (summaryRes?.success) setAmcCallSummary(summaryRes.summary || {});
+        } else {
+          setAmcCallSummary({});
+        }
       } else {
         setAmcAlerts([]);
       }
@@ -192,7 +219,30 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     return () => {
       if (amcPollRef.current) clearInterval(amcPollRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAMCAlertRole]);
+
+  // ── NEW: split expired AMCs into "not called" (counted) and "called" (not counted) ──
+  const { amcPending, amcCalled } = useMemo(() => {
+    const pending = [];
+    const called = [];
+    amcAlerts.forEach((r) => {
+      const cs = amcCallSummary[r._id];
+      if (isCalledThisCycle(r.endDate, cs?.lastCallAt)) called.push(r);
+      else pending.push(r);
+    });
+    return { amcPending: pending, amcCalled: called };
+  }, [amcAlerts, amcCallSummary]);
+
+  // pending first, then called
+  const amcSortedList = useMemo(() => [...amcPending, ...amcCalled], [amcPending, amcCalled]);
+
+  // ── NEW: call popup ──
+  const handleCallOpen = (record) => setCallRecord(record);
+  const handleCallClose = (changed) => {
+    setCallRecord(null);
+    if (changed) fetchAMCAlerts(true);
+  };
 
   const handleApprovePO = async (poId) => {
     setApprovingId(poId);
@@ -284,8 +334,8 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     { key: "assigned", label: "Assigned tasks",    count: (assignedTasks || []).length,  color: "#7c5cfc", pulse: "pulsePurple", leadTab: false },
     { key: "active",   label: "Active tasks",      count: (inprocessTasks || []).length, color: "#16a34a", pulse: "pulseGreen",  leadTab: false },
     { key: "poApproval", label: "PO approval", count: pendingPOs.length, color: "#0891b2", pulse: "pulseBlue", leadTab: false, poTab: true },
-    // ── CHANGED: list now holds expired contracts only, so count = list length ──
-    { key: "amcExpiry", label: "AMC expiry alerts", count: amcAlerts.length, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
+    // ── CHANGED: count = expired AMCs NOT called yet (goes down after calling) ──
+    { key: "amcExpiry", label: "AMC expiry alerts", count: amcPending.length, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
   ];
 
   const tabs = allTabs.filter(tab => {
@@ -309,9 +359,9 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (activeTab === "assigned")   return assignedTasks || [];
     if (activeTab === "active")     return inprocessTasks || [];
     if (activeTab === "poApproval") return pendingPOs;
-    if (activeTab === "amcExpiry")  return amcAlerts;
+    if (activeTab === "amcExpiry")  return amcSortedList;
     return [];
-  }, [activeTab, todayLeads, pendingLeads, overdueLeads, assignedTasks, inprocessTasks, pendingPOs, amcAlerts]);
+  }, [activeTab, todayLeads, pendingLeads, overdueLeads, assignedTasks, inprocessTasks, pendingPOs, amcSortedList]);
 
   const isTaskTab = activeTab === "assigned" || activeTab === "active";
   const isPOTab = activeTab === "poApproval";
@@ -347,8 +397,11 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (activeTab === "overdue")    return chip(<><i className="fa-solid fa-triangle-exclamation"></i> Action required</>, "#8b0000", "#fbeeee", "#efc9c9");
     if (activeTab === "pending")    return chip(<><i className="fa-solid fa-clock"></i> Pending</>, "#c2410c", "#fff4e8", "#fbd9b5");
     if (activeTab === "poApproval") return chip(<><i className="fa-solid fa-file-invoice"></i> Awaiting approval</>, "#0e7490", "#ecf8fb", "#bfe5ee");
-    // ── CHANGED: header chip text ──
-    if (activeTab === "amcExpiry")  return chip(<><i className="fa-solid fa-bell"></i> Expired contracts</>, "#b91c1c", "#fdf0f0", "#f6cfd3");
+    // ── CHANGED: show pending / called split ──
+    if (activeTab === "amcExpiry")  return chip(
+      <><i className="fa-solid fa-phone-volume"></i> {amcPending.length} to call · {amcCalled.length} called</>,
+      "#b91c1c", "#fdf0f0", "#f6cfd3"
+    );
     if (activeTab === "assigned")   return chip(<><i className="fa-solid fa-clipboard-list"></i> Not started</>, "#6d28d9", "#f3efff", "#ddd3ff");
     if (activeTab === "active")     return chip(<><i className="fa-solid fa-bolt"></i> In progress</>, "#15803d", "#effaf3", "#c9eed8");
     return null;
@@ -376,16 +429,19 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
       );
     }
 
-    // ── AMC expiry rows ──
+    // ── AMC expiry rows (not called = blinking red, called = green) ──
     if (isAMCTab) {
       return displayedData.map((r, idx) => {
         const status = getAMCStatus(r.endDate);
-        const c = "#8b0000";
+        const cs = amcCallSummary[r._id];
+        const called = isCalledThisCycle(r.endDate, cs?.lastCallAt);
+        const c = called ? "#15803d" : "#8b0000";
+
         return (
           <div
             key={r._id}
             className="ed-row"
-            style={{ animation: "blinkDarkRed 1.4s infinite" }}
+            style={{ animation: called ? "none" : "blinkDarkRed 1.4s infinite" }}
           >
             {idxBox(idx)}
             <div className="ed-row-main">
@@ -393,13 +449,40 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
               <div className="ed-row-sub">
                 <span><i className="fa-solid fa-location-dot"></i>{r.zone || "N/A"}</span>
                 <span><i className="fa-solid fa-user"></i>{r.ownedBy || "N/A"}</span>
+                {r.phoneNumber1 && <span><i className="fa-solid fa-phone"></i>{r.phoneNumber1}</span>}
               </div>
+              {called && cs && (
+                <div className="ed-row-sub" style={{ marginTop: 2 }}>
+                  <span style={{ color: "#15803d", fontWeight: 600 }}>
+                    <i className="fa-solid fa-circle-check"></i>
+                    Called {fmtDateTime(cs.lastCallAt)}{cs.lastCalledByName ? ` by ${cs.lastCalledByName}` : ""}
+                  </span>
+                  <span
+                    className="ed-badge"
+                    style={{ background: OUTCOME_COLORS[cs.lastOutcome] || "#475569", color: "#fff", fontSize: "0.65rem" }}
+                  >
+                    {cs.lastOutcome}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="ed-row-right">
               <span className="ed-date-pill" style={{ color: c, background: `${c}10`, borderColor: `${c}33` }}>
                 <i className="fa-solid fa-calendar-xmark"></i>{formatDate(r.endDate)}
               </span>
-              <span className="ed-badge" style={{ background: c, color: "#fff" }}>{status.label}</span>
+              <span className="ed-badge" style={{ background: called ? "#e8f8ef" : c, color: called ? "#15803d" : "#fff" }}>
+                {called ? `${cs?.count || 1} call${(cs?.count || 1) > 1 ? "s" : ""}` : status.label}
+              </span>
+              <button
+                type="button"
+                className="ed-icon-btn"
+                onClick={() => handleCallOpen(r)}
+                title={called ? "Call again / call history" : "Call customer"}
+                aria-label="Call customer"
+                style={called ? undefined : { color: "#dc2626", borderColor: "#f6cfd3" }}
+              >
+                <i className="fa-solid fa-phone"></i>
+              </button>
             </div>
           </div>
         );
@@ -533,7 +616,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
             >
               <span
                 className="ed-tab-dot"
-                style={{ background: tab.color, animation: `${tab.pulse} 1.4s infinite` }}
+                style={{ background: tab.color, animation: tab.count > 0 ? `${tab.pulse} 1.4s infinite` : "none" }}
               />
               {tab.label}
               <span className="ed-tab-count" style={{ background: tab.color }}>
@@ -569,6 +652,9 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
           selectedPO={selectedPO}
         />
       )}
+
+      {/* ── NEW: AMC Call popup (same as Old AMC History page) ── */}
+      {callRecord && <AMCCallPopUp record={callRecord} handleClose={handleCallClose} />}
 
       <style>{`
         @keyframes blinkRed {
