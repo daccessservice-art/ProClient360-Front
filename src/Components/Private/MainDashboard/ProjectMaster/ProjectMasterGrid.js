@@ -314,6 +314,8 @@ export const ProjectMasterGrid = () => {
                             <th>Created Date</th>
                             <th>Start Date</th>
                             <th>End Date</th>
+                            {/* ✅ NEW */}
+                            <th>Actual Completion</th>
                             <th>Status</th>
                             <th>Material</th>
                             <th>Assign</th>
@@ -342,6 +344,10 @@ export const ProjectMasterGrid = () => {
                                 <td className="w-20">{formatDate(project.createdAt)}</td>
                                 <td className="w-20">{formatDate(project.startDate)}</td>
                                 <td className="w-20">{formatDate(project.endDate)}</td>
+                                {/* ✅ NEW: Actual Completion Date */}
+                                <td className="w-20">
+                                  {project.actualCompletionDate ? formatDate(project.actualCompletionDate) : "-"}
+                                </td>
                                 <td className="w-20">
                                   <span className={`badge rounded-pill px-2 py-1 ${getStatusBadgeClass(project.projectStatus)}`}>
                                     {project.projectStatus}
@@ -424,7 +430,7 @@ export const ProjectMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="12" className="text-center">
+                              <td colSpan="13" className="text-center">
                                 No data found
                               </td>
                             </tr>

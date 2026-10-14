@@ -1,11 +1,11 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useMemo } from "react";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import ViewTaskPopUp from "./PopUp/ViewTaskPopUp";
 import TesterQueuePopUp from "./PopUp/TesterQueuePopUp";
 import MyFocusAgentPanel from "./MyFocusAgentPanel";
 import FloatingAgentWidget from "./FloatingAgentWidget";
 import { getMyProjects } from "../../../../hooks/useProjects";
-import { getTesterTasks, getMyDueStatus } from "../../../../hooks/useTaskSheet"; // ✅ UPDATED
+import { getTesterTasks, getMyDueStatus } from "../../../../hooks/useTaskSheet";
 import { formatDate } from "../../../../utils/formatDate";
 import { Header } from "../../MainDashboard/Header/Header";
 import { Sidebar } from "../../MainDashboard/Sidebar/Sidebar";
@@ -41,7 +41,7 @@ const commonThStyle = {
   color: 'white',
 };
 
-// ✅ NEW — short tooltip list: "Login Page, API Setup +2 more"
+// short tooltip list: "Login Page, API Setup +2 more"
 const listForTooltip = (items = []) => {
   if (items.length === 0) return '';
   const shown = items.slice(0, 3).join(', ');
@@ -60,20 +60,12 @@ export const EmployeeTaskGrid = () => {
   const [loading, setLoading] = useState(true);
 
   const [projects, setProjects] = useState([]);
-  const [filteredProjects, setFilteredProjects] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 0,
-    totalProjects: 0,
-    limit: 20,
-    hasNextPage: false,
-    hasPrevPage: false,
-  });
+  const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
   const [notifiedTomorrowProjects, setNotifiedTomorrowProjects] = useState(new Set());
@@ -82,8 +74,10 @@ export const EmployeeTaskGrid = () => {
   const [testerQueueShow, setTesterQueueShow] = useState(false);
   const [testerQueueCount, setTesterQueueCount] = useState(0);
 
-  // ✅ NEW — my tasks overdue / due today, per project → drives the blinkers
+  // my tasks per project: overdue / due today / open count / total count
   const [dueStatus, setDueStatus] = useState({});
+  // ✅ NEW — becomes true once my task status has been loaded
+  const [dueLoaded, setDueLoaded] = useState(false);
 
   useEffect(() => {
     const styleId = 'beacon-indicator-styles';
@@ -130,17 +124,6 @@ export const EmployeeTaskGrid = () => {
     document.head.appendChild(styleElement);
   }, []);
 
-  const handlePageChange = (page) => {
-    if (page >= 1 && page <= pagination.totalPages) {
-      setPagination((prev) => ({
-        ...prev,
-        currentPage: page,
-        hasNextPage: page < prev.totalPages,
-        hasPrevPage: page > 1,
-      }));
-    }
-  };
-
   const handleViewTask = (id) => {
     setSelectedId(id);
     setTaskPopUpShow(!TaskPopUpShow);
@@ -151,7 +134,7 @@ export const EmployeeTaskGrid = () => {
     setdeletePopUpShow(!deletePopUpShow);
   };
 
-  // ✅ NEW — days between project end date and today (negative = overdue)
+  // days between project end date and today (negative = overdue)
   const getProjectDiffDays = (dateString) => {
     const today = new Date();
     const end = new Date(dateString);
@@ -166,24 +149,10 @@ export const EmployeeTaskGrid = () => {
       setLoading(true);
       try {
         const data = await getMyProjects();
-        const fetchedProjects = data?.projects || [];
-        setProjects(fetchedProjects);
-        setFilteredProjects(fetchedProjects);
-        const total = fetchedProjects.length;
-        const totalPages = Math.ceil(total / itemsPerPage);
-        setPagination({
-          currentPage: 1,
-          totalPages,
-          totalProjects: total,
-          limit: itemsPerPage,
-          hasNextPage: 1 < totalPages,
-          hasPrevPage: false,
-        });
+        setProjects(data?.projects || []);
       } catch (error) {
         console.error("Error fetching projects:", error);
         setProjects([]);
-        setFilteredProjects([]);
-        setPagination({ currentPage: 1, totalPages: 0, totalProjects: 0, limit: itemsPerPage, hasNextPage: false, hasPrevPage: false });
       } finally {
         setLoading(false);
       }
@@ -191,13 +160,14 @@ export const EmployeeTaskGrid = () => {
     fetchData();
   }, []);
 
-  // ✅ NEW — load my task due status; refresh after closing the Task List
-  // popup (the employee may have just updated work)
+  // load my task due status; refresh after closing the Task List popup
+  // (the employee may have just updated work)
   useEffect(() => {
     if (TaskPopUpShow) return;
     const loadDueStatus = async () => {
       const res = await getMyDueStatus();
       if (res?.success) setDueStatus(res.projects || {});
+      setDueLoaded(true);
     };
     loadDueStatus();
   }, [TaskPopUpShow]);
@@ -220,39 +190,61 @@ export const EmployeeTaskGrid = () => {
     fetchTesterCount();
   }, [testerQueueShow]);
 
-  const applyFilters = (allProjects, statusVal, searchVal) => {
-    let result = allProjects;
-    if (statusVal) {
+  // ✅ NEW — true when ALL of my tasks in this project are completed
+  const isAllMyTasksDone = (projectId) => {
+    if (!dueLoaded) return false;
+    const info = dueStatus[projectId];
+    if (!info) return false;
+    return (info.totalCount || 0) > 0 && (info.openCount || 0) === 0;
+  };
+
+  // ✅ UPDATED — status + customer search + hide projects where all my tasks are done
+  const filteredProjects = useMemo(() => {
+    let result = projects;
+
+    if (statusFilter) {
       result = result.filter(
-        (p) => p.projectStatus && p.projectStatus.toLowerCase() === statusVal.toLowerCase()
+        (p) => p.projectStatus && p.projectStatus.toLowerCase() === statusFilter.toLowerCase()
       );
     }
-    if (searchVal && searchVal.trim() !== "") {
-      const lowerSearch = searchVal.trim().toLowerCase();
+
+    if (search && search.trim() !== "") {
+      const lowerSearch = search.trim().toLowerCase();
       result = result.filter(
         (p) => p.custId?.custName && p.custId.custName.toLowerCase().includes(lowerSearch)
       );
     }
-    return result;
-  };
 
-  const updatePagination = (filtered) => {
-    const newTotalPages = Math.ceil(filtered.length / itemsPerPage);
-    setPagination(prev => ({
-      ...prev,
-      currentPage: 1,
-      totalPages: newTotalPages,
-      totalProjects: filtered.length,
-      hasNextPage: 1 < newTotalPages,
-      hasPrevPage: false,
-    }));
+    result = result.filter((p) => !isAllMyTasksDone(p._id));
+
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects, statusFilter, search, dueStatus, dueLoaded]);
+
+  // ✅ UPDATED — pagination is now calculated from the filtered list
+  const pagination = useMemo(() => {
+    const totalProjects = filteredProjects.length;
+    const totalPages = Math.ceil(totalProjects / itemsPerPage);
+    const page = Math.min(currentPage, Math.max(totalPages, 1));
+    return {
+      currentPage: page,
+      totalPages,
+      totalProjects,
+      limit: itemsPerPage,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+    };
+  }, [filteredProjects, currentPage]);
+
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= pagination.totalPages) {
+      setCurrentPage(page);
+    }
   };
 
   const handleChange = (value) => {
     setStatusFilter(value);
-    const filtered = applyFilters(projects, value, search);
-    setFilteredProjects(filtered);
-    updatePagination(filtered);
+    setCurrentPage(1);
   };
 
   const handleSearchChange = (e) => setSearchTerm(e.target.value);
@@ -261,18 +253,14 @@ export const EmployeeTaskGrid = () => {
     if (e.key === 'Enter') {
       e.preventDefault();
       setSearch(searchTerm);
-      const filtered = applyFilters(projects, statusFilter, searchTerm);
-      setFilteredProjects(filtered);
-      updatePagination(filtered);
+      setCurrentPage(1);
     }
   };
 
   const handleClearSearch = () => {
     setSearchTerm("");
     setSearch("");
-    const filtered = applyFilters(projects, statusFilter, "");
-    setFilteredProjects(filtered);
-    updatePagination(filtered);
+    setCurrentPage(1);
   };
 
   const indexOfLastItem = pagination.currentPage * itemsPerPage;
@@ -298,24 +286,26 @@ export const EmployeeTaskGrid = () => {
     }
   }, [currentData, notifiedTomorrowProjects]);
 
-  // ✅ NEW — Work Status cell: orange = overdue, blue = due today.
-  // Checks BOTH the project end date AND my own tasks in that project,
-  // so a task due today shows the blue blinker even if the project
-  // itself ends later.
+  // ✅ UPDATED — Work Status cell: orange = overdue, blue = due today.
+  // The PROJECT-level blinker now shows ONLY if I still have at least one
+  // open (not completed) task in that project. Completed tasks never blink.
   const renderWorkStatus = (project) => {
     const projectStatusLower = project.projectStatus ? project.projectStatus.toLowerCase() : "";
     const projectOpen = projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess';
     const diffDays = getProjectDiffDays(project.endDate);
-    const myTasks = dueStatus[project._id] || { overdue: 0, dueToday: 0, overdueTasks: [], dueTodayTasks: [] };
+    const myTasks = dueStatus[project._id] || { overdue: 0, dueToday: 0, overdueTasks: [], dueTodayTasks: [], openCount: 0, totalCount: 0 };
+
+    // I still have unfinished work in this project
+    const hasMyOpenWork = (myTasks.openCount || 0) > 0;
 
     const overdueLines = [];
     const dueTodayLines = [];
 
-    if (projectOpen && diffDays !== null && diffDays < 0) {
+    if (projectOpen && hasMyOpenWork && diffDays !== null && diffDays < 0) {
       const d = Math.abs(diffDays);
       overdueLines.push(`Project overdue by ${d} day${d === 1 ? '' : 's'}`);
     }
-    if (projectOpen && diffDays === 0) {
+    if (projectOpen && hasMyOpenWork && diffDays === 0) {
       dueTodayLines.push('Project due today');
     }
     if (myTasks.overdue > 0) {
@@ -351,7 +341,7 @@ export const EmployeeTaskGrid = () => {
 
   return (
     <>
-      {loading && (
+      {(loading || !dueLoaded) && (
         <div className="overlay">
           <span className="loader"></span>
         </div>
@@ -468,7 +458,7 @@ export const EmployeeTaskGrid = () => {
                                 <td>{project.purchaseOrderNo || "N/A"}</td>
                                 <td>{project.projectStatus}</td>
                                 <td>{formatDate(project.endDate)}</td>
-                                {/* ✅ UPDATED — project + my tasks: orange overdue / blue due today */}
+                                {/* project + my tasks: orange overdue / blue due today */}
                                 <td>{renderWorkStatus(project)}</td>
                                 <td>
                                   <i

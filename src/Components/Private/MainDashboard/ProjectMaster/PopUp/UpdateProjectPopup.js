@@ -104,6 +104,8 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         purchaseOrderDate: selectedProject?.purchaseOrderDate,
         startDate: selectedProject?.startDate,
         endDate: selectedProject?.endDate,
+        // ✅ NEW
+        actualCompletionDate: selectedProject?.actualCompletionDate || "",
         completionCertificate: selectedProject?.completionCertificate || "",
         warrantyCertificate: selectedProject?.warrantyCertificate || "",
         warrantyStartDate: selectedProject?.warrantyStartDate || "",
@@ -203,6 +205,7 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         "completeLevel",
         "startDate",
         "endDate",
+        "actualCompletionDate", // ✅ NEW
         "completionCertificate",
         "warrantyCertificate",
         "warrantyStartDate",
@@ -424,6 +427,18 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
             );
         }
 
+        // ✅ NEW: actual completion date validation
+        if (
+            updatedProject.actualCompletionDate &&
+            new Date(updatedProject.actualCompletionDate) <
+                new Date(updatedProject.startDate)
+        ) {
+            setLoading(false);
+            return toast.error(
+                "Actual Completion Date cannot be before Start Date"
+            );
+        }
+
         try {
             toast.loading("Updating Project...");
             const data = await updateProject(updatedProject);
@@ -463,6 +478,10 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
     );
     const formattedStartDate = formatDateforupdate(projects?.startDate);
     const formattedEndDate = formatDateforupdate(projects?.endDate);
+    // ✅ NEW
+    const formattedActualCompletionDate = projects?.actualCompletionDate
+        ? formatDateforupdate(projects.actualCompletionDate)
+        : "";
     const formattedWarrantyStartDate = formatDateforupdate(
         projects?.warrantyStartDate
     );
@@ -839,6 +858,22 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                             value={formattedEndDate}
                                             type="date"
                                             name="endDate"
+                                            className="form-control rounded-0"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* ✅ NEW: Actual Completion Date */}
+                                <div className="col-12 col-lg-6 mt-2">
+                                    <div className="mb-3">
+                                        <label className="form-label label_text">
+                                            Actual Completion Date
+                                        </label>
+                                        <input
+                                            onChange={handleChange}
+                                            value={formattedActualCompletionDate}
+                                            type="date"
+                                            name="actualCompletionDate"
                                             className="form-control rounded-0"
                                         />
                                     </div>

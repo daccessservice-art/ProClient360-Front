@@ -58,6 +58,8 @@ const AddProjectPopup = ({ handleAdd }) => {
     const [purchaseOrderDate, setPurchaseOrderDate] = useState("");
     const [purchaseOrderValue, setPurchaseOrderValue] = useState("");
     const [endDate, setEndDate] = useState("");
+    // ✅ NEW
+    const [actualCompletionDate, setActualCompletionDate] = useState("");
     const [advancePay, setAdvancePayment] = useState(0);
     const [payAgainstDelivery, setPayAgainstDelivery] = useState(0);
     const [payAfterCompletion, setPayAfterCompletion] = useState(0);
@@ -300,6 +302,16 @@ const AddProjectPopup = ({ handleAdd }) => {
             return toast.error("Start date should be less than end date");
         }
 
+        // ✅ NEW: actual completion date validation
+        if (
+            actualCompletionDate &&
+            new Date(actualCompletionDate) < new Date(startDate)
+        ) {
+            return toast.error(
+                "Actual completion date cannot be before start date"
+            );
+        }
+
         const totalPayment =
             Number(advancePay) +
             Number(payAgainstDelivery) +
@@ -351,6 +363,7 @@ const AddProjectPopup = ({ handleAdd }) => {
             category: finalCategory, // ─── USE FINAL CATEGORY
             startDate,
             endDate,
+            actualCompletionDate: actualCompletionDate || null, // ✅ NEW
             advancePay: Number(advancePay) || 0,
             payAgainstDelivery: Number(payAgainstDelivery) || 0,
             payAfterCompletion: Number(payAfterCompletion) || 0,
@@ -775,6 +788,30 @@ const AddProjectPopup = ({ handleAdd }) => {
                                             id="ProjectEndDate"
                                             min={startDate}
                                             required
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* ✅ NEW: Actual Completion Date */}
+                                <div className="col-12 col-lg-6 mt-2">
+                                    <div className="mb-3">
+                                        <label
+                                            htmlFor="ActualCompletionDate"
+                                            className="form-label label_text"
+                                        >
+                                            Actual Completion Date
+                                        </label>
+                                        <input
+                                            onChange={(e) =>
+                                                setActualCompletionDate(
+                                                    e.target.value
+                                                )
+                                            }
+                                            value={actualCompletionDate}
+                                            type="date"
+                                            className="form-control rounded-0"
+                                            id="ActualCompletionDate"
+                                            min={startDate}
                                         />
                                     </div>
                                 </div>
