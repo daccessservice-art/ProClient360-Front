@@ -47,7 +47,8 @@ const createService = async (serviceData) => {
     });
     return response.data;
   } catch (error) {
-    console.error(error.response.data.error);
+    console.error(error?.response?.data?.error || error);
+    return error?.response?.data || { success: false, error: error?.message || "Failed to add service" };
   }
 };
 

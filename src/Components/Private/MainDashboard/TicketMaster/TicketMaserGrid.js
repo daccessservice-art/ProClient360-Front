@@ -7,6 +7,8 @@ import UpdateEmployeePopUp from "./PopUp/UpdateTicketPopUp";
 import toast from "react-hot-toast";
 import { getAllTickets, deleteTicket } from "../../../../hooks/useTicket";
 import AddServicePopup from "./PopUp/AddServicePopUp";
+import ViewExternalTicketPopup from "./PopUp/ViewExternalTicketPopup"; // ✅ NEW (1) import
+import UpdateSmartGateTicketPopUp from "./PopUp/UpdateSmartGateTicketPopUp";
 import { UserContext } from "../../../../context/UserContext";
 
 export const TicketMasterGrid = () => {
@@ -26,7 +28,14 @@ export const TicketMasterGrid = () => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState(""); // "" | "daccess" | "smartgate"
   const [selectedTicketId, setSelectedTicketId] = useState(null);
+
+  // ✅ NEW (2) state: external ticket view popup
+  const [viewExtId, setViewExtId] = useState(null);
+  // SmartGate (EXT-xx) edit popup - separate from the DAccess edit
+  const [editExtId, setEditExtId] = useState(null);
+  const [extSavedTick, setExtSavedTick] = useState(0);
 
   const [tickets, setTickets] = useState([]);
   const [pagination, setPagination] = useState({
@@ -129,7 +138,8 @@ export const TicketMasterGrid = () => {
         const data = await getAllTickets(
           pagination.currentPage,
           itemsPerPage,
-          search
+          search,
+          filter
         );
         if (data?.success) {
           setTickets(data.tickets || []);
@@ -170,12 +180,14 @@ export const TicketMasterGrid = () => {
     updatePopUpShow,
     AddPopUpShow,
     addServicePopUpShow,
-    search
+    search,
+    filter,
+    extSavedTick
   ]);
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, currentPage: 1 }));
-  }, [searchText]);
+  }, [searchText, filter]);
 
   const handleSubmitSearch = (e) => {
     e.preventDefault();
@@ -217,7 +229,7 @@ export const TicketMasterGrid = () => {
                   
                   <div className="col-12 col-lg-6 ms-auto">
                     <div className="row align-items-center justify-content-end">
-                      <div className="col-8 col-lg-6 text-end">
+                      <div className="col-8 col-lg-5 text-end">
                         <div className="form position-relative">
                           <i
                             className="fa fa-search position-absolute"
@@ -234,6 +246,18 @@ export const TicketMasterGrid = () => {
                             />
                           </form>
                         </div>
+                      </div>
+                      <div className="col-4 col-lg-3">
+                        <select
+                          className="form-select bg-transparant text-white"
+                          value={filter}
+                          onChange={(e) => setFilter(e.target.value)}
+                          aria-label="Filter tickets"
+                        >
+                          <option value="">All</option>
+                          <option value="daccess">DAccess</option>
+                          <option value="smartgate">SmartGate</option>
+                        </select>
                       </div>
                       <div className="col-12 col-lg-4 ms-auto text-end ">
                         {user?.user === "employee" ? (
@@ -280,7 +304,8 @@ export const TicketMasterGrid = () => {
     {index + 1 + (pagination.currentPage - 1) * itemsPerPage}
   </td>
   <td className="align_left_td">
-    {ticket?.client?.custName || "N/A"}
+    {ticket?.client?.custName ||
+      (ticket?.uniqueTicketId?.startsWith("EXT-") ? "SmartGate" : "N/A")}
   </td>
   <td className="align_left_td width_tdd wrap-text-of-col">
     {ticket?.details}
@@ -335,7 +360,24 @@ export const TicketMasterGrid = () => {
     ) : ""}
   </td>
   <td>
-    <span onClick={() => handleUpdate(ticket)} className="update" title="Edit Ticket">
+    {/* ✅ NEW (3) eye button: only for external tickets (EXT-xx) */}
+    {ticket?.uniqueTicketId?.startsWith("EXT-") && (
+      <span
+        onClick={() => setViewExtId(ticket.uniqueTicketId)}
+        title="View External Ticket Details"
+      >
+        <i className="fa-solid fa-eye text-primary cursor-pointer me-3"></i>
+      </span>
+    )}
+    <span
+      onClick={() =>
+        ticket?.uniqueTicketId?.startsWith("EXT-")
+          ? setEditExtId(ticket.uniqueTicketId)
+          : handleUpdate(ticket)
+      }
+      className="update"
+      title={ticket?.uniqueTicketId?.startsWith("EXT-") ? "Edit SmartGate Ticket" : "Edit Ticket"}
+    >
       <i className="fa-solid fa-pen text-success cursor-pointer me-3"></i>
     </span>
     <span onClick={() => handelDeleteClosePopUpClick(ticket._id)} className="delete" title="Delete Ticket">
@@ -346,7 +388,7 @@ export const TicketMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="7" className="text-center">
+                              <td colSpan="9" className="text-center">
                                 {getNoDataMessage()}
                               </td>
                             </tr>
@@ -523,6 +565,24 @@ export const TicketMasterGrid = () => {
       )}
 
       {AddPopUpShow && <AddTicketPopup handleAdd={handleAdd} />}
+
+      {/* ✅ NEW (4) external ticket details popup (eye button) */}
+      {viewExtId && (
+        <ViewExternalTicketPopup
+          uniqueTicketId={viewExtId}
+          handleClose={() => setViewExtId(null)}
+        />
+      )}
+
+      {editExtId && (
+        <UpdateSmartGateTicketPopUp
+          uniqueTicketId={editExtId}
+          handleClose={(saved) => {
+            setEditExtId(null);
+            if (saved) setExtSavedTick((n) => n + 1);
+          }}
+        />
+      )}
 
       {addServicePopUpShow && (
         <AddServicePopup

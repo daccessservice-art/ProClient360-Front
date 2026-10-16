@@ -90,7 +90,7 @@ const AddServicePopup = ({ handleAddService, selectedTicket }) => {
       setLoading(false);
       handleAddService();
     } else {
-      toast.error(data.error || "Failed to add service");
+      toast.error(data?.error || "Failed to add service");
     }
   };
 

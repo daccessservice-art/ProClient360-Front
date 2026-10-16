@@ -48,6 +48,12 @@ const listForTooltip = (items = []) => {
   return items.length > 3 ? `${shown} +${items.length - 3} more` : shown;
 };
 
+// ✅ project finished → no blinker, no due-tomorrow alert
+const isProjectClosed = (project) => {
+  const s = (project?.projectStatus || '').toLowerCase();
+  return s === 'completed' || !!project?.actualCompletionDate || Number(project?.completeLevel) >= 100;
+};
+
 export const EmployeeTaskGrid = () => {
   const { user } = useContext(UserContext);
 
@@ -273,7 +279,8 @@ export const EmployeeTaskGrid = () => {
       let updatedNotifiedSet = false;
       currentData.forEach(project => {
         const projectStatusLower = project.projectStatus ? project.projectStatus.toLowerCase() : "";
-        if (projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess') {
+        // ✅ UPDATED — closed projects never get a due-tomorrow alert
+        if ((projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess') && !isProjectClosed(project)) {
           const diffDays = getProjectDiffDays(project.endDate);
           if (diffDays === 1 && !notifiedTomorrowProjects.has(project._id)) {
             Notification({ title: "Project Due Tomorrow", message: `Project "${project.name}" is due tomorrow.` });
@@ -290,6 +297,9 @@ export const EmployeeTaskGrid = () => {
   // The PROJECT-level blinker now shows ONLY if I still have at least one
   // open (not completed) task in that project. Completed tasks never blink.
   const renderWorkStatus = (project) => {
+    // ✅ NEW — completed project (with or without actual completion date) never blinks
+    if (isProjectClosed(project)) return null;
+
     const projectStatusLower = project.projectStatus ? project.projectStatus.toLowerCase() : "";
     const projectOpen = projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess';
     const diffDays = getProjectDiffDays(project.endDate);
