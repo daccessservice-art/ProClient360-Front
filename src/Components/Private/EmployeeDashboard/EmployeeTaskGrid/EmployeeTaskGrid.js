@@ -2,7 +2,6 @@ import { useState, useEffect, useContext, useMemo } from "react";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import ViewTaskPopUp from "./PopUp/ViewTaskPopUp";
 import TesterQueuePopUp from "./PopUp/TesterQueuePopUp";
-import MyFocusAgentPanel from "./MyFocusAgentPanel";
 import FloatingAgentWidget from "./FloatingAgentWidget";
 import { getMyProjects } from "../../../../hooks/useProjects";
 import { getTesterTasks, getMyDueStatus } from "../../../../hooks/useTaskSheet";
@@ -48,10 +47,87 @@ const listForTooltip = (items = []) => {
   return items.length > 3 ? `${shown} +${items.length - 3} more` : shown;
 };
 
-// ✅ project finished → no blinker, no due-tomorrow alert
-const isProjectClosed = (project) => {
-  const s = (project?.projectStatus || '').toLowerCase();
-  return s === 'completed' || !!project?.actualCompletionDate || Number(project?.completeLevel) >= 100;
+
+// ✅ NEW — focus panel built from the SAME corrected data as the blinkers
+// (completed tasks / completed projects are never counted)
+const FocusSummaryPanel = ({ loading, focus }) => {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+
+  const summary = focus?.summary;
+  const recommended = focus?.recommended;
+  if (!loading && (!summary || summary.totalOpen === 0)) return null;
+
+  return (
+    <div className="agent-panel-root">
+      <style>{`
+        .agent-panel-root { --agent-grad: linear-gradient(120deg, #6366F1 0%, #06B6D4 100%); margin: 0 4px 14px 4px; }
+        .agent-panel { position: relative; display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-radius: 12px; background: linear-gradient(135deg, #EEF2FF 0%, #ECFEFF 100%); border: 1px solid #C7D2FE; overflow: hidden; }
+        .agent-panel-avatar { flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; background: var(--agent-grad); color: #fff; font-size: 20px; display: flex; align-items: center; justify-content: center; position: relative; }
+        .agent-panel-avatar .pulse-dot { position: absolute; bottom: 0; right: 0; width: 11px; height: 11px; border-radius: 50%; background: #22C55E; border: 2.5px solid #EEF2FF; }
+        .agent-panel-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; background: var(--agent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .agent-panel-body { font-size: 14.5px; color: #1E293B; line-height: 1.4; margin-top: 2px; }
+        .agent-panel-stats { display: flex; gap: 10px; flex-shrink: 0; }
+        .agent-stat { text-align: center; padding: 6px 14px; border-radius: 8px; background: #ffffffaa; min-width: 64px; }
+        .agent-stat-num { font-size: 18px; font-weight: 700; color: #1E293B; line-height: 1; }
+        .agent-stat-label { font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.03em; }
+        .agent-stat.is-overdue .agent-stat-num { color: #DC2626; }
+        .agent-stat.is-today .agent-stat-num { color: #0284C7; }
+        .agent-panel-close { border: none; background: transparent; color: #94A3B8; font-size: 16px; flex-shrink: 0; cursor: pointer; padding: 4px 8px; }
+        .agent-panel-close:hover { color: #475569; }
+        @media (max-width: 768px) { .agent-panel { flex-wrap: wrap; } .agent-panel-stats { width: 100%; } }
+      `}</style>
+
+      <div className="agent-panel">
+        <div className="agent-panel-avatar">
+          🤖
+          <span className="pulse-dot"></span>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="agent-panel-eyebrow">Your work agent</div>
+          {loading ? (
+            <div className="agent-panel-body text-muted">Checking your work...</div>
+          ) : recommended ? (
+            <div className="agent-panel-body">
+              Focus on <strong>{recommended.taskName}</strong> — {recommended.projectName}
+              {recommended.customerName && <span className="text-muted"> ({recommended.customerName})</span>}
+              {recommended.daysOverdue > 0 ? (
+                <span style={{ color: '#DC2626', fontWeight: 600 }}>
+                  {' '}({recommended.daysOverdue} day{recommended.daysOverdue !== 1 ? 's' : ''} overdue)
+                </span>
+              ) : recommended.daysOverdue === 0 ? (
+                <span style={{ color: '#0284C7', fontWeight: 600 }}> (due today)</span>
+              ) : (
+                <span className="text-muted"> ({recommended.priority} priority)</span>
+              )}
+            </div>
+          ) : (
+            <div className="agent-panel-body">Nothing urgent right now — you're all caught up.</div>
+          )}
+        </div>
+
+        {!loading && summary && (
+          <div className="agent-panel-stats">
+            <div className={`agent-stat ${summary.overdueCount > 0 ? 'is-overdue' : ''}`}>
+              <div className="agent-stat-num">{summary.overdueCount}</div>
+              <div className="agent-stat-label">Overdue</div>
+            </div>
+            <div className={`agent-stat ${summary.dueTodayCount > 0 ? 'is-today' : ''}`}>
+              <div className="agent-stat-num">{summary.dueTodayCount}</div>
+              <div className="agent-stat-label">Due Today</div>
+            </div>
+            <div className="agent-stat">
+              <div className="agent-stat-num">{summary.totalOpen}</div>
+              <div className="agent-stat-label">Open</div>
+            </div>
+          </div>
+        )}
+
+        <button type="button" className="agent-panel-close" onClick={() => setDismissed(true)} title="Dismiss">✕</button>
+      </div>
+    </div>
+  );
 };
 
 export const EmployeeTaskGrid = () => {
@@ -84,6 +160,8 @@ export const EmployeeTaskGrid = () => {
   const [dueStatus, setDueStatus] = useState({});
   // ✅ NEW — becomes true once my task status has been loaded
   const [dueLoaded, setDueLoaded] = useState(false);
+  // ✅ NEW — summary + recommended task for the top panel (from corrected data)
+  const [dueFocus, setDueFocus] = useState(null);
 
   useEffect(() => {
     const styleId = 'beacon-indicator-styles';
@@ -172,7 +250,10 @@ export const EmployeeTaskGrid = () => {
     if (TaskPopUpShow) return;
     const loadDueStatus = async () => {
       const res = await getMyDueStatus();
-      if (res?.success) setDueStatus(res.projects || {});
+      if (res?.success) {
+        setDueStatus(res.projects || {});
+        setDueFocus({ summary: res.summary, recommended: res.recommended });
+      }
       setDueLoaded(true);
     };
     loadDueStatus();
@@ -279,8 +360,7 @@ export const EmployeeTaskGrid = () => {
       let updatedNotifiedSet = false;
       currentData.forEach(project => {
         const projectStatusLower = project.projectStatus ? project.projectStatus.toLowerCase() : "";
-        // ✅ UPDATED — closed projects never get a due-tomorrow alert
-        if ((projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess') && !isProjectClosed(project)) {
+        if (projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess') {
           const diffDays = getProjectDiffDays(project.endDate);
           if (diffDays === 1 && !notifiedTomorrowProjects.has(project._id)) {
             Notification({ title: "Project Due Tomorrow", message: `Project "${project.name}" is due tomorrow.` });
@@ -297,10 +377,10 @@ export const EmployeeTaskGrid = () => {
   // The PROJECT-level blinker now shows ONLY if I still have at least one
   // open (not completed) task in that project. Completed tasks never blink.
   const renderWorkStatus = (project) => {
-    // ✅ NEW — completed project (with or without actual completion date) never blinks
-    if (isProjectClosed(project)) return null;
-
     const projectStatusLower = project.projectStatus ? project.projectStatus.toLowerCase() : "";
+    // ✅ NEW — Completed project: never show any blinker
+    if (projectStatusLower === 'completed') return null;
+
     const projectOpen = projectStatusLower === 'upcoming' || projectStatusLower === 'inprocess';
     const diffDays = getProjectDiffDays(project.endDate);
     const myTasks = dueStatus[project._id] || { overdue: 0, dueToday: 0, overdueTasks: [], dueTodayTasks: [], openCount: 0, totalCount: 0 };
@@ -438,7 +518,7 @@ export const EmployeeTaskGrid = () => {
                 </div>
 
                 <div className="px-2">
-                  <MyFocusAgentPanel />
+                  <FocusSummaryPanel loading={!dueLoaded} focus={dueFocus} />
                 </div>
 
                 {/* ── Table ── */}
