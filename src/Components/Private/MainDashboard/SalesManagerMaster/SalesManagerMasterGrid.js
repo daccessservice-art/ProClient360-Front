@@ -478,7 +478,7 @@ export const SalesManagerMasterGrid = () => {
 
       // ── ONE sheet: report info + counts on top, full filtered leads table below ──
       const headers = [
-        "Sr.No", "Company Name", "Contact Name", "Product", "Source", "Mobile",
+        "Sr.No", "Company Name", "Contact Name", "Product", "Source", "Mobile", "Email",
         "Amount", "Created Date", "Follow-up Date", "Status",
         ...(isAllMode ? ["Assigned To"] : []),
       ];
@@ -491,6 +491,7 @@ export const SalesManagerMasterGrid = () => {
         lead.QUERY_PRODUCT_NAME || "Not available.",
         lead.SOURCE             || "",
         lead.SENDER_MOBILE      || "Not available.",
+        lead.SENDER_EMAIL       || "Not available.",
         formatAmount(lead.quotation) || "—",
         formatDateforTaskUpdate(lead.createdAt),
         lead.nextFollowUpDate ? formatDateOnly(lead.nextFollowUpDate) : "Not set",
@@ -517,7 +518,7 @@ export const SalesManagerMasterGrid = () => {
       const HEADER_ROW = 7; // 0-based row index of the table header
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
       ws["!cols"] = [
-        { wch: 12 }, { wch: 32 }, { wch: 24 }, { wch: 28 }, { wch: 14 }, { wch: 16 },
+        { wch: 12 }, { wch: 32 }, { wch: 24 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 30 },
         { wch: 18 }, { wch: 20 }, { wch: 16 }, { wch: 10 },
         ...(isAllMode ? [{ wch: 20 }] : []),
       ];
