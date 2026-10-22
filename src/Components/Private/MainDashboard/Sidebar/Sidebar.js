@@ -45,6 +45,7 @@ export const Sidebar = ({ isopen, active }) => {
                 { show: isCompany || has("viewSalesManagerMaster"), to: "/OldSalesHistory", key: "OldSalesHistory", label: "Old Sales History", icon: "fa-solid fa-clock-rotate-left" },
                 { show: has("viewCustomer") || isCompany, to: "/CustomerMasterGrid", key: "CustomerMasterGrid", label: "Customer Master", icon: "fa-solid fa-people-line" },
                 { show: has("viewCampaign") || isCompany, to: "/CampaignMasterGrid", key: "CampaignMasterGrid", label: "WhatsApp Campaigns", icon: "fa-brands fa-whatsapp" },
+                { show: has("viewEnteroCampaign") || isCompany, to: "/EnteroCampaignMasterGrid", key: "EnteroCampaignMasterGrid", label: "Entero WhatsApp", icon: "fa-brands fa-whatsapp" },
                 { show: has("viewExhibition") || isCompany, to: "/ExhibitionMasterGrid", key: "ExhibitionMasterGrid", label: "Exhibition Master", icon: "fa-solid fa-building-columns" },
                 { show: has("viewExhibitionVisit") || isCompany, to: "/ExhibitionVisitMasterGrid", key: "ExhibitionVisitMasterGrid", label: "Exhibition Visit", icon: "fa-solid fa-person-walking" },
             ],

@@ -1240,6 +1240,56 @@ const UpdateDesignationPopup = ({ handleUpdate, selectedDes }) => {
                           </tr>
 
 {/* OLD AMC HISTORY */}
+{/* ENTERO SYSTEMS WHATSAPP CAMPAIGN */}
+                          <tr className="table-success">
+                            <td className="fw-bold">
+                              <i className="fa-brands fa-whatsapp me-2" style={{ color: '#25D366' }}></i>
+                              Entero WhatsApp Campaign
+                            </td>
+                            <td>
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="createEnteroCampaign"
+                                  checked={designation.permissions?.includes('createEnteroCampaign')}
+                                  onChange={(e) => handlePermissionChange('createEnteroCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                            <td>
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="viewEnteroCampaign"
+                                  checked={designation.permissions?.includes('viewEnteroCampaign')}
+                                  onChange={(e) => handlePermissionChange('viewEnteroCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                            <td>
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="updateEnteroCampaign"
+                                  checked={designation.permissions?.includes('updateEnteroCampaign')}
+                                  onChange={(e) => handlePermissionChange('updateEnteroCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                            <td>
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="deleteEnteroCampaign"
+                                  checked={designation.permissions?.includes('deleteEnteroCampaign')}
+                                  onChange={(e) => handlePermissionChange('deleteEnteroCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="ps-4 text-muted small">↳ Send Entero Campaign</td>
+                            <td colSpan="3">
+                              <label className="toggler-wrapper style-22">
+                                <input type="checkbox" name="sendEnteroCampaign"
+                                  checked={designation.permissions?.includes('sendEnteroCampaign')}
+                                  onChange={(e) => handlePermissionChange('sendEnteroCampaign', e.target.checked)} />
+                                <div className="toggler-slider"><div className="toggler-knob"></div></div>
+                              </label>
+                            </td>
+                          </tr>
 <tr>
 <td>Old AMC History</td>
 <td>
