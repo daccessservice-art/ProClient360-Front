@@ -8,22 +8,34 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
   const [previousActions, setPreviousActions] = useState([]);
   const [currentCompletionLevel, setCurrentCompletionLevel] = useState(0);
 
+  // ✅ Contact details come from the ticket
+  const ticket = service?.ticket || {};
+  const contactPerson      = ticket?.contactPerson || "-";
+  const contactPersonEmail = ticket?.contactPersonEmail || "-";
+  const contactNumber      = ticket?.contactNumber ? String(ticket.contactNumber) : "-";
+  const address            = ticket?.Address;
+  const fullAddress = address
+    ? [address.add, address.city, address.state, address.country, address.pincode]
+        .filter(Boolean)
+        .join(", ")
+    : "";
+
   // Extract completion percentage from action text if not in complateLevel field
   const extractCompletionFromAction = (action) => {
     if (action.complateLevel !== undefined && action.complateLevel !== null && action.complateLevel !== '' && action.complateLevel !== 0) {
       const level = parseInt(action.complateLevel);
       return (level >= 0 && level <= 100) ? level : 0;
     }
-    
+
     const actionText = (action.action || '').toLowerCase().trim();
     if (!actionText) return 0;
-    
+
     const percentPatterns = [
       /(\d+)\s*percent/gi,
       /(\d+)\s*%/gi,
       /(\d+)\s*per\s*cent/gi
     ];
-    
+
     for (const pattern of percentPatterns) {
       const matches = actionText.match(pattern);
       if (matches) {
@@ -34,10 +46,10 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
         if (numbers.length > 0) return Math.max(...numbers);
       }
     }
-    
+
     const completionKeywords = ['completed', 'complete', 'done', 'finished', 'progress'];
     const hasCompletionKeyword = completionKeywords.some(keyword => actionText.includes(keyword));
-    
+
     if (hasCompletionKeyword) {
       const numberMatch = actionText.match(/(\d+)/);
       if (numberMatch) {
@@ -46,13 +58,13 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
       }
       if (actionText.match(/^(work\s+)?(completed|complete|done|finished)$/)) return 100;
     }
-    
+
     const justNumberMatch = actionText.match(/^\d+$/);
     if (justNumberMatch) {
       const num = parseInt(actionText);
       if (num >= 0 && num <= 100) return num;
     }
-    
+
     const fractionMatch = actionText.match(/(\d+)\s*\/\s*(\d+)/);
     if (fractionMatch) {
       const numerator = parseInt(fractionMatch[1]);
@@ -62,7 +74,7 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
         return (percentage >= 0 && percentage <= 100) ? percentage : 0;
       }
     }
-    
+
     const wordToPercent = {
       'half': 50,
       'quarter': 25,
@@ -71,11 +83,11 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
       'full': 100,
       'complete': 100
     };
-    
+
     for (const [word, percent] of Object.entries(wordToPercent)) {
       if (actionText.includes(word)) return percent;
     }
-    
+
     const advancedPatterns = [
       /work\s+(\d+)/i,
       /(\d+)\s+work/i,
@@ -84,7 +96,7 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
       /level\s+(\d+)/i,
       /(\d+)\s+level/i
     ];
-    
+
     for (const pattern of advancedPatterns) {
       const match = actionText.match(pattern);
       if (match) {
@@ -92,13 +104,13 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
         if (num >= 0 && num <= 100) return num;
       }
     }
-    
+
     return 0;
   };
 
   // Calculate current completion level from service and previous actions
   const calculateCurrentCompletion = () => {
-    let latestCompletion = parseInt(service.complateLevel) || 0;
+    let latestCompletion = parseInt(service?.complateLevel) || 0;
     if (previousActions && previousActions.length > 0) {
       const completionLevels = previousActions.map(action => extractCompletionFromAction(action));
       const maxCompletion = Math.max(latestCompletion, ...completionLevels);
@@ -108,17 +120,21 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
   };
 
   useEffect(() => {
+    setService(selectedService);
+  }, [selectedService]);
+
+  useEffect(() => {
     const FetchPreviousActions = async () => {
       try {
         toast.loading("Loading Previous Actions...");
         const data = await getAllServiceActions(selectedService._id);
-        if (data.success) {
+        if (data?.success) {
           toast.dismiss();
-          setPreviousActions(data.serviceActions);
+          setPreviousActions(data.serviceActions || []);
         } else {
           toast.dismiss();
           setPreviousActions([]);
-          toast(data.error);
+          if (data?.error) toast(data.error);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -160,49 +176,87 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
             <div className="modal-body">
               <div className="row modal_body_height_details">
                 <div className="row">
+                  {/* ── Column 1: Complaint / Client ── */}
                   <div className="col-sm- col-md col-lg">
                     <h6>
                       <p className="fw-bold">Complaint:</p>
-                      {service?.ticket?.details || "-"}
+                      {ticket?.details || "-"}
                     </h6>
                     <h6>
                       <p className="fw-bold mt-3">Client:</p>
-                      {service?.ticket?.client?.custName}
+                      {ticket?.client?.custName ||
+                        (ticket?.uniqueTicketId?.startsWith("EXT-") ? "SmartGate" : "-")}
                     </h6>
                     <h6>
                       <p className="fw-bold mt-3">Product:</p>
-                      {service.ticket.product}
+                      {ticket?.product || "-"}
                     </h6>
                     <h6>
                       <p className="fw-bold mt-3">Service Type:</p>
-                      {service.serviceType}
+                      {service?.serviceType || "-"}
                     </h6>
-                    {service.completionDate && (
+                    {service?.completionDate && (
                       <h6>
                         <p className="fw-bold mt-3">Completion Date:</p>
                         {formatDateTimeForDisplay(service.completionDate)}
                       </h6>
                     )}
                   </div>
+
+                  {/* ── Column 2: ✅ NEW Contact Person details ── */}
+                  <div className="col-sm- col-md col-lg">
+                    <h6>
+                      <p className="fw-bold">Contact Person Name:</p>
+                      {contactPerson}
+                    </h6>
+                    <h6>
+                      <p className="fw-bold mt-3">Contact Person Email:</p>
+                      {contactPersonEmail !== "-" ? (
+                        <a href={`mailto:${contactPersonEmail}`} style={{ wordBreak: "break-all" }}>
+                          {contactPersonEmail}
+                        </a>
+                      ) : "-"}
+                    </h6>
+                    <h6>
+                      <p className="fw-bold mt-3">Contact Person No.:</p>
+                      {contactNumber !== "-" ? (
+                        <a href={`tel:${contactNumber}`}>{contactNumber}</a>
+                      ) : "-"}
+                    </h6>
+                    {fullAddress && (
+                      <h6>
+                        <p className="fw-bold mt-3">Address:</p>
+                        <span style={{ fontWeight: 400 }}>{fullAddress}</span>
+                      </h6>
+                    )}
+                    {ticket?.source && (
+                      <h6>
+                        <p className="fw-bold mt-3">Complaint Source:</p>
+                        {ticket.source}
+                      </h6>
+                    )}
+                  </div>
+
+                  {/* ── Column 3: Allotment / Status ── */}
                   <div className="col-sm- col-md col-lg">
                     <p className="fw-bold"> Allotment Date: </p>
-                    {formatDateTimeForDisplay(service.allotmentDate)}
+                    {formatDateTimeForDisplay(service?.allotmentDate)}
                     <p className="fw-bold mt-3"> Allocated to: </p>
-                    {service.allotTo.map((item) => item.name).join(', ')}
+                    {(service?.allotTo || []).map((item) => item?.name).join(', ') || "-"}
                     <p className="fw-bold mt-3"> Status: </p>
-                    {service.status}
+                    {service?.status}
                     <p className="fw-bold mt-3"> Priority: </p>
-                    {service.priority}
+                    {service?.priority}
                     <p className="fw-bold mt-3"> Work Mode: </p>
-                    {service.workMode}
+                    {service?.workMode}
                     <p className="fw-bold mt-3"> Created At: </p>
-                    {formatDateTimeForDisplay(service.ticket.date)}
+                    {formatDateTimeForDisplay(ticket?.date)}
                     <p className="fw-bold mt-3">Work Complete(%): </p>
                     <span className="badge bg-primary">{currentCompletionLevel}%</span>
                   </div>
 
-                  {service.status === "Stuck" ? (
-                    <div className="col-12">
+                  {service?.status === "Stuck" ? (
+                    <div className="col-12 mt-3">
                       <h5>
                         This Service is Stuck due to:{" "}
                         <span className="text-danger text-xl-center">{service.stuckReason}</span>
@@ -212,7 +266,7 @@ const ViewServicePopUp = ({ closePopUp, selectedService }) => {
                 </div>
               </div>
 
-              {previousActions ? (
+              {previousActions && previousActions.length > 0 ? (
                 <>
                   <h6 className="mt-2"> Past Actions</h6>
                   <div
