@@ -112,6 +112,7 @@ export const SalesManagerMasterGrid = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [leadToDelete,      setLeadToDelete]      = useState(null);
   const [generatingPDF,     setGeneratingPDF]     = useState(false);
+  const [generatingExcel,   setGeneratingExcel]   = useState(false); // ── NEW: Excel export state ──
   const [UpdatePopUpShow,   setUpdatePopUpShow]   = useState(false);
   const [transferOwnershipShow, setTransferOwnershipShow] = useState(false);
 
@@ -444,6 +445,110 @@ export const SalesManagerMasterGrid = () => {
     } finally { setGeneratingPDF(false); }
   };
 
+  // ══════════════════════════════════════════════════════════════
+  // ── NEW: Export Excel (same filters as table / PDF, incl. follow-up) ──
+  // Requires: npm install xlsx
+  // ══════════════════════════════════════════════════════════════
+  const handleExportExcel = async () => {
+    setGeneratingExcel(true);
+    const toastId = toast.loading("Preparing Excel...");
+    try {
+      let leads = await fetchAllLeadsForPDF();
+      if (filters.followUp) {
+        leads = leads.filter(l => getFollowUpStatus(l.nextFollowUpDate, l.STATUS) === filters.followUp);
+      }
+      if (!leads.length) {
+        toast.error("No leads to export for the current filters.", { id: toastId });
+        return;
+      }
+
+      const XLSX = await import("xlsx"); // lazy-loaded so it doesn't bloat the main bundle
+
+      const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+      const employeeName = selectedEmployee._id === "all" ? "All Employees" : selectedEmployee.name;
+      const filterSummary = [
+        `Employee: ${employeeName}`,
+        filters.date      ? `Date: ${filters.date}`       : null,
+        filters.source    ? `Source: ${filters.source}`   : null,
+        filters.status    ? `Status: ${filters.status}`   : null,
+        filters.callLeads ? `Leads: ${filters.callLeads}` : null,
+        filters.followUp  ? `Follow-Up: ${filters.followUp === 'today' ? "Today's Follow-Ups" : 'Overdue'}` : null,
+        debouncedSearch   ? `Search: "${debouncedSearch}"`: null,
+      ].filter(Boolean).join(' | ');
+
+      // ── ONE sheet: report info + counts on top, full filtered leads table below ──
+      const headers = [
+        "Sr.No", "Company Name", "Contact Name", "Product", "Source", "Mobile",
+        "Amount", "Created Date", "Follow-up Date", "Status",
+        ...(isAllMode ? ["Assigned To"] : []),
+      ];
+
+      // Same display values as the on-screen table
+      const leadRows = leads.map((lead, i) => [
+        i + 1,
+        lead.SENDER_COMPANY     || "Not available.",
+        lead.SENDER_NAME        || "Not available.",
+        lead.QUERY_PRODUCT_NAME || "Not available.",
+        lead.SOURCE             || "",
+        lead.SENDER_MOBILE      || "Not available.",
+        formatAmount(lead.quotation) || "—",
+        formatDateforTaskUpdate(lead.createdAt),
+        lead.nextFollowUpDate ? formatDateOnly(lead.nextFollowUpDate) : "Not set",
+        lead.STATUS             || "N/A",
+        ...(isAllMode ? [lead.assignedTo?.name || "Not assigned"] : []),
+      ]);
+
+      const countOf = (st) => leads.filter(l => l.STATUS === st).length;
+      const totalAmount = leads.reduce((s, l) => s + (Number(l.quotation) > 0 ? Number(l.quotation) : 0), 0);
+
+      const sheetData = [
+        ["Sales Manager Report"],
+        ["Generated", now, "", "Prepared By", user?.name || "System"],
+        ["Filters", filterSummary],
+        [],
+        ["Total Leads", leads.length, "Pending", countOf("Pending"), "Ongoing", countOf("Ongoing"),
+         "Won", countOf("Won"), "Lost", countOf("Lost")],
+        ["Total Amount", formatAmount(totalAmount) || "—"],
+        [],
+        headers,
+        ...leadRows,
+      ];
+
+      const HEADER_ROW = 7; // 0-based row index of the table header
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      ws["!cols"] = [
+        { wch: 12 }, { wch: 32 }, { wch: 24 }, { wch: 28 }, { wch: 14 }, { wch: 16 },
+        { wch: 18 }, { wch: 20 }, { wch: 16 }, { wch: 10 },
+        ...(isAllMode ? [{ wch: 20 }] : []),
+      ];
+      ws["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }, // title
+        { s: { r: 2, c: 1 }, e: { r: 2, c: headers.length - 1 } }, // filters text
+      ];
+      // Autofilter only on the leads table
+      ws["!autofilter"] = {
+        ref: XLSX.utils.encode_range({
+          s: { r: HEADER_ROW, c: 0 },
+          e: { r: HEADER_ROW + leadRows.length, c: headers.length - 1 },
+        }),
+      };
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Leads");
+
+      const safeName = employeeName.replace(/[^a-z0-9]+/gi, "_");
+      const dateStr  = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD
+      XLSX.writeFile(wb, `Sales_Manager_Report_${safeName}_${dateStr}.xlsx`);
+
+      toast.success(`Exported ${leads.length} lead${leads.length !== 1 ? "s" : ""} to Excel`, { id: toastId });
+    } catch (err) {
+      console.error("Excel Error:", err);
+      toast.error("Failed to export Excel.", { id: toastId });
+    } finally {
+      setGeneratingExcel(false);
+    }
+  };
+
   const isManagerWithPermissions =
     user?.permissions?.includes("viewLead") &&
     user?.permissions?.includes("viewSalesManagerMaster");
@@ -507,6 +612,18 @@ export const SalesManagerMasterGrid = () => {
                       {generatingPDF
                         ? <><span className="spinner-border spinner-border-sm" role="status"></span> Generating...</>
                         : <><i className="fa-solid fa-file-pdf"></i> Download PDF</>}
+                    </button>
+
+                    {/* ── NEW: Export Excel button ── */}
+                    <button
+                      className="btn btn-success btn-sm d-flex align-items-center gap-2"
+                      onClick={handleExportExcel} disabled={generatingExcel}
+                      style={{ borderRadius:'6px', fontWeight:600, minWidth:150 }}
+                      title="Export filtered leads to Excel"
+                    >
+                      {generatingExcel
+                        ? <><span className="spinner-border spinner-border-sm" role="status"></span> Exporting...</>
+                        : <><i className="fa-solid fa-file-excel"></i> Export Excel</>}
                     </button>
 
                     {canTransferOwnership && (
