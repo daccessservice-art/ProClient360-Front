@@ -4,6 +4,8 @@ import { Sidebar } from "../Sidebar/Sidebar";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import AddEditCampaignTemplatePopUp from "./PopUp/AddEditCampaignTemplatePopUp";
 import SendCampaignPopUp from "./PopUp/SendCampaignPopUp";
+// ✅ NEW — Invitation Campaign (separate module)
+import InvitationCampaignPopUp from "./PopUp/InvitationCampaignPopUp";
 import ViewCampaignRepliesPopUp from "../CustomerMaster/PopUp/ViewCampaignRepliesPopUp";
 import {
   getCampaignTemplates,
@@ -50,6 +52,7 @@ export const CampaignMasterGrid = () => {
   const [showAddEdit, setShowAddEdit] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [showSendPopup, setShowSendPopup] = useState(false);
+  const [showInvitationPopup, setShowInvitationPopup] = useState(false); // ✅ NEW — Invitation Campaign
 
   const [deletePopUpShow, setDeletePopUpShow] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -198,6 +201,12 @@ export const CampaignMasterGrid = () => {
                         Replies {replyPagination.totalItems > 0 && <span className="badge bg-danger ms-1">{replyPagination.totalItems}</span>}
                       </button>
                     </div>
+                    {/* ✅ NEW — Invitation Campaign button */}
+                    {(canSend || canCreate) && (
+                      <button onClick={() => setShowInvitationPopup(true)} type="button" className="btn btn-sm btn-warning me-1">
+                        <i className="fa-solid fa-envelope-open-text me-1"></i> Invitation
+                      </button>
+                    )}
                     {canSend && (
                       <button onClick={() => setShowSendPopup(true)} type="button" className="btn btn-sm btn-success me-1">
                         <i className="fa-brands fa-whatsapp me-1"></i> Send Campaign
@@ -464,6 +473,17 @@ export const CampaignMasterGrid = () => {
 
       {showSendPopup && (
         <SendCampaignPopUp handleClose={handleSendClose} onSent={handleSent} />
+      )}
+
+      {/* ✅ NEW — Invitation Campaign */}
+      {showInvitationPopup && (
+        <InvitationCampaignPopUp
+          handleClose={() => setShowInvitationPopup(false)}
+          canCreate={canCreate}
+          canUpdate={canUpdate}
+          canDelete={canDelete}
+          canSend={canSend}
+        />
       )}
     </>
   );
