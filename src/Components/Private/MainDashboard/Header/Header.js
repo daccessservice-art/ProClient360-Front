@@ -4,10 +4,12 @@ import { useDispatch, useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import { UserContext } from "../../../../context/UserContext";
 import { logout } from "../../../../hooks/useAuth";
-import { setNotifications } from "../../../../redux/slices/notificationSlice";
-import { getNotifications } from "../../../../hooks/useNotification";
+import { setNotifications, setUnreadCount } from "../../../../redux/slices/notificationSlice";
+import { getNotifications, getUnreadCount } from "../../../../hooks/useNotification";
 import NotificationPanel from "./NotificationPanel";
 import "./Header.css";
+
+const POLL_MS = 30000; // ✅ check for new lead notifications every 30 sec
 
 // ── Built-in male / female avatar (no image file needed) ──
 const DefaultAvatar = ({ gender, size = 40 }) => {
@@ -78,16 +80,18 @@ export const Header = (props) => {
 	const menuRef = useRef(null);
 
 	const dispatch = useDispatch();
-	const notifications = useSelector((state) => state.notifications.notifications);
-	const unseenCount = notifications?.filter(notification => !notification.isSeen).length || 0;
+	const unseenCount = useSelector((state) => state.notifications.unreadCount) || 0;
+	const lastCountRef = useRef(null);
 
 	// Fetch notifications when component mounts (user logs in)
 	useEffect(() => {
 		const fetchNotifications = async () => {
 			try {
 				const fetchedNotifications = await getNotifications();
-				if (fetchedNotifications.success && fetchedNotifications.notifications) {
+				if (fetchedNotifications?.success && fetchedNotifications.notifications) {
 					dispatch(setNotifications(fetchedNotifications.notifications));
+					lastCountRef.current = fetchedNotifications.unreadCount ??
+						fetchedNotifications.notifications.filter((n) => !n.isSeen).length;
 				}
 			} catch (error) {
 				console.error("Error fetching notifications:", error);
@@ -97,6 +101,47 @@ export const Header = (props) => {
 		if (user) {
 			fetchNotifications();
 		}
+	}, [user, dispatch]);
+
+	// keep the "last seen count" in sync when user reads / deletes in the panel
+	useEffect(() => {
+		if (lastCountRef.current !== null) lastCountRef.current = unseenCount;
+	}, [unseenCount]);
+
+	// ✅ NEW: live badge — poll unread count; when it goes up, reload list + toast
+	useEffect(() => {
+		if (!user) return;
+		let stopped = false;
+
+		const poll = async () => {
+			if (document.hidden) return; // don't poll in background tabs
+			const res = await getUnreadCount();
+			if (stopped || !res?.success) return;
+
+			const prev = lastCountRef.current;
+			dispatch(setUnreadCount(res));
+
+			if (prev !== null && res.unreadCount > prev) {
+				const list = await getNotifications();
+				if (!stopped && list?.success && list.notifications) {
+					dispatch(setNotifications(list.notifications));
+					const newest = list.notifications.find((n) => !n.isSeen);
+					if (newest && newest.type && newest.type !== "general") {
+						toast(newest.message, { icon: "🔔", duration: 6000 });
+					}
+				}
+			}
+			lastCountRef.current = res.unreadCount;
+		};
+
+		const id = setInterval(poll, POLL_MS);
+		const onVisible = () => !document.hidden && poll();
+		document.addEventListener("visibilitychange", onVisible);
+		return () => {
+			stopped = true;
+			clearInterval(id);
+			document.removeEventListener("visibilitychange", onVisible);
+		};
 	}, [user, dispatch]);
 
 	// ── sticky header on scroll ──

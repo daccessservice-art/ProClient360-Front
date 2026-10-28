@@ -293,9 +293,94 @@
   background: #faf9ff;
 }
 
+/* ---------- ✅ NEW: header actions, filter tabs, lead tags ---------- */
+.nt-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nt-link {
+  border: 0;
+  background: transparent;
+  color: #6d5dfc;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.nt-link:hover {
+  background: #f5f3ff;
+}
+
+.nt-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f1f6;
+}
+
+.nt-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #eceef5;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #5b6178;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nt-tab.active {
+  background: #6d5dfc;
+  border-color: #6d5dfc;
+  color: #ffffff;
+}
+
+.nt-tab-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.64rem;
+  line-height: 18px;
+  text-align: center;
+}
+
+.nt-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.nt-tag-green { background: #e7f8ef; color: #15803d; }
+.nt-tag-amber { background: #fff4e0; color: #b45309; }
+.nt-tag-blue  { background: #e8f1ff; color: #1d4ed8; }
+
+.nt-open {
+  margin-left: auto;
+  color: #6d5dfc;
+  font-weight: 600;
+}
+
 .nt-close:focus-visible,
 .nt-del:focus-visible,
-.nt-clear:focus-visible {
+.nt-clear:focus-visible,
+.nt-tab:focus-visible,
+.nt-link:focus-visible {
   outline: 2px solid #6d5dfc !important;
   outline-offset: 2px;
 }
