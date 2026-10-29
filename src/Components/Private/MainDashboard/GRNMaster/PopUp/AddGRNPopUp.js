@@ -121,6 +121,35 @@ const QuickAddProductModal = ({ onClose, onProductAdded }) => {
   );
 };
 
+// ─── Helper: load ALL purchase orders (all pages, not only first 100) ────────
+// FIX: earlier only page 1 (100 POs) was loaded, so older approved POs
+// (e.g. DA/2026-27/101) were missing from the GRN PO dropdown.
+const loadAllPurchaseOrders = async (search = "") => {
+  let all = [];
+  let page = 1;
+  const limit = 100;
+  let hasMore = true;
+
+  while (hasMore && page <= 100) { // safety cap: max 10,000 POs
+    const data = await getPurchaseOrders(page, limit, search);
+    if (data?.success && data.purchaseOrders?.length > 0) {
+      all = [...all, ...data.purchaseOrders];
+      hasMore = data.pagination ? !!data.pagination.hasNextPage : true;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  // remove duplicates (safety)
+  const seen = new Set();
+  return all.filter(po => {
+    if (seen.has(po._id)) return false;
+    seen.add(po._id);
+    return true;
+  });
+};
+
 // ─── Main AddGRNPopUp ─────────────────────────────────────────────────────────
 const AddGRNPopUp = ({ handleAdd, projects }) => {
   const [grnDate, setGrnDate] = useState(new Date().toISOString().split("T")[0]);
@@ -143,6 +172,7 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [poSearch, setPoSearch] = useState("");
   const [filteredPOs, setFilteredPOs] = useState([]);
+  const [poLoading, setPoLoading] = useState(false);
 
   const [products, setProducts] = useState([]);
   const [productsLoaded, setProductsLoaded] = useState(false);
@@ -189,15 +219,18 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
     loadVendors();
   }, [vendorSearch]);
 
-  // ── Load purchase orders ──
+  // ── Load purchase orders (FIXED: loads ALL pages) ──
   useEffect(() => {
     const loadPurchaseOrders = async () => {
-      const data = await getPurchaseOrders(1, 100, poSearch);
-      if (data?.success) {
-        const incompletePOs = data.purchaseOrders
-          .filter(po => po.status !== "Received" && po.items.some(item => (item.receivedQuantity || 0) < item.quantity))
+      setPoLoading(true);
+      try {
+        const allPOs = await loadAllPurchaseOrders(poSearch);
+        const incompletePOs = allPOs
+          .filter(po => po.status !== "Received" && (po.items || []).some(item => (item.receivedQuantity || 0) < item.quantity))
           .map(po => ({ value: po._id, label: `${po.orderNumber} - ${po.vendor?.vendorName}`, po, vendorId: po.vendor?._id }));
         setPurchaseOrders(incompletePOs);
+      } finally {
+        setPoLoading(false);
       }
     };
     if (choice === "Against PO") loadPurchaseOrders();
@@ -444,8 +477,8 @@ const AddGRNPopUp = ({ handleAdd, projects }) => {
                       <div className="col-12 col-lg-6">
                         <div className="mb-3">
                           <label className="form-label label_text">PO No.</label>
-                          <Select value={selectedPO} onChange={handlePOChange} onInputChange={setPoSearch} options={filteredPOs} placeholder={selectedVendor ? "Select PO..." : "Select vendor first"} isClearable isDisabled={!selectedVendor} className="react-select-container" classNamePrefix="react-select" />
-                          {selectedVendor && filteredPOs.length === 0 && <small className="text-muted d-block mt-1">No incomplete POs for this vendor</small>}
+                          <Select value={selectedPO} onChange={handlePOChange} onInputChange={setPoSearch} options={filteredPOs} isLoading={poLoading} placeholder={selectedVendor ? (poLoading ? "Loading POs..." : "Select PO...") : "Select vendor first"} isClearable isDisabled={!selectedVendor} className="react-select-container" classNamePrefix="react-select" />
+                          {selectedVendor && !poLoading && filteredPOs.length === 0 && <small className="text-muted d-block mt-1">No incomplete POs for this vendor</small>}
                         </div>
                       </div>
                     </>

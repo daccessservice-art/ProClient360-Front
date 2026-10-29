@@ -8,6 +8,33 @@ import { updateGRN } from "../../../../../hooks/useGRN";
 import axios from "axios";
 import Select from "react-select";
 
+// ─── Helper: load ALL purchase orders (all pages, not only first 100) ────────
+// FIX: earlier only page 1 (100 POs) was loaded, so older POs were missing.
+const loadAllPurchaseOrders = async (search = "") => {
+  let all = [];
+  let page = 1;
+  const limit = 100;
+  let hasMore = true;
+
+  while (hasMore && page <= 100) { // safety cap: max 10,000 POs
+    const data = await getPurchaseOrders(page, limit, search);
+    if (data?.success && data.purchaseOrders?.length > 0) {
+      all = [...all, ...data.purchaseOrders];
+      hasMore = data.pagination ? !!data.pagination.hasNextPage : true;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  const seen = new Set();
+  return all.filter(po => {
+    if (seen.has(po._id)) return false;
+    seen.add(po._id);
+    return true;
+  });
+};
+
 const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
   const grnDateTime = selectedGRN?.grnDate ? new Date(selectedGRN.grnDate) : new Date();
   const [grnDate, setGrnDate] = useState(grnDateTime.toISOString().split('T')[0]);
@@ -32,6 +59,7 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [poSearch, setPoSearch] = useState("");
   const [filteredPOs, setFilteredPOs] = useState([]);
+  const [poLoading, setPoLoading] = useState(false);
   
   const [products, setProducts] = useState([]);
   const [productsLoaded, setProductsLoaded] = useState(false);
@@ -107,18 +135,24 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
     }
   }, [products, productsMatched, selectedGRN]);
 
+  // ── Load purchase orders (FIXED: loads ALL pages) ──
   useEffect(() => {
     const load = async () => {
-      const data = await getPurchaseOrders(1, 100, poSearch);
-      if (data?.success) {
+      setPoLoading(true);
+      try {
+        const allPOs = await loadAllPurchaseOrders(poSearch);
         const inc = [];
-        for (const po of data.purchaseOrders) {
+        for (const po of allPOs) {
+          // Always keep the PO already linked to this GRN, even if fully received
+          const isCurrentPO = selectedGRN?.purchaseOrder?._id && po._id === selectedGRN.purchaseOrder._id;
           let full = po.status === 'Received';
-          if (!full) { let all = true; for (const i of po.items) { if ((i.receivedQuantity || 0) < i.quantity) { all = false; break; } } full = all; }
-          if (!full) inc.push({ value: po._id, label: `${po.orderNumber} - ${po.vendor?.vendorName}`, po, vendorId: po.vendor?._id });
+          if (!full) { let all = true; for (const i of (po.items || [])) { if ((i.receivedQuantity || 0) < i.quantity) { all = false; break; } } full = all; }
+          if (!full || isCurrentPO) inc.push({ value: po._id, label: `${po.orderNumber} - ${po.vendor?.vendorName}`, po, vendorId: po.vendor?._id });
         }
         setPurchaseOrders(inc);
         if (selectedGRN?.purchaseOrder?._id) { const c = inc.find(p => p.value === selectedGRN.purchaseOrder._id); if (c) setSelectedPO(c); }
+      } finally {
+        setPoLoading(false);
       }
     };
     if (choice === "Against PO") load();
@@ -215,7 +249,7 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
 
                 {choice === "Against PO" && (<>
                   <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">Vendor Name</label><Select value={selectedVendor} onChange={handleVendorChange} onInputChange={setVendorSearch} options={vendors} placeholder="Select Vendor..." isClearable className="react-select-container" classNamePrefix="react-select" /></div></div>
-                  <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">PO No.</label><Select value={selectedPO} onChange={handlePOChange} onInputChange={setPoSearch} options={filteredPOs} placeholder={selectedVendor ? "Select PO..." : "Select vendor first"} isClearable isDisabled={!selectedVendor} className="react-select-container" classNamePrefix="react-select" /></div></div>
+                  <div className="col-12 col-lg-6"><div className="mb-3"><label className="form-label label_text">PO No.</label><Select value={selectedPO} onChange={handlePOChange} onInputChange={setPoSearch} options={filteredPOs} isLoading={poLoading} placeholder={selectedVendor ? (poLoading ? "Loading POs..." : "Select PO...") : "Select vendor first"} isClearable isDisabled={!selectedVendor} className="react-select-container" classNamePrefix="react-select" /></div></div>
                 </>)}
 
                 {choice === "Direct Material" && (
@@ -281,7 +315,7 @@ const UpdateGRNPopUp = ({ handleUpdate, selectedGRN, projects }) => {
                               <td><input type="number" className="form-control form-control-sm rounded-0" value={item.price} onChange={e => handleItemChange(index, "price", Number(e.target.value))} min="0" step="0.01" disabled={choice === "Against PO"} /></td>
                               <td><input type="number" className="form-control form-control-sm rounded-0" value={item.discountPercent} onChange={e => { const v = e.target.value; if (v === '' || v === '.' || /^\d*\.?\d{0,2}$/.test(v)) handleItemChange(index, "discountPercent", v === '' ? 0 : Number(v)); }} min="0" max="100" step="0.01" disabled={choice === "Against PO"} /></td>
                               <td><input type="number" className="form-control form-control-sm rounded-0" value={item.taxPercent} onChange={e => { const v = e.target.value; if (v === '' || v === '.' || /^\d*\.?\d{0,2}$/.test(v)) handleItemChange(index, "taxPercent", v === '' ? 0 : Number(v)); }} min="0" max="100" step="0.01" disabled={choice === "Against PO"} /></td>
-                              <td><input type="text" className="form-control form-control-sm rounded-0" value={item.netValue.toFixed(2)} readOnly /></td>
+                              <td><input type="text" className="form-control form-control-sm rounded-0" value={(Number(item.netValue) || 0).toFixed(2)} readOnly /></td>
                               {choice === "Direct Material" && <td><button type="button" className="btn btn-sm btn-danger" onClick={() => handleRemoveItem(index)} disabled={items.length === 1}><i className="fa fa-trash"></i></button></td>}
                             </tr>
                           );
