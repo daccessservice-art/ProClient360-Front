@@ -13,7 +13,7 @@ import { getDepartment } from "../../../../../hooks/useDepartment";
 import { sendNotification } from "../../../../../hooks/useNotification";
 import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 10
 
 const SubmitServiceWorkPopUp = ({ selectedService, handleUpdate }) => {
   const [status, setStatus] = useState("");

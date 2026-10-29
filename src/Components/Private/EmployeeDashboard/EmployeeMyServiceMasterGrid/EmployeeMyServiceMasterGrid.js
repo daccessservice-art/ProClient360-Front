@@ -1,4 +1,6 @@
 import { useState, useEffect, useContext } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
 import { Header } from "../../MainDashboard/Header/Header";
 import { Sidebar } from "../../MainDashboard/Sidebar/Sidebar";
 import toast from 'react-hot-toast';
@@ -69,6 +71,50 @@ export const EmployeeMyServiceMasterGrid = () => {
       toast.error(error);
     }
   }, [data, error]);
+
+  // ✅ NEW: opened from a notification → /EmployeeMyServiceMasterGrid?serviceId=xxx
+  //    highlight that row + open its details automatically
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [highlightId, setHighlightId] = useState(null);
+
+  useEffect(() => {
+    const serviceId = new URLSearchParams(location.search).get("serviceId");
+    if (!serviceId) return;
+
+    setHighlightId(serviceId);
+    const openFromNotification = async () => {
+      try {
+        const res = await axios.get(
+          `${process.env.REACT_APP_API_URL}/api/service/myService/${serviceId}`,
+          { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+        );
+        if (res.data?.success && res.data.service) {
+          setSelectedService(res.data.service);
+          setDetailsServicePopUp(true);
+        }
+      } catch (err) {
+        toast.error(err?.response?.data?.error || "Service not found");
+      } finally {
+        // clean the URL so refresh doesn't reopen the popup
+        navigate("/EmployeeMyServiceMasterGrid", { replace: true });
+      }
+    };
+    openFromNotification();
+  }, [location.search]);
+
+  // remove highlight after 10 sec
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = setTimeout(() => setHighlightId(null), 10000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
+
+  // ✅ NEW: "NEW" badge for services assigned in last 24 hours & not started
+  const isNewService = (service) => {
+    const created = service?.createdAt ? new Date(service.createdAt).getTime() : 0;
+    return service?.status === "Pending" && created && Date.now() - created < 24 * 60 * 60 * 1000;
+  };
 
   // Event Handlers
   const handlePageChange = (page) => {
@@ -238,12 +284,19 @@ export const EmployeeMyServiceMasterGrid = () => {
                         <tbody className="broder my-4">
                           {data?.services?.length > 0 ? (
                             data.services.map((service, index) => (
-                              <tr className="border my-4" key={service._id}>
+                              <tr
+                                className={`border my-4 ${highlightId === service._id ? "row-from-notification" : ""}`}
+                                key={service._id}
+                              >
                                 <td>
                                   {index + 1 + (pagination.currentPage - 1) * itemsPerPage}
                                 </td>
                                 <td className="align_left_td width_tdd wrap-text-of-col">
-                                  {service.ticket?.client?.custName || "N/A"}
+                                  {service.ticket?.client?.custName ||
+                                    (service.ticket?.uniqueTicketId?.startsWith("EXT-") ? "SmartGate" : "N/A")}
+                                  {isNewService(service) && (
+                                    <span className="badge bg-danger ms-2 badge-new-service">NEW</span>
+                                  )}
                                 </td>
                                 <td className="align_left_td width_tdd wrap-text-of-col">
                                   {service.ticket?.details || "N/A"}
@@ -396,6 +449,14 @@ export const EmployeeMyServiceMasterGrid = () => {
           onClose={handleCloseAddModal}
         />
       )}
+
+      {/* ✅ NEW: highlight style for row opened from notification */}
+      <style>{`
+        .row-from-notification td { background-color: #f1ecff !important; }
+        .row-from-notification { box-shadow: inset 4px 0 0 #6d28d9; animation: svcPulse 1.6s ease-in-out 3; }
+        @keyframes svcPulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+        .badge-new-service { font-size: .65rem; vertical-align: middle; }
+      `}</style>
     </>
   );
 };

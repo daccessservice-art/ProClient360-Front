@@ -26,12 +26,19 @@ const TYPE_META = {
   lead_transferred: { icon: "fa-right-left",     label: "Leads transferred", cls: "nt-tag-amber", route: "/SalesMasterGrid" },
   survey_assigned:  { icon: "fa-clipboard-list", label: "Survey",          cls: "nt-tag-blue",   route: "/SurveyEngineerDashboard" },
   survey_submitted: { icon: "fa-file-circle-check", label: "Survey report", cls: "nt-tag-blue", route: "/SalesMasterGrid" },
+  // ✅ NEW: service engineer notifications → open My Service with that service highlighted
+  service_assigned:   { icon: "fa-screwdriver-wrench", label: "New service",  cls: "nt-tag-purple", route: "/EmployeeMyServiceMasterGrid", group: "service" },
+  service_reassigned: { icon: "fa-screwdriver-wrench", label: "Service assigned", cls: "nt-tag-purple", route: "/EmployeeMyServiceMasterGrid", group: "service" },
 };
 
+const isService = (n) => TYPE_META[n.type]?.group === "service";
+const isSales = (n) => !!TYPE_META[n.type] && !isService(n);
+
 const FILTERS = [
-  { key: "all",   label: "All" },
-  { key: "sales", label: "Sales leads" },
-  { key: "unread", label: "Unread" },
+  { key: "all",     label: "All" },
+  { key: "sales",   label: "Sales" },
+  { key: "service", label: "Service" },
+  { key: "unread",  label: "Unread" },
 ];
 
 // ── avatar with initials fallback when the photo is missing or fails to load ──
@@ -87,7 +94,12 @@ const NotificationPanel = ({ closePopUp }) => {
     const meta = TYPE_META[notification.type];
     if (meta?.route) {
       closePopUp();
-      navigate(meta.route);
+      // service notifications carry serviceId → page highlights & opens it
+      navigate(
+        meta.group === "service" && notification.serviceId
+          ? `${meta.route}?serviceId=${notification.serviceId}`
+          : meta.route
+      );
     }
   };
 
@@ -137,10 +149,12 @@ const NotificationPanel = ({ closePopUp }) => {
   };
 
   const unseenCount = notifications.filter((n) => !n.isSeen).length;
-  const salesUnread = notifications.filter((n) => !n.isSeen && TYPE_META[n.type]).length;
+  const salesUnread = notifications.filter((n) => !n.isSeen && isSales(n)).length;
+  const serviceUnread = notifications.filter((n) => !n.isSeen && isService(n)).length;
 
   const visible = notifications.filter((n) => {
-    if (filter === "sales") return !!TYPE_META[n.type];
+    if (filter === "sales") return isSales(n);
+    if (filter === "service") return isService(n);
     if (filter === "unread") return !n.isSeen;
     return true;
   });
@@ -193,6 +207,7 @@ const NotificationPanel = ({ closePopUp }) => {
             >
               {f.label}
               {f.key === "sales" && salesUnread > 0 && <span className="nt-tab-count">{salesUnread}</span>}
+              {f.key === "service" && serviceUnread > 0 && <span className="nt-tab-count">{serviceUnread}</span>}
             </button>
           ))}
         </div>
@@ -255,9 +270,11 @@ const NotificationPanel = ({ closePopUp }) => {
             <div className="nt-empty">
               <i className="fa-solid fa-bell-slash"></i>
               <div className="nt-empty-title">
-                {filter === "sales" ? "No lead notifications" : filter === "unread" ? "No unread notifications" : "No notifications"}
+                {filter === "sales" ? "No lead notifications"
+                  : filter === "service" ? "No service notifications"
+                  : filter === "unread" ? "No unread notifications" : "No notifications"}
               </div>
-              <div>New leads assigned to you will appear here.</div>
+              <div>New leads and services assigned to you will appear here.</div>
             </div>
           )}
         </div>
