@@ -68,6 +68,8 @@ import AnnualReport from "./Components/Private/MainDashboard/AnnualReport/Annual
 
 import { NotFeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/NotFeasibleLeadPage';
 import { FeasibleLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/Feasibleleadspage';
+// ✅ NEW — Landing Pages (DAccess / CafeLive / WorkBridge)
+import { LandingPageLeadsPage } from './Components/Private/MainDashboard/MarketingMaster/PopUp/LandingPageLeadsPage';
 
 import { ExhibitionMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionMasterGrid";
 import { ExhibitionVisitMasterGrid } from "./Components/Private/MainDashboard/ExhibitionMaster/ExhibitionVisitMasterGrid";
@@ -205,6 +207,8 @@ const AllRoutes = () => {
                 <Route exact path="/AnnualReport" element={<ProtectRoute Component={AnnualReportRoute} />} />
                 <Route path="/not-feasible-leads" element={<ProtectRoute Component={NotFeasibleLeadsPage} />} />
                 <Route path="/feasible-leads" element={<ProtectRoute Component={FeasibleLeadsPage} />} />
+                {/* ✅ NEW — Landing Pages (DAccess / CafeLive / WorkBridge) */}
+                <Route path="/landing-page-leads" element={<ProtectRoute Component={LandingPageLeadsPage} />} />
 
                 <Route exact path="/ExhibitionMasterGrid" element={<ProtectRoute Component={ExhibitionMasterGrid} />} />
                 <Route exact path="/ExhibitionVisitMasterGrid" element={<ProtectRoute Component={ExhibitionVisitMasterGrid} />} />

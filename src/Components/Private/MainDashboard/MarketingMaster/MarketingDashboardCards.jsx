@@ -1,7 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const MarketingDashboardCards = ({ allLeads, feasibleLeads, notFeasibleLeads, callUnansweredLeads, pendingLeads }) => {
+const MarketingDashboardCards = ({
+  allLeads, feasibleLeads, notFeasibleLeads, callUnansweredLeads, pendingLeads,
+  landingPageLeads = 0, landingPageNewLeads = 0,
+}) => {
   const navigate = useNavigate();
 
   const cards = [
@@ -23,7 +26,6 @@ const MarketingDashboardCards = ({ allLeads, feasibleLeads, notFeasibleLeads, ca
       clickable: false,
     },
     {
-      // ✅ NOW CLICKABLE — navigates to FeasibleLeadsPage
       title: 'Feasible',
       count: feasibleLeads || 0,
       bgColor: '#F8EFDE',
@@ -52,6 +54,18 @@ const MarketingDashboardCards = ({ allLeads, feasibleLeads, notFeasibleLeads, ca
       clickable: true,
       path: '/call-unanswered-leads',
       subText: 'Click to view details',
+    },
+    {
+      // ✅ NEW — External landing pages (DAccess / CafeLive / WorkBridge)
+      title: 'Landing Pages',
+      count: landingPageLeads || 0,
+      bgColor: '#E3F2E1',
+      countColor: '#2E7D32',
+      icon: 'fa-globe',
+      iconColor: '#2E7D32',
+      clickable: true,
+      path: '/landing-page-leads',
+      subText: landingPageNewLeads > 0 ? `${landingPageNewLeads} new — click to view` : 'Click to view details',
     },
   ];
 

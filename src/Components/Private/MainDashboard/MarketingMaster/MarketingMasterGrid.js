@@ -16,6 +16,8 @@ import AddLeadMaster from "../SalesMaster/PopUp/AddLeadMaster";
 import useCreateLead from "../../../../hooks/leads/useCreateLead";
 import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
+// ✅ NEW — Landing pages (DAccess / CafeLive / WorkBridge)
+import { getLandingLeadStats } from "../../../../hooks/leads/useLandingPageLeads";
 
 // ── TIME FIX: accepts full lead object, picks QUERY_TIME → createdAt ──
 // Both are stored as UTC in MongoDB.
@@ -45,6 +47,8 @@ export const MarketingMasterGrid = () => {
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [deletePopUpShow, setDeletePopUpShow] = useState(false);
   const [processingStaleLeads, setProcessingStaleLeads] = useState(false);
+  // ✅ NEW — Landing page leads count
+  const [landingStats, setLandingStats] = useState({ total: 0, newCount: 0 });
 
   const { user } = useContext(UserContext);
   const [filters, setFilters] = useState({ date: null, source: null });
@@ -100,6 +104,13 @@ export const MarketingMasterGrid = () => {
       toast.error(error.message || "An error occurred");
     }
   }, [data, error]);
+
+  // ✅ NEW — Landing page leads count for card (refreshes whenever leads reload)
+  useEffect(() => {
+    getLandingLeadStats().then((r) => {
+      if (r?.success) setLandingStats({ total: r.total || 0, newCount: r.newCount || 0 });
+    });
+  }, [data]);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= pagination.totalPages) {
@@ -240,12 +251,15 @@ export const MarketingMasterGrid = () => {
                   </div>
                 </div>
 
+                {/* ✅ UPDATED — added landingPageLeads + landingPageNewLeads */}
                 <MarketingDashboardCards
                   allLeads={data?.allLeadsCount || 0}
                   feasibleLeads={data?.feasibleCount || 0}
                   notFeasibleLeads={data?.notFeasibleCount || 0}
                   callUnansweredLeads={data?.callUnansweredCount || 0}
                   pendingLeads={pendingLeadsCount >= 0 ? pendingLeadsCount : 0}
+                  landingPageLeads={landingStats.total}
+                  landingPageNewLeads={landingStats.newCount}
                 />
 
                 <div className="row align-items-center p-2 m-1">
@@ -261,13 +275,6 @@ export const MarketingMasterGrid = () => {
                         />
                       </div>
                       <div className="col-12 col-lg-6 mt-4">
-                        {/* ── UPDATED: Sources filter now lists every source
-                            option available in the Add Lead form (Google,
-                            Tender, Exhibitions, JustDial, Facebook, LinkedIn,
-                            Twitter, YouTube, WhatsApp, Referral, Email
-                            Campaign, Cold Call, Website, Walk-In, Direct,
-                            Other), plus IndiaMart/TradeIndia kept since
-                            existing lead data already uses those values. ── */}
                         <select
                           className="form-select bg_edit"
                           name="source"
@@ -327,7 +334,6 @@ export const MarketingMasterGrid = () => {
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.QUERY_PRODUCT_NAME || "Not available."}</td>
                                 <td>{lead?.SENDER_MOBILE || "Not available."}</td>
 
-                                {/* ── TIME FIX: pass full lead, not just date string ── */}
                                 <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
                                   {formatLeadTime(lead)}
                                 </td>
