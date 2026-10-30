@@ -1,0 +1,252 @@
+/* Sales target section — all classes prefixed "st-" (uses ed- variables) */
+
+/* ✅ card takes only the height of its content (ed-card has height:100%) */
+.ed-card.st-card {
+  height: auto;
+}
+
+.st-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: #fff8eb;
+  border: 1px solid #fbe3b6;
+  color: #9a5b00;
+  font-size: 0.8rem;
+}
+
+.st-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.st-tile {
+  padding: 14px 16px;
+  border: 1px solid var(--ed-border, #eceef5);
+  border-radius: 14px;
+  background: #fff;
+  min-width: 0;
+}
+
+.st-tile-incentive {
+  border: 0;
+  background: linear-gradient(125deg, #16a34a 0%, #22b35e 60%, #4ade80 100%);
+  box-shadow: 0 10px 22px -12px rgba(34, 179, 94, 0.8);
+}
+
+.st-tile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.st-tile-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ed-text, #1e2235);
+}
+
+.st-tile-sub {
+  font-size: 0.72rem;
+  color: var(--ed-muted, #8a90a6);
+}
+
+.st-pct {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.st-tile-amount {
+  margin: 10px 0 8px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--ed-text, #1e2235);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.st-tile-amount span {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ed-muted, #8a90a6);
+}
+
+.st-tile-note {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.st-inc-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+/* ── bars ── */
+.st-chart-wrap {
+  margin-top: 18px;
+  padding: 14px 14px 8px;
+  border: 1px solid var(--ed-border, #eceef5);
+  border-radius: 14px;
+}
+
+.st-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.72rem;
+  color: var(--ed-soft, #5b6178);
+  margin-bottom: 8px;
+}
+
+.st-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.st-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.st-bars {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  height: 220px;
+  overflow-x: auto;
+}
+
+.st-bar-col {
+  flex: 1 0 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 44px;
+  border-radius: 10px;
+  padding: 0 2px;
+}
+
+.st-bar-col.current {
+  background: #f6f5ff;
+}
+
+.st-bar-value {
+  height: 16px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--ed-soft, #5b6178);
+  white-space: nowrap;
+}
+
+.st-bar-pair {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.st-bar {
+  width: 40%;
+  max-width: 22px;
+  min-height: 2px;
+  border-radius: 5px 5px 2px 2px;
+  transition: height 0.6s ease;
+}
+
+.st-bar-label {
+  margin-top: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ed-muted, #8a90a6);
+}
+
+/* ── table ── */
+.st-table-wrap {
+  margin-top: 16px;
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--ed-border, #eceef5);
+  border-radius: 12px;
+}
+
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.st-table th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fc;
+  color: var(--ed-soft, #5b6178);
+  font-weight: 600;
+  padding: 9px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.st-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-top: 1px solid #f1f2f7;
+  color: var(--ed-text, #1e2235);
+  white-space: nowrap;
+}
+
+.st-table .r {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.st-table tr.cur td {
+  background: #f6f5ff;
+  font-weight: 600;
+}
+
+.st-rules {
+  margin-top: 10px;
+  font-size: 0.72rem;
+  color: var(--ed-muted, #8a90a6);
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.st-po-head {
+  margin: 18px 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+@media (max-width: 1199px) {
+  .st-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 575px) {
+  .st-tiles { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-bar { transition: none; }
+}

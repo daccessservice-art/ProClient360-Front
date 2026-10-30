@@ -275,6 +275,7 @@ const UpdateEmployeePopUp = ({ handleUpdate, selectedEmp }) => {
     <label htmlFor="target" className="form-label label_text">
       Target (only sales employee)
     </label>
+    {/* ✅ CHANGED: target is now set with the 🎯 button in Employee Master (monthly / quarterly / yearly) */}
     <div className="input-group border mb-3">
       <span
         className="input-group-text rounded-0 bg-white border-0"
@@ -286,8 +287,8 @@ const UpdateEmployeePopUp = ({ handleUpdate, selectedEmp }) => {
         type="number"
         name="target"
         value={employee.target || ''}
-        onChange={handleChange}
-        className="form-control rounded-0 border-0"
+        readOnly
+        className="form-control rounded-0 border-0 bg-light"
         id="target"
         placeholder="eg. 2000000"
         min="0"
@@ -295,6 +296,7 @@ const UpdateEmployeePopUp = ({ handleUpdate, selectedEmp }) => {
         aria-label="Target"
       />
     </div>
+    <small className="text-muted">Set or change it with the <i className="fa-solid fa-bullseye text-primary"></i> button in the Employee list.</small>
   </div>
 </div>
 

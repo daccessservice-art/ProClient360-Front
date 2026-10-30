@@ -10,6 +10,8 @@ import { getCustomerCountByOwner } from "../../../hooks/useCustomer";
 import { Header } from "../MainDashboard/Header/Header";
 import { EmployeeLeadFollowUpSection } from "./EmployeeLeadFollowUpSection";
 import { EmployeeInsightsRow } from "./EmployeeInsightsRow";
+// ✅ NEW: sales target vs PO achieved + incentive (sales employees only)
+import { SalesTargetSection } from "./SalesTargetSection";
 import "./EmployeeDashboard.css";
 
 const MY_LEADS_URL = `${process.env.REACT_APP_API_URL}/api/leads/my-leads`;
@@ -245,6 +247,9 @@ function EmployeeMainDashboard() {
                                     wonLeads={wonLeads}
                                     lostLeads={lostLeads}
                                 />
+
+                                {/* ✅ NEW: Sales target & incentive (sales only) */}
+                                {isSales && <SalesTargetSection />}
 
                                 {/* ── Performance + Work status ── */}
                                 <div className="ed-grid-2 ed-section">

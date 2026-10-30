@@ -4,6 +4,8 @@ import { Sidebar } from "../Sidebar/Sidebar";
 import AddEmployeePopup from "./PopUp/AddEmployeePopup";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import UpdateEmployeePopUp from "./PopUp/UpdateEmployeePopUp";
+// ✅ NEW: HR sets yearly / quarterly / monthly sales target
+import SetTargetPopup from "./PopUp/SetTargetPopup";
 import toast from "react-hot-toast";
 import { getEmployees, deleteEmployee } from "../../../../hooks/useEmployees";
 import { UserContext } from "../../../../context/UserContext";
@@ -21,6 +23,8 @@ export const EmployeeMasterGrid = () => {
   const [selectedId, setSelecteId] = useState(null);
   const [updatePopUpShow, setUpdatePopUpShow] = useState(false);
   const [selectedEmp, setSelectedEmp] = useState(null);
+  // ✅ NEW: target popup
+  const [targetEmp, setTargetEmp] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
@@ -203,6 +207,17 @@ export const EmployeeMasterGrid = () => {
                                   ) : (
                                     ""
                                   )}
+                                  {/* ✅ NEW: Set sales target */}
+                                  {user?.permissions?.includes("updateEmployee") || user?.user === 'company' ? (
+                                    <span
+                                      onClick={() => setTargetEmp(employee)}
+                                      title="Set sales target"
+                                    >
+                                      <i className="fa-solid fa-bullseye text-primary cursor-pointer me-3"></i>
+                                    </span>
+                                  ) : (
+                                    ""
+                                  )}
                                   {user?.permissions?.includes("deleteEmployee") || user?.user === 'company' ? (
                                     <span
                                       onClick={() =>
@@ -325,6 +340,10 @@ export const EmployeeMasterGrid = () => {
       ) : null}
       {updatePopUpShow ? (
         <UpdateEmployeePopUp selectedEmp={selectedEmp} handleUpdate={handleUpdate} />
+      ) : null}
+      {/* ✅ NEW: Sales target popup */}
+      {targetEmp ? (
+        <SetTargetPopup employee={targetEmp} handleClose={() => setTargetEmp(null)} />
       ) : null}
     </>
   );
