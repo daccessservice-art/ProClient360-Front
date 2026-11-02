@@ -141,6 +141,12 @@ const ViewVendorPopUp = ({ vendor, handleViewClose }) => {
                       <td>{vendor.manualAddress}</td>
                     </tr>
                   )}
+                  {vendor.vendorProducts && (
+                    <tr>
+                      <td><strong>Products / Services:</strong></td>
+                      <td style={{ whiteSpace: 'pre-wrap' }}>{vendor.vendorProducts}</td>
+                    </tr>
+                  )}
                   {vendor.remarks && (
                     <tr>
                       <td><strong>Remarks:</strong></td>

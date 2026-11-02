@@ -3,9 +3,16 @@ import axios from 'axios';
 const baseUrl = process.env.REACT_APP_API_URL;
 const url = baseUrl + "/api/vendor";
 
-const getVendors = async (page = 1, limit = 20, search = null) => {
+const getVendors = async (page = 1, limit = 20, search = "", type = "", onlyLink = false) => {
   try {
-    const response = await axios.get(`${url}?q=${search}&page=${page}&limit=${limit}`, {
+    const params = { page, limit };
+    if (search && String(search).trim() !== "") params.q = String(search).trim();
+    if (type) params.type = type;
+    if (onlyLink) params.link = "true";
+
+    // ✅ axios `params` encodes search text safely (spaces, &, commas, etc.)
+    const response = await axios.get(url, {
+      params,
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     });
     return response.data;

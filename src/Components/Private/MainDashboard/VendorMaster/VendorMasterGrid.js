@@ -22,21 +22,30 @@ const VENDOR_TYPE_CONFIG = [
   { type: "Other",              icon: "fa-ellipsis-h",   color: "#6c757d", bg: "#f0f0f0" },
 ];
 
-// ✅ FIXED: now takes pre-aggregated counts (from the whole DB), not the
-// paginated `vendors` array. Previously this only counted whatever 20
-// vendors were on the current page.
-const VendorTypeCards = ({ typeCounts = {}, totalVendors = 0 }) => {
+// ✅ Clickable cards: click a card = filter by that type, click again (or Total) = clear
+const VendorTypeCards = ({ typeCounts = {}, totalVendors = 0, selectedType = "", onSelectType }) => {
   return (
     <div className="row px-2 mb-2">
       <div className="col-12">
-        {/* Total Banner */}
+        {/* Total Banner (click = show all types) */}
         <div
           className="d-flex align-items-center justify-content-between px-3 py-2 mb-2 rounded"
-          style={{ background: "#1a237e", border: "1px solid #283593" }}
+          style={{
+            background: "#1a237e",
+            border: !selectedType ? "2px solid #90caf9" : "1px solid #283593",
+            cursor: "pointer",
+          }}
+          onClick={() => onSelectType("")}
+          title="Show all vendors"
         >
           <span className="fw-bold text-white" style={{ fontSize: "0.9rem" }}>
             <i className="fa fa-building me-2" style={{ color: "#90caf9" }}></i>
             Total Registered Vendors
+            {selectedType && (
+              <span className="ms-2" style={{ fontSize: "0.75rem", color: "#90caf9" }}>
+                (click to clear filter)
+              </span>
+            )}
           </span>
           <span
             className="badge rounded-pill px-3 py-2"
@@ -50,14 +59,21 @@ const VendorTypeCards = ({ typeCounts = {}, totalVendors = 0 }) => {
         <div className="row g-2">
           {VENDOR_TYPE_CONFIG.map(({ type, icon, color, bg }) => {
             const count = typeCounts[type] || 0;
+            const isActive = selectedType === type;
             return (
               <div className="col-6 col-sm-4 col-md-3 col-xl-3" key={type}>
                 <div
-                  className="d-flex align-items-center gap-2 p-2 rounded"
+                  className="d-flex align-items-center gap-2 p-2 rounded position-relative"
+                  onClick={() => onSelectType(isActive ? "" : type)}
+                  title={isActive ? "Click to clear filter" : `Show only ${type} vendors`}
                   style={{
                     background: bg,
-                    border: `1px solid ${color}40`,
+                    border: isActive ? `2px solid ${color}` : `1px solid ${color}40`,
+                    boxShadow: isActive ? `0 0 0 3px ${color}30` : "none",
                     minHeight: "58px",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    opacity: selectedType && !isActive ? 0.65 : 1,
                   }}
                 >
                   <div
@@ -83,6 +99,12 @@ const VendorTypeCards = ({ typeCounts = {}, totalVendors = 0 }) => {
                       {count}
                     </div>
                   </div>
+                  {isActive && (
+                    <i
+                      className="fa fa-check-circle position-absolute"
+                      style={{ top: "6px", right: "8px", color }}
+                    ></i>
+                  )}
                 </div>
               </div>
             );
@@ -90,6 +112,21 @@ const VendorTypeCards = ({ typeCounts = {}, totalVendors = 0 }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+// ✅ Highlights the searched word inside text (used for Products / Services)
+const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const highlightText = (text, term) => {
+  if (!text) return "";
+  if (!term) return text;
+  const parts = String(text).split(new RegExp(`(${escapeRegExp(term)})`, "gi"));
+  return parts.map((part, i) =>
+    part.toLowerCase() === term.toLowerCase() ? (
+      <mark key={i} style={{ padding: 0, background: "#fff3a3" }}>{part}</mark>
+    ) : (
+      part
+    )
   );
 };
 // ────────────────────────────────────────────────────────────────────────────
@@ -124,10 +161,13 @@ export const VendorMasterGrid = () => {
     hasPrevPage: false,
   });
 
-  // ✅ NEW: type-wise counts across ALL vendors in the DB (not just current page)
+  // type-wise counts across ALL vendors in the DB
   const [typeCounts, setTypeCounts] = useState({});
+  const [totalAllVendors, setTotalAllVendors] = useState(0);
 
-  // State to toggle between all vendors and link-registered vendors
+  // ✅ NEW: selected card type filter
+  const [selectedType, setSelectedType] = useState("");
+
   const [showOnlyLinkRegistered, setShowOnlyLinkRegistered] = useState(false);
 
   const [brands, setBrands] = useState([]);
@@ -169,7 +209,7 @@ export const VendorMasterGrid = () => {
     if (data?.success) {
       toast.success(data?.message);
     } else {
-      toast.error(data?.error);
+      toast.error(data?.error || data);
     }
     setdeletePopUpShow(false);
     setCurrentPage(1);
@@ -217,38 +257,46 @@ export const VendorMasterGrid = () => {
     setCurrentPage(1);
   };
 
-  // Fetch paginated vendor list (unchanged, except AddPopUpShow added as a
-  // dependency so the grid also refreshes reliably after adding a vendor
-  // while already on page 1)
+  // ✅ NEW: card click handler
+  const handleSelectType = (type) => {
+    setSelectedType(type);
+    setCurrentPage(1);
+  };
+
+  // Fetch paginated vendor list (search + type + link all filtered on server)
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await getVendors(currentPage, itemsPerPage, search);
+        const data = await getVendors(
+          currentPage,
+          itemsPerPage,
+          search,
+          selectedType,
+          showOnlyLinkRegistered
+        );
+
         if (data?.success) {
-          let filteredVendors = data.vendors || [];
-          if (showOnlyLinkRegistered) {
-            filteredVendors = filteredVendors.filter(vendor => vendor.registeredFromLink === true);
-          }
+          const list = data.vendors || [];
+          setVendors(list);
+          setPagination(data.pagination);
 
-          setVendors(filteredVendors);
-
-          const totalFilteredVendors = showOnlyLinkRegistered
-            ? filteredVendors.length
-            : data.pagination.totalVendors;
-
-          setPagination({
-            ...data.pagination,
-            totalVendors: totalFilteredVendors,
-            totalPages: Math.ceil(totalFilteredVendors / itemsPerPage)
-          });
-
-          const uniqueBrands = [...new Set(data.vendors
+          const uniqueBrands = [...new Set(list
             .filter(vendor => vendor.typeOfVendor === 'B2B Material' && vendor.brandsWorkWith)
             .map(vendor => vendor.brandsWorkWith))];
           setBrands(uniqueBrands);
         } else {
-          toast(data.error);
+          // ✅ FIXED: clear old rows when request fails / nothing found
+          setVendors([]);
+          setPagination({
+            currentPage: 1,
+            totalPages: 0,
+            totalVendors: 0,
+            limit: itemsPerPage,
+            hasNextPage: false,
+            hasPrevPage: false,
+          });
+          if (data?.error) toast.error(data.error);
         }
       } catch (error) {
         console.error("Error fetching vendors:", error);
@@ -258,16 +306,16 @@ export const VendorMasterGrid = () => {
     };
 
     fetchData();
-  }, [currentPage, deletePopUpShow, updatePopUpShow, search, showOnlyLinkRegistered, AddPopUpShow]);
+  }, [currentPage, deletePopUpShow, updatePopUpShow, search, showOnlyLinkRegistered, AddPopUpShow, selectedType]);
 
-  // ✅ NEW: fetch type-wise counts across ALL vendors (whole company DB),
-  // refreshed whenever a vendor is added / updated / deleted.
+  // type-wise counts across ALL vendors
   useEffect(() => {
     const fetchTypeCounts = async () => {
       try {
         const data = await getVendorTypeCounts();
         if (data?.success) {
           setTypeCounts(data.countByType || {});
+          setTotalAllVendors(data.totalVendors || 0);
         }
       } catch (error) {
         console.error("Error fetching vendor type counts:", error);
@@ -286,9 +334,17 @@ export const VendorMasterGrid = () => {
     startPage = Math.max(1, endPage - maxPageButtons + 1);
   }
 
+  // ✅ FIXED: reset to page 1 on every new search
   const handleOnSearchSubmit = (event) => {
     event.preventDefault();
-    setSearch(searchText);
+    setSearch(searchText.trim());
+    setCurrentPage(1);
+  };
+
+  const handleClearSearch = () => {
+    setSearchText("");
+    setSearch("");
+    setCurrentPage(1);
   };
 
   const pageButtons = [];
@@ -321,6 +377,8 @@ export const VendorMasterGrid = () => {
     return badgeMap[category] || 'bg-secondary';
   };
 
+  const hasActiveFilter = !!search || !!selectedType || showOnlyLinkRegistered;
+
   return (
     <>
       {loading && (
@@ -351,17 +409,33 @@ export const VendorMasterGrid = () => {
                   <div className="col-12 col-lg-6 ms-auto">
                     <div className="row">
                       <div className="col-8 col-lg-5 ms-auto text-end">
-                        <div className="form">
+                        <div className="form position-relative">
                           <i className="fa fa-search"></i>
                           <form onSubmit={handleOnSearchSubmit}>
                             <input
                               type="text"
                               value={searchText}
-                              onChange={(e) => setSearchText(e.target.value)}
+                              onChange={(e) => {
+                                setSearchText(e.target.value);
+                                // auto-reset list when the box is emptied
+                                if (e.target.value === "" && search !== "") {
+                                  setSearch("");
+                                  setCurrentPage(1);
+                                }
+                              }}
                               className="form-control form-input bg-transparant"
-                              placeholder="Search Vendor Name, Email, Phone, Type, Category, GST..."
+                              placeholder="Search Name, Email, Phone, GST, Products / Services..."
+                              title="Press Enter to search"
                             />
                           </form>
+                          {search && (
+                            <i
+                              className="fa fa-times cursor-pointer"
+                              onClick={handleClearSearch}
+                              title="Clear search"
+                              style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", left: "auto" }}
+                            ></i>
+                          )}
                         </div>
                       </div>
 
@@ -397,19 +471,39 @@ export const VendorMasterGrid = () => {
                   </div>
                 </div>
 
-                {/* ── Vendor Type Summary Cards ── */}
+                {/* ── Vendor Type Summary Cards (clickable) ── */}
                 <VendorTypeCards
                   typeCounts={typeCounts}
-                  totalVendors={pagination.totalVendors}
+                  totalVendors={totalAllVendors}
+                  selectedType={selectedType}
+                  onSelectType={handleSelectType}
                 />
 
-                {/* Link filter alert */}
-                {showOnlyLinkRegistered && (
+                {/* Active filter info */}
+                {hasActiveFilter && (
                   <div className="row px-2">
                     <div className="col-12">
-                      <div className="alert alert-info py-2 mb-2" style={{ fontSize: '14px' }}>
-                        <i className="fa fa-filter me-2"></i>
-                        Showing only vendors registered through link ({vendors.length} found)
+                      <div className="alert alert-info py-2 mb-2 d-flex flex-wrap align-items-center gap-2" style={{ fontSize: '14px' }}>
+                        <i className="fa fa-filter"></i>
+                        <span>Showing <strong>{pagination.totalVendors}</strong> vendor(s)</span>
+                        {selectedType && (
+                          <span className="badge bg-primary">
+                            Type: {selectedType}
+                            <i className="fa fa-times ms-2 cursor-pointer" onClick={() => handleSelectType("")}></i>
+                          </span>
+                        )}
+                        {search && (
+                          <span className="badge bg-dark">
+                            Search: "{search}"
+                            <i className="fa fa-times ms-2 cursor-pointer" onClick={handleClearSearch}></i>
+                          </span>
+                        )}
+                        {showOnlyLinkRegistered && (
+                          <span className="badge bg-warning text-dark">
+                            Link Registered
+                            <i className="fa fa-times ms-2 cursor-pointer" onClick={handleToggleView}></i>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -428,6 +522,7 @@ export const VendorMasterGrid = () => {
                             <th>Phone</th>
                             <th>Type of Vendor</th>
                             <th>Material Category</th>
+                            <th className="align_left_td td_width">Products / Services</th>
                             <th>Rating</th>
                             <th>GST No</th>
                             <th>Action</th>
@@ -465,6 +560,26 @@ export const VendorMasterGrid = () => {
                                       : vendor.materialCategory}
                                   </span>
                                 </td>
+                                {/* ✅ NEW: Products / Services column with search highlight */}
+                                <td className="align_left_td td_width" title={vendor.vendorProducts || ""}>
+                                  {vendor.vendorProducts ? (
+                                    <div
+                                      style={{
+                                        maxWidth: "220px",
+                                        fontSize: "0.85rem",
+                                        whiteSpace: "normal",
+                                        display: "-webkit-box",
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: "vertical",
+                                        overflow: "hidden",
+                                      }}
+                                    >
+                                      {highlightText(vendor.vendorProducts, search)}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted">-</span>
+                                  )}
+                                </td>
                                 <td>{renderStars(vendor.vendorRating)}</td>
                                 <td>{vendor.GSTNo}</td>
                                 <td>
@@ -500,10 +615,14 @@ export const VendorMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="9" className="text-center">
-                                {showOnlyLinkRegistered
-                                  ? "No vendors registered through link found"
-                                  : "No data found"}
+                              <td colSpan="10" className="text-center">
+                                {search
+                                  ? `No vendors found for "${search}"${selectedType ? ` in ${selectedType}` : ""}`
+                                  : selectedType
+                                    ? `No ${selectedType} vendors found`
+                                    : showOnlyLinkRegistered
+                                      ? "No vendors registered through link found"
+                                      : "No data found"}
                               </td>
                             </tr>
                           )}
