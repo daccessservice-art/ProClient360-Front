@@ -14,6 +14,7 @@ const PAGE_SIZE = 10;
 
 const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const [isVisible, setIsVisible] = useState(false);
+  // selectedTask.taskLevel / taskStatus are MY OWN values (backend sends per-employee)
   const [taskLevel, setTaskLevel] = useState(selectedTask?.taskLevel);
   const [taskStatus, setTaskStatus] = useState("");
   const [remark, setRemark] = useState("");
@@ -22,27 +23,26 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const [endTime, setEndTime] = useState("");
   const [actionHistory, setActionHistory] = useState([]);
   const [forEdit, setForEdit] = useState(false);
-  const [editAction, setEditAction] = useState(""); 
+  const [editAction, setEditAction] = useState("");
   const [addAction, setAddAction] = useState(true);
+
+  // ✅ NEW — id of MY latest action (only this one can be edited)
+  const [myLastActionId, setMyLastActionId] = useState(null);
 
   const [submittingForTest, setSubmittingForTest] = useState(false);
 
-  // ── developer's own tester pick — only used/shown when the Manager
-  // did NOT assign any tester on this task. ──
   const [testerOptions, setTesterOptions] = useState([]);
   const [testerPage, setTesterPage] = useState(1);
   const [testerHasMore, setTesterHasMore] = useState(true);
   const [testerLoading, setTesterLoading] = useState(false);
   const [testerSearch, setTesterSearch] = useState("");
   const [pickedTester, setPickedTester] = useState(null);
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreData, setHasMoreData] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const tableContainerRef = useRef(null);
 
-  // ── derived QA flags ──
-  // ✅ UPDATED — task may have one OR many testers (assignedTesters)
   const testerList = (Array.isArray(selectedTask?.assignedTesters) && selectedTask.assignedTesters.length
     ? selectedTask.assignedTesters
     : [selectedTask?.assignedTester]
@@ -56,8 +56,11 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
   const isPassed = qaStatus === 'passed';
   const canSubmitForTesting = selectedTask?.taskLevel === 100 && (qaStatus === 'none' || qaStatus === 'bug_found');
 
-  // ── load tester options only if this task has no assigned tester yet
-  // and the developer is in a position to submit for testing ──
+  // ✅ NEW — I finished MY part (other employees may still be working)
+  const iAmDone = (Number(selectedTask?.taskLevel) || 0) >= 100;
+  const teamSize = Array.isArray(selectedTask?.employees) ? selectedTask.employees.length : 0;
+  const waitingForTeam = iAmDone && teamSize > 1 && selectedTask?.overallTaskStatus !== 'completed' && !hasTester && qaStatus === 'none';
+
   const loadTesters = useCallback(async (page = 1, search = "") => {
     setTesterLoading(true);
     try {
@@ -88,15 +91,13 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     setTaskStatus(status);
     if (status === "completed") {
       setTaskLevel(100);
-    } else if (status === "inprocess" || status === "stuck") { 
+    } else if (status === "inprocess" || status === "stuck") {
       setTaskLevel((prev) => (parseInt(prev) < 100 ? prev : ""));
     } else {
       setTaskLevel("");
     }
   };
 
-  // ── passes the developer's chosen tester only when the task
-  // doesn't already have one assigned by the Manager. ──
   const handleSubmitForTesting = async () => {
     if (submittingForTest) return;
 
@@ -125,13 +126,16 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     try {
       if (isInitial) setIsLoadingMore(false);
       else setIsLoadingMore(true);
-      
+
       const res = await getAllActions(selectedTask._id, page, 10);
-      
+
       if (res?.actions && res.actions.length > 0) {
         if (isInitial) setActionHistory(res.actions);
         else setActionHistory(prev => [...prev, ...res.actions]);
-        
+
+        // ✅ NEW — backend tells which action is MY latest
+        setMyLastActionId(res.myLastActionId || null);
+
         const hasMore = res.pagination ? res.pagination.hasNextPage : false;
         setHasMoreData(hasMore);
         setCurrentPage(page);
@@ -165,13 +169,14 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
 
   const handelTaskUpdate = async (event) => {
     event.preventDefault();
-    if (taskStatus === "completed") setTaskLevel(100); 
+    if (taskStatus === "completed") setTaskLevel(100);
 
     if (!action || !startTime || !endTime || !taskLevel || !taskStatus) return toast.error("Please fill all fields");
-    
+
     if (taskLevel > 100) return toast.error("Task level should be less than 100");
-    else if (selectedTask?.taskLevel && taskLevel < selectedTask?.taskLevel) return toast.error("Task level must be greater than previous task level");
-    
+    // selectedTask.taskLevel = MY previous level
+    else if (selectedTask?.taskLevel && Number(taskLevel) < Number(selectedTask?.taskLevel)) return toast.error("Task level must be greater than previous task level");
+
     if (new Date(startTime) >= new Date(endTime)) return toast.error("Start time must be before end time");
 
     const data = {
@@ -202,7 +207,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     setEditAction(action);
     setForEdit(true);
     setAddAction(false);
-  }
+  };
 
   const handleEditTask = (event) => {
     const { name, value } = event.target;
@@ -218,7 +223,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
 
     if (name === "complated") {
       if (editAction.taskStatus !== "completed") {
-        if (value === "" || /^\d{1,2}$/.test(value)) {
+        if (value === "" || /^\d{1,3}$/.test(value)) {
           if (value === "" || parseInt(value) <= 100) {
             setEditAction((prevAction) => ({ ...prevAction, complated: value }));
           }
@@ -249,7 +254,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
     } catch (error) {
       toast.error(error);
     }
-  }
+  };
 
   const selectStyles = {
     control: (provided) => ({ ...provided, borderRadius: 0, borderColor: '#ced4da', fontSize: '15px', minHeight: '38px' }),
@@ -264,7 +269,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
 
   return (
     <>
-     <style>
+      <style>
         {`
           .hidden-scrollbar::-webkit-scrollbar { width: 0px; background: transparent; }
           .hidden-scrollbar::-webkit-scrollbar-thumb { background: transparent; }
@@ -291,9 +296,10 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                 <span className="">
                   <div className="row mb-4">
                     <div className="col-12">
+                      <small className="text-muted">My progress</small>
                       <div className="progress">
-                        <div className="progress-bar" role="progressbar" style={{ width: selectedTask?.taskLevel + "%" }} aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
-                          {selectedTask?.taskLevel && selectedTask?.taskLevel + "%"}
+                        <div className="progress-bar" role="progressbar" style={{ width: (selectedTask?.taskLevel || 0) + "%" }} aria-valuenow={selectedTask?.taskLevel || 0} aria-valuemin="0" aria-valuemax="100">
+                          {selectedTask?.taskLevel ? selectedTask?.taskLevel + "%" : ""}
                         </div>
                       </div>
                     </div>
@@ -310,6 +316,18 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                     <div className="col-12">
                       <label className="form-label label_text fw-bold text-primary mb-1">Subtask Name</label>
                       <p className="mb-0 fs-6 text-dark">{selectedTask.subtaskName}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ✅ NEW — my part is done, waiting for other employees */}
+                {waitingForTeam && (
+                  <div className="row mt-3">
+                    <div className="col-12">
+                      <div className="alert alert-success mb-0">
+                        <i className="fa-solid fa-circle-check me-1"></i>
+                        You have completed your part of this task. The task is shared with other employees — it will be fully completed when everyone finishes.
+                      </div>
                     </div>
                   </div>
                 )}
@@ -338,7 +356,6 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                              isBugFound ? `Bug Reported (Cycle ${selectedTask.testCycles || 1})` :
                              'Not submitted for testing yet'}
                           </span>
-                          {/* ✅ UPDATED — shows all testers */}
                           {testerNames && (
                             <small className="text-muted ms-2">
                               Tester{testerList.length > 1 ? 's' : ''}: {testerNames}
@@ -346,7 +363,6 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                           )}
                         </div>
 
-                        {/* Automatic testing timestamps — read-only */}
                         {(selectedTask.testStartDate || selectedTask.testEndDate) && (
                           <div className="mt-2" style={{ fontSize: '12px' }}>
                             {selectedTask.testStartDate && (
@@ -376,7 +392,6 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                         )}
                       </div>
 
-                      {/* ── Submit for Testing area ── */}
                       {canSubmitForTesting && (
                         <div style={{ minWidth: '260px' }}>
                           {!hasTester && (
@@ -444,41 +459,41 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                   </div>
                 )}
 
-                <div className="row modal_body_height mt-2">                 
-                   <div className="col-12 align-items-center">
+                <div className="row modal_body_height mt-2">
+                  <div className="col-12 align-items-center">
 
-                  <div className="d-flex justify-content-end mt-3">
-                   <button type="button" className={`btn btn-sm rounded-0 add_button px-4 me-3 text-white ${isVisible ? 'btn-danger' : 'btn-success'}`} onClick={toggleVisibility}>
-                     {isVisible ? 'Hide History' : 'Show Action History'}
-                   </button>
-                  </div>
+                    <div className="d-flex justify-content-end mt-3">
+                      <button type="button" className={`btn btn-sm rounded-0 add_button px-4 me-3 text-white ${isVisible ? 'btn-danger' : 'btn-success'}`} onClick={toggleVisibility}>
+                        {isVisible ? 'Hide History' : 'Show Action History'}
+                      </button>
+                    </div>
 
-                  {isVisible && (
-                    <div className="bg-white ms-1 rounded p-lg-3">
-                      <div className="col-12" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
-                        <div className="mb-2">
-                          <small className="text-muted"><i className="fa-solid fa-info-circle me-1"></i>Scroll down to load more actions</small>
-                        </div>
-                        <div className="shadow_custom">
-                          <div 
-                            className="table-responsive hidden-scrollbar"
-                            ref={tableContainerRef}
-                            onScroll={handleScroll}
-                            style={{ maxHeight: '400px', overflowX: 'auto', overflowY: 'auto', border: '1px solid #dee2e6', borderRadius: '0.375rem' }}
-                          >
-                            <table className="table align-items-center table-flush table-bordered">
-                              <thead className="thead-light sticky-top bg-light">
-                                <tr>
-                                  <th className="text-center w-25">Action</th>
-                                  <th className="text-center w-15">Action By</th>
-                                  <th className="text-center w-15">Start Date</th>
-                                  <th className="text-center w-15">End Date</th>
-                                  <th className="text-center w-10">Completed</th>
-                                  <th className="text-center w-10">Edit</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {actionHistory && actionHistory.map((action, index) => (
+                    {isVisible && (
+                      <div className="bg-white ms-1 rounded p-lg-3">
+                        <div className="col-12" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+                          <div className="mb-2">
+                            <small className="text-muted"><i className="fa-solid fa-info-circle me-1"></i>Scroll down to load more actions</small>
+                          </div>
+                          <div className="shadow_custom">
+                            <div
+                              className="table-responsive hidden-scrollbar"
+                              ref={tableContainerRef}
+                              onScroll={handleScroll}
+                              style={{ maxHeight: '400px', overflowX: 'auto', overflowY: 'auto', border: '1px solid #dee2e6', borderRadius: '0.375rem' }}
+                            >
+                              <table className="table align-items-center table-flush table-bordered">
+                                <thead className="thead-light sticky-top bg-light">
+                                  <tr>
+                                    <th className="text-center w-25">Action</th>
+                                    <th className="text-center w-15">Action By</th>
+                                    <th className="text-center w-15">Start Date</th>
+                                    <th className="text-center w-15">End Date</th>
+                                    <th className="text-center w-10">Completed</th>
+                                    <th className="text-center w-10">Edit</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {actionHistory && actionHistory.map((action) => (
                                     <tr className="text-center" key={action?._id}>
                                       <td className="text-break">{action?.action}</td>
                                       <td className="text-truncate">{action?.actionBy?.name}</td>
@@ -486,7 +501,8 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                                       <td className="text-nowrap">{formatDate(action?.endTime)}</td>
                                       <td>{action?.complated}%</td>
                                       <td>
-                                        {index === actionHistory.length - 1 && (
+                                        {/* ✅ UPDATED — only MY latest action can be edited */}
+                                        {action?._id === myLastActionId && !isWithTester && (
                                           <button type="button" onClick={() => editTask(action)} className="btn btn-sm btn-link p-0">
                                             <i className="fa-solid fa-pen-to-square"></i>
                                           </button>
@@ -494,58 +510,58 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                                       </td>
                                     </tr>
                                   ))}
-                                {isLoadingMore && (
-                                  <tr>
-                                    <td colSpan="6" className="text-center py-3">
-                                      <div className="spinner-border spinner-border-sm" role="status"><span className="visually-hidden">Loading...</span></div>
-                                      <span className="ms-2">Loading more actions...</span>
-                                    </td>
-                                  </tr>
-                                )}
-                                {!hasMoreData && actionHistory.length > 0 && (
-                                  <tr>
-                                    <td colSpan="6" className="text-center py-2 text-muted"><small>No more actions to load</small></td>
-                                  </tr>
-                                )}
-                                {actionHistory.length === 0 && !isLoadingMore && (
-                                  <tr>
-                                    <td colSpan="6" className="text-center py-3">No actions found</td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
+                                  {isLoadingMore && (
+                                    <tr>
+                                      <td colSpan="6" className="text-center py-3">
+                                        <div className="spinner-border spinner-border-sm" role="status"><span className="visually-hidden">Loading...</span></div>
+                                        <span className="ms-2">Loading more actions...</span>
+                                      </td>
+                                    </tr>
+                                  )}
+                                  {!hasMoreData && actionHistory.length > 0 && (
+                                    <tr>
+                                      <td colSpan="6" className="text-center py-2 text-muted"><small>No more actions to load</small></td>
+                                    </tr>
+                                  )}
+                                  {actionHistory.length === 0 && !isLoadingMore && (
+                                    <tr>
+                                      <td colSpan="6" className="text-center py-3">No actions found</td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
                   {forEdit ? (
                     <div className="row modal_body_height mt-2">
                       <div className="col-12 col-lg-12 ">
                         <div className="md-3">
-                          <label htmlFor="action" className="form-label label_text ">Action <RequiredStar/></label>
+                          <label htmlFor="action" className="form-label label_text ">Action <RequiredStar /></label>
                           <textarea className="textarea_edit col-12" id="action" name="action" rows="2" maxLength={300} onChange={handleEditTask} value={editAction?.action} required></textarea>
                         </div>
                       </div>
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="mb-3">
-                          <label htmlFor="startTime" className="form-label label_text">Process Start Date <RequiredStar/></label>
+                          <label htmlFor="startTime" className="form-label label_text">Process Start Date <RequiredStar /></label>
                           <input type="datetime-local" name="startTime" onChange={handleEditTask} value={formatDateforEditAction(editAction?.startTime)} className="form-control rounded-0" id="startTime" required />
                         </div>
                       </div>
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="mb-3">
-                          <label htmlFor="endTime" className="form-label label_text">Process End Date <RequiredStar/></label>
+                          <label htmlFor="endTime" className="form-label label_text">Process End Date <RequiredStar /></label>
                           <input type="datetime-local" name="endTime" onChange={handleEditTask} value={formatDateforEditAction(editAction?.endTime)} className="form-control rounded-0" id="endTime" required />
                         </div>
                       </div>
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
-                        <label htmlFor="taskStatus" className="form-label label_text">Status <RequiredStar/></label>
+                        <label htmlFor="taskStatus" className="form-label label_text">Status <RequiredStar /></label>
                         <select id="taskStatus" name="taskStatus" className="form-select" onChange={handleEditTask} value={editAction?.taskStatus} required>
                           <option value="">Select Status</option>
                           <option value="inprocess">In Process</option>
@@ -556,7 +572,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="">
-                          <label htmlFor="complated" className="form-label label_text">Completed Level <RequiredStar/></label>
+                          <label htmlFor="complated" className="form-label label_text">Completed Level <RequiredStar /></label>
                           <div className="input-group border mb-3">
                             <input type="text" name="complated" maxLength={3} onChange={handleEditTask} value={editAction?.complated} className="form-control rounded-0 border-0" id="complated" placeholder="eg. 65 %" readOnly={editAction.taskStatus === "completed"} required />
                             <span className="input-group-text rounded-0 bg-white border-0" id="basic-addon1">%</span>
@@ -580,31 +596,32 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
                     </div>
                   ) : ""}
 
-                  {selectedTask?.taskLevel !== 100 && addAction && !isWithTester && (
+                  {/* Submit Work form — hidden only when MY part is 100% */}
+                  {!iAmDone && addAction && !isWithTester && (
                     <div className="row modal_body_height mt-2">
                       <div className="col-12 col-lg-12 ">
                         <div className="md-3">
-                          <label htmlFor="Action" className="form-label label_text ">Action  <RequiredStar/></label>
+                          <label htmlFor="Action" className="form-label label_text ">Action  <RequiredStar /></label>
                           <textarea className="textarea_edit col-12" id="Action" name="Action" placeholder="Details ..." maxLength={300} rows="2" onChange={(e) => { setAction(e.target.value) }} value={action}></textarea>
                         </div>
                       </div>
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="mb-3">
-                          <label htmlFor="processStartDate" className="form-label label_text">Process Start Date  <RequiredStar/></label>
+                          <label htmlFor="processStartDate" className="form-label label_text">Process Start Date  <RequiredStar /></label>
                           <input type="datetime-local" name="processStartDate" onChange={(e) => setStartTime(e.target.value)} value={startTime} className="form-control rounded-0" id="processStartDate" />
                         </div>
                       </div>
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="mb-3">
-                          <label htmlFor="processEndDate" className="form-label label_text">Process End Date   <RequiredStar/></label>
+                          <label htmlFor="processEndDate" className="form-label label_text">Process End Date   <RequiredStar /></label>
                           <input type="datetime-local" name="processEndDate" onChange={(e) => setEndTime(e.target.value)} value={endTime} className="form-control rounded-0" id="processEndDate" />
                         </div>
                       </div>
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
-                        <label htmlFor="projectStatus" className="form-label label_text">Status <RequiredStar/></label>
+                        <label htmlFor="projectStatus" className="form-label label_text">Status <RequiredStar /></label>
                         <select id="projectStatus" name="projectStatus" className="form-select" onChange={(e) => handleStatusChange(e.target.value)} value={taskStatus}>
                           <option value="">Select Status</option>
                           <option value="inprocess">In Process</option>
@@ -615,7 +632,7 @@ const TaskListUpdatedPopUp = ({ handleUpdateTask, selectedTask }) => {
 
                       <div className="col-12 col-md-6 col-lg-3 mt-2">
                         <div className="">
-                          <label htmlFor="completedLevel" className="form-label label_text">Completed Level <RequiredStar/></label>
+                          <label htmlFor="completedLevel" className="form-label label_text">Completed Level <RequiredStar /></label>
                           <div className="input-group border mb-3">
                             <input
                               type="text"
