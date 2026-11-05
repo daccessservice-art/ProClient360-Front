@@ -198,6 +198,39 @@ const sendCampaignToNumbers = async (templateId, recipients) => {
   }
 };
 
+// ✅ NEW — mark a reply Feasible (Marketing / Sales) or Not Feasible
+const decideCampaignReply = async (payload) => {
+  try {
+    const response = await axios.post(`${url}/replies/decision`, payload, authHeaders());
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: error.message || 'Could not reach the server.' };
+  }
+};
+
+// ✅ NEW — which reply customers were already sent to Marketing / Sales / Not Feasible
+const getCampaignReplyDecisions = async () => {
+  try {
+    const response = await axios.get(`${url}/replies/decisions`, authHeaders());
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data;
+  }
+};
+
+// ✅ NEW — sales employees list (re-uses existing /api/leads/sales-employees)
+const getSalesEmployeesForCampaign = async () => {
+  try {
+    const response = await axios.get(`${baseUrl}/api/leads/sales-employees`, authHeaders());
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: error.message };
+  }
+};
+
 export {
   getCampaignTemplates,
   getApprovedCampaignTemplates,
@@ -215,4 +248,7 @@ export {
   searchCustomersByProduct,
   parseRecipientFile,
   sendCampaignToNumbers,
+  decideCampaignReply,          // ✅ NEW
+  getCampaignReplyDecisions,    // ✅ NEW
+  getSalesEmployeesForCampaign, // ✅ NEW
 };

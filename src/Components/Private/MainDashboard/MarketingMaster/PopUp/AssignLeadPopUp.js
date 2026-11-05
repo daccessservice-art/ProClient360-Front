@@ -5,11 +5,12 @@ import { RequiredStar } from "../../../RequiredStar/RequiredStar";
 import { getDepartment } from "../../../../../hooks/useDepartment";
 import { getEmployee } from "../../../../../hooks/useEmployees";
 import axios from 'axios';
+import CampaignLeadDetailsEditor from './CampaignLeadDetailsEditor'; // ✅ NEW
 
 const PAGE_SIZE = 10;
 const DELAY_BETWEEN_ATTEMPTS_MS = 2 * 60 * 1000; // 2 minutes in milliseconds
 
-const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose }) => {
+const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose, onDetailsSaved }) => {
   const [formData, setFormData] = useState({
     feasibility: '',
     notFeasibleReason: '',
@@ -872,6 +873,13 @@ const AssignMarketingLeadPopUp = ({ selectedLead, currentUser, onUpdate, onClose
                 </div>
 
                 {displayCallAttempts()}
+
+                {/* ✅ NEW — only for WhatsApp campaign leads */}
+                {selectedLead?.isCampaignLead && (
+                  <div className="col-12">
+                    <CampaignLeadDetailsEditor lead={selectedLead} onSaved={() => onDetailsSaved && onDetailsSaved()} />
+                  </div>
+                )}
 
                 <div className="col-12">
                   {formData.feasibility === 'feasible' && (

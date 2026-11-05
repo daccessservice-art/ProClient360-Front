@@ -328,7 +328,15 @@ export const MarketingMasterGrid = () => {
                             data.leads.map((lead, index) => (
                               <tr key={lead._id}>
                                 <td>{(pagination.currentPage - 1) * itemsPerPage + index + 1}</td>
-                                <td>{lead?.SOURCE}</td>
+                                <td>
+                                  {lead?.SOURCE}
+                                  {/* ✅ NEW — WhatsApp campaign badge */}
+                                  {lead?.isCampaignLead && (
+                                    <span className="badge bg-success ms-1" style={{ fontSize: '0.65rem' }}>
+                                      <i className="fa-brands fa-whatsapp me-1"></i>Campaign
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.SENDER_COMPANY || "Not available."}</td>
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.SENDER_NAME || "Not available."}</td>
                                 <td className="align_left_td td_width wrap-text-of-col">{lead?.QUERY_PRODUCT_NAME || "Not available."}</td>
@@ -415,6 +423,7 @@ export const MarketingMasterGrid = () => {
           selectedLead={selectedLead}
           currentUser={user}
           onUpdate={handleUpdateSubmit}
+          onDetailsSaved={refetch}   // ✅ NEW
           onClose={() => { setUpdatePopUpShow(false); setSelectedLead(null); }}
         />
       )}

@@ -7,6 +7,8 @@ import SendCampaignPopUp from "./PopUp/SendCampaignPopUp";
 // ✅ NEW — Invitation Campaign (separate module)
 import InvitationCampaignPopUp from "./PopUp/InvitationCampaignPopUp";
 import ViewCampaignRepliesPopUp from "../CustomerMaster/PopUp/ViewCampaignRepliesPopUp";
+// ✅ NEW — Feasible / Not Feasible from a reply
+import CampaignReplyDecisionPopUp from "./PopUp/CampaignReplyDecisionPopUp";
 import {
   getCampaignTemplates,
   deleteCampaignTemplate,
@@ -15,6 +17,7 @@ import {
   getCampaignLogs,
   getCampaignReplies,
   getCampaignReplyCustomers,
+  getCampaignReplyDecisions, // ✅ NEW
 } from "../../../../hooks/useCampaign";
 import { UserContext } from "../../../../context/UserContext";
 import toast from "react-hot-toast";
@@ -29,6 +32,9 @@ const statusBadge = (status) => {
   const s = map[status] || map.DRAFT;
   return <span className={`badge bg-${s.color}`}>{s.label}</span>;
 };
+
+// ✅ NEW — match phones regardless of +91 / spaces
+const last10 = (p) => String(p || "").replace(/\D/g, "").slice(-10);
 
 export const CampaignMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
@@ -45,6 +51,9 @@ export const CampaignMasterGrid = () => {
   const [replyPagination, setReplyPagination] = useState({ totalPages: 1, hasNextPage: false, hasPrevPage: false, totalItems: 0 });
   const [repliesLoading, setRepliesLoading] = useState(false);
   const [viewingCustomer, setViewingCustomer] = useState(null);
+  // ✅ NEW — Feasible / Not Feasible decisions for reply customers
+  const [replyDecisions, setReplyDecisions] = useState([]);
+  const [decisionTarget, setDecisionTarget] = useState(null); // { item, decision }
   const [replySearchText, setReplySearchText] = useState("");
   const [replySearch, setReplySearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -92,6 +101,22 @@ export const CampaignMasterGrid = () => {
     if (tab === "replies") fetchReplyPage(1, replySearch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, refetchTrigger, replySearch]);
+
+  // ✅ NEW — load which reply customers are already sent to Marketing / Sales / Not Feasible
+  const fetchReplyDecisions = async () => {
+    const d = await getCampaignReplyDecisions();
+    if (d?.success) setReplyDecisions(d.decisions || []);
+  };
+
+  useEffect(() => {
+    if (tab === "replies") fetchReplyDecisions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, refetchTrigger]);
+
+  const decisionMap = replyDecisions.reduce((acc, d) => {
+    acc[last10(d.phone)] = d;
+    return acc;
+  }, {});
 
   const handleReplySearchSubmit = (e) => {
     e.preventDefault();
@@ -412,6 +437,38 @@ export const CampaignMasterGrid = () => {
                           <div className="text-end flex-shrink-0 ms-2">
                             <small className="text-muted d-block">{new Date(item.lastAt).toLocaleString()}</small>
                             <span className="badge bg-secondary mt-1">{item.count} message{item.count === 1 ? "" : "s"}</span>
+
+                            {/* ✅ NEW — Feasible / Not Feasible */}
+                            <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                              {(() => {
+                                const d = decisionMap[last10(item.phone)];
+                                if (d) {
+                                  const label = d.decision === "not-feasible"
+                                    ? "Not Feasible"
+                                    : d.target === "sales"
+                                      ? `Sales${d.assignedTo?.name ? ` · ${d.assignedTo.name}` : ""}`
+                                      : "Marketing";
+                                  const cls = d.decision === "not-feasible" ? "bg-danger" : d.target === "sales" ? "bg-primary" : "bg-success";
+                                  return (
+                                    <span className={`badge ${cls}`} title={d.remark || ""} style={{ fontSize: "10px" }}>
+                                      <i className={`fa-solid ${d.decision === "not-feasible" ? "fa-times-circle" : "fa-share"} me-1`}></i>{label}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <div className="d-flex gap-1 justify-content-end">
+                                    <button type="button" className="btn btn-sm btn-success py-0 px-2" style={{ fontSize: "11px" }}
+                                      onClick={() => setDecisionTarget({ item, decision: "feasible" })}>
+                                      <i className="fa-solid fa-check me-1"></i>Feasible
+                                    </button>
+                                    <button type="button" className="btn btn-sm btn-outline-danger py-0 px-2" style={{ fontSize: "11px" }}
+                                      onClick={() => setDecisionTarget({ item, decision: "not-feasible" })}>
+                                      <i className="fa-solid fa-xmark me-1"></i>Not Feasible
+                                    </button>
+                                  </div>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -452,6 +509,16 @@ export const CampaignMasterGrid = () => {
 
       {viewingCustomer && (
         <ViewCampaignRepliesPopUp customer={viewingCustomer} onClose={() => setViewingCustomer(null)} />
+      )}
+
+      {/* ✅ NEW — Feasible / Not Feasible popup */}
+      {decisionTarget && (
+        <CampaignReplyDecisionPopUp
+          item={decisionTarget.item}
+          initialDecision={decisionTarget.decision}
+          onClose={() => setDecisionTarget(null)}
+          onDone={fetchReplyDecisions}
+        />
       )}
       {/* ── Popups ── */}
       {deletePopUpShow && (
