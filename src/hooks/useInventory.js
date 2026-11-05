@@ -2,190 +2,144 @@ import axios from 'axios';
 
 const baseUrl = process.env.REACT_APP_API_URL;
 const url = baseUrl + "/api/inventory";
-const productUrl = baseUrl + "/api/product";
 
-const getInventory = async (page = 1, limit = 20, search = null, category = null, stockStatus = null) => {
+const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
+
+const fail = (error, fallback) =>
+  error?.response?.data && typeof error.response.data === 'object'
+    ? { success: false, ...error.response.data }
+    : { success: false, error: fallback };
+
+// List (live stock + IN/OUT totals + summary). axios `params` encodes search text safely.
+const getInventory = async (page = 1, limit = 20, search = "", category = "", stockStatus = "") => {
   try {
-    let endpoint = `${url}?page=${page}&limit=${limit}`;
-    if (search) endpoint += `&q=${search}`;
-    if (category) endpoint += `&category=${category}`;
-    if (stockStatus) endpoint += `&stockStatus=${stockStatus}`;
+    const params = { page, limit };
+    if (search && String(search).trim()) params.q = String(search).trim();
+    if (category) params.category = category;
+    if (stockStatus) params.stockStatus = stockStatus;
 
-    const response = await axios.get(endpoint, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
+    const response = await axios.get(url, { params, headers: authHeader() });
     return response.data;
   } catch (error) {
-    console.error("API error:", error?.response?.data);
-    return error?.response?.data;
+    console.error("Inventory list error:", error?.response?.data);
+    return fail(error, "Network error while fetching inventory");
   }
 };
 
 const getInventoryById = async (inventoryId) => {
   try {
-    const response = await axios.get(`${url}/${inventoryId}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
+    const response = await axios.get(`${url}/${inventoryId}`, { headers: authHeader() });
     return response.data;
   } catch (error) {
-    console.error(error?.response?.data);
-    return error?.response?.data;
+    return fail(error, "Network error while fetching inventory item");
   }
 };
 
-/**
- * Create new inventory item.
- * If `linkedProductId` is present in inventoryData, also updates
- * the Product Master's `currentStockQty` with the opening stock value.
- */
+// Full stock movement ledger: Opening → GRN IN / DC OUT / Manual → running balance
+const getInventoryLedger = async (inventoryId) => {
+  try {
+    const response = await axios.get(`${url}/${inventoryId}/ledger`, { headers: authHeader() });
+    return response.data;
+  } catch (error) {
+    return fail(error, "Network error while fetching stock ledger");
+  }
+};
+
+// Stock History of ALL items: Opening / GRN / DC / Manual In / Manual Out, with who & when
+// params: { page, limit, q, type, from, to }
+const getInventoryMovements = async (params = {}) => {
+  try {
+    const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined));
+    const response = await axios.get(`${url}/movements`, { params: clean, headers: authHeader() });
+    return response.data;
+  } catch (error) {
+    return fail(error, "Network error while fetching stock history");
+  }
+};
+
+// Add every Product Master product that is missing from Inventory (also runs automatically)
+const syncInventoryWithProducts = async () => {
+  try {
+    const response = await axios.post(`${url}/sync`, {}, { headers: authHeader() });
+    return response.data;
+  } catch (error) {
+    return fail(error, "Network error while syncing with Product Master");
+  }
+};
+
+// Product Master stock sync is now done on the server (no extra call from the browser)
 const createInventory = async (inventoryData) => {
   try {
-    const response = await axios.post(`${url}`, inventoryData, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
-    const data = response.data;
-
-    // ── Sync currentStockQty back to Product Master ──────────────────────
-    if (
-      data?.success &&
-      inventoryData.linkedProductId &&
-      inventoryData.currentStock !== undefined &&
-      inventoryData.currentStock !== ""
-    ) {
-      try {
-        await axios.put(
-          `${productUrl}/${inventoryData.linkedProductId}`,
-          { currentStockQty: parseFloat(inventoryData.currentStock) || 0 },
-          { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-        );
-      } catch (syncErr) {
-        // Non-critical: log but don't block the main flow
-        console.warn("Could not sync currentStockQty to Product Master:", syncErr?.response?.data);
-      }
-    }
-    // ────────────────────────────────────────────────────────────────────
-
-    return data;
+    const response = await axios.post(url, inventoryData, { headers: authHeader() });
+    return response.data;
   } catch (error) {
-    console.error(error.response?.data);
-    return error.response?.data;
+    return fail(error, "Network error while creating inventory item");
   }
 };
 
-/**
- * Update inventory item.
- * If `linkedProductId` is present and stock changes, also updates
- * the Product Master's `currentStockQty`.
- */
 const updateInventory = async (id, updatedData) => {
   try {
-    const response = await axios.put(`${url}/${id}`, updatedData, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
-    const data = response.data;
-
-    // ── Sync currentStockQty back to Product Master ──────────────────────
-    if (
-      data?.success &&
-      updatedData.linkedProductId &&
-      updatedData.currentStock !== undefined &&
-      updatedData.currentStock !== ""
-    ) {
-      try {
-        await axios.put(
-          `${productUrl}/${updatedData.linkedProductId}`,
-          { currentStockQty: parseFloat(updatedData.currentStock) || 0 },
-          { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-        );
-      } catch (syncErr) {
-        console.warn("Could not sync currentStockQty to Product Master:", syncErr?.response?.data);
-      }
-    }
-    // ────────────────────────────────────────────────────────────────────
-
-    return data;
+    const response = await axios.put(`${url}/${id}`, updatedData, { headers: authHeader() });
+    return response.data;
   } catch (error) {
-    console.error(error.response?.data);
-    return error.response?.data;
+    return fail(error, "Network error while updating inventory item");
   }
 };
 
 const deleteInventory = async (id) => {
   try {
-    const response = await axios.delete(`${url}/${id}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
+    const response = await axios.delete(`${url}/${id}`, { headers: authHeader() });
     return response.data;
   } catch (error) {
-    console.log(error.response?.data);
-    return error.response?.data?.error;
+    return fail(error, "Network error while deleting inventory item");
   }
 };
 
 const searchInventory = async (searchParams) => {
   try {
-    const response = await axios.get(`${url}/search`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      params: searchParams
-    });
+    const response = await axios.get(`${url}/search`, { headers: authHeader(), params: searchParams });
     return response.data;
   } catch (error) {
-    console.error(error?.response?.data);
-    return error?.response?.data;
+    return fail(error, "Network error while searching inventory");
   }
 };
 
 const getLowStockItems = async () => {
   try {
-    const response = await axios.get(`${url}/low-stock`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
+    const response = await axios.get(`${url}/low-stock`, { headers: authHeader() });
     return response.data;
   } catch (error) {
-    console.error(error?.response?.data);
-    return error?.response?.data;
+    return fail(error, "Network error while fetching low stock items");
   }
 };
 
 const getInventoryByCategory = async (category) => {
   try {
-    const response = await axios.get(`${url}/category/${category}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
+    const response = await axios.get(`${url}/category/${encodeURIComponent(category)}`, { headers: authHeader() });
     return response.data;
   } catch (error) {
-    console.error(error?.response?.data);
-    return error?.response?.data;
+    return fail(error, "Network error while fetching inventory by category");
   }
 };
 
-const addStockTransaction = async (id, transactionData) => {
-  try {
-    const response = await axios.post(`${url}/${id}/transaction`, transactionData, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
-    return response.data;
-  } catch (error) {
-    console.error(error.response?.data);
-    return error.response?.data;
-  }
-};
+// Stock transaction = PUT with a `transaction` object
+const addStockTransaction = async (id, transaction) => updateInventory(id, { transaction });
 
 const getTransactionHistory = async (id) => {
   try {
-    const response = await axios.get(`${url}/${id}/transactions`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
+    const response = await axios.get(`${url}/${id}/transactions`, { headers: authHeader() });
     return response.data;
   } catch (error) {
-    console.error(error?.response?.data);
-    return error?.response?.data;
+    return fail(error, "Network error while fetching transaction history");
   }
 };
 
 export {
   getInventory,
   getInventoryById,
+  getInventoryLedger,
+  getInventoryMovements,
+  syncInventoryWithProducts,
   createInventory,
   updateInventory,
   deleteInventory,
@@ -193,5 +147,5 @@ export {
   getLowStockItems,
   getInventoryByCategory,
   addStockTransaction,
-  getTransactionHistory
+  getTransactionHistory,
 };

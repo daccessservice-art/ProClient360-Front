@@ -1,11 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
-import { getProductBrands, getProductCategories } from "../../../../../hooks/useProduct";
+import { RequiredStar } from "../../../RequiredStar/RequiredStar";
+import { getProductBrands, getProductCategories, getProductUOMs } from "../../../../../hooks/useProduct";
 
 const baseUrl = process.env.REACT_APP_API_URL;
 
-const AddInventoryPopup = ({ onAddInventory, onClose }) => {
+const DEFAULT_BRANDS = ["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"];
+const DEFAULT_CATEGORIES = ["Electronics", "Clothing", "Food", "Furniture", "Stationery", "Tools"];
+const DEFAULT_UOMS = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton", "nos"];
+const CATEGORIES = ['Raw Material', 'Finished Goods', 'Repairing Material', 'Scrap', 'Asset'];
+
+// Product Master "category" (lower-case) → Inventory "Product Group"
+const PRODUCT_GROUP_MAP = {
+  'raw material': 'Raw Material', 'finish material': 'Finished Goods',
+  'finished goods': 'Finished Goods', 'scrap': 'Scrap',
+  'repairing material': 'Repairing Material', 'work in progress': 'Raw Material',
+};
+
+const decimal = (digits) => new RegExp(`^\\d*\\.?\\d{0,${digits}}$`);
+
+/**
+ * Used by Inventory Master AND by Purchase Order "Add Product".
+ * `requireMaterialCode` is passed only by Inventory Master.
+ */
+const AddInventoryPopup = ({ onAddInventory, onClose, requireMaterialCode = false, saving = false }) => {
+  // ── Product Master search ──
   const [productSearch, setProductSearch] = useState("");
   const [productSearchResults, setProductSearchResults] = useState([]);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -14,97 +34,74 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
   const searchDebounceRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  const [formData, setFormData] = useState({
+  // ── Form ──
+  const [form, setForm] = useState({
     materialCode: '',
     materialName: '',
+    productName: '',
+    brandName: '',
+    model: '',
+    hsnCode: '',
+    productCategory: '',
     category: 'Raw Material',
+    baseUOM: '',
+    uomConversion: '1',
     unitPrice: '',
-    currentStock: '',
+    mrp: '',
+    salesPrice: '',
+    openingStock: '',
     minStockLevel: '',
     warehouseLocation: '',
     stockLocation: '',
     openingDate: new Date().toISOString().split('T')[0],
-    description: ''
+    discountType: 'Zero Discount',
+    discountValue: '',
+    taxType: 'none',
+    gstRate: '',
+    gstEffectiveDate: '',
+    description: '',
   });
+  const set = (name, value) => setForm((prev) => ({ ...prev, [name]: value }));
 
-  const [productName, setProductName] = useState("");
-  const [brandName, setBrandName] = useState("");
-  const [model, setModel] = useState("");
-  const [hsnCode, setHsnCode] = useState("");
-  const [productCategory, setProductCategory] = useState("");
-  const [baseUOM, setBaseUOM] = useState("");
-  const [uomConversion, setUomConversion] = useState(1);
-  const [category, setCategory] = useState("Raw Material");
-  const [mrp, setMrp] = useState("");
-  const [salesPrice, setSalesPrice] = useState("");
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [minQtyLevel, setMinQtyLevel] = useState("");
-  const [discountType, setDiscountType] = useState("Zero Discount");
-  const [discountValue, setDiscountValue] = useState("");
-  const [showAddCategory, setShowAddCategory] = useState(false);
-  const [newCategory, setNewCategory] = useState("");
-  const [showAddBrand, setShowAddBrand] = useState(false);
-  const [newBrand, setNewBrand] = useState("");
-  const [taxType, setTaxType] = useState("none");
-  const [gstRate, setGstRate] = useState("");
-  const [gstEffectiveDate, setGstEffectiveDate] = useState("");
-
+  // ── Dropdown data (from DB) ──
   const [allBrands, setAllBrands] = useState([]);
   const [brandsLoading, setBrandsLoading] = useState(true);
   const [allCategories, setAllCategories] = useState([]);
+  const [uomOptions, setUomOptions] = useState([]);
 
-  const categories = ['Raw Material', 'Finished Goods', 'Repairing Material', 'Scrap', 'Asset'];
-  const uomOptions = ["bags", "litre", "brass", "kilogram", "gram", "meter", "piece", "box", "carton", "nos"];
-  const categoryOptions = [
-    { value: "Raw Material", label: "Raw Material" },
-    { value: "Finished Goods", label: "Finished Goods" },
-    { value: "Repairing Material", label: "Repairing Material" },
-    { value: "Scrap", label: "Scrap" },
-    { value: "Asset", label: "Asset" }
-  ];
+  // ── Small "add new" modals ──
+  const [addModal, setAddModal] = useState(null); // 'brand' | 'category' | 'uom' | null
+  const [addValue, setAddValue] = useState("");
 
-  // ── FIX: Brands now load from DATABASE via API ──
   useEffect(() => {
-    const loadBrands = async () => {
-      setBrandsLoading(true);
-      const data = await getProductBrands();
-      if (data?.success && Array.isArray(data.brands) && data.brands.length > 0) {
-        setAllBrands(data.brands);
-      } else {
-        setAllBrands(["Apple", "Samsung", "Sony", "LG", "Microsoft", "Dell"]);
-      }
+    let alive = true;
+    (async () => {
+      const [b, c, u] = await Promise.all([getProductBrands(), getProductCategories(), getProductUOMs()]);
+      if (!alive) return;
+      setAllBrands(b?.success && b.brands?.length ? b.brands : DEFAULT_BRANDS);
+      setAllCategories(c?.success && c.categories?.length ? c.categories : DEFAULT_CATEGORIES);
+      setUomOptions(u?.success && u.uoms?.length ? u.uoms : DEFAULT_UOMS);
       setBrandsLoading(false);
-    };
-    loadBrands();
+    })();
+    return () => { alive = false; };
   }, []);
-
-    // ── FIX: Categories from DATABASE ──
-  useEffect(() => {
-    const loadCategories = async () => {
-      const data = await getProductCategories();
-      if (data?.success && Array.isArray(data.categories) && data.categories.length > 0) {
-        setAllCategories(data.categories);
-      } else {
-        setAllCategories(["Electronics", "Clothing", "Food", "Furniture", "Stationery", "Tools"]);
-      }
-    };
-    loadCategories();
-  }, []);
-
-  // ── REMOVE these two lines completely (no more localStorage for categories) ──
-  // useEffect(() => { localStorage.setItem('productCategories', JSON.stringify(allCategories)); }, [allCategories]);
-  useEffect(() => { localStorage.setItem('productCategories', JSON.stringify(allCategories)); }, [allCategories]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setShowProductDropdown(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowProductDropdown(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      clearTimeout(searchDebounceRef.current);
+    };
   }, []);
 
+  const ensureOption = (list, setter, value) => {
+    if (value && !list.includes(value)) setter((prev) => (prev.includes(value) ? prev : [...prev, value]));
+  };
+
+  // ── Product search ──
   const searchProducts = async (query) => {
     if (!query || query.trim().length < 2) {
       setProductSearchResults([]);
@@ -113,19 +110,16 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     }
     try {
       setProductSearchLoading(true);
-      const response = await axios.get(
-        `${baseUrl}/api/product?q=${query}&page=1&limit=10`,
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-      );
-      if (response.data?.success && response.data?.products?.length > 0) {
-        setProductSearchResults(response.data.products);
-        setShowProductDropdown(true);
-      } else {
-        setProductSearchResults([]);
-        setShowProductDropdown(false);
-      }
+      const response = await axios.get(`${baseUrl}/api/product`, {
+        params: { q: query.trim(), page: 1, limit: 10 },
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const list = response.data?.success ? response.data.products || [] : [];
+      setProductSearchResults(list);
+      setShowProductDropdown(true);
     } catch (err) {
       setProductSearchResults([]);
+      setShowProductDropdown(true); // shows "No products found"
     } finally {
       setProductSearchLoading(false);
     }
@@ -145,117 +139,132 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
     setShowProductDropdown(false);
     setProductSearchResults([]);
 
-    setProductName(product.productName || "");
-    setBrandName(product.brandName || "");
-    setModel(product.model || "");
-    setHsnCode(product.hsnCode || "");
-    setProductCategory(product.productCategory || "");
-    setBaseUOM(product.baseUOM || "");
-    setUomConversion(product.uomConversion || 1);
-    setMrp(product.mrp > 0 ? String(product.mrp) : "");
-    setSalesPrice(product.salesPrice > 0 ? String(product.salesPrice) : "");
-    setPurchasePrice(product.purchasePrice > 0 ? String(product.purchasePrice) : "");
-    setMinQtyLevel(product.minQtyLevel > 0 ? String(product.minQtyLevel) : "");
-    setDiscountType(product.discountType || "Zero Discount");
-    setDiscountValue(product.discountValue > 0 ? String(product.discountValue) : "");
-    setTaxType(product.taxType || "none");
-    setGstRate(product.gstRate > 0 ? String(product.gstRate) : "");
-    setGstEffectiveDate(product.gstEffectiveDate ? product.gstEffectiveDate.substring(0, 10) : "");
+    ensureOption(allBrands, setAllBrands, product.brandName);
+    ensureOption(allCategories, setAllCategories, product.productCategory);
+    ensureOption(uomOptions, setUomOptions, product.baseUOM);
 
-    // Ensure selected brand is in dropdown
-    if (product.brandName && !allBrands.includes(product.brandName)) {
-      setAllBrands(prev => [...prev, product.brandName]);
-    }
-    // Ensure selected category is in dropdown
-    if (product.productCategory && !allCategories.includes(product.productCategory)) {
-      setAllCategories(prev => [...prev, product.productCategory]);
-    }
+    setForm((prev) => ({
+      ...prev,
+      productName: product.productName || "",
+      brandName: product.brandName || "",
+      model: product.model || "",
+      hsnCode: product.hsnCode || "",
+      productCategory: product.productCategory || "",
+      category: PRODUCT_GROUP_MAP[(product.category || '').toLowerCase()] || 'Raw Material',
+      baseUOM: product.baseUOM || "",
+      uomConversion: String(product.uomConversion || 1),
+      unitPrice: product.purchasePrice > 0 ? String(product.purchasePrice) : prev.unitPrice,
+      mrp: product.mrp > 0 ? String(product.mrp) : "",
+      salesPrice: product.salesPrice > 0 ? String(product.salesPrice) : "",
+      openingStock: String(product.currentStockQty ?? 0),
+      minStockLevel: product.minQtyLevel > 0 ? String(product.minQtyLevel) : prev.minStockLevel,
+      materialName: prev.materialName || product.description || "",
+      discountType: product.discountType || "Zero Discount",
+      discountValue: product.discountValue > 0 ? String(product.discountValue) : "",
+      taxType: product.taxType === 'gst' ? 'gst' : 'none',
+      gstRate: product.gstRate > 0 ? String(product.gstRate) : "",
+      gstEffectiveDate: product.gstEffectiveDate ? String(product.gstEffectiveDate).substring(0, 10) : "",
+    }));
 
-    const catMap = {
-      'raw material': 'Raw Material', 'finish material': 'Finished Goods',
-      'finished goods': 'Finished Goods', 'scrap': 'Scrap',
-      'repairing material': 'Repairing Material', 'work in progress': 'Raw Material',
-    };
-    const mappedCat = catMap[(product.category || '').toLowerCase()] || 'Raw Material';
-    setCategory(mappedCat);
-    setFormData(prev => ({ ...prev, category: mappedCat, unitPrice: product.purchasePrice > 0 ? String(product.purchasePrice) : prev.unitPrice }));
-
-    if (product.currentStockQty > 0) {
-      setFormData(prev => ({ ...prev, currentStock: String(product.currentStockQty) }));
-    }
-
-    toast.success(`Product "${product.productName}" selected — fields auto-filled`);
+    toast.success(`"${product.productName}" selected — stock will stay in sync with Product Master`);
   };
 
   const handleClearProduct = () => {
     setSelectedProductId(null);
     setProductSearch("");
-    setProductName(""); setBrandName(""); setModel(""); setHsnCode("");
-    setProductCategory(""); setBaseUOM(""); setUomConversion(1);
-    setMrp(""); setSalesPrice(""); setPurchasePrice(""); setMinQtyLevel("");
-    setDiscountType("Zero Discount"); setDiscountValue("");
-    setTaxType("none"); setGstRate(""); setGstEffectiveDate("");
-    setCategory("Raw Material");
-    setFormData(prev => ({ ...prev, category: 'Raw Material', unitPrice: '', currentStock: '' }));
+    setForm((prev) => ({
+      ...prev,
+      productName: '', brandName: '', model: '', hsnCode: '', productCategory: '',
+      category: 'Raw Material', baseUOM: '', uomConversion: '1', unitPrice: '', mrp: '', salesPrice: '',
+      openingStock: '', discountType: 'Zero Discount', discountValue: '', taxType: 'none', gstRate: '', gstEffectiveDate: '',
+    }));
   };
 
+  // ── Generic input handlers ──
+  const handleText = (e) => set(e.target.name, e.target.value);
+  const handleDecimal = (digits) => (e) => {
+    if (decimal(digits).test(e.target.value)) set(e.target.name, e.target.value);
+  };
+  const handleHsn = (e) => { if (/^\d{0,8}$/.test(e.target.value)) set('hsnCode', e.target.value); };
+
+  // ── Add brand / category / UOM ──
+  const handleAddNewOption = () => {
+    const v = addValue.trim();
+    if (!v) return toast.error("Please enter a value");
+    const cfg = {
+      brand: [allBrands, setAllBrands, 'brandName', 'Brand'],
+      category: [allCategories, setAllCategories, 'productCategory', 'Category'],
+      uom: [uomOptions, setUomOptions, 'baseUOM', 'UOM'],
+    }[addModal];
+    const [list, setter, field, label] = cfg;
+    if (list.some((x) => x.toLowerCase() === v.toLowerCase())) return toast.error(`${label} already exists`);
+    setter([...list, v]);
+    set(field, v);
+    setAddValue("");
+    setAddModal(null);
+    toast.success(`New ${label.toLowerCase()} added`);
+  };
+
+  // ── Submit ──
   const handleSubmit = (e) => {
     e.preventDefault();
-    const validCategory = categories.includes(category) ? category : 'Raw Material';
+    if (saving) return;
 
-    const combinedData = {
-      ...formData,
-      category: validCategory,
-      productName, brandName, model, hsnCode, productCategory, baseUOM,
-      uomConversion: parseFloat(uomConversion) || 1,
-      mrp: parseFloat(mrp) || 0, salesPrice: parseFloat(salesPrice) || 0,
-      purchasePrice: parseFloat(purchasePrice) || 0, minQtyLevel: parseFloat(minQtyLevel) || 0,
-      discountType,
-      discountValue: discountType === "Zero Discount" ? 0 : parseFloat(discountValue) || 0,
-      taxType, gstRate: taxType === "gst" ? parseFloat(gstRate) || 0 : 0,
-      gstEffectiveDate: taxType === "gst" ? gstEffectiveDate : "",
-      createdAt: new Date().toISOString(),
+    if (requireMaterialCode && !form.materialCode.trim()) return toast.error("Material Code is required");
+    if (!form.productName.trim() && !form.materialName.trim()) return toast.error("Enter Product Name or Material Description");
+    if (form.taxType === 'gst' && !form.gstRate) return toast.error("Please enter GST Rate");
+    if (form.discountType !== 'Zero Discount' && !form.discountValue) return toast.error("Please enter discount value");
+
+    const price = parseFloat(form.unitPrice) || 0;
+    const opening = form.openingStock === '' ? '' : parseFloat(form.openingStock) || 0;
+
+    // Shape kept compatible with Purchase Order "Add Product" (uses currentStock / unitPrice / purchasePrice)
+    onAddInventory({
+      materialCode: form.materialCode.trim(),
+      materialName: form.materialName.trim(),
+      category: CATEGORIES.includes(form.category) ? form.category : 'Raw Material',
+      unitPrice: price,
+      purchasePrice: price,
+      openingStock: opening,
+      currentStock: opening,
+      minStockLevel: parseFloat(form.minStockLevel) || 0,
+      minQtyLevel: parseFloat(form.minStockLevel) || 0,
+      warehouseLocation: form.warehouseLocation.trim(),
+      stockLocation: form.stockLocation.trim(),
+      openingDate: form.openingDate,
+      description: form.description.trim(),
+      productName: form.productName.trim(),
+      brandName: form.brandName,
+      model: form.model.trim(),
+      hsnCode: form.hsnCode,
+      productCategory: form.productCategory,
+      baseUOM: form.baseUOM,
+      uomConversion: parseFloat(form.uomConversion) || 1,
+      mrp: parseFloat(form.mrp) || 0,
+      salesPrice: parseFloat(form.salesPrice) || 0,
+      discountType: form.discountType,
+      discountValue: form.discountType === 'Zero Discount' ? 0 : parseFloat(form.discountValue) || 0,
+      taxType: form.taxType,
+      gstRate: form.taxType === 'gst' ? parseFloat(form.gstRate) || 0 : 0,
+      gstEffectiveDate: form.taxType === 'gst' ? form.gstEffectiveDate : '',
       linkedProductId: selectedProductId || null,
-    };
-
-    onAddInventory(combinedData);
+    });
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleProductNameChange = (e) => { setProductName(e.target.value); };
-  const handleModelChange = (e) => { setModel(e.target.value); };
-  const handleHsnCodeChange = (e) => { if (/^\d{0,8}$/.test(e.target.value)) setHsnCode(e.target.value); };
-  const handleMrpChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setMrp(e.target.value); };
-  const handleSalesPriceChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setSalesPrice(e.target.value); };
-  const handlePurchasePriceChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setPurchasePrice(e.target.value); };
-  const handleMinQtyLevelChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setMinQtyLevel(e.target.value); };
-  const handleDiscountValueChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setDiscountValue(e.target.value); };
-  const handleUomConversionChange = (e) => { if (/^\d*\.?\d{0,4}$/.test(e.target.value)) setUomConversion(e.target.value); };
-  const handleGstRateChange = (e) => { if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setGstRate(e.target.value); };
-
-  const handleAddNewCategory = () => {
-    if (!newCategory.trim()) return toast.error("Please enter a category name");
-    if (allCategories.includes(newCategory.trim())) return toast.error("Category already exists");
-    const updated = [...allCategories, newCategory.trim()];
-    setAllCategories(updated);
-    setProductCategory(newCategory.trim());
-    setNewCategory(""); setShowAddCategory(false);
-    toast.success("New category added successfully");
-  };
-
-  const handleAddNewBrand = () => {
-    if (!newBrand.trim()) return toast.error("Please enter a brand name");
-    if (allBrands.includes(newBrand.trim())) return toast.error("Brand already exists");
-    const updated = [...allBrands, newBrand.trim()];
-    setAllBrands(updated);
-    setBrandName(newBrand.trim());
-    setNewBrand(""); setShowAddBrand(false);
-    toast.success("New brand added successfully");
-  };
+  const selectWithAdd = (id, label, value, options, onChange, modalKey, loadingText) => (
+    <div className="col-md-6">
+      <label htmlFor={id} className="form-label">{label}</label>
+      <div className="input-group">
+        <select className="form-select rounded-0" id={id} value={value} onChange={onChange} disabled={!!loadingText}>
+          <option value="">{loadingText || `Select ${label}`}</option>
+          {options.map((o, i) => <option key={`${o}-${i}`} value={o}>{o}</option>)}
+        </select>
+        <button type="button" className="btn btn-outline-secondary" onClick={() => { setAddValue(""); setAddModal(modalKey); }} title={`Add new ${label}`}>
+          <i className="fa-solid fa-plus"></i>
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -264,37 +273,35 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
           <div className="modal-content p-3">
             <form onSubmit={handleSubmit}>
               <div className="modal-header pt-0">
-                <h5 className="card-title fw-bold">Add Product</h5>
+                <h5 className="card-title fw-bold">Add Material</h5>
                 <button onClick={onClose} type="button" className="btn-close" aria-label="Close" style={{ backgroundColor: 'red' }}></button>
               </div>
 
-              <div className="modal-body" style={{ maxHeight: 'calc(80vh - 240px)', overflowY: 'auto' }}>
+              <div className="modal-body" style={{ maxHeight: 'calc(85vh - 160px)', overflowY: 'auto' }}>
                 <div className="row g-3">
 
-                  {/* Product Master Search */}
+                  {/* ── Product Master search ── */}
                   <div className="col-12">
-                    <div className="border rounded p-3 mb-2" style={{ backgroundColor: '#f0f7ff', borderColor: '#93c5fd !important' }}>
+                    <div className="border rounded p-3 mb-1" style={{ backgroundColor: '#f0f7ff' }}>
                       <label className="form-label fw-bold text-primary mb-2">
                         <i className="fa-solid fa-magnifying-glass me-2"></i>
                         Search & Select from Product Master
-                        <small className="text-muted fw-normal ms-2">(Auto-fills all fields below)</small>
+                        <small className="text-muted fw-normal ms-2">(auto-fills fields; stock then follows GRN / DC automatically)</small>
                       </label>
                       <div className="position-relative" ref={dropdownRef}>
                         <div className="input-group">
                           <span className="input-group-text bg-white">
                             {productSearchLoading
                               ? <span className="spinner-border spinner-border-sm text-primary"></span>
-                              : <i className="fa-solid fa-search text-muted"></i>
-                            }
+                              : <i className="fa-solid fa-search text-muted"></i>}
                           </span>
                           <input
                             type="text" className="form-control"
                             placeholder="Type product name, brand, model, HSN... (min 2 chars)"
                             value={productSearch} onChange={handleProductSearchChange} autoComplete="off"
-                            style={{ borderLeft: 'none' }}
                           />
                           {selectedProductId && (
-                            <button type="button" className="btn btn-outline-danger btn-sm" onClick={handleClearProduct} title="Clear selection">
+                            <button type="button" className="btn btn-outline-danger btn-sm" onClick={handleClearProduct}>
                               <i className="fa-solid fa-xmark"></i> Clear
                             </button>
                           )}
@@ -302,17 +309,24 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
 
                         {selectedProductId && (
                           <div className="mt-1">
-                            <span className="badge bg-success"><i className="fa-solid fa-check me-1"></i>Product selected — fields auto-filled from Product Master</span>
+                            <span className="badge bg-success">
+                              <i className="fa-solid fa-link me-1"></i>Linked to Product Master — live stock
+                            </span>
                           </div>
                         )}
 
-                        {showProductDropdown && productSearchResults.length > 0 && (
-                          <div className="position-absolute w-100 bg-white border rounded shadow-lg" style={{ zIndex: 9999, top: '100%', maxHeight: '260px', overflowY: 'auto' }}>
-                            {productSearchResults.map((product) => (
-                              <div key={product._id} className="px-3 py-2 border-bottom cursor-pointer" style={{ cursor: 'pointer' }}
+                        {showProductDropdown && (
+                          <div className="position-absolute w-100 bg-white border rounded shadow-lg"
+                            style={{ zIndex: 9999, top: '100%', maxHeight: 260, overflowY: 'auto' }}>
+                            {productSearchResults.length === 0 && !productSearchLoading ? (
+                              <div className="p-3 text-center text-muted">
+                                <i className="fa-solid fa-circle-info me-1"></i>No products found. Fill fields manually below.
+                              </div>
+                            ) : productSearchResults.map((product) => (
+                              <div key={product._id} className="px-3 py-2 border-bottom" style={{ cursor: 'pointer' }}
                                 onMouseDown={() => handleSelectProduct(product)}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#eff6ff'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}>
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#eff6ff'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ''; }}>
                                 <div className="d-flex justify-content-between align-items-start">
                                   <div>
                                     <strong style={{ fontSize: '0.88rem' }}>{product.productName}</strong>
@@ -321,225 +335,169 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
                                   </div>
                                   <div className="text-end">
                                     {product.purchasePrice > 0 && <span className="badge bg-success me-1" style={{ fontSize: '0.7rem' }}>₹{product.purchasePrice}</span>}
-                                    {product.currentStockQty > 0 && <span className="badge bg-primary" style={{ fontSize: '0.7rem' }}>Stock: {product.currentStockQty} {product.baseUOM}</span>}
+                                    <span className="badge bg-primary" style={{ fontSize: '0.7rem' }}>Stock: {product.currentStockQty ?? 0} {product.baseUOM}</span>
                                   </div>
                                 </div>
                                 <div className="mt-1">
                                   {product.hsnCode && <small className="text-muted me-2">HSN: {product.hsnCode}</small>}
                                   {product.productCategory && <small className="text-muted me-2">Cat: {product.productCategory}</small>}
-                                  {product.baseUOM && <small className="text-muted">UOM: {product.baseUOM}</small>}
                                 </div>
                               </div>
                             ))}
                           </div>
                         )}
-
-                        {showProductDropdown && productSearchResults.length === 0 && !productSearchLoading && (
-                          <div className="position-absolute w-100 bg-white border rounded shadow-sm p-3 text-center text-muted" style={{ zIndex: 9999, top: '100%' }}>
-                            <i className="fa-solid fa-circle-info me-1"></i>No products found. Fill fields manually below.
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Brand Name — now from DB */}
                   <div className="col-md-6">
-                    <label htmlFor="brandName" className="form-label">Brand Name</label>
-                    <div className="input-group">
-                      <select className="form-select rounded-0" id="brandName" value={brandName}
-                        onChange={(e) => setBrandName(e.target.value)} disabled={brandsLoading}>
-                        <option value="">{brandsLoading ? "Loading brands..." : "Select Brand"}</option>
-                        {allBrands.map((brand, index) => (
-                          <option key={index} value={brand}>{brand}</option>
-                        ))}
-                      </select>
-                      <button type="button" className="btn btn-outline-secondary" onClick={() => setShowAddBrand(true)}>
-                        <i className="fa-solid fa-plus"></i>
-                      </button>
-                    </div>
+                    <label htmlFor="materialCode" className="form-label">Material Code {requireMaterialCode && <RequiredStar />}</label>
+                    <input type="text" className="form-control" id="materialCode" name="materialCode"
+                      placeholder="Enter Material Code...." maxLength={50} value={form.materialCode} onChange={handleText} />
                   </div>
 
-                  {/* Product Name */}
                   <div className="col-md-6">
                     <label htmlFor="productName" className="form-label">Product Name</label>
                     <input type="text" className="form-control" id="productName" name="productName"
-                      placeholder="Enter Product Name...." maxLength={100} value={productName} onChange={handleProductNameChange} />
+                      placeholder="Enter Product Name...." maxLength={100} value={form.productName} onChange={handleText} />
                   </div>
 
-                  <div className="col-md-6">
-                    <label htmlFor="materialCode" className="form-label">Material Code</label>
-                    <input type="text" className="form-control" id="materialCode" name="materialCode"
-                      placeholder="Enter Material Code...." maxLength={50} value={formData.materialCode} onChange={handleInputChange} />
-                  </div>
+                  {selectWithAdd("brandName", "Brand Name", form.brandName, allBrands,
+                    (e) => set('brandName', e.target.value), 'brand', brandsLoading ? "Loading brands..." : "")}
 
                   <div className="col-md-6">
                     <label htmlFor="model" className="form-label">Model</label>
                     <input type="text" className="form-control" id="model" name="model"
-                      placeholder="Enter Model...." maxLength={100} value={model} onChange={handleModelChange} />
+                      placeholder="Enter Model...." maxLength={100} value={form.model} onChange={handleText} />
                   </div>
 
                   <div className="col-md-6">
                     <label htmlFor="hsnCode" className="form-label">HSN Code</label>
                     <input type="text" className="form-control" id="hsnCode" name="hsnCode"
-                      placeholder="Enter HSN Code...." maxLength={8} value={hsnCode} onChange={handleHsnCodeChange} />
+                      placeholder="Enter HSN Code...." maxLength={8} value={form.hsnCode} onChange={handleHsn} />
                   </div>
 
                   <div className="col-md-6">
                     <label htmlFor="materialName" className="form-label">Material Description</label>
-                    <textarea className="form-control" id="materialName" name="materialName"
-                      placeholder="Enter Material Description...." maxLength={100} rows={3}
-                      value={formData.materialName} onChange={handleInputChange} />
+                    <textarea className="form-control" id="materialName" name="materialName" rows={2}
+                      placeholder="Enter Material Description...." maxLength={100} value={form.materialName} onChange={handleText} />
                   </div>
 
-                                    {/* Product Category */}
-                  <div className="col-md-6">
-                    <label htmlFor="productCategory" className="form-label">Product Category</label>
-                    <div className="input-group">
-                      <select className="form-select rounded-0" id="productCategory" value={productCategory}
-                        onChange={(e) => setProductCategory(e.target.value)}>
-                        <option value="">Select Product Category</option>
-                        {allCategories.map((cat, index) => (
-                          <option key={index} value={cat}>{cat}</option>
-                        ))}
-                      </select>
-                      <button type="button" className="btn btn-outline-secondary" onClick={() => setShowAddCategory(true)}>
-                        <i className="fa-solid fa-plus"></i>
-                      </button>
-                    </div>
-                  </div>
+                  {selectWithAdd("productCategory", "Product Category", form.productCategory, allCategories,
+                    (e) => set('productCategory', e.target.value), 'category', "")}
 
                   <div className="col-md-6">
                     <label htmlFor="category" className="form-label">Product Group</label>
-                    <select className="form-select rounded-0" id="category" name="category"
-                      value={category} onChange={(e) => setCategory(e.target.value)}>
-                      {categoryOptions.map((option, index) => (
-                        <option key={index} value={option.value}>{option.label}</option>
-                      ))}
+                    <select className="form-select rounded-0" id="category" value={form.category} onChange={(e) => set('category', e.target.value)}>
+                      {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
 
-                  <div className="col-md-6">
-                    <label htmlFor="baseUOM" className="form-label">Base UOM / UNIT</label>
-                    <select className="form-select rounded-0" id="baseUOM" value={baseUOM}
-                      onChange={(e) => setBaseUOM(e.target.value)}>
-                      <option value="">Select Base UOM</option>
-                      {uomOptions.map((uom, index) => (
-                        <option key={index} value={uom}>{uom}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {selectWithAdd("baseUOM", "Base UOM / Unit", form.baseUOM, uomOptions,
+                    (e) => set('baseUOM', e.target.value), 'uom', "")}
 
                   <div className="col-md-6">
                     <label htmlFor="uomConversion" className="form-label">UOM Conversion</label>
                     <input type="text" className="form-control" id="uomConversion" name="uomConversion"
-                      placeholder="Enter UOM conversion factor" value={uomConversion} onChange={handleUomConversionChange} />
+                      value={form.uomConversion} onChange={handleDecimal(4)} />
                   </div>
 
-                  <div className="col-md-6">
-                    <label htmlFor="unitPrice" className="form-label">Purchase Price</label>
-                    <input type="number" className="form-control" id="unitPrice" name="unitPrice"
-                      placeholder="Enter Purchase Price...." min="0" step="0.01" value={formData.unitPrice} onChange={handleInputChange} />
+                  <div className="col-md-4">
+                    <label htmlFor="unitPrice" className="form-label">Purchase Price (₹)</label>
+                    <input type="text" className="form-control" id="unitPrice" name="unitPrice" inputMode="decimal"
+                      placeholder="0.00" value={form.unitPrice} onChange={handleDecimal(2)} />
+                  </div>
+                  <div className="col-md-4">
+                    <label htmlFor="mrp" className="form-label">MRP (₹)</label>
+                    <input type="text" className="form-control" id="mrp" name="mrp" inputMode="decimal"
+                      placeholder="0.00" value={form.mrp} onChange={handleDecimal(2)} />
+                  </div>
+                  <div className="col-md-4">
+                    <label htmlFor="salesPrice" className="form-label">Sales Price (₹)</label>
+                    <input type="text" className="form-control" id="salesPrice" name="salesPrice" inputMode="decimal"
+                      placeholder="0.00" value={form.salesPrice} onChange={handleDecimal(2)} />
                   </div>
 
-                  <div className="col-md-6">
-                    <label htmlFor="mrp" className="form-label">MRP Price</label>
-                    <input type="text" className="form-control" id="mrp" name="mrp"
-                      placeholder="Enter MRP Price...." value={mrp} onChange={handleMrpChange} />
-                  </div>
-
-                  <div className="col-md-6">
-                    <label htmlFor="salesPrice" className="form-label">Sales Price</label>
-                    <input type="text" className="form-control" id="salesPrice" name="salesPrice"
-                      placeholder="Enter Sales Price...." value={salesPrice} onChange={handleSalesPriceChange} />
-                  </div>
-
-                  <div className="col-md-6">
+                  <div className="col-md-4">
                     <label htmlFor="openingDate" className="form-label">Opening Date</label>
                     <input type="date" className="form-control" id="openingDate" name="openingDate"
-                      value={formData.openingDate} onChange={handleInputChange} />
+                      value={form.openingDate} onChange={handleText} />
+                    <small className="text-muted">GRN / DC from this date count as IN / OUT</small>
                   </div>
-
-                  <div className="col-md-6">
-                    <label htmlFor="currentStock" className="form-label">
+                  <div className="col-md-4">
+                    <label htmlFor="openingStock" className="form-label">
                       Opening Stock
-                      {selectedProductId && <small className="text-success ms-2"><i className="fa-solid fa-link"></i> from Product Master</small>}
+                      {selectedProductId && <small className="text-success ms-2"><i className="fa-solid fa-link"></i> Product Master</small>}
                     </label>
                     <div className="input-group">
-                      <input type="number" className={`form-control ${selectedProductId ? 'border-success' : ''}`}
-                        id="currentStock" name="currentStock" placeholder="Enter Opening Stock...." min="0"
-                        value={formData.currentStock} onChange={handleInputChange} />
-                      {baseUOM && <span className="input-group-text">{baseUOM}</span>}
+                      <input type="text" className={`form-control ${selectedProductId ? 'border-success' : ''}`}
+                        id="openingStock" name="openingStock" inputMode="decimal" placeholder="0"
+                        value={form.openingStock} onChange={handleDecimal(3)} />
+                      {form.baseUOM && <span className="input-group-text">{form.baseUOM}</span>}
                     </div>
                   </div>
-
-                  <div className="col-md-6">
+                  <div className="col-md-4">
                     <label htmlFor="minStockLevel" className="form-label">Min Stock Level</label>
-                    <input type="number" className="form-control" id="minStockLevel" name="minStockLevel"
-                      placeholder="Enter Min Stock Level...." min="0" value={formData.minStockLevel} onChange={handleInputChange} />
+                    <input type="text" className="form-control" id="minStockLevel" name="minStockLevel" inputMode="decimal"
+                      placeholder="0" value={form.minStockLevel} onChange={handleDecimal(3)} />
                   </div>
 
                   <div className="col-md-6">
                     <label htmlFor="warehouseLocation" className="form-label">Warehouse Location</label>
                     <input type="text" className="form-control" id="warehouseLocation" name="warehouseLocation"
-                      placeholder="e.g., Warehouse A..." maxLength={100} value={formData.warehouseLocation} onChange={handleInputChange} />
+                      placeholder="e.g., Baner / Bhosari" maxLength={100} value={form.warehouseLocation} onChange={handleText} />
                   </div>
-
                   <div className="col-md-6">
                     <label htmlFor="stockLocation" className="form-label">Rack Location</label>
                     <input type="text" className="form-control" id="stockLocation" name="stockLocation"
-                      placeholder="e.g., Rack 1..." maxLength={100} value={formData.stockLocation} onChange={handleInputChange} />
+                      placeholder="e.g., Rack 1" maxLength={100} value={form.stockLocation} onChange={handleText} />
                   </div>
 
                   <div className="col-md-6">
                     <label htmlFor="discountType" className="form-label">Discount Type</label>
-                    <select className="form-select rounded-0" id="discountType" value={discountType}
-                      onChange={(e) => setDiscountType(e.target.value)}>
+                    <select className="form-select rounded-0" id="discountType" value={form.discountType} onChange={(e) => set('discountType', e.target.value)}>
                       <option value="Zero Discount">Zero Discount</option>
                       <option value="In percentage">In Percentage</option>
                       <option value="In Value">In Value</option>
                     </select>
                   </div>
-
-                  {discountType !== "Zero Discount" && (
+                  {form.discountType !== "Zero Discount" && (
                     <div className="col-md-6">
                       <label htmlFor="discountValue" className="form-label">Discount</label>
                       <input type="text" className="form-control" id="discountValue" name="discountValue"
-                        placeholder={discountType === "In percentage" ? "Enter percentage" : "Enter value"}
-                        value={discountValue} onChange={handleDiscountValueChange} />
+                        placeholder={form.discountType === "In percentage" ? "Enter percentage" : "Enter value"}
+                        value={form.discountValue} onChange={handleDecimal(2)} />
                     </div>
                   )}
 
-                  {/* Tax Details */}
-                  <div className="col-12 mt-3">
-                    <div className="border bg-gray mx-auto p-3">
-                      <div className="col-10 mb-3"><span className="SecondaryInfo">Tax Details</span></div>
-                      <div className="col-12 mb-3">
-                        <div className="form-check form-check-inline">
-                          <input className="form-check-input" type="radio" name="taxType" id="taxNone" value="none" checked={taxType === "none"} onChange={() => setTaxType("none")} />
-                          <label className="form-check-label" htmlFor="taxNone">No Tax</label>
-                        </div>
-                        <div className="form-check form-check-inline">
-                          <input className="form-check-input" type="radio" name="taxType" id="taxGST" value="gst" checked={taxType === "gst"} onChange={() => setTaxType("gst")} />
-                          <label className="form-check-label" htmlFor="taxGST">Add GST Rate</label>
-                        </div>
+                  {/* ── Tax ── */}
+                  <div className="col-12">
+                    <div className="border bg-gray p-3">
+                      <div className="mb-2"><span className="SecondaryInfo">Tax Details</span></div>
+                      <div className="form-check form-check-inline">
+                        <input className="form-check-input" type="radio" name="addTaxType" id="addTaxNone"
+                          checked={form.taxType === "none"} onChange={() => set('taxType', 'none')} />
+                        <label className="form-check-label" htmlFor="addTaxNone">No Tax</label>
                       </div>
-                      {taxType === "gst" && (
-                        <div className="row">
-                          <div className="col-12 col-lg-6 mt-2">
-                            <div className="mb-3">
-                              <label htmlFor="gstRate" className="form-label label_text">GST Rate</label>
-                              <div className="input-group">
-                                <input type="text" className="form-control rounded-0" id="gstRate" value={gstRate} onChange={handleGstRateChange} placeholder="Enter GST Rate" />
-                                <span className="input-group-text">%</span>
-                              </div>
+                      <div className="form-check form-check-inline">
+                        <input className="form-check-input" type="radio" name="addTaxType" id="addTaxGST"
+                          checked={form.taxType === "gst"} onChange={() => set('taxType', 'gst')} />
+                        <label className="form-check-label" htmlFor="addTaxGST">Add GST Rate</label>
+                      </div>
+                      {form.taxType === "gst" && (
+                        <div className="row mt-2">
+                          <div className="col-12 col-lg-6">
+                            <label htmlFor="gstRate" className="form-label label_text">GST Rate</label>
+                            <div className="input-group">
+                              <input type="text" className="form-control rounded-0" id="gstRate" name="gstRate"
+                                value={form.gstRate} onChange={handleDecimal(2)} placeholder="Enter GST Rate" />
+                              <span className="input-group-text">%</span>
                             </div>
                           </div>
-                          <div className="col-12 col-lg-6 mt-2">
-                            <div className="mb-3">
-                              <label htmlFor="gstEffectiveDate" className="form-label label_text">GST Effective Date</label>
-                              <input type="date" className="form-control rounded-0" id="gstEffectiveDate" value={gstEffectiveDate} onChange={(e) => setGstEffectiveDate(e.target.value)} />
-                            </div>
+                          <div className="col-12 col-lg-6">
+                            <label htmlFor="gstEffectiveDate" className="form-label label_text">GST Effective Date</label>
+                            <input type="date" className="form-control rounded-0" id="gstEffectiveDate" name="gstEffectiveDate"
+                              value={form.gstEffectiveDate} onChange={handleText} />
                           </div>
                         </div>
                       )}
@@ -548,17 +506,16 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
 
                   <div className="col-12">
                     <label htmlFor="description" className="form-label">Description / Remarks</label>
-                    <textarea className="form-control" id="description" name="description"
-                      placeholder="Enter material description, specifications, or remarks...."
-                      value={formData.description} onChange={handleInputChange}
-                      style={{ width: '100%', height: '100px' }} maxLength={500} />
+                    <textarea className="form-control" id="description" name="description" rows={3}
+                      placeholder="Specifications or remarks...." value={form.description} onChange={handleText} maxLength={500} />
                   </div>
-
                 </div>
               </div>
 
               <div className="modal-footer border-0 justify-content-start">
-                <button type="submit" className="btn addbtn rounded-0 add_button px-4">Add</button>
+                <button type="submit" className="btn addbtn rounded-0 add_button px-4" disabled={saving}>
+                  {saving ? "Saving..." : "Add"}
+                </button>
                 <button type="button" className="btn addbtn rounded-0 Cancel_button px-4" onClick={onClose}>Cancel</button>
               </div>
             </form>
@@ -566,42 +523,24 @@ const AddInventoryPopup = ({ onAddInventory, onClose }) => {
         </div>
       </div>
 
-      {/* Add Category Modal */}
-      {showAddCategory && (
-        <div className="modal fade show" style={{ display: "block", backgroundColor: "#00000050", position: "absolute", zIndex: 9999, width: "100%" }}>
+      {/* ── Add Brand / Category / UOM ── */}
+      {addModal && (
+        <div className="modal fade show" style={{ display: "flex", alignItems: "center", backgroundColor: "#00000050", position: "fixed", inset: 0, zIndex: 10000 }}>
           <div className="modal-dialog modal-sm">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Add New Category</h5>
-                <button type="button" className="btn-close" onClick={() => setShowAddCategory(false)}></button>
+                <h5 className="modal-title">Add New {addModal === 'uom' ? 'UOM' : addModal === 'brand' ? 'Brand' : 'Category'}</h5>
+                <button type="button" className="btn-close" onClick={() => setAddModal(null)}></button>
               </div>
               <div className="modal-body">
-                <input type="text" className="form-control" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="Enter new category" />
+                <input type="text" className="form-control" value={addValue} autoFocus
+                  onChange={(e) => setAddValue(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddNewOption(); } }}
+                  placeholder="Enter name" />
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddCategory(false)}>Cancel</button>
-                <button type="button" className="btn btn-primary" onClick={handleAddNewCategory}>Add</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Brand Modal */}
-      {showAddBrand && (
-        <div className="modal fade show" style={{ display: "block", backgroundColor: "#00000050", position: "absolute", zIndex: 9999, width: "100%" }}>
-          <div className="modal-dialog modal-sm">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Add New Brand</h5>
-                <button type="button" className="btn-close" onClick={() => setShowAddBrand(false)}></button>
-              </div>
-              <div className="modal-body">
-                <input type="text" className="form-control" value={newBrand} onChange={(e) => setNewBrand(e.target.value)} placeholder="Enter new brand" />
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddBrand(false)}>Cancel</button>
-                <button type="button" className="btn btn-primary" onClick={handleAddNewBrand}>Add</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setAddModal(null)}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={handleAddNewOption}>Add</button>
               </div>
             </div>
           </div>
