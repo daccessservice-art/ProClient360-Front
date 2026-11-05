@@ -9,6 +9,8 @@ import InvitationCampaignPopUp from "./PopUp/InvitationCampaignPopUp";
 import ViewCampaignRepliesPopUp from "../CustomerMaster/PopUp/ViewCampaignRepliesPopUp";
 // ✅ NEW — Feasible / Not Feasible from a reply
 import CampaignReplyDecisionPopUp from "./PopUp/CampaignReplyDecisionPopUp";
+// ✅ NEW — chat popup for Unknown customers (no Customer Master link)
+import ViewPhoneRepliesPopUp from "./PopUp/ViewPhoneRepliesPopUp";
 import {
   getCampaignTemplates,
   deleteCampaignTemplate,
@@ -54,6 +56,7 @@ export const CampaignMasterGrid = () => {
   // ✅ NEW — Feasible / Not Feasible decisions for reply customers
   const [replyDecisions, setReplyDecisions] = useState([]);
   const [decisionTarget, setDecisionTarget] = useState(null); // { item, decision }
+  const [viewingPhone, setViewingPhone] = useState(null); // ✅ NEW — { phone, custName } for Unknown customers
   const [replySearchText, setReplySearchText] = useState("");
   const [replySearch, setReplySearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -398,12 +401,15 @@ export const CampaignMasterGrid = () => {
                           style={{
                             background: item.lastIsButtonClick ? "#eff6ff" : "#f8fafc",
                             border: "1px solid #e2e8f0",
-                            cursor: item.customerId ? "pointer" : "default",
+                            cursor: "pointer", // ✅ UPDATED — every card is clickable now
                             transition: "box-shadow 0.15s, transform 0.15s",
                           }}
-                          onClick={() => item.customerId && setViewingCustomer({ _id: item.customerId, custName: item.custName, phoneNumber1: item.phone })}
+                          onClick={() =>
+                            item.customerId
+                              ? setViewingCustomer({ _id: item.customerId, custName: item.custName, phoneNumber1: item.phone }) // existing popup (unchanged)
+                              : setViewingPhone({ phone: item.phone, custName: item.custName }) // ✅ NEW — Unknown customer
+                          }
                           onMouseEnter={(e) => {
-                            if (!item.customerId) return;
                             e.currentTarget.style.boxShadow = "0 3px 10px rgba(0,0,0,0.10)";
                             e.currentTarget.style.transform = "translateY(-1px)";
                           }}
@@ -509,6 +515,15 @@ export const CampaignMasterGrid = () => {
 
       {viewingCustomer && (
         <ViewCampaignRepliesPopUp customer={viewingCustomer} onClose={() => setViewingCustomer(null)} />
+      )}
+
+      {/* ✅ NEW — chat popup for Unknown customers */}
+      {viewingPhone && (
+        <ViewPhoneRepliesPopUp
+          phone={viewingPhone.phone}
+          custName={viewingPhone.custName}
+          onClose={() => setViewingPhone(null)}
+        />
       )}
 
       {/* ✅ NEW — Feasible / Not Feasible popup */}

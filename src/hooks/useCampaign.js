@@ -220,6 +220,17 @@ const getCampaignReplyDecisions = async () => {
   }
 };
 
+// ✅ NEW — full chat for one phone number (Unknown customer cards)
+const getCampaignRepliesByPhone = async (phone) => {
+  try {
+    const response = await axios.get(`${url}/replies/by-phone?phone=${encodeURIComponent(phone)}`, authHeaders());
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: error.message || 'Could not reach the server.' };
+  }
+};
+
 // ✅ NEW — sales employees list (re-uses existing /api/leads/sales-employees)
 const getSalesEmployeesForCampaign = async () => {
   try {
@@ -251,4 +262,5 @@ export {
   decideCampaignReply,          // ✅ NEW
   getCampaignReplyDecisions,    // ✅ NEW
   getSalesEmployeesForCampaign, // ✅ NEW
+  getCampaignRepliesByPhone,    // ✅ NEW
 };
