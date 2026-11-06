@@ -92,7 +92,7 @@ const deletePurchaseOrder = async (Id) => {
     console.log(error.response.data);
     return error.response.data.error;
   }
-};  
+};
 
 const approvePurchaseOrder = async (poId) => {
   try {
@@ -109,7 +109,7 @@ const approvePurchaseOrder = async (poId) => {
   }
 };
 
-// ✅ NEW: fetch the logged-in user's own company profile (name + Address)
+// ✅ fetch the logged-in user's own company profile (name + Address)
 const getMyCompanyProfile = async () => {
   try {
     const response = await axios.get(`${url}/company-profile`, {
@@ -124,6 +124,38 @@ const getMyCompanyProfile = async () => {
   }
 };
 
-export { 
-  getPurchaseOrders, getPurchaseOrderById, getPurchaseOrderHistory, createPurchaseOrder, updatePurchaseOrder, deletePurchaseOrder, approvePurchaseOrder, getMyCompanyProfile 
+// ✅ NEW: customers who have at least one In-process / Completed project
+const getProjectCustomers = async () => {
+  try {
+    const response = await axios.get(`${url}/project-customers`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: error.message };
+  }
+};
+
+// ✅ NEW: In-process / Completed projects of the selected customer
+const getProjectsByCustomer = async (custId) => {
+  try {
+    const response = await axios.get(`${url}/customer-projects/${custId}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: error.message };
+  }
+};
+
+export {
+  getPurchaseOrders, getPurchaseOrderById, getPurchaseOrderHistory, createPurchaseOrder, updatePurchaseOrder,
+  deletePurchaseOrder, approvePurchaseOrder, getMyCompanyProfile,
+  getProjectCustomers, getProjectsByCustomer
 };

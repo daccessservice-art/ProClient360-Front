@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { getVendors } from "../../../../../hooks/useVendor";
 import { getProducts, getProductBrands, createProduct } from "../../../../../hooks/useProduct";
-import { createPurchaseOrder, getMyCompanyProfile } from "../../../../../hooks/usePurchaseOrder";
+import { createPurchaseOrder, getMyCompanyProfile, getProjectCustomers, getProjectsByCustomer } from "../../../../../hooks/usePurchaseOrder";
 import Select from "react-select";
 import AddInventoryPopup from "../../InventryMaster/PopUp/AddInventoryPopUp";
 
@@ -19,12 +19,44 @@ const mapToProductMasterCategory = (cat) => {
   return map[cat] || "raw material";
 };
 
+// ✅ NEW: project status badge shown inside the Project dropdown
+const PROJECT_STATUS_BADGE = {
+  Inprocess: { bg: "#ffc107", color: "#212529", text: "In Process" },
+  Completed: { bg: "#198754", color: "#ffffff", text: "Completed" },
+  Upcoming:  { bg: "#0d6efd", color: "#ffffff", text: "Upcoming" },
+};
+
+const formatProjectOptionLabel = (opt) => {
+  const badge = PROJECT_STATUS_BADGE[opt.status] || { bg: "#6c757d", color: "#fff", text: opt.status || "N/A" };
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {opt.label}
+        {opt.poNo ? <small style={{ color: "#6c757d" }}> ({opt.poNo})</small> : null}
+      </span>
+      <span style={{
+        background: badge.bg, color: badge.color, fontSize: "10px", fontWeight: 600,
+        padding: "2px 8px", borderRadius: "10px", whiteSpace: "nowrap"
+      }}>
+        {badge.text}
+      </span>
+    </div>
+  );
+};
+
 const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [orderTime, setOrderTime] = useState(new Date().toTimeString().slice(0, 5));
   const [transactionType, setTransactionType] = useState("");
   const [purchaseType, setPurchaseType] = useState("");
   const [selectedProject, setSelectedProject] = useState(null);
+
+  // ✅ NEW: Customer → Project (only In-process / Completed projects)
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerProjects, setCustomerProjects] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [loadingCustomerProjects, setLoadingCustomerProjects] = useState(false);
   const [warehouseLocation, setWarehouseLocation] = useState("");
   const [remark, setRemark] = useState("");
   
@@ -104,6 +136,45 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       setDeliveryAddress("");
       setLocation("");
     }
+  };
+
+  // ✅ NEW: load customers that have In-process / Completed projects
+  useEffect(() => {
+    const loadCustomers = async () => {
+      setLoadingCustomers(true);
+      const data = await getProjectCustomers();
+      if (data?.success) {
+        setCustomers((data.customers || []).map(c => ({ value: c._id, label: c.custName })));
+      } else if (data?.error) {
+        toast.error(data.error);
+      }
+      setLoadingCustomers(false);
+    };
+    loadCustomers();
+  }, []);
+
+  // ✅ NEW: when customer changes → reset project & load that customer's projects
+  const handleCustomerChange = async (option) => {
+    setSelectedCustomer(option);
+    setSelectedProject(null);
+    setCustomerProjects([]);
+    if (!option) return;
+
+    setLoadingCustomerProjects(true);
+    const data = await getProjectsByCustomer(option.value);
+    if (data?.success) {
+      const opts = (data.projects || []).map(p => ({
+        value: p._id,
+        label: p.name,
+        status: p.projectStatus,
+        poNo: p.purchaseOrderNo,
+      }));
+      setCustomerProjects(opts);
+      if (opts.length === 0) toast("No In-process / Completed project for this customer");
+    } else {
+      toast.error(data?.error || "Failed to load projects");
+    }
+    setLoadingCustomerProjects(false);
   };
 
   // Load vendors
@@ -393,6 +464,12 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
       return toast.error("Please select a vendor");
     }
 
+    // ✅ NEW: customer + project required for Project Purchase
+    if (purchaseType === "Project Purchase") {
+      if (!selectedCustomer) return toast.error("Please select a customer");
+      if (!selectedProject) return toast.error("Please select a project");
+    }
+
     for (let item of items) {
       if (item.quantity < 1 || item.price < 0) {
         return toast.error("Please fill all item details correctly");
@@ -549,14 +626,45 @@ const AddPurchaseOrderPopUp = ({ handleAdd, projects }) => {
                   </div>
                 </div>
 
+                {/* ✅ NEW: Customer first → then that customer's In-process / Completed projects */}
                 {purchaseType === "Project Purchase" && (
-                  <div className="col-12 col-lg-6">
-                    <div className="mb-3">
-                      <label className="form-label label_text">Project Name</label>
-                      <Select value={selectedProject} onChange={setSelectedProject} options={projects}
-                        placeholder="Select Project..." isClearable />
+                  <>
+                    <div className="col-12 col-lg-6">
+                      <div className="mb-3">
+                        <label className="form-label label_text">Customer Name</label>
+                        <Select
+                          value={selectedCustomer}
+                          onChange={handleCustomerChange}
+                          options={customers}
+                          placeholder="Select Customer..."
+                          isClearable
+                          isLoading={loadingCustomers}
+                          noOptionsMessage={() => loadingCustomers ? "Loading..." : "No customers with In-process / Completed projects"}
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                        />
+                      </div>
                     </div>
-                  </div>
+
+                    <div className="col-12 col-lg-6">
+                      <div className="mb-3">
+                        <label className="form-label label_text">Project Name</label>
+                        <Select
+                          value={selectedProject}
+                          onChange={setSelectedProject}
+                          options={customerProjects}
+                          formatOptionLabel={formatProjectOptionLabel}
+                          placeholder={selectedCustomer ? "Select Project..." : "Select customer first"}
+                          isClearable
+                          isDisabled={!selectedCustomer}
+                          isLoading={loadingCustomerProjects}
+                          noOptionsMessage={() => loadingCustomerProjects ? "Loading..." : "No In-process / Completed projects"}
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                        />
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {purchaseType === "Stock" && (
