@@ -9,6 +9,12 @@ import { getOldAMCHistory } from "../../../hooks/useOldAMCHistory";
 // ── NEW: AMC call log (count goes down after calling) ──
 import { getAMCCallSummary } from "../../../hooks/useAMCCallLog";
 import AMCCallPopUp, { OUTCOME_COLORS, fmtDateTime } from "../MainDashboard/OldAMCHistory/PopUp/AMCCallPopUp";
+// ── ✅ NEW: Project approval (Director Customer Delight only) ──
+import { getPendingApprovalProjects, approveProject, rejectProject } from "../../../hooks/useProjects";
+import ViewProjectApprovalPopUp from "./ViewProjectApprovalPopUp";
+
+// ── ✅ NEW: only this designation can approve projects ──
+const PROJECT_APPROVER_DESIGNATION = "director customer delight";
 
 // ── designations allowed to see the AMC Expiry Alerts tab (case-insensitive) ──
 const AMC_ALERT_DESIGNATIONS = ["amc executive", "amc executives", "vice president", "service manager"];
@@ -70,6 +76,13 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   const [amcCallSummary, setAmcCallSummary] = useState({});
   const [callRecord, setCallRecord] = useState(null);
 
+  // ── ✅ NEW: project approval state ──
+  const [pendingProjects, setPendingProjects] = useState([]);
+  const [projLoading, setProjLoading] = useState(false);
+  const [projActionId, setProjActionId] = useState(null);
+  const [viewProject, setViewProject] = useState(null);
+  const projPollRef = useRef(null);
+
   // ── "Show More" pagination — 10 rows at a time on every tab ──
   const SHOW_MORE_STEP = 10;
   const [visibleCount, setVisibleCount] = useState(SHOW_MORE_STEP);
@@ -130,6 +143,75 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (!d) return false;
     return AMC_ALERT_DESIGNATIONS.some((allowed) => d.includes(allowed));
   }, [userDesignation]);
+
+  // ── ✅ NEW: is this the Director Customer Delight? ──
+  const isProjectApprover = useMemo(() => {
+    const d = (userDesignation || "").toLowerCase().replace(/\s+/g, " ").trim();
+    return d === PROJECT_APPROVER_DESIGNATION;
+  }, [userDesignation]);
+
+  // ── ✅ NEW: fetch projects waiting for approval ──
+  const fetchPendingProjects = async (silent = false) => {
+    if (!silent) setProjLoading(true);
+    try {
+      const data = await getPendingApprovalProjects();
+      if (data?.success) setPendingProjects(data.projects || []);
+      else if (!silent) setPendingProjects([]);
+    } catch (err) {
+      console.error("Error fetching pending projects:", err);
+      if (!silent) setPendingProjects([]);
+    } finally {
+      if (!silent) setProjLoading(false);
+    }
+  };
+
+  // ── ✅ NEW: initial fetch + silent 20s polling (Director Customer Delight only) ──
+  useEffect(() => {
+    if (!isProjectApprover) return;
+
+    fetchPendingProjects(false);
+    projPollRef.current = setInterval(() => fetchPendingProjects(true), 20000);
+
+    return () => {
+      if (projPollRef.current) clearInterval(projPollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProjectApprover]);
+
+  // ── ✅ NEW: approve / reject ──
+  const handleApproveProject = async (project, remark = "") => {
+    setProjActionId(project._id);
+    try {
+      const data = await approveProject(project._id, remark);
+      if (data?.success) {
+        toast.success(data.message || "Project approved");
+        setViewProject(null);
+        setPendingProjects((prev) => prev.filter((p) => p._id !== project._id));
+        fetchPendingProjects(true);
+      } else {
+        toast.error(data?.error || "Failed to approve project");
+      }
+    } finally {
+      setProjActionId(null);
+    }
+  };
+
+  const handleRejectProject = async (project, reason) => {
+    setProjActionId(project._id);
+    try {
+      const data = await rejectProject(project._id, reason);
+      if (data?.success) {
+        toast.success(data.message || "Project rejected");
+        setViewProject(null);
+        setPendingProjects((prev) => prev.filter((p) => p._id !== project._id));
+        fetchPendingProjects(true);
+      } else {
+        toast.error(data?.error || "Failed to reject project");
+      }
+    } finally {
+      setProjActionId(null);
+    }
+  };
 
   // ── fetch pending POs for approval ──
   const fetchPendingPOs = async (silent = false) => {
@@ -336,9 +418,12 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     { key: "poApproval", label: "PO approval", count: pendingPOs.length, color: "#0891b2", pulse: "pulseBlue", leadTab: false, poTab: true },
     // ── CHANGED: count = expired AMCs NOT called yet (goes down after calling) ──
     { key: "amcExpiry", label: "AMC expiry alerts", count: amcPending.length, color: "#dc2626", pulse: "pulseRed", leadTab: false, amcTab: true },
+    // ── ✅ NEW: Project approval (Director Customer Delight only) ──
+    { key: "projectApproval", label: "Project approval", count: pendingProjects.length, color: "#6d5dfc", pulse: "pulsePurple", leadTab: false, projTab: true },
   ];
 
   const tabs = allTabs.filter(tab => {
+    if (tab.projTab) return isProjectApprover;
     if (tab.poTab) return isPurchaseCEO;
     if (tab.amcTab) return isAMCAlertRole;
     if (tab.leadTab) return isSalesOrMarketing;
@@ -346,13 +431,15 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
   });
 
   useEffect(() => {
-    if (isPurchaseCEO) setActiveTab("poApproval");
+    if (isProjectApprover) setActiveTab("projectApproval"); // ✅ NEW
+    else if (isPurchaseCEO) setActiveTab("poApproval");
     else if (isAMCAlertRole) setActiveTab("amcExpiry");
     else if (!isSalesOrMarketing) setActiveTab("assigned");
     else setActiveTab("today");
-  }, [isSalesOrMarketing, isPurchaseCEO, isAMCAlertRole]);
+  }, [isSalesOrMarketing, isPurchaseCEO, isAMCAlertRole, isProjectApprover]);
 
   const currentData = useMemo(() => {
+    if (activeTab === "projectApproval") return pendingProjects; // ✅ NEW
     if (activeTab === "today")      return todayLeads;
     if (activeTab === "pending")    return pendingLeads;
     if (activeTab === "overdue")    return overdueLeads;
@@ -361,8 +448,9 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (activeTab === "poApproval") return pendingPOs;
     if (activeTab === "amcExpiry")  return amcSortedList;
     return [];
-  }, [activeTab, todayLeads, pendingLeads, overdueLeads, assignedTasks, inprocessTasks, pendingPOs, amcSortedList]);
+  }, [activeTab, todayLeads, pendingLeads, overdueLeads, assignedTasks, inprocessTasks, pendingPOs, amcSortedList, pendingProjects]);
 
+  const isProjTab = activeTab === "projectApproval"; // ✅ NEW
   const isTaskTab = activeTab === "assigned" || activeTab === "active";
   const isPOTab = activeTab === "poApproval";
   const isAMCTab = activeTab === "amcExpiry";
@@ -397,6 +485,7 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (activeTab === "overdue")    return chip(<><i className="fa-solid fa-triangle-exclamation"></i> Action required</>, "#8b0000", "#fbeeee", "#efc9c9");
     if (activeTab === "pending")    return chip(<><i className="fa-solid fa-clock"></i> Pending</>, "#c2410c", "#fff4e8", "#fbd9b5");
     if (activeTab === "poApproval") return chip(<><i className="fa-solid fa-file-invoice"></i> Awaiting approval</>, "#0e7490", "#ecf8fb", "#bfe5ee");
+    if (activeTab === "projectApproval") return chip(<><i className="fa-solid fa-clipboard-check"></i> {pendingProjects.length} project{pendingProjects.length === 1 ? "" : "s"} to approve</>, "#5a48f0", "#f3f1ff", "#dcd6ff");
     // ── CHANGED: show pending / called split ──
     if (activeTab === "amcExpiry")  return chip(
       <><i className="fa-solid fa-phone-volume"></i> {amcPending.length} to call · {amcCalled.length} called</>,
@@ -418,15 +507,63 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
     if (isAMCTab && amcLoading) {
       return <div className="ed-empty"><span className="ed-spinner"></span><div>Loading AMC expiry alerts…</div></div>;
     }
+    if (isProjTab && projLoading) {
+      return <div className="ed-empty"><span className="ed-spinner"></span><div>Loading projects for approval…</div></div>;
+    }
     if (currentData.length === 0) {
       return (
         <div className="ed-empty">
           <i className="fa-solid fa-inbox"></i>
           {isAMCTab
             ? "No expired AMC contracts. All contracts are active."
-            : "Nothing here right now. New items will appear automatically."}
+            : isProjTab
+              ? "No projects waiting for approval."
+              : "Nothing here right now. New items will appear automatically."}
         </div>
       );
+    }
+
+    // ── ✅ NEW: Project approval rows ──
+    if (isProjTab) {
+      return displayedData.map((p, idx) => (
+        <div key={p._id} className="ed-row">
+          {idxBox(idx)}
+          <div className="ed-row-main">
+            <div className="ed-row-title">
+              <span className="ed-tab-dot" style={{ background: "#6d5dfc" }} />
+              <span>{p.custId?.custName || "N/A"}</span>
+            </div>
+            <div className="ed-row-sub">
+              <span title={p.name}><i className="fa-solid fa-folder-open"></i>{(p.name || "N/A").length > 45 ? `${p.name.slice(0, 45)}…` : p.name}</span>
+            </div>
+            <div className="ed-row-sub">
+              <span><i className="fa-solid fa-hashtag"></i>{p.purchaseOrderNo || "N/A"}</span>
+              <span><i className="fa-solid fa-user"></i>{p.createdBy?.name || "N/A"}</span>
+              <span><i className="fa-solid fa-calendar-days"></i>{formatDate(p.createdAt)}</span>
+            </div>
+          </div>
+          <div className="ed-row-right">
+            <span className="ed-row-amount">{formatAmount(p.purchaseOrderValue)}</span>
+            <button
+              type="button"
+              className="ed-icon-btn"
+              onClick={() => setViewProject(p)}
+              title="View all project details"
+              aria-label="View project details"
+            >
+              <i className="fa-solid fa-eye"></i>
+            </button>
+            <button
+              type="button"
+              className="ed-approve-btn"
+              disabled={projActionId === p._id}
+              onClick={() => handleApproveProject(p)}
+            >
+              {projActionId === p._id ? "Approving…" : "Approve"}
+            </button>
+          </div>
+        </div>
+      ));
     }
 
     // ── AMC expiry rows (not called = blinking red, called = green) ──
@@ -655,6 +792,17 @@ export const EmployeeLeadFollowUpSection = ({ leads = [], assignedTasks = [], in
 
       {/* ── NEW: AMC Call popup (same as Old AMC History page) ── */}
       {callRecord && <AMCCallPopUp record={callRecord} handleClose={handleCallClose} />}
+
+      {/* ── ✅ NEW: Project approval — view all details + approve / reject ── */}
+      {viewProject && (
+        <ViewProjectApprovalPopUp
+          project={viewProject}
+          busy={projActionId === viewProject._id}
+          onClose={() => setViewProject(null)}
+          onApprove={handleApproveProject}
+          onReject={handleRejectProject}
+        />
+      )}
 
       <style>{`
         @keyframes blinkRed {

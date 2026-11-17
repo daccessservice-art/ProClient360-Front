@@ -145,7 +145,52 @@ const getProject = async (Id) => {
   }
 };
 
+// ─── ✅ NEW: Project approval (Director Customer Delight) ───────────────────
+const getPendingApprovalProjects = async () => {
+  try {
+    const response = await axios.get(`${url}/approval/pending`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return error.response?.data || { success: false, error: error.message };
+  }
+};
+
+const approveProject = async (Id, remark = "") => {
+  try {
+    const response = await axios.put(
+      `${url}/${Id}/approve`,
+      { remark },
+      { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return error.response?.data || { success: false, error: error.message };
+  }
+};
+
+const rejectProject = async (Id, reason = "") => {
+  try {
+    const response = await axios.put(
+      `${url}/${Id}/reject`,
+      { reason },
+      { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+    );
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return error.response?.data || { success: false, error: error.message };
+  }
+};
+// ────────────────────────────────────────────────────────────────────────────
+
 export {
+  getPendingApprovalProjects,
+  approveProject,
+  rejectProject,
   getProjects,
   createProject,
   updateProject,

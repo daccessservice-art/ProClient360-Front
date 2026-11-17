@@ -195,6 +195,37 @@ export const ProjectMasterGrid = () => {
     }
   };
 
+  // ── ✅ NEW: project approval (Director Customer Delight) ──
+  // old projects have no approvalStatus → treated as Approved
+  const isProjectApproved = (p) => !p?.approvalStatus || p.approvalStatus === "Approved";
+
+  const getApprovalBadge = (p) => {
+    const st = p?.approvalStatus || "Approved";
+    if (st === "Approved") return { cls: "bg-success", text: "Approved" };
+    if (st === "Rejected") return { cls: "bg-danger", text: "Rejected" };
+    return { cls: "bg-warning text-dark", text: "Pending Approval" };
+  };
+
+  const getApprovalTitle = (p) => {
+    const st = p?.approvalStatus || "Approved";
+    if (st === "Approved") {
+      return p?.approvedBy?.name
+        ? `Approved by ${p.approvedBy.name}${p.approvedAt ? " on " + formatDate(p.approvedAt) : ""}`
+        : "Approved";
+    }
+    if (st === "Rejected") {
+      return `Rejected: ${p?.rejectionReason || "No reason given"} — edit the project to send it again for approval`;
+    }
+    return "Waiting for approval by Director Customer Delight";
+  };
+
+  const notApprovedToast = (p) => {
+    if (p?.approvalStatus === "Rejected") {
+      return toast.error(`Project rejected: ${p.rejectionReason || "No reason given"}. Edit the project to send it again for approval.`);
+    }
+    return toast.error("This project is waiting for approval by Director Customer Delight.");
+  };
+
   const getAssignIconColor = (taskCount) => {
     return taskCount > 0 ? "#198754" : "#adb5bd";
   };
@@ -317,6 +348,8 @@ export const ProjectMasterGrid = () => {
                             {/* ✅ NEW */}
                             <th>Actual Completion</th>
                             <th>Status</th>
+                            {/* ✅ NEW */}
+                            <th>Approval</th>
                             <th>Material</th>
                             <th>Assign</th>
                             <th>Action</th>
@@ -353,12 +386,30 @@ export const ProjectMasterGrid = () => {
                                     {project.projectStatus}
                                   </span>
                                 </td>
+                                {/* ✅ NEW: Approval status */}
+                                <td className="w-20">
+                                  <span
+                                    className={`badge rounded-pill px-2 py-1 ${getApprovalBadge(project).cls}`}
+                                    title={getApprovalTitle(project)}
+                                    style={{ cursor: "help" }}
+                                  >
+                                    {getApprovalBadge(project).text}
+                                  </span>
+                                </td>
                                 {/* Material Availability Column */}
                                 <td className="w-20">
                                   <MaterialAvailabilityBadge projectId={project._id} />
                                 </td>
                                 <td className="w-20">
-                                  {user?.permissions?.includes("viewTaskSheet") || user?.user === 'company' ? (
+                                  {(user?.permissions?.includes("viewTaskSheet") || user?.user === 'company') && !isProjectApproved(project) ? (
+                                    // ✅ NEW: locked until Director Customer Delight approves
+                                    <i
+                                      onClick={() => notApprovedToast(project)}
+                                      className="fa-solid fa-lock"
+                                      title={getApprovalTitle(project)}
+                                      style={{ color: "#adb5bd", fontSize: "16px", cursor: "not-allowed" }}
+                                    ></i>
+                                  ) : user?.permissions?.includes("viewTaskSheet") || user?.user === 'company' ? (
                                     <i
                                       onClick={() => goToTaskSheet(project._id)}
                                       className="fa-solid fa-share cursor-pointer"
@@ -389,11 +440,15 @@ export const ProjectMasterGrid = () => {
                                   ) : null}
 
                                   {/* ─── NEW: MRF Button ─────────────────────── */}
-                                  {user?.permissions?.includes("createMRF") || user?.permissions?.includes("updateProject") || user?.user === 'company' ? (
+                                  {/* ✅ sales (create/update project) + store (viewMRF / viewProduct) can open MRF */}
+                                  {user?.permissions?.includes("createMRF") || user?.permissions?.includes("viewMRF") ||
+                                   user?.permissions?.includes("createProject") || user?.permissions?.includes("updateProject") ||
+                                   user?.permissions?.includes("viewProduct") || user?.user === 'company' ? (
                                     <span
-                                      onClick={() => handleMRF(project)}
-                                      title="Create / View MRF"
-                                      style={{ cursor: 'pointer' }}
+                                      // ✅ NEW: MRF only after approval
+                                      onClick={() => (isProjectApproved(project) ? handleMRF(project) : notApprovedToast(project))}
+                                      title={isProjectApproved(project) ? "Create / View MRF" : getApprovalTitle(project)}
+                                      style={{ cursor: isProjectApproved(project) ? 'pointer' : 'not-allowed', opacity: isProjectApproved(project) ? 1 : 0.45 }}
                                     >
                                       <span
                                         style={{
@@ -430,7 +485,7 @@ export const ProjectMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="13" className="text-center">
+                              <td colSpan="14" className="text-center">
                                 No data found
                               </td>
                             </tr>
