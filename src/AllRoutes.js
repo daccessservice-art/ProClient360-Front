@@ -145,44 +145,6 @@ const AnnualReportRoute = () => {
     return <AccessDenied message="You don't have permission to access the Annual Report." />;
 };
 
-// Service Master / Ticket Master — Service Manager only
-const ServiceMasterRoute = () => {
-    const { user } = useContext(UserContext);
-
-    const hasPermission = user?.permissions?.includes("viewService") ||
-                          user?.user === 'company';
-
-    if (hasPermission) {
-        return <ServiceMasterGrid />;
-    }
-    return <AccessDenied message="You don't have permission to access the Service Master page." />;
-};
-
-const TicketMasterRoute = () => {
-    const { user } = useContext(UserContext);
-
-    const hasPermission = user?.permissions?.includes("viewService") ||
-                          user?.user === 'company';
-
-    if (hasPermission) {
-        return <TicketMasterGrid />;
-    }
-    return <AccessDenied message="You don't have permission to access the Ticket Master page." />;
-};
-
-// My Service — Service Employee (viewMyService) or Service Manager (viewService)
-const MyServiceRoute = () => {
-    const { user } = useContext(UserContext);
-
-    const hasPermission = user?.permissions?.includes("viewMyService") ||
-                          user?.permissions?.includes("viewService");
-
-    if (hasPermission) {
-        return <EmployeeMyServiceMasterGrid />;
-    }
-    return <AccessDenied message="You don't have permission to access My Service." />;
-};
-
 const AllRoutes = () => {
     const { user } = useContext(UserContext);
 
@@ -213,9 +175,9 @@ const AllRoutes = () => {
                 <Route exact path="/CampaignMasterGrid" element={<ProtectRoute Component={CampaignMasterGrid} />} />
                 <Route exact path="/EnteroCampaignMasterGrid" element={<ProtectRoute Component={EnteroCampaignMasterGrid} />} />
                 <Route exact path="/EmployeeMasterGrid" element={<ProtectRoute Component={EmployeeMasterGrid} />} />
-                <Route exact path="/ServiceMasterGrid" element={<ProtectRoute Component={ServiceMasterRoute} />} />
+                <Route exact path="/ServiceMasterGrid" element={<ProtectRoute Component={ServiceMasterGrid} />} />
                 <Route exact path="/TaskMasterGrid" element={<ProtectRoute Component={TaskMasterGrid} />} />
-                <Route exact path="/TicketMasterGrid" element={<ProtectRoute Component={TicketMasterRoute} />} />
+                <Route exact path="/TicketMasterGrid" element={<ProtectRoute Component={TicketMasterGrid} />} />
                 <Route exact path="/ProjectMasterGrid" element={<ProtectRoute Component={ProjectMasterGrid} />} />
                 <Route exact path="/DepartmentMasterGrid" element={<ProtectRoute Component={DepartmentMasterGrid} />} />
                 <Route exact path="/DesignationMasterGird" element={<ProtectRoute Component={DesignationMasterGird} />} />
@@ -284,7 +246,7 @@ const AllRoutes = () => {
                     <>
                         <Route exact path="/EmployeeMainDashboard" element={<EmployeeMainDashboard />} />
                         <Route exact path="/EmployeeTaskGrid" element={<EmployeeTaskGrid />} />
-                        <Route exact path="/EmployeeMyServiceMasterGrid" element={<MyServiceRoute />} />
+                        <Route exact path="/EmployeeMyServiceMasterGrid" element={<EmployeeMyServiceMasterGrid />} />
                         <Route exact path="/EmployeeFeedbackMasterGrid" element={<EmployeeFeedbackMasterGrid />} />
                     </>
                 )}
