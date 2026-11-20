@@ -32,7 +32,7 @@ export const Sidebar = ({ isopen, active }) => {
                 { show: isCompany, to: "/MainDashboard", key: "dashboard", label: "Dashboard", icon: "fa-solid fa-house" },
                 { show: isEmployee, to: "/EmployeeMainDashboard", key: "dashboard", label: "Dashboard", icon: "fa-solid fa-house" },
                 { show: isEmployee, to: "/EmployeeTaskGrid", key: "EmployeeTaskGrid", label: "My Projects", icon: "fa-solid fa-bars-progress" },
-                { show: isEmployee && has("viewService"), to: "/EmployeeMyServiceMasterGrid", key: "EmployeeMyServiceMasterGrid", label: "My Service", icon: "fa-solid fa-envelope" },
+                { show: isEmployee && (has("viewMyService") || has("viewService")), to: "/EmployeeMyServiceMasterGrid", key: "EmployeeMyServiceMasterGrid", label: "My Service", icon: "fa-solid fa-envelope" },
                 { show: has("surveyEngineer"), to: "/SurveyEngineerDashboard", key: "SurveyEngineerDashboard", label: "Survey Dashboard", icon: "fa-solid fa-clipboard-list" },
             ],
         },
@@ -53,6 +53,7 @@ export const Sidebar = ({ isopen, active }) => {
         {
             title: "Service",
             items: [
+                // Service Master + Ticket Master = Service Manager only (viewService)
                 { show: has("viewService") || isCompany, to: "/TicketMasterGrid", key: "TicketMasterGrid", label: "Ticket Master", icon: "fa-solid fa-ticket" },
                 { show: has("viewService") || isCompany, to: "/ServiceMasterGrid", key: "ServiceMasterGrid", label: "Service Master", icon: "fa-solid fa-address-card" },
                 { show: has("viewAMC") || isCompany, to: "/AMCMasterGrid", key: "AMCMasterGrid", label: "AMC", icon: "fa-solid fa-arrow-up-right-dots" },
