@@ -12,6 +12,8 @@ const getAccounts = async (page, limit, filters = {}, searchTerm = "") => {
             limit,
             ...(filters.invoiceStatus && { invoiceStatus: filters.invoiceStatus }),
             ...(filters.followUpDue && { followUpDue: filters.followUpDue }),
+            // ✅ Follow-Up page: server removes Paid accounts so each page = 20 rows
+            ...(filters.excludePaid && { excludePaid: 'true' }),
             ...(searchTerm && { search: searchTerm }),
         };
         

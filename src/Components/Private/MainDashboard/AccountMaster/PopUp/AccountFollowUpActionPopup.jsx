@@ -22,6 +22,11 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
         contactEmail:  '',
         contactPhone:  ''
     });
+    // ✅ Contact Persons is OPTIONAL — the "Add New Contact" form stays hidden
+    // until the user clicks "Add Contact"
+    const [showContactForm, setShowContactForm] = useState(false);
+    // true when contacts were auto-copied from the previous follow-up
+    const [contactsFromLast, setContactsFromLast] = useState(false);
 
     // ─── Payment Edit State ────────────────────────────────────────
     const [paymentEditMode, setPaymentEditMode] = useState(false);
@@ -45,6 +50,7 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
                 if (data?.success) {
                     setAccountData(data.account);
                     seedPaymentForm(data.account);
+                    seedContactsFromLastFollowUp(data.account);
                 }
             } catch (err) {
                 console.error("Error fetching account:", err);
@@ -55,6 +61,35 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
         fetchLatest();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId]);
+
+    // ✅ Re-use contacts from the latest follow-up so they don't need re-entering
+    const seedContactsFromLastFollowUp = (acc) => {
+        const history = acc.followUpHistory || [];
+        for (let i = history.length - 1; i >= 0; i--) {
+            const entry = history[i];
+            let list = (entry.contacts || []).filter(
+                c => c.contactPerson || c.contactEmail || c.contactPhone
+            );
+            // old records only have a single contactPerson string
+            if (list.length === 0 && entry.contactPerson) {
+                list = [{ contactPerson: entry.contactPerson, contactEmail: '', contactPhone: '' }];
+            }
+            if (list.length > 0) {
+                const stamp = Date.now();
+                setFollowUpData(prev => ({
+                    ...prev,
+                    contacts: list.map((c, idx) => ({
+                        contactPerson: c.contactPerson || '',
+                        contactEmail:  c.contactEmail  || '',
+                        contactPhone:  c.contactPhone  || '',
+                        _tempId: stamp + idx
+                    }))
+                }));
+                setContactsFromLast(true);
+                return;
+            }
+        }
+    };
 
     const seedPaymentForm = (acc) => {
         const a = acc.accountActions || {};
@@ -183,7 +218,12 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
             const data = await updateAccountActions(accountData._id, payload);
             if (data?.success) {
                 toast.success('Payment updated successfully');
-                setAccountData(data.account);
+                // keep populated project info (Created By etc.) from the earlier fetch
+                setAccountData(prev => ({
+                    ...data.account,
+                    projectId:        prev.projectId,
+                    projectCreatedBy: prev.projectCreatedBy,
+                }));
                 seedPaymentForm(data.account);
                 setPaymentEditMode(false);
             } else {
@@ -210,6 +250,7 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
             contacts: [...prev.contacts, { ...contactForm, _tempId: Date.now() }]
         }));
         setContactForm({ contactPerson: '', contactEmail: '', contactPhone: '' });
+        setShowContactForm(false);
         toast.success('Contact added to list');
     };
 
@@ -226,13 +267,20 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
         if (isFullyPaid) return toast.error('Payment already 100% received');
         if (!followUpData.nextFollowUpDate) return toast.error('Next follow-up date is required');
         if (!followUpData.remark.trim())    return toast.error('Remark is required');
-        if (followUpData.contacts.length === 0) return toast.error('Please add at least one contact person');
+        // ✅ Contact Persons is optional — no validation here
+
+        // If the user typed a contact but forgot to click "+", include it anyway
+        const pending = contactForm;
+        const hasPending = pending.contactPerson.trim() || pending.contactEmail.trim() || pending.contactPhone.trim();
+        const allContacts = hasPending
+            ? [...followUpData.contacts, { ...pending }]
+            : followUpData.contacts;
 
         setFollowUpLoading(true);
         try {
             const payloadToSend = {
                 ...followUpData,
-                contacts: followUpData.contacts.map(({ _tempId, ...rest }) => rest)
+                contacts: allContacts.map(({ _tempId, ...rest }) => rest)
             };
             const data = await addFollowUp(accountData._id, payloadToSend);
             if (data?.success) {
@@ -268,6 +316,9 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
                             </h5>
                             <small className="text-muted">
                                 {accountData.projectName} | PO: {accountData.poNumber || 'N/A'}
+                                {' | '}
+                                <i className="fa-solid fa-user me-1"></i>Created By:{' '}
+                                <strong>{accountData.projectCreatedBy || accountData.projectId?.createdBy?.name || account.projectCreatedBy || 'N/A'}</strong>
                             </small>
                         </div>
                         <button onClick={handleClose} type="button" className="close px-3" style={{ marginLeft: "auto" }}>
@@ -670,17 +721,40 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
                                                 />
                                             </div>
 
-                                            {/* Contact Persons */}
+                                            {/* Contact Persons — OPTIONAL */}
                                             <div className="col-12 mb-3">
-                                                <div className="card border-primary shadow-sm">
-                                                    <div className="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
-                                                        <h6 className="mb-0" style={{ fontSize: '14px' }}>
-                                                            <i className="fa-solid fa-users me-2"></i>Contact Persons <RequiredStar />
+                                                <div className="card border-secondary shadow-sm">
+                                                    <div className="card-header bg-light py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                                        <h6 className="mb-0 text-dark" style={{ fontSize: '14px' }}>
+                                                            <i className="fa-solid fa-users me-2"></i>Contact Persons
+                                                            <small className="text-muted ms-1">(Optional)</small>
                                                         </h6>
-                                                        <span className="badge bg-light text-primary">{followUpData.contacts.length} Added</span>
+                                                        <div className="d-flex align-items-center gap-2">
+                                                            {followUpData.contacts.length > 0 && (
+                                                                <span className="badge bg-primary">{followUpData.contacts.length} Added</span>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                className={`btn btn-sm ${showContactForm ? 'btn-outline-secondary' : 'btn-outline-success'}`}
+                                                                onClick={() => setShowContactForm(s => !s)}
+                                                                style={{ fontSize: '12px' }}
+                                                            >
+                                                                {showContactForm
+                                                                    ? <><i className="fa-solid fa-xmark me-1"></i>Close</>
+                                                                    : <><i className="fa-solid fa-user-plus me-1"></i>Add Contact</>}
+                                                            </button>
+                                                        </div>
                                                     </div>
+                                                    {(showContactForm || followUpData.contacts.length > 0) && (
                                                     <div className="card-body p-3">
-                                                        {/* Add Contact Form */}
+                                                        {contactsFromLast && followUpData.contacts.length > 0 && (
+                                                            <div className="small text-muted mb-2">
+                                                                <i className="fa-solid fa-rotate-left me-1"></i>
+                                                                Contacts copied from the last follow-up. Remove or add as needed.
+                                                            </div>
+                                                        )}
+                                                        {/* Add Contact Form (shown only on "Add Contact") */}
+                                                        {showContactForm && (
                                                         <div className="row g-2 mb-3 p-2 bg-white border rounded align-items-end">
                                                             <div className="col-12">
                                                                 <strong className="small text-muted">
@@ -715,9 +789,10 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
                                                                 </button>
                                                             </div>
                                                         </div>
+                                                        )}
 
                                                         {/* Contacts Table */}
-                                                        {followUpData.contacts.length > 0 ? (
+                                                        {followUpData.contacts.length > 0 && (
                                                             <div className="table-responsive">
                                                                 <table className="table table-sm table-bordered mb-0" style={{ fontSize: '13px' }}>
                                                                     <thead className="table-light">
@@ -755,13 +830,9 @@ const AccountFollowUpActionPopup = ({ account, handleClose }) => {
                                                                     </tbody>
                                                                 </table>
                                                             </div>
-                                                        ) : (
-                                                            <div className="text-center py-3 text-muted">
-                                                                <i className="fa-solid fa-user-slash fa-2x mb-2 d-block opacity-50"></i>
-                                                                <small>No contacts added. Use the form above to add.</small>
-                                                            </div>
                                                         )}
                                                     </div>
+                                                    )}
                                                 </div>
                                             </div>
 

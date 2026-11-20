@@ -101,12 +101,13 @@ export const AccountMasterGrid = () => {
     const handleConvertToInvoice = (account) => { setSelectedAccount(account); setConvertPopupShow(true); };
 
     const handleCloseDetails = () => {
+        // ✅ stay on the same page after closing
         setDetailsPopupShow(false); setSelectedAccount(null);
-        setCurrentPage(1); setRefreshTrigger(p => p + 1);
+        setRefreshTrigger(p => p + 1);
     };
     const handleCloseConvert = () => {
         setConvertPopupShow(false); setSelectedAccount(null);
-        setCurrentPage(1); setRefreshTrigger(p => p + 1);
+        setRefreshTrigger(p => p + 1);
     };
 
     // ─── Data Fetching ──────────────────────────────────────────────
@@ -310,6 +311,7 @@ export const AccountMasterGrid = () => {
                                                         <th className="align_left_td">Customer Name</th>
                                                         <th className="align_left_td">Project Name</th>
                                                         <th>PO Number</th>
+                                                        <th>Created By</th>
                                                         <th className="text-end">PO Value</th>
                                                         <th className="text-end">Received</th>
                                                         <th className="text-end">Pending</th>
@@ -327,6 +329,10 @@ export const AccountMasterGrid = () => {
                                                                 <td className="align_left_td wrap-text-of-col">{account.customerName || "N/A"}</td>
                                                                 <td className="align_left_td wrap-text-of-col">{account.projectName  || "N/A"}</td>
                                                                 <td>{account.poNumber || "N/A"}</td>
+                                                                <td className="text-nowrap">
+                                                                    <i className="fa-solid fa-user me-1 opacity-50"></i>
+                                                                    {account.projectCreatedBy || account.projectId?.createdBy?.name || "N/A"}
+                                                                </td>
                                                                 <td className="text-end">
                                                                     {account.basicAmount > 0 ? (
                                                                         <span style={{ color: '#0d6efd', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
@@ -391,7 +397,7 @@ export const AccountMasterGrid = () => {
                                                         ))
                                                     ) : (
                                                         <tr>
-                                                            <td colSpan="11" className="text-center py-4">
+                                                            <td colSpan="12" className="text-center py-4">
                                                                 {syncing ? 'Syncing projects...' : 'No accounts found. Click "Sync Projects" to load data.'}
                                                             </td>
                                                         </tr>

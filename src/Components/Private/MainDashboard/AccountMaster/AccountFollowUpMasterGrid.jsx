@@ -118,7 +118,7 @@ export const AccountFollowUpMasterGrid = () => {
     const handleCloseAction = () => {
         setActionPopupShow(false);
         setSelectedAccount(null);
-        setCurrentPage(1);
+        // ✅ stay on the same page after closing (no jump back to page 1)
         setRefreshTrigger(p => p + 1);
         fetchAlerts();
     };
@@ -126,13 +126,12 @@ export const AccountFollowUpMasterGrid = () => {
     const fetchAccounts = useCallback(async (page, limit, followUpDue, searchToUse) => {
         try {
             setLoading(true);
-            const filters = { ...(followUpDue && { followUpDue }) };
+            // ✅ excludePaid → backend removes Paid accounts BEFORE paginating,
+            // so each page shows exactly 20 rows and page count is correct
+            const filters = { excludePaid: true, ...(followUpDue && { followUpDue }) };
             const data = await getAccounts(page, limit, filters, searchToUse);
             if (data?.success) {
-                const active = (data.accounts || []).filter(
-                    acc => acc.accountActions?.invoiceStatus !== 'Paid'
-                );
-                setAccounts(active);
+                setAccounts(data.accounts || []);
                 const sp = data.pagination || {};
                 setPaginationMeta({
                     totalPages:   sp.totalPages  || 0,
@@ -254,7 +253,7 @@ export const AccountFollowUpMasterGrid = () => {
                                 {/* Stats */}
                                 <div className="row px-2 mb-3">
                                     {[
-                                        { label: 'Active Accounts',    value: accounts.length, bg: 'bg-primary', currency: false },
+                                        { label: 'Active Accounts',    value: paginationMeta.totalRecords, bg: 'bg-primary', currency: false },
                                         { label: 'Due Today',          value: accounts.filter(a => isFollowUpDue(a.accountActions?.nextFollowUpDate)).length, bg: 'bg-warning text-dark', currency: false },
                                         { label: 'Overdue Follow-ups', value: accounts.filter(a => isOverdue(a.accountActions?.nextFollowUpDate) && !isFollowUpDue(a.accountActions?.nextFollowUpDate)).length, bg: 'bg-danger', currency: false },
                                         { label: 'No Follow-up Set',   value: accounts.filter(a => !a.accountActions?.nextFollowUpDate).length, bg: 'bg-secondary', currency: false },
@@ -333,6 +332,7 @@ export const AccountFollowUpMasterGrid = () => {
                                                         <th className="align_left_td">Customer Name</th>
                                                         <th className="align_left_td">Project Name</th>
                                                         <th>PO Number</th>
+                                                        <th>Created By</th>
                                                         <th className="text-end">Invoiced</th>
                                                         <th className="text-end">Received</th>
                                                         <th className="text-end">Outstanding</th>
@@ -368,6 +368,10 @@ export const AccountFollowUpMasterGrid = () => {
                                                                     <td className="align_left_td wrap-text-of-col">{account.customerName || "N/A"}</td>
                                                                     <td className="align_left_td wrap-text-of-col">{account.projectName  || "N/A"}</td>
                                                                     <td>{account.poNumber || "N/A"}</td>
+                                                                    <td className="text-nowrap">
+                                                                        <i className="fa-solid fa-user me-1 opacity-50"></i>
+                                                                        {account.projectCreatedBy || account.projectId?.createdBy?.name || "N/A"}
+                                                                    </td>
                                                                     <td className="text-end">
                                                                         {totalInvoiced > 0 ? (
                                                                             <span style={{ color: '#0d6efd', fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap' }}>
@@ -461,7 +465,7 @@ export const AccountFollowUpMasterGrid = () => {
                                                         })
                                                     ) : (
                                                         <tr className="text-dark">
-                                                            <td colSpan="11" className="text-center py-4">
+                                                            <td colSpan="12" className="text-center py-4">
                                                                 {loading ? 'Loading...' : 'No active accounts found.'}
                                                             </td>
                                                         </tr>

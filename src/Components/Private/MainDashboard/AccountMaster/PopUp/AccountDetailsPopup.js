@@ -104,7 +104,11 @@ const AccountDetailsPopup = ({ account, handleClose }) => {
                 nextFollowUpDate: accountData.accountActions.nextFollowUpDate,
             };
             const data = await updateAccountActions(accountData._id, updateData);
-            if (data?.success) { toast.success(data.message); setAccountData(data.account); }
+            if (data?.success) {
+                toast.success(data.message);
+                // keep populated project info (Created By) from the earlier fetch
+                setAccountData(prev => ({ ...data.account, projectId: prev.projectId, projectCreatedBy: prev.projectCreatedBy }));
+            }
             else { toast.error(data?.error || 'Failed to update'); }
         } catch (error) { toast.error('Failed to update account'); }
         finally { setLoading(false); }
@@ -150,6 +154,7 @@ const AccountDetailsPopup = ({ account, handleClose }) => {
                                         <div className="col-6 mb-3"><small className="text-muted">Project</small><p className="fw-bold mb-0">{accountData.projectName}</p></div>
                                         <div className="col-6 mb-3"><small className="text-muted">PO Number</small><p className="mb-0">{accountData.poNumber || 'N/A'}</p></div>
                                         <div className="col-6 mb-3"><small className="text-muted">PO Value</small><p className="mb-0 text-primary fw-bold">{formatCurrency(accountData.basicAmount)}</p></div>
+                                        <div className="col-6 mb-3"><small className="text-muted">Project Created By</small><p className="mb-0 fw-bold"><i className="fa-solid fa-user me-1 text-muted"></i>{accountData.projectCreatedBy || accountData.projectId?.createdBy?.name || 'N/A'}</p></div>
                                         <div className="col-12 mt-2 border-top pt-2">
                                             <small className="text-muted fw-bold">Payment Terms:</small>
                                             <div className="row mt-1">
