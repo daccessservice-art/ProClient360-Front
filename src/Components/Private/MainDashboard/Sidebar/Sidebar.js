@@ -1,165 +1,184 @@
-import { Link } from "react-router-dom";
-import { useContext, useMemo } from "react";
-import { UserContext } from "../../../../context/UserContext";
-import "./Sidebar.css";
+const jwt = require('jsonwebtoken');
+const Company = require('../models/companyModel');
+const Admin = require('../models/adminModel');
+const Employee = require('../models/employeeModel');
+const { formatDate } = require('../utils/formatDate');
+const Designation = require('../models/designationModel');
 
-export const Sidebar = ({ isopen, active }) => {
-    const { user } = useContext(UserContext);
+// ---------- Helpers ----------
 
-    const perms = user?.permissions || [];
-    const has = (p) => perms.includes(p);
-    const isCompany = user?.user === "company";
-    const isEmployee = user?.user === "employee";
+const authError = (message, code, status = 401) => {
+  const err = new Error(message);
+  err.status = status;
+  err.code = code;
+  err.isAuthError = true;
+  return err;
+};
 
-    // ── logged-in user info for the bottom profile card ──
-    const profile = useMemo(() => {
-        try {
-            const u = JSON.parse(localStorage.getItem("user") || "{}");
-            const name = u?.name || u?.companyName || (isCompany ? "Company Admin" : "Welcome");
-            const role = u?.designation || (isCompany ? "Administrator" : "Employee");
-            const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-            return { name, role, initials: initials || "U" };
-        } catch {
-            return { name: "Welcome", role: "", initials: "U" };
+// Reads "Bearer <token>" and returns user id from token
+const getUserIdFromRequest = (req) => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not set in .env');
+  }
+
+  const header = req.headers['authorization'];
+  const token = header && header.startsWith('Bearer ')
+    ? header.split(' ')[1]
+    : header;
+
+  if (!token || token === 'null' || token === 'undefined') {
+    throw authError('Unauthorized: You need to log in first.', 'NO_TOKEN');
+  }
+
+  try {
+    return jwt.verify(token, secret).user;
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      throw authError('Session expired. Please log in again.', 'TOKEN_EXPIRED');
+    }
+    throw authError('Invalid or expired token.', 'TOKEN_INVALID');
+  }
+};
+
+// Token problem → 401 (frontend auto logout), server bug → 500 (no logout)
+const sendError = (res, err) => {
+  if (err.isAuthError) {
+    return res.status(err.status).json({ success: false, code: err.code, error: err.message });
+  }
+  console.error('Auth middleware error:', err);
+  return res.status(500).json({ success: false, error: 'Internal server error' });
+};
+
+// ---------- Middlewares ----------
+
+module.exports.isLoggedIn = async (req, res, next) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+
+    const user =
+      (await Employee.findById(userId)) ||
+      (await Company.findById(userId)) ||
+      (await Admin.findById(userId));
+
+    if (!user) {
+      throw authError('User not found.', 'USER_NOT_FOUND');
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    return sendError(res, err);
+  }
+};
+
+module.exports.isCompany = async (req, res, next) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    const company = await Company.findById(userId);
+
+    if (!company) {
+      return res.status(403).json({ success: false, error: 'Access denied. Companies only.' });
+    }
+
+    req.user = company;
+    next();
+  } catch (err) {
+    return sendError(res, err);
+  }
+};
+
+module.exports.isEmployee = async (req, res, next) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    const user = await Employee.findById(userId);
+
+    if (!user) {
+      return res.status(403).json({ success: false, error: 'Access denied. Employees only.' });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    return sendError(res, err);
+  }
+};
+
+module.exports.isAdmin = async (req, res, next) => {
+  try {
+    const userId = getUserIdFromRequest(req);
+    const user = await Admin.findById(userId);
+
+    if (!user) {
+      return res.status(403).json({ success: false, error: 'Access denied. Admins only.' });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    return sendError(res, err);
+  }
+};
+
+module.exports.permissionMiddleware = (permissions) => {
+  return async (req, res, next) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const now = new Date();
+
+      // Company user
+      const company = await Company.findById(userId);
+      if (company) {
+        if (company.subDate <= now) {
+          return res.status(400).json({
+            success: false,
+            error: 'Your account has been deactivated on: ' + formatDate(company.subDate)
+          });
         }
-    }, [isCompany]);
+        req.user = company;
+        return next();
+      }
 
-    // ── menu config: same permissions & routes as before, grouped into sections ──
-    const sections = [
-        {
-            title: "",
-            items: [
-                { show: isCompany, to: "/MainDashboard", key: "dashboard", label: "Dashboard", icon: "fa-solid fa-house" },
-                { show: isEmployee, to: "/EmployeeMainDashboard", key: "dashboard", label: "Dashboard", icon: "fa-solid fa-house" },
-                { show: isEmployee, to: "/EmployeeTaskGrid", key: "EmployeeTaskGrid", label: "My Projects", icon: "fa-solid fa-bars-progress" },
-                { show: isEmployee && has("viewService"), to: "/EmployeeMyServiceMasterGrid", key: "EmployeeMyServiceMasterGrid", label: "My Service", icon: "fa-solid fa-envelope" },
-                { show: has("surveyEngineer"), to: "/SurveyEngineerDashboard", key: "SurveyEngineerDashboard", label: "Survey Dashboard", icon: "fa-solid fa-clipboard-list" },
-            ],
-        },
-        {
-            title: "Sales & CRM",
-            items: [
-                { show: (has("viewLead") || isCompany) && !has("viewMarketingDashboard"), to: "/SalesMasterGrid", key: "SalesMasterGrid", label: "Sales Master", icon: "fa-solid fa-chart-pie" },
-                { show: has("viewMarketingDashboard") || isCompany, to: "/MarketingMasterGrid", key: "MarketingMasterGrid", label: "Marketing", icon: "fa-solid fa-chart-simple" },
-                { show: (has("viewLead") && has("viewSalesManagerMaster")) || isCompany, to: "/SalesManagerMasterGrid", key: "SalesManagerMasterGrid", label: "Sales Manager Dashboard", icon: "fa-solid fa-users-gear" },
-                { show: isCompany || has("viewSalesManagerMaster"), to: "/OldSalesHistory", key: "OldSalesHistory", label: "Old Sales History", icon: "fa-solid fa-clock-rotate-left" },
-                { show: has("viewCustomer") || isCompany, to: "/CustomerMasterGrid", key: "CustomerMasterGrid", label: "Customer Master", icon: "fa-solid fa-people-line" },
-                { show: has("viewCampaign") || isCompany, to: "/CampaignMasterGrid", key: "CampaignMasterGrid", label: "WhatsApp Campaigns", icon: "fa-brands fa-whatsapp" },
-                { show: has("viewEnteroCampaign") || isCompany, to: "/EnteroCampaignMasterGrid", key: "EnteroCampaignMasterGrid", label: "Entero WhatsApp", icon: "fa-brands fa-whatsapp" },
-                { show: has("viewExhibition") || isCompany, to: "/ExhibitionMasterGrid", key: "ExhibitionMasterGrid", label: "Exhibition Master", icon: "fa-solid fa-building-columns" },
-                { show: has("viewExhibitionVisit") || isCompany, to: "/ExhibitionVisitMasterGrid", key: "ExhibitionVisitMasterGrid", label: "Exhibition Visit", icon: "fa-solid fa-person-walking" },
-            ],
-        },
-        {
-            title: "Service",
-            items: [
-                { show: has("viewService") || isCompany, to: "/TicketMasterGrid", key: "TicketMasterGrid", label: "Ticket Master", icon: "fa-solid fa-ticket" },
-                { show: has("viewService") || isCompany, to: "/ServiceMasterGrid", key: "ServiceMasterGrid", label: "Service Master", icon: "fa-solid fa-address-card" },
-                { show: has("viewAMC") || isCompany, to: "/AMCMasterGrid", key: "AMCMasterGrid", label: "AMC", icon: "fa-solid fa-arrow-up-right-dots" },
-                { show: has("viewOldAMCHistory") || isCompany, to: "/OldAMCHistoryGrid", key: "OldAMCHistoryGrid", label: "Old AMC History", icon: "fa-solid fa-clock-rotate-left" },
-                { show: has("viewFeedback"), to: "/EmployeeFeedbackMasterGrid", key: "EmployeeFeedbackMasterGrid", label: "Feedback", icon: "fa-solid fa-comments" },
-            ],
-        },
-        {
-            title: "Purchase & Inventory",
-            items: [
-                { show: has("viewInventory") || isCompany, to: "/InventoryMasterGrid", key: "InventoryMasterGrid", label: "Inventory Master", icon: "fa-solid fa-boxes-stacked" },
-                { show: has("viewVendor") || isCompany, to: "/VendorMasterGrid", key: "VendorMasterGrid", label: "Vendor Master", icon: "fa-solid fa-truck" },
-                { show: has("viewProduct") || isCompany, to: "/ProductMasterGrid", key: "ProductMasterGrid", label: "Product Master", icon: "fa-solid fa-box" },
-                { show: has("viewPurchaseOrder") || isCompany, to: "/PurchaseOrderMasterGrid", key: "PurchaseOrderMasterGrid", label: "Purchase Order Master", icon: "fa-solid fa-file-invoice" },
-                { show: has("viewGRN") || isCompany, to: "/GRNMasterGrid", key: "GRNMasterGrid", label: "GRN Master", icon: "fa-solid fa-clipboard-check" },
-                { show: has("viewQC") || isCompany, to: "/QCMasterGrid", key: "QCMasterGrid", label: "Quality Inspection", icon: "fa-solid fa-ranking-star" },
-                { show: has("viewDC") || isCompany, to: "/DCMasterGrid", key: "DCMasterGrid", label: "Delivery Challan", icon: "fa-solid fa-truck-fast" },
-                { show: has("viewMRF") || isCompany, to: "/MRFMasterGrid", key: "MRFMasterGrid", label: "MRF Master", icon: "fa-solid fa-file-lines" },
-                { show: has("viewProjectPurchase") || isCompany, to: "/ProjectPurchaseMasterGrid", key: "ProjectPurchaseMasterGrid", label: "Project Purchase", icon: "fa-solid fa-cart-flatbed" },
-            ],
-        },
-        {
-            title: "Accounts",
-            items: [
-                { show: has("viewAccountMaster") || isCompany, to: "/AccountMasterGrid", key: "AccountMasterGrid", label: "Account Master", icon: "fa-solid fa-indian-rupee-sign" },
-                { show: has("viewAccountMaster") || isCompany, to: "/AccountFollowUpMasterGrid", key: "AccountFollowUpMasterGrid", label: "Account Follow-Up", icon: "fa-solid fa-phone-volume" },
-            ],
-        },
-        {
-            title: "Reports",
-            items: [
-                { show: has("viewActivityLog") || isCompany, to: "/ActivityLogReport", key: "ActivityLogReport", label: "Activity Logs", icon: "fa-solid fa-history" },
-                { show: has("viewAnnualReport") || isCompany, to: "/AnnualReport", key: "AnnualReport", label: "Annual Report", icon: "fa-solid fa-chart-bar" },
-            ],
-        },
-        {
-            title: "Organisation",
-            items: [
-                { show: has("viewEmployee") || isCompany, to: "/EmployeeMasterGrid", key: "EmployeeMasterGrid", label: "Employee Master", icon: "fa-solid fa-user-group" },
-                { show: true, to: "/ProjectMasterGrid", key: "ProjectMasterGrid", label: "Project Master", icon: "fa-solid fa-list-check" },
-                { show: has("viewDepartment") || isCompany, to: "/DepartmentMasterGrid", key: "DepartmentMasterGrid", label: "Department Master", icon: "fa-solid fa-sitemap" },
-                { show: has("viewDesignation") || isCompany, to: "/DesignationMasterGird", key: "DesignationMasterGird", label: "Designation Master", icon: "fa-solid fa-diamond" },
-                { show: has("viewTask") || isCompany, to: "/TaskMasterGrid", key: "TaskMasterGrid", label: "Task Master", icon: "fa-solid fa-bars-progress" },
-            ],
-        },
-    ];
+      // Employee user
+      const user = await Employee.findById(userId).populate('company', 'subDate');
+      if (!user) {
+        throw authError('User not found.', 'USER_NOT_FOUND');
+      }
 
-    return (
-        <div
-            className={`left-slidebar sb-shell ${isopen ? "sidebar-block sb-open" : "sidebar-none sb-collapsed"}`}
-            style={{ width: isopen ? "210px" : "97px" }}
-        >
-            {/* ── Logo ── */}
-            <div className="sb-brand">
-                <img
-                    src={user?.logo || "/static/assets/img/nav/DACCESS.png"}
-                    alt="Company logo"
-                />
-            </div>
+      if (!user.company) {
+        return res.status(403).json({ success: false, error: 'Company not found for this user.' });
+      }
 
-            {/* ── Menu ── */}
-            <nav id="sidebar" className="sb-nav" aria-label="Main menu">
-                {sections.map((sec, sIdx) => {
-                    const items = sec.items.filter((i) => i.show);
-                    if (!items.length) return null;
-                    return (
-                        <div className="sb-section" key={sec.title || `main-${sIdx}`}>
-                            {sec.title && (isopen
-                                ? <div className="sb-section-label">{sec.title}</div>
-                                : <div className="sb-divider" />
-                            )}
-                            <ul className="sb-list">
-                                {items.map((item) => {
-                                    const isActive = active === item.key;
-                                    return (
-                                        <li key={item.to} title={item.label}>
-                                            <Link
-                                                to={item.to}
-                                                className={`sb-link ${isActive ? "active" : ""}`}
-                                                aria-current={isActive ? "page" : undefined}
-                                            >
-                                                <span className="sb-icon">
-                                                    <i className={item.icon}></i>
-                                                </span>
-                                                {isopen && <span className="sb-label">{item.label}</span>}
-                                            </Link>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    );
-                })}
-            </nav>
+      if (user.company.subDate <= now) {
+        return res.status(400).json({
+          success: false,
+          error: 'Your account has been deactivated on: ' + formatDate(user.company.subDate)
+        });
+      }
 
-            {/* ── Logged-in user ── */}
-            <div className="sb-footer">
-                <div className="sb-user" title={`${profile.name}${profile.role ? " – " + profile.role : ""}`}>
-                    <div className="sb-avatar">{profile.initials}</div>
-                    {isopen && (
-                        <div style={{ minWidth: 0 }}>
-                            <div className="sb-user-name">{profile.name}</div>
-                            <div className="sb-user-role">{profile.role}</div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
+      const designation = await Designation.findById(user.designation);
+      if (!designation) {
+        return res.status(403).json({ success: false, error: `User's permissions not found.` });
+      }
+
+      const employeePermissions = designation.permissions || [];
+
+      // OR logic: employee needs ANY ONE of the permissions
+      const hasPermissions = permissions.some((permission) =>
+        employeePermissions.includes(permission)
+      );
+
+      if (!hasPermissions) {
+        return res.status(403).json({
+          success: false,
+          error: `You do not have the required permissions, ${permissions}`
+        });
+      }
+
+      req.user = user;
+      next();
+    } catch (err) {
+      return sendError(res, err);
+    }
+  };
 };
