@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import * as XLSX from "xlsx";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 import UpdateServicePopup from "./PopUp/UpdateServicePopUp";
+import EngineerLocationPopUp from "./PopUp/EngineerLocationPopUp"; // ✅ NEW — engineer live location
 import useServices from "../../../../hooks/service/useService";
 import useUpdateService from "../../../../hooks/service/useUpdateService";
 import useDeleteService from "../../../../hooks/service/useDeleteService";
@@ -786,6 +787,8 @@ export const ServiceMasterGrid = () => {
   const [UpdatePopUpShow,     setUpdatePopUpShow]     = useState(false);
   const [detailsServicePopUp, setDetailsServicePopUp] = useState(false);
   const [showReviewModal,     setShowReviewModal]     = useState(false);
+  // ✅ NEW — engineer live location popup (null = closed, [] = all engineers, [..] = one service engineers)
+  const [locationEngineers,   setLocationEngineers]   = useState(null);
 
   const [filters, setFilters] = useState({
     priority: null, status: null, serviceType: null, allotTo: null,
@@ -929,6 +932,8 @@ export const ServiceMasterGrid = () => {
   };
 
   const canReview = user?.user === 'company' || user?.permissions?.includes('updateService');
+  // ✅ NEW — who can see engineer location (Service Master users)
+  const canTrack = user?.user === 'company' || user?.permissions?.includes('viewService');
 
   return (
     <>
@@ -955,6 +960,17 @@ export const ServiceMasterGrid = () => {
                     <h5 className="text-white py-2 mb-0">Service Dashboard</h5>
                   </div>
                   <div className="col-12 col-lg-6 text-end d-flex align-items-center justify-content-end gap-2">
+                    {/* ✅ NEW — all engineers live location */}
+                    {canTrack && (
+                      <button
+                        className="btn btn-info btn-sm px-3 fw-bold text-white"
+                        onClick={() => setLocationEngineers([])}
+                        title="Engineer Live Location"
+                      >
+                        <i className="fa-solid fa-location-dot me-2"></i>
+                        Live Location
+                      </button>
+                    )}
                     {canReview && (
                       <button
                         className="btn btn-warning btn-sm px-3 fw-bold"
@@ -1155,6 +1171,15 @@ export const ServiceMasterGrid = () => {
                                       <i className="fa-solid fa-eye cursor-pointer text-primary mx-1"></i>
                                     </span>
                                   )}
+                                  {/* ✅ NEW — assigned engineer location */}
+                                  {canTrack && service.allotTo?.length > 0 && (
+                                    <span
+                                      onClick={() => setLocationEngineers(service.allotTo.map((e) => ({ _id: e._id, name: e.name })))}
+                                      title="Engineer Location"
+                                    >
+                                      <i className="fa-solid fa-location-dot cursor-pointer text-danger mx-1"></i>
+                                    </span>
+                                  )}
                                 </td>
                               </tr>
                             ))
@@ -1264,6 +1289,13 @@ export const ServiceMasterGrid = () => {
         <ViewServicePopUp
           closePopUp={handelDetailsPopUpClick}
           selectedService={selectedService}
+        />
+      )}
+      {/* ✅ NEW — engineer live location popup */}
+      {locationEngineers && (
+        <EngineerLocationPopUp
+          focusEngineers={locationEngineers}
+          closePopUp={() => setLocationEngineers(null)}
         />
       )}
     </>
