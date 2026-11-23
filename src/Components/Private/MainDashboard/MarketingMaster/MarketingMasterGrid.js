@@ -36,6 +36,14 @@ const formatLeadTime = (lead) => {
   return `${datePart} ${timePart}`;
 };
 
+// ✅ NEW — Created By display
+const getCreatedBy = (lead) => {
+  if (lead?.createdByName) return lead.createdByName;
+  if (lead?.SOURCE === 'IndiaMart' || lead?.SOURCE === 'TradeIndia') return `${lead.SOURCE} (Auto)`;
+  if (lead?.isCampaignLead) return 'WhatsApp Campaign';
+  return '—';
+};
+
 export const MarketingMasterGrid = () => {
   const [isopen, setIsOpen] = useState(false);
   const toggle = () => setIsOpen(!isopen);
@@ -319,6 +327,7 @@ export const MarketingMasterGrid = () => {
                             <th className="align_left_td td_width">Product</th>
                             <th>Mobile</th>
                             <th>Date</th>
+                            <th>Created By</th>
                             <th>Call Status</th>
                             <th>Action</th>
                           </tr>
@@ -344,6 +353,18 @@ export const MarketingMasterGrid = () => {
 
                                 <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
                                   {formatLeadTime(lead)}
+                                </td>
+
+                                {/* ✅ NEW — Created By */}
+                                <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                                  {lead?.createdByName ? (
+                                    <span className="fw-semibold">
+                                      <i className="fa-solid fa-user-pen me-1 text-primary"></i>
+                                      {getCreatedBy(lead)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted">{getCreatedBy(lead)}</span>
+                                  )}
                                 </td>
 
                                 <td className="text-center">
@@ -378,7 +399,7 @@ export const MarketingMasterGrid = () => {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="9" className="text-center">No data found</td>
+                              <td colSpan="10" className="text-center">No data found</td>
                             </tr>
                           )}
                         </tbody>

@@ -913,6 +913,19 @@ const ViewSalesLeadPopUp = ({ closePopUp, selectedLead }) => {
                     <InfoRow label="Source" value={selectedLead.SOURCE} colSpan={4} />
                     <InfoRow label="Query Time" value={formatDate(selectedLead.QUERY_TIME || selectedLead.createdAt)} colSpan={4} />
                     <InfoRow label="Created At" value={formatDate(selectedLead.createdAt)} colSpan={4} />
+                    {/* ✅ NEW — Created By */}
+                    <InfoRow
+                      label="Created By"
+                      value={
+                        selectedLead.createdByName ||
+                        (selectedLead.SOURCE === 'IndiaMart' || selectedLead.SOURCE === 'TradeIndia'
+                          ? `${selectedLead.SOURCE} (Auto)`
+                          : selectedLead.isCampaignLead
+                          ? 'WhatsApp Campaign'
+                          : '—')
+                      }
+                      colSpan={4}
+                    />
                     {selectedLead.QUERY_MESSAGE && (
                       <div className="col-12">
                         <span className="text-muted small d-block" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
