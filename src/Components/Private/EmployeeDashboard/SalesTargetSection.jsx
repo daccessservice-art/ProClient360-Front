@@ -177,7 +177,7 @@ export const SalesTargetSection = () => {
                   data.currentMonth.incentiveEligible
                     ? `Incentive earned ${formatINR(data.currentMonth.incentive)}`
                     : data.currentMonth.target > 0
-                      ? `${formatINR(Math.max(data.currentMonth.target - data.currentMonth.achieved, 0))} to go`
+                      ? `${formatINR(Math.max(data.currentMonth.target - data.currentMonth.achieved, 0))} to go (100% needed)`
                       : "No target this month"
                 }
                 noteColor={data.currentMonth.incentiveEligible ? MET : undefined}
@@ -269,11 +269,11 @@ export const SalesTargetSection = () => {
 
             <div className="st-rules">
               <i className="fa-solid fa-scale-balanced"></i>
-              Rules: monthly {data.incentiveRules.monthlyPoRate}% when 100% of month's PO target
+              Rules: monthly {data.incentiveRules.monthlyPoRate}% at 100%
               {data.incentiveRules.monthlyRequireAdvance ? " (POs with advance)" : ""} ·
               quarterly {data.incentiveRules.quarterlyRate}% at {data.incentiveRules.quarterlyThreshold}% ·
               yearly {data.incentiveRules.yearlyRate}% at {data.incentiveRules.yearlyThreshold}% ·
-              on {data.incentiveRules.basis === "achieved" ? "achieved PO amount" : "target amount"}
+              on {data.incentiveRules.basis === "achieved" ? "achieved PO amount (max 100% of target)" : "target amount"}
             </div>
             </>
             )}

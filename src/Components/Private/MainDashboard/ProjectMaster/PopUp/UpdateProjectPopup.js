@@ -237,13 +237,18 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
         )
             return;
 
-        if (["purchaseOrderValue", "completeLevel"].includes(name)) {
+        if (name === "purchaseOrderValue") {
+            // ✅ keep decimals (paise) — max 12 digits + 2 decimals
+            const v = String(value);
+            if (!/^\d{0,12}(\.\d{0,2})?$/.test(v)) return;
+            setProjects((prev) => ({ ...prev, purchaseOrderValue: v }));
+            return;
+        }
+
+        if (name === "completeLevel") {
             const numericValue = value.replace(/\D/g, "");
-            const maxLength = { purchaseOrderValue: 12, completeLevel: 10 }[
-                name
-            ];
-            if (numericValue.length > maxLength) return;
-            setProjects((prev) => ({ ...prev, [name]: numericValue }));
+            if (numericValue.length > 10) return;
+            setProjects((prev) => ({ ...prev, completeLevel: numericValue }));
             return;
         }
 
@@ -709,8 +714,8 @@ const UpdateProjectPopup = ({ handleUpdate, selectedProject }) => {
                                         </label>
                                         <input
                                             type="text"
-                                            inputMode="numeric"
-                                            maxLength="12"
+                                            inputMode="decimal"
+                                            maxLength="15"
                                             className="form-control rounded-0"
                                             name="purchaseOrderValue"
                                             placeholder="Update Order Value...."
