@@ -33,6 +33,44 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
     };
     const txStyle = txColorMap[dc?.transactionType] || { bg: "#f1f5f9", color: "#334155" };
 
+    // ── Customer address builder ────────────────────────────────────────────
+    const cust = dc?.customer || {};
+    const pick = (...vals) =>
+      vals.find((v) => v !== undefined && v !== null && String(v).trim() !== "");
+
+    const addrToText = (a) => {
+      if (!a) return "";
+      if (typeof a === "string") return a;
+      if (typeof a === "object") {
+        return [
+          a.add || a.address || a.line1 || a.street,
+          a.line2,
+          a.city,
+          a.state,
+          a.pincode || a.pinCode || a.zip || a.zipCode,
+          a.country,
+        ].filter(Boolean).join(", ");
+      }
+      return "";
+    };
+
+    const custAddressText = [
+      ...new Set(
+        [
+          addrToText(pick(cust.billingAddress, cust.address, cust.custAddress, cust.customerAddress, cust.addressLine1)),
+          cust.city,
+          cust.state,
+          cust.pincode || cust.pinCode || cust.zipCode,
+        ]
+          .filter(Boolean)
+          .map((s) => String(s).trim())
+      ),
+    ].join(", ");
+
+    const custGST   = pick(cust.GSTNo, cust.gstNo, cust.gstNumber, cust.GSTIN, cust.gstin);
+    const custPhone = pick(cust.phoneNumber1, cust.phone, cust.mobile);
+    const custEmail = pick(cust.email);
+
     const itemRows = (dc?.items || [])
       .map(
         (item, i) => `
@@ -88,7 +126,7 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
     }
     .box-label { font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
     .cust-name { font-size: 12.5px; font-weight: 800; color: #1e293b; margin-bottom: 3px; }
-    .cust-line { font-size: 10px; color: #475569; margin-bottom: 1px; }
+    .cust-line { font-size: 10px; color: #475569; margin-bottom: 2px; line-height: 1.4; }
 
     .dc-info-box { flex: 1; }
     .dc-info-box table { width: 100%; border-collapse: collapse; }
@@ -131,8 +169,11 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
       <div class="customer-box">
         <div class="box-label">Customer &amp; Delivery</div>
         <div class="cust-name">${dc?.customer?.custName || "—"}</div>
-        ${dc?.deliveryAddress ? `<div class="cust-line">${dc.deliveryAddress}</div>` : ""}
-        ${dc?.location ? `<div class="cust-line">Location: ${dc.location}</div>` : ""}
+        ${custAddressText ? `<div class="cust-line">${custAddressText}</div>` : ""}
+        ${custGST ? `<div class="cust-line"><b>GSTIN:</b> ${custGST}</div>` : ""}
+        ${custPhone ? `<div class="cust-line"><b>Contact:</b> ${custPhone}${custEmail ? ` &nbsp;|&nbsp; ${custEmail}` : ""}</div>` : ""}
+        ${dc?.deliveryAddress ? `<div class="cust-line" style="margin-top:6px;"><b>Delivery Address:</b> ${dc.deliveryAddress}</div>` : ""}
+        ${dc?.location ? `<div class="cust-line"><b>Location:</b> ${dc.location}</div>` : ""}
       </div>
       <div class="dc-info-box">
         <table>
@@ -332,7 +373,6 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
                   </div>
                 )}
 
-                {/* Items Section — Product Name column added */}
                 <div className="row mt-3">
                   <div className="col-12">
                     <h6 className="fw-bold">Items:</h6>
@@ -377,7 +417,6 @@ const ViewDCPopUp = ({ closePopUp, selectedDC }) => {
                   </div>
                 </div>
 
-                {/* Attachments Section — <a> tag kept on a single line */}
                 {dc?.attachments && dc.attachments.length > 0 && (
                   <div className="row mt-3">
                     <div className="col-12">
