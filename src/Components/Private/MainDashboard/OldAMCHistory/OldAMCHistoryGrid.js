@@ -8,6 +8,8 @@ import UpdateAMCHistoryPopUp from "./PopUp/UpdateAMCHistoryPopUp";
 import AMCCallPopUp, { OUTCOME_COLORS, fmtDateTime } from "./PopUp/AMCCallPopUp";
 // ── Project AMC Alerts panel (completed / ending projects from Project Master) ──
 import ProjectAMCAlertsPanel from "./ProjectAMCAlertsPanel";
+// ── NEW: Assign AMC to Sales (Self / another Sales Employee) ──
+import AssignAMCToSalesPopUp from "./PopUp/AssignAMCToSalesPopUp";
 import {
   getOldAMCHistory,
   importOldAMCHistory,
@@ -148,6 +150,14 @@ const getRowStyle = (status) => {
   };
 };
 
+// ── NEW: Sales lead status colours (Sales Master STATUS) ──
+const LEAD_STATUS_COLORS = {
+  Pending: { bg: "#facc15", text: "#422006" },
+  Ongoing: { bg: "#2563eb", text: "#fff" },
+  Won: { bg: "#16a34a", text: "#fff" },
+  Lost: { bg: "#dc2626", text: "#fff" },
+};
+
 const StatusBadge = ({ status, icon, text }) => {
   const st = STATUS_STYLES[status];
   return (
@@ -210,6 +220,9 @@ export const OldAMCHistoryGrid = () => {
   const [callRecord, setCallRecord] = useState(null);
   const [callSummary, setCallSummary] = useState({});
   const [alertCounts, setAlertCounts] = useState(null);
+
+  // ── NEW: assign to sales ──
+  const [assignRecord, setAssignRecord] = useState(null);
 
   const loadCallSummary = async (recs) => {
     const ids = (recs || []).map((r) => r._id).filter(Boolean);
@@ -353,6 +366,22 @@ export const OldAMCHistoryGrid = () => {
   const handleCallOpen = (record) => setCallRecord(record);
   const handleCallClose = (changed) => {
     setCallRecord(null);
+    if (changed) {
+      fetchData();
+      loadAlertCounts();
+    }
+  };
+
+  // ── NEW: Assign to Sales open / close ──
+  const handleAssignSalesOpen = (record) => {
+    if (record.lost) {
+      toast.error('This AMC is marked as Lost. Edit it and turn off "Lost" first.');
+      return;
+    }
+    setAssignRecord(record);
+  };
+  const handleAssignSalesClose = (changed) => {
+    setAssignRecord(null);
     if (changed) {
       fetchData();
       loadAlertCounts();
@@ -543,6 +572,12 @@ export const OldAMCHistoryGrid = () => {
                               const calledThisCycle = isCalledThisCycle(r.endDate, cs?.lastCallAt);
                               const needsCall = !r.lost && expiryInfo && !calledThisCycle;
 
+                              // ── NEW: sales assignment info ──
+                              const salesLeadObj = r.salesLead && typeof r.salesLead === "object" ? r.salesLead : null;
+                              const leadStatus = salesLeadObj?.STATUS || null;
+                              const salesOwner = salesLeadObj?.assignedTo?.name || r.salesAssignedToName || "";
+                              const hasOpenSalesLead = !!leadStatus && !["Won", "Lost"].includes(leadStatus);
+
                               return (
                                 <tr
                                   className="border my-4"
@@ -555,10 +590,25 @@ export const OldAMCHistoryGrid = () => {
                                     {r.sentToSales && (
                                       <span
                                         className="badge d-inline-flex align-items-center mt-1"
-                                        style={{ background: "#16a34a", fontSize: "0.68rem", whiteSpace: "nowrap", cursor: "help" }}
-                                        title={`Assigned to Sales${r.sentToSalesAt ? ` on ${new Date(r.sentToSalesAt).toLocaleDateString()}` : ""}${r.sentToSalesByName ? ` by ${r.sentToSalesByName}` : ""}`}
+                                        style={{ background: "#16a34a", fontSize: "0.68rem", whiteSpace: "nowrap", cursor: "pointer" }}
+                                        title={`Assigned to Sales${salesOwner ? ` → ${salesOwner}` : ""}${r.sentToSalesAt ? ` on ${new Date(r.sentToSalesAt).toLocaleDateString()}` : ""}${r.sentToSalesByName ? ` by ${r.sentToSalesByName}` : ""} — click to re-assign`}
+                                        onClick={() => handleAssignSalesOpen(r)}
                                       >
-                                        <i className="fa-solid fa-handshake me-1"></i>Sales Lead
+                                        <i className="fa-solid fa-handshake me-1"></i>Sales{salesOwner ? `: ${salesOwner}` : " Lead"}
+                                      </span>
+                                    )}
+                                    {/* ── NEW: live status of the Sales Master lead ── */}
+                                    {leadStatus && (
+                                      <span
+                                        className="badge d-inline-flex align-items-center mt-1 ms-1"
+                                        style={{
+                                          background: (LEAD_STATUS_COLORS[leadStatus] || {}).bg || "#475569",
+                                          color: (LEAD_STATUS_COLORS[leadStatus] || {}).text || "#fff",
+                                          fontSize: "0.68rem", whiteSpace: "nowrap", cursor: "help",
+                                        }}
+                                        title={`Sales lead status: ${leadStatus}${r.salesLead?.step ? ` · ${r.salesLead.step}` : ""}${r.salesLead?.complated ? ` · ${r.salesLead.complated}%` : ""}`}
+                                      >
+                                        <i className="fa-solid fa-chart-line me-1"></i>{leadStatus}
                                       </span>
                                     )}
                                     {/* record created from a Project Master project */}
@@ -705,6 +755,15 @@ export const OldAMCHistoryGrid = () => {
                                       style={{ cursor: "pointer", display: "inline-block", animation: needsCall ? "amcIconBlink 1s infinite" : "none" }}>
                                       <i className="fa-solid fa-phone text-primary cursor-pointer"></i>
                                     </span>
+                                    {/* ── NEW: Assign to Sales (self / another sales employee) ── */}
+                                    <span
+                                      onClick={() => handleAssignSalesOpen(r)}
+                                      className="me-2"
+                                      title={r.lost ? "Lost AMC — cannot assign to Sales" : hasOpenSalesLead ? `Re-assign Sales lead${salesOwner ? ` (now: ${salesOwner})` : ""}` : "Assign to Sales (Self / Sales Employee)"}
+                                      style={{ cursor: r.lost ? "not-allowed" : "pointer", display: "inline-block", opacity: r.lost ? 0.4 : 1 }}
+                                    >
+                                      <i className={`fa-solid ${hasOpenSalesLead ? "fa-user-pen" : "fa-handshake"} cursor-pointer`} style={{ color: "#16a34a" }}></i>
+                                    </span>
                                     <span onClick={() => handleUpdateOpen(r)} className="update me-2" title="Edit">
                                       <i className="fa-solid fa-pen text-success cursor-pointer"></i>
                                     </span>
@@ -765,6 +824,9 @@ export const OldAMCHistoryGrid = () => {
 
       {/* ── NEW: Call popup ── */}
       {callRecord && <AMCCallPopUp record={callRecord} handleClose={handleCallClose} />}
+
+      {/* ── NEW: Assign to Sales popup ── */}
+      {assignRecord && <AssignAMCToSalesPopUp record={assignRecord} handleClose={handleAssignSalesClose} />}
 
       <style>{`
         @keyframes amcBlinkRed {

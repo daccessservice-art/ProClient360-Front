@@ -84,6 +84,18 @@ const toggleOldAMCHistoryInProcess = async (id, inProcess) => {
   }
 };
 
+// ── NEW: Assign AMC to Sales (self / another sales employee) → creates a Sales Master lead ──
+// payload: { assignmentType: 'self' | 'employee', assignedTo, products, callLeads, nextFollowUpDate, remark }
+const assignAMCToSales = async (id, payload) => {
+  try {
+    const response = await axios.post(`${url}/${id}/assign-sales`, payload, { headers: authHeader() });
+    return response.data;
+  } catch (error) {
+    console.error(error?.response?.data);
+    return error?.response?.data || { success: false, error: 'Failed to assign AMC to Sales' };
+  }
+};
+
 const deleteOldAMCHistory = async (id) => {
   try {
     const response = await axios.delete(`${url}/${id}`, { headers: authHeader() });
@@ -155,6 +167,7 @@ export {
   createOldAMCHistory,
   updateOldAMCHistory,
   toggleOldAMCHistoryInProcess,
+  assignAMCToSales, // ── NEW ──
   deleteOldAMCHistory,
   deleteImportBatch,
   exportOldAMCHistoryPDF,

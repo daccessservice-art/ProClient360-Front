@@ -36,7 +36,6 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
     inProcess: !!selectedRecord?.inProcess,
     nextFollowUpDate: toDateInputValue(selectedRecord?.nextFollowUpDate),
     lost: !!selectedRecord?.lost,
-    sentToSales: !!selectedRecord?.sentToSales, // ── NEW ──
     startDate: toDateInputValue(selectedRecord?.startDate),
     endDate: toDateInputValue(selectedRecord?.endDate),
   });
@@ -98,11 +97,6 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
       lost: value ? false : prev.lost, // ── NEW ──
     }));
   };
-  // ── NEW: Sales Lead toggle ──
-  const handleSalesToggle = (e) => {
-    const checked = e.target.checked;
-    setRecord((prev) => ({ ...prev, sentToSales: checked }));
-  };
   // Lost toggle — turns In Process OFF, clears follow-up, Remark becomes required ──
   const handleLostToggle = (e) => {
     const checked = e.target.checked;
@@ -141,14 +135,20 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
       return toast.error(`Remark cannot exceed ${REMARK_MAX_LENGTH} characters`);
     }
 
+    // ── Sales assignment is handled by the "Assign to Sales" button — never sent from here ──
+    const rest = { ...record };
+    [
+      "salesLead", "salesAssignedTo", "salesAssignedToName", "salesAssignType",
+      "sentToSales", "sentToSalesAt", "sentToSalesByName",
+    ].forEach((k) => delete rest[k]);
+
     const payload = {
-      ...record,
+      ...rest,
       custName: record.custName.trim(),
       email: (record.email || "").trim(),
       system: (record.system || "").trim(), // ── NEW ──
       remark: (record.remark || "").trim(),
       lost: !!record.lost,
-      sentToSales: !!record.sentToSales, // ── NEW ──
       inProcess: record.lost ? false : (!!record.inProcess || !!record.nextFollowUpDate),
       nextFollowUpDate: record.lost ? null : (record.nextFollowUpDate || null),
       startDate: record.startDate || null,
@@ -379,29 +379,37 @@ const UpdateAMCHistoryPopUp = ({ handleUpdate, selectedRecord }) => {
                   </div>
                 </div>
 
-                {/* ── NEW: Sales Lead toggle ── */}
+                {/* ── Sales assignment (read-only here — use the green handshake button on the grid) ── */}
                 <div className="col-12">
                   <div className="mb-3 p-2" style={{
-                    border: record.sentToSales ? "1px solid #16a34a" : "1px dashed #cbd5e1",
-                    background: record.sentToSales ? "rgba(22,163,74,0.06)" : "transparent",
+                    border: selectedRecord?.sentToSales ? "1px solid #16a34a" : "1px dashed #cbd5e1",
+                    background: selectedRecord?.sentToSales ? "rgba(22,163,74,0.06)" : "transparent",
                   }}>
-                    <div className="form-check form-switch mb-0">
-                      <input className="form-check-input" type="checkbox" role="switch" id="salesSwitch"
-                        style={{ cursor: "pointer", ...(record.sentToSales ? { backgroundColor: "#16a34a", borderColor: "#16a34a" } : {}) }}
-                        checked={!!record.sentToSales} onChange={handleSalesToggle} />
-                      <label className="form-check-label label_text" htmlFor="salesSwitch" style={{ cursor: "pointer" }}>
-                        {record.sentToSales
-                          ? <span className="badge" style={{ background: "#16a34a" }}><i className="fa-solid fa-handshake me-1"></i>Assigned to Sales</span>
-                          : <span className="text-muted">Send to Sales Leads</span>}
-                      </label>
-                    </div>
-                    <small className="d-block text-muted mt-1">
-                      {record.sentToSales
-                        ? (selectedRecord?.sentToSales && selectedRecord?.sentToSalesAt
-                            ? `Sent to Sales on ${new Date(selectedRecord.sentToSalesAt).toLocaleDateString()}${selectedRecord.sentToSalesByName ? ` by ${selectedRecord.sentToSalesByName}` : ""}`
-                            : "This AMC will be marked as a Sales lead when you click Update.")
-                        : "Turn on to show everyone that this AMC is assigned to the Sales team."}
-                    </small>
+                    {selectedRecord?.sentToSales ? (
+                      <>
+                        <span className="badge" style={{ background: "#16a34a" }}>
+                          <i className="fa-solid fa-handshake me-1"></i>
+                          Assigned to Sales
+                          {(selectedRecord?.salesLead?.assignedTo?.name || selectedRecord?.salesAssignedToName)
+                            ? `: ${selectedRecord?.salesLead?.assignedTo?.name || selectedRecord?.salesAssignedToName}`
+                            : ""}
+                        </span>
+                        {selectedRecord?.salesLead?.STATUS && (
+                          <span className="badge bg-secondary ms-2">Lead: {selectedRecord.salesLead.STATUS}</span>
+                        )}
+                        <small className="d-block text-muted mt-1">
+                          {selectedRecord?.sentToSalesAt
+                            ? `Sent on ${new Date(selectedRecord.sentToSalesAt).toLocaleDateString()}${selectedRecord?.sentToSalesByName ? ` by ${selectedRecord.sentToSalesByName}` : ""}. `
+                            : ""}
+                          To re-assign, use the green <i className="fa-solid fa-handshake"></i> button on the AMC list.
+                        </small>
+                      </>
+                    ) : (
+                      <small className="text-muted">
+                        <i className="fa-solid fa-handshake me-1"></i>
+                        Not assigned to Sales. Use the green <i className="fa-solid fa-handshake"></i> button on the AMC list to create a Sales lead (Self or another Sales Employee).
+                      </small>
+                    )}
                   </div>
                 </div>
 
