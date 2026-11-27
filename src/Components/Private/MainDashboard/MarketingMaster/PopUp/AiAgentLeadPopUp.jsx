@@ -63,12 +63,12 @@ const AiAgentLeadPopUp = ({ lead, onClose, onCalled }) => {
       if (!ignoreHours) return;
     }
     setCalling(true);
-    const t = toast.loading("Starting Tripti...");
+    const t = toast.loading("Starting Arohi...");
     const res = await callLeadWithAi(lead._id, ignoreHours);
     toast.dismiss(t);
     setCalling(false);
     if (res?.success) {
-      toast.success(res.message || "Tripti is calling the customer");
+      toast.success(res.message || "Arohi is calling the customer");
       load(true);
       onCalled && onCalled();
     } else {
@@ -87,7 +87,7 @@ const AiAgentLeadPopUp = ({ lead, onClose, onCalled }) => {
           <div className="modal-header">
             <h5 className="modal-title fw-bold">
               <i className="fa-solid fa-robot me-2 text-primary"></i>
-              AI Agent (Tripti) — {lead?.SENDER_NAME || lead?.SENDER_COMPANY || "Lead"}
+              AI Agent (Arohi) — {lead?.SENDER_NAME || lead?.SENDER_COMPANY || "Lead"}
             </h5>
             <button type="button" className="btn-close" onClick={onClose}></button>
           </div>
@@ -120,7 +120,7 @@ const AiAgentLeadPopUp = ({ lead, onClose, onCalled }) => {
                     <>
                       <button type="button" className="btn btn-primary w-100" disabled={calling || hasActive} onClick={handleCall}>
                         <i className="fa-solid fa-phone-volume me-2"></i>
-                        {hasActive ? "Call in progress..." : calling ? "Starting..." : "Call with Tripti"}
+                        {hasActive ? "Call in progress..." : calling ? "Starting..." : "Call with Arohi"}
                       </button>
                       <small className="text-muted mt-2 d-block">
                         {data?.dryRun ? "⚠️ Test mode (DRY_RUN) — no real phone call" : data?.withinHours ? "Calling hours: open" : "Outside calling hours"}
@@ -182,7 +182,7 @@ const AiAgentLeadPopUp = ({ lead, onClose, onCalled }) => {
                       <div style={{ fontSize: "0.88rem" }}>
                         <span className={`badge ${b.cls} me-2`}>{b.text}</span>
                         <i className={`fa-solid ${c.direction === "inbound" ? "fa-arrow-down text-success" : "fa-arrow-up text-primary"} me-1`}></i>
-                        {c.direction === "inbound" ? "Customer called" : "Tripti called"} · {formatIST(c.createdAt)}
+                        {c.direction === "inbound" ? "Customer called" : "Arohi called"} · {formatIST(c.createdAt)}
                         {c.durationSec > 0 && <span className="text-muted"> · {Math.floor(c.durationSec / 60)}m {c.durationSec % 60}s</span>}
                       </div>
                       {c.recordingUrl && (

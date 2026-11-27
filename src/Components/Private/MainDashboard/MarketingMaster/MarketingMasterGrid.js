@@ -275,7 +275,7 @@ export const MarketingMasterGrid = () => {
                     {aiConfig?.enabled && (
                       <div className="me-3">
                         <button onClick={() => setAiDashboardOpen(true)} type="button" className="btn btn-primary btn-sm"
-                          title="Tripti — AI calling agent">
+                          title="Arohi — AI calling agent">
                           <i className="fa-solid fa-robot me-2"></i>AI Agent
                           {aiConfig.dryRun && <span className="badge bg-warning text-dark ms-2">TEST</span>}
                         </button>
@@ -439,7 +439,7 @@ export const MarketingMasterGrid = () => {
                                   </span>
                                   {/* AI CALLING – NEW — AI Agent (Tripti) */}
                                   {aiConfig?.enabled && (
-                                    <span onClick={() => setAiLead(lead)} title="AI Agent (Tripti) — call & history" style={{ cursor: 'pointer' }}>
+                                    <span onClick={() => setAiLead(lead)} title="AI Agent (Arohi) — call & history" style={{ cursor: 'pointer' }}>
                                       <i className="fa-solid fa-robot text-success mx-1"></i>
                                     </span>
                                   )}

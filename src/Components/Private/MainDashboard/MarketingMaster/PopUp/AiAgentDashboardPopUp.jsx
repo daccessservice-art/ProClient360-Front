@@ -40,7 +40,7 @@ const AiAgentDashboardPopUp = ({ pageLeads = [], onClose, onOpenLead, onQueued }
   const handleQueuePage = async () => {
     if (!eligibleOnPage.length) return toast.error("No leads on this page are enabled for AI calling.");
     // eslint-disable-next-line no-alert
-    if (!window.confirm(`Queue ${eligibleOnPage.length} lead(s) from this page for Tripti?\nShe will call them within calling hours (blocked sources and the testing lock are still respected).`)) return;
+    if (!window.confirm(`Queue ${eligibleOnPage.length} lead(s) from this page for Arohi?\nShe will call them within calling hours (blocked sources and the testing lock are still respected).`)) return;
     setQueueing(true);
     const res = await queueLeadsForAi(eligibleOnPage.map((l) => l._id));
     setQueueing(false);
@@ -63,7 +63,7 @@ const AiAgentDashboardPopUp = ({ pageLeads = [], onClose, onOpenLead, onQueued }
         <div className="modal-content" style={{ maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
           <div className="modal-header">
             <h5 className="modal-title fw-bold">
-              <i className="fa-solid fa-robot me-2 text-primary"></i>AI Calling Agent — Tripti
+              <i className="fa-solid fa-robot me-2 text-primary"></i>AI Calling Agent — Arohi
             </h5>
             <button type="button" className="btn-close" onClick={onClose}></button>
           </div>
