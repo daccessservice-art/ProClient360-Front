@@ -18,6 +18,10 @@ import useDeleteLead from "../../../../hooks/leads/useDeleteLead";
 import DeletePopUP from "../../CommonPopUp/DeletePopUp";
 // ✅ NEW — Landing pages (DAccess / CafeLive / WorkBridge)
 import { getLandingLeadStats } from "../../../../hooks/leads/useLandingPageLeads";
+// AI CALLING – NEW — Tripti (AI calling agent)
+import AiAgentLeadPopUp from "./PopUp/AiAgentLeadPopUp";
+import AiAgentDashboardPopUp from "./PopUp/AiAgentDashboardPopUp";
+import { getAiConfig, getAiStatus, callBadge } from "../../../../hooks/aiCalling/aiAgentApi";
 
 // ── TIME FIX: accepts full lead object, picks QUERY_TIME → createdAt ──
 // Both are stored as UTC in MongoDB.
@@ -57,6 +61,11 @@ export const MarketingMasterGrid = () => {
   const [processingStaleLeads, setProcessingStaleLeads] = useState(false);
   // ✅ NEW — Landing page leads count
   const [landingStats, setLandingStats] = useState({ total: 0, newCount: 0 });
+  // AI CALLING – NEW
+  const [aiConfig, setAiConfig] = useState(null);
+  const [aiStatus, setAiStatus] = useState({});
+  const [aiLead, setAiLead] = useState(null);
+  const [aiDashboardOpen, setAiDashboardOpen] = useState(false);
 
   const { user } = useContext(UserContext);
   const [filters, setFilters] = useState({ date: null, source: null });
@@ -119,6 +128,19 @@ export const MarketingMasterGrid = () => {
       if (r?.success) setLandingStats({ total: r.total || 0, newCount: r.newCount || 0 });
     });
   }, [data]);
+
+  // AI CALLING – NEW — load Tripti settings once
+  useEffect(() => {
+    getAiConfig().then((r) => { if (r?.success) setAiConfig(r); });
+  }, []);
+
+  // AI CALLING – NEW — AI call badges for the leads on this page
+  const loadAiStatus = () => {
+    const ids = (data?.leads || []).map((l) => l._id);
+    if (!aiConfig?.enabled || !ids.length) return;
+    getAiStatus(ids).then((r) => { if (r?.success) setAiStatus(r.status || {}); });
+  };
+  useEffect(() => { loadAiStatus(); }, [data, aiConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= pagination.totalPages) {
@@ -246,6 +268,16 @@ export const MarketingMasterGrid = () => {
                               Process Stale Leads
                             </>
                           )}
+                        </button>
+                      </div>
+                    )}
+                    {/* AI CALLING – NEW — AI Agent button */}
+                    {aiConfig?.enabled && (
+                      <div className="me-3">
+                        <button onClick={() => setAiDashboardOpen(true)} type="button" className="btn btn-primary btn-sm"
+                          title="Tripti — AI calling agent">
+                          <i className="fa-solid fa-robot me-2"></i>AI Agent
+                          {aiConfig.dryRun && <span className="badge bg-warning text-dark ms-2">TEST</span>}
                         </button>
                       </div>
                     )}
@@ -378,6 +410,17 @@ export const MarketingMasterGrid = () => {
                                   ) : (
                                     <span className="text-muted" style={{ fontSize: '0.8rem' }}>Pending</span>
                                   )}
+                                  {/* AI CALLING – NEW — Tripti badge */}
+                                  {aiStatus[lead._id] && (
+                                    <div>
+                                      <span className={`badge ${callBadge({ outcome: aiStatus[lead._id].lastOutcome, status: aiStatus[lead._id].lastStatus, providerCallId: aiStatus[lead._id].dryRun ? 'dryrun-' : '' }).cls} mt-1`}
+                                        style={{ fontSize: '0.65rem', cursor: 'pointer' }} onClick={() => setAiLead(lead)}
+                                        title={`${aiStatus[lead._id].calls} AI call(s) — click for history`}>
+                                        <i className="fa-solid fa-robot me-1"></i>
+                                        {callBadge({ outcome: aiStatus[lead._id].lastOutcome, status: aiStatus[lead._id].lastStatus, providerCallId: aiStatus[lead._id].dryRun ? 'dryrun-' : '' }).text}
+                                      </span>
+                                    </div>
+                                  )}
                                 </td>
 
                                 <td>
@@ -394,6 +437,12 @@ export const MarketingMasterGrid = () => {
                                   <span onClick={() => handleDetailsPopUpClick(lead)} title="View Details" style={{ cursor: 'pointer' }}>
                                     <i className="fa-solid fa-eye cursor-pointer text-primary mx-1"></i>
                                   </span>
+                                  {/* AI CALLING – NEW — AI Agent (Tripti) */}
+                                  {aiConfig?.enabled && (
+                                    <span onClick={() => setAiLead(lead)} title="AI Agent (Tripti) — call & history" style={{ cursor: 'pointer' }}>
+                                      <i className="fa-solid fa-robot text-success mx-1"></i>
+                                    </span>
+                                  )}
                                 </td>
                               </tr>
                             ))
@@ -466,6 +515,23 @@ export const MarketingMasterGrid = () => {
         <ViewSalesLeadPopUp
           closePopUp={() => { setDetailsServicePopUp(false); setSelectedLead(null); }}
           selectedLead={selectedLead}
+        />
+      )}
+
+      {/* AI CALLING – NEW — popups */}
+      {aiDashboardOpen && (
+        <AiAgentDashboardPopUp
+          pageLeads={data?.leads || []}
+          onClose={() => setAiDashboardOpen(false)}
+          onOpenLead={(l) => setAiLead(l)}
+          onQueued={loadAiStatus}
+        />
+      )}
+      {aiLead && (
+        <AiAgentLeadPopUp
+          lead={aiLead}
+          onClose={() => { setAiLead(null); loadAiStatus(); }}
+          onCalled={loadAiStatus}
         />
       )}
 
